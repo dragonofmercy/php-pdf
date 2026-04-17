@@ -65,12 +65,12 @@ final readonly class Color
     {
         if ($this->isGray) {
             $op = $stroke ? 'G' : 'g';
-            return PdfNumber::ofFloat($this->r)->toBytes() . ' ' . $op;
+            return PdfNumber::ofFloat($this->r)->toBytes() . ' ' . $op . "\n";
         }
         $op = $stroke ? 'RG' : 'rg';
         return PdfNumber::ofFloat($this->r)->toBytes()
             . ' ' . PdfNumber::ofFloat($this->g)->toBytes()
             . ' ' . PdfNumber::ofFloat($this->b)->toBytes()
-            . ' ' . $op;
+            . ' ' . $op . "\n";
     }
 }

@@ -85,13 +85,13 @@ final class Page
 
     public function setStrokeColor(Color $color): self
     {
-        $this->stream->append($color->toPdfOperator(stroke: true) . "\n");
+        $this->stream->append($color->toPdfOperator(stroke: true));
         return $this;
     }
 
     public function setFillColor(Color $color): self
     {
-        $this->stream->append($color->toPdfOperator(stroke: false) . "\n");
+        $this->stream->append($color->toPdfOperator(stroke: false));
         return $this;
     }
 

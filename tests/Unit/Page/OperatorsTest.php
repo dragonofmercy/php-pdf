@@ -96,6 +96,7 @@ final class OperatorsTest extends TestCase
 
     public function testRotateDegreesIsConvertedToRadians(): void
     {
-        self::assertSame("0 1 -1 0 0 0 cm\n", Operators::rotate(90));
+        // 90° CW in Y-down user space = cos=0, -sin=-1, sin=1, cos=0
+        self::assertSame("0 -1 1 0 0 0 cm\n", Operators::rotate(90));
     }
 }

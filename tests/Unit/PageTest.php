@@ -107,7 +107,7 @@ final class PageTest extends TestCase
         $page->scale(2, 3);
         $page->rotate(90);
         self::assertSame(
-            "1 0 0 1 10 20 cm\n2 0 0 3 0 0 cm\n0 1 -1 0 0 0 cm\n",
+            "1 0 0 1 10 20 cm\n2 0 0 3 0 0 cm\n0 -1 1 0 0 0 cm\n",
             $this->content($page),
         );
     }

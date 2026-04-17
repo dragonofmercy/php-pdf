@@ -114,7 +114,10 @@ final class Operators
         $rad = deg2rad($degrees);
         $cos = cos($rad);
         $sin = sin($rad);
-        return self::concatMatrix($cos, $sin, -$sin, $cos, 0, 0);
+        // CW-compensated for Y-down user space (after the Y-flip CTM applied
+        // at the start of every ContentStream). Standard PDF CCW is
+        // [cos sin -sin cos]; negating the sin terms gives CW.
+        return self::concatMatrix($cos, -$sin, $sin, $cos, 0, 0);
     }
 
     private static function num(float $value): string
