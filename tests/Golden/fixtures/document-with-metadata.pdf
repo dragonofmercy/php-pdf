@@ -7,7 +7,7 @@ endobj
 << /Type /Pages /Kids [5 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Title <FEFF0054006500730074> /Author <FEFF0055007300650072> /Subject <FEFF00500068006100730065002000310061> /Keywords <FEFF007000680070007000640066002C00200074006500730074> /Creator <FEFF0054006500730074002000530075006900740065> /Producer <FEFF00700068007000700064006600200030002E0031002D0070006800610073006500310062> /CreationDate (D:20260101120000Z) >>
+<< /Title <FEFF0054006500730074> /Author <FEFF0055007300650072> /Subject <FEFF00500068006100730065002000310061> /Keywords <FEFF007000680070007000640066002C00200074006500730074> /Creator <FEFF0054006500730074002000530075006900740065> /Producer <FEFF00700068007000700064006600200030002E0031002D0070006800610073006500310061> /CreationDate (D:20260101120000Z) >>
 endobj
 4 0 obj
 << /Type /Metadata /Subtype /XML /Length 819 >>
@@ -21,7 +21,7 @@ stream
 <dc:description><rdf:Alt><rdf:li xml:lang="x-default">Phase 1a</rdf:li></rdf:Alt></dc:description>
 <pdf:Keywords>phppdf, test</pdf:Keywords>
 <xmp:CreatorTool>Test Suite</xmp:CreatorTool>
-<pdf:Producer>phppdf 0.1-phase1b</pdf:Producer>
+<pdf:Producer>phppdf 0.1-phase1a</pdf:Producer>
 <xmp:CreateDate>2026-01-01T12:00:00+00:00</xmp:CreateDate>
 </rdf:Description>
 </rdf:RDF>

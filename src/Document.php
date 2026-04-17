@@ -30,7 +30,7 @@ use PhpPdf\Writer\XrefTable;
 
 final class Document
 {
-    private const string VERSION = '0.1-phase1b';
+    private const string VERSION = '0.1-phase1a';
 
     private const float A4_WIDTH = 595.28;
     private const float A4_HEIGHT = 841.89;
