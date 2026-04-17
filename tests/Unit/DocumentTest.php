@@ -194,4 +194,28 @@ final class DocumentTest extends TestCase
         $doc->addPage();
         $doc->output();
     }
+
+    public function testAddPageReturnsPageInstance(): void
+    {
+        $doc = new Document();
+        self::assertInstanceOf(\PhpPdf\Page::class, $doc->addPage());
+    }
+
+    public function testPageWithoutDrawingDoesNotEmitContentsEntry(): void
+    {
+        $doc = new Document();
+        $doc->addPage();
+        $bytes = $doc->output();
+        self::assertStringNotContainsString('/Contents', $bytes);
+    }
+
+    public function testPageWithDrawingEmitsContentsReference(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->rect(10, 10, 100, 50)->stroke();
+        $bytes = $doc->output();
+        self::assertStringContainsString('/Contents 4 0 R', $bytes);
+        self::assertStringContainsString('/Filter /FlateDecode', $bytes);
+    }
 }

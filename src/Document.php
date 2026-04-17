@@ -16,6 +16,7 @@ use PhpPdf\Encryption\EncryptionKey;
 use PhpPdf\Encryption\ObjectTransformer;
 use PhpPdf\Encryption\PasswordHash;
 use PhpPdf\Exception\PdfException;
+use PhpPdf\Writer\Object\CompressedStream;
 use PhpPdf\Writer\Object\Dictionary;
 use PhpPdf\Writer\Object\IndirectObject;
 use PhpPdf\Writer\Object\Name;
@@ -37,7 +38,9 @@ final class Document
 
     private const string HEADER = "%PDF-1.7\n%\xE2\xE3\xCF\xD3\n";
 
-    private int $pageCount = 0;
+    /** @var list<Page> */
+    private array $pages = [];
+
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
 
@@ -51,14 +54,16 @@ final class Document
         return $this->encryption ??= new Encryption();
     }
 
-    public function addPage(): void
+    public function addPage(): Page
     {
-        $this->pageCount++;
+        $page = new Page(pageWidth: self::A4_WIDTH, pageHeight: self::A4_HEIGHT);
+        $this->pages[] = $page;
+        return $page;
     }
 
     public function output(): string
     {
-        if ($this->pageCount === 0) {
+        if ($this->pages === []) {
             throw new PdfException('Document has no pages');
         }
 
@@ -80,8 +85,6 @@ final class Document
         }
     }
 
-    // ----- unencrypted paths (unchanged from Phase 1a) -----
-
     private function outputWithoutMetadata(): string
     {
         $pagesRef = PdfReference::to(2, 0);
@@ -94,7 +97,7 @@ final class Document
                 ->withEntry(Name::of('Pages'), $pagesRef),
         );
 
-        [$pageObjects, $pageRefs] = $this->buildPageObjects(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesWithContents(firstObjectNumber: 3, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -102,10 +105,10 @@ final class Document
             Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Pages'))
                 ->withEntry(Name::of('Kids'), PdfArray::of(...$pageRefs))
-                ->withEntry(Name::of('Count'), PdfNumber::ofInt($this->pageCount)),
+                ->withEntry(Name::of('Count'), PdfNumber::ofInt(count($this->pages))),
         );
 
-        return (new PdfWriter())->write([$catalog, $pages, ...$pageObjects], $catalog->reference());
+        return (new PdfWriter())->write([$catalog, $pages, ...$pageAndContentObjects], $catalog->reference());
     }
 
     private function outputWithMetadata(Metadata $metadata): string
@@ -126,7 +129,7 @@ final class Document
                 ->withEntry(Name::of('Metadata'), $metadataStreamRef),
         );
 
-        [$pageObjects, $pageRefs] = $this->buildPageObjects(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesWithContents(firstObjectNumber: 5, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -134,7 +137,7 @@ final class Document
             Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Pages'))
                 ->withEntry(Name::of('Kids'), PdfArray::of(...$pageRefs))
-                ->withEntry(Name::of('Count'), PdfNumber::ofInt($this->pageCount)),
+                ->withEntry(Name::of('Count'), PdfNumber::ofInt(count($this->pages))),
         );
 
         $info = IndirectObject::of(3, 0, $this->buildInfoDictionary($effective));
@@ -142,7 +145,7 @@ final class Document
         $xmpXml = (new XmpWriter())->write($effective);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageObjects];
+        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects];
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
@@ -154,8 +157,6 @@ final class Document
         );
     }
 
-    // ----- encrypted path -----
-
     private function outputEncrypted(Encryption $encryption, ?Metadata $metadata): string
     {
         if ($encryption->userPassword === null || $encryption->ownerPassword === null) {
@@ -164,7 +165,7 @@ final class Document
 
         $randomSource = $encryption->randomSource ?? static function (int $n): string {
             if ($n < 1) {
-                throw new PdfException('randomSource requires a positive byte count');
+                throw new PdfException('Invalid random byte count: ' . $n);
             }
             return random_bytes($n);
         };
@@ -198,14 +199,18 @@ final class Document
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
 
-        [$pageObjects, $pageRefs] = $this->buildPageObjects(firstObjectNumber: $firstPageObjectNumber, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesWithContents(
+            firstObjectNumber: $firstPageObjectNumber,
+            pagesRef: $pagesRef,
+        );
+
         $pages = IndirectObject::of(
             2,
             0,
             Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Pages'))
                 ->withEntry(Name::of('Kids'), PdfArray::of(...$pageRefs))
-                ->withEntry(Name::of('Count'), PdfNumber::ofInt($this->pageCount)),
+                ->withEntry(Name::of('Count'), PdfNumber::ofInt(count($this->pages))),
         );
         $objects[] = $pages;
 
@@ -232,9 +237,9 @@ final class Document
         $encryptObject = IndirectObject::of($encryptObjectNumber, 0, $encryptDict);
         $objects[] = $encryptObject;
 
-        $objects = array_merge($objects, $pageObjects);
+        $objects = array_merge($objects, $pageAndContentObjects);
 
-        $documentId = $hasMetadata
+        $documentId = $metadata !== null
             ? ($metadata->documentId ?? $this->deriveDocumentId($effectiveMetadata))
             : bin2hex($randomSource(16));
 
@@ -257,33 +262,48 @@ final class Document
         );
     }
 
-    // ----- shared helpers -----
-
     /**
      * @return array{list<IndirectObject>, list<PdfReference>}
      */
-    private function buildPageObjects(int $firstObjectNumber, PdfReference $pagesRef): array
+    private function buildPagesWithContents(int $firstObjectNumber, PdfReference $pagesRef): array
     {
+        $objects = [];
         $pageRefs = [];
-        $pageObjects = [];
-        for ($i = 0; $i < $this->pageCount; $i++) {
-            $pageObjectNumber = $firstObjectNumber + $i;
+        $nextObjectNumber = $firstObjectNumber;
+
+        foreach ($this->pages as $page) {
+            $pageObjectNumber = $nextObjectNumber++;
             $pageRefs[] = PdfReference::to($pageObjectNumber, 0);
-            $pageObjects[] = IndirectObject::of(
-                $pageObjectNumber,
-                0,
-                Dictionary::empty()
-                    ->withEntry(Name::of('Type'), Name::of('Page'))
-                    ->withEntry(Name::of('Parent'), $pagesRef)
-                    ->withEntry(Name::of('MediaBox'), PdfArray::of(
-                        PdfNumber::ofInt(0),
-                        PdfNumber::ofInt(0),
-                        PdfNumber::ofFloat(self::A4_WIDTH),
-                        PdfNumber::ofFloat(self::A4_HEIGHT),
-                    )),
-            );
+
+            $pageDict = Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Page'))
+                ->withEntry(Name::of('Parent'), $pagesRef)
+                ->withEntry(Name::of('MediaBox'), PdfArray::of(
+                    PdfNumber::ofInt(0),
+                    PdfNumber::ofInt(0),
+                    PdfNumber::ofFloat($page->pageWidth),
+                    PdfNumber::ofFloat($page->pageHeight),
+                ));
+
+            $contentStream = $page->contentStream();
+            if (!$contentStream->isEmpty()) {
+                $contentObjectNumber = $nextObjectNumber++;
+                $pageDict = $pageDict->withEntry(
+                    Name::of('Contents'),
+                    PdfReference::to($contentObjectNumber, 0),
+                );
+                $objects[] = IndirectObject::of($pageObjectNumber, 0, $pageDict);
+                $objects[] = IndirectObject::of(
+                    $contentObjectNumber,
+                    0,
+                    CompressedStream::of($contentStream->bytes()),
+                );
+            } else {
+                $objects[] = IndirectObject::of($pageObjectNumber, 0, $pageDict);
+            }
         }
-        return [$pageObjects, $pageRefs];
+
+        return [$objects, $pageRefs];
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
