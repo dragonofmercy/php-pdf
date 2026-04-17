@@ -138,19 +138,33 @@ final class PageTest extends TestCase
         self::assertSame($page, $result);
     }
 
-    public function testSetFontRegistersInRegistryAndDoesNotEmitImmediately(): void
+    public function testSetFontDoesNotRegisterUntilTextIsCalled(): void
     {
         $registry = new \PhpPdf\Font\FontRegistry();
         $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry);
 
         $page->setFont(Font::helvetica()->bold(), 14);
 
-        // Registry has the font now
+        // setFont alone does NOT register — lazy until text() is called
+        self::assertTrue($registry->isEmpty());
+        self::assertSame([], $page->fontsUsed());
+        // Also no bytes emitted — Tf goes inside text()'s BT/ET block
+        self::assertSame('', $this->content($page));
+    }
+
+    public function testFirstTextCallRegistersFontInRegistryAndOnPage(): void
+    {
+        $registry = new \PhpPdf\Font\FontRegistry();
+        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry);
+
+        $page->setFont(Font::helvetica()->bold(), 14);
+        self::assertTrue($registry->isEmpty());
+
+        $page->text(10, 10, 'Hi');
+
         self::assertFalse($registry->isEmpty());
         self::assertSame('Helvetica-Bold', $registry->registeredFonts()[0]->pdfName());
-
-        // No bytes emitted yet — Tf goes inside text()'s BT/ET block
-        self::assertSame('', $this->content($page));
+        self::assertSame('Helvetica-Bold', $page->fontsUsed()[0]->pdfName());
     }
 
     public function testTextThrowsIfNoFontSet(): void

@@ -184,8 +184,6 @@ final class Page
         $this->currentFont = $font;
         $this->currentSize = $size;
         $this->customLeading = null;
-        $this->fontsUsed[$font->pdfName()] = $font;
-        $this->fontRegistry->shortName($font);
         return $this;
     }
 
@@ -201,6 +199,7 @@ final class Page
             throw new PdfException('setFont() must be called before text()');
         }
 
+        $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
         $shortName = $this->fontRegistry->shortName($this->currentFont);
         $size = $this->currentSize;
         $leading = $this->customLeading ?? ($size * 1.2);

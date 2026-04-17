@@ -265,4 +265,17 @@ final class DocumentTest extends TestCase
         $bytes = $doc->output();
         self::assertStringNotContainsString('/Resources', $bytes);
     }
+
+    public function testSetFontWithoutTextEmitsNoFontResources(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(\PhpPdf\Font::helvetica(), 12);
+        // No text() call
+        $bytes = $doc->output();
+
+        self::assertStringNotContainsString('/Resources', $bytes);
+        self::assertStringNotContainsString('/BaseFont', $bytes);
+        self::assertStringNotContainsString('/Type /Font', $bytes);
+    }
 }
