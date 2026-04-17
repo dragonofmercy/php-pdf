@@ -7,6 +7,7 @@ namespace PhpPdf\Page;
 use PhpPdf\LineCap;
 use PhpPdf\LineJoin;
 use PhpPdf\Writer\Object\PdfNumber;
+use PhpPdf\Writer\Object\PdfString;
 
 /**
  * Pure helpers that format PDF content stream operators with correct
@@ -118,6 +119,44 @@ final class Operators
         // at the start of every ContentStream). Standard PDF CCW is
         // [cos sin -sin cos]; negating the sin terms gives CW.
         return self::concatMatrix($cos, -$sin, $sin, $cos, 0, 0);
+    }
+
+    // ----- text operators (Phase 2b) -----
+
+    public static function beginText(): string
+    {
+        return "BT\n";
+    }
+
+    public static function endText(): string
+    {
+        return "ET\n";
+    }
+
+    public static function setFontAndSize(string $shortName, float $size): string
+    {
+        return '/' . $shortName . ' ' . self::num($size) . " Tf\n";
+    }
+
+    public static function setTextLeading(float $leading): string
+    {
+        return self::num($leading) . " TL\n";
+    }
+
+    public static function textMatrix(float $a, float $b, float $c, float $d, float $e, float $f): string
+    {
+        return self::num($a) . ' ' . self::num($b) . ' ' . self::num($c) . ' '
+            . self::num($d) . ' ' . self::num($e) . ' ' . self::num($f) . " Tm\n";
+    }
+
+    public static function showText(string $encodedBytes): string
+    {
+        return PdfString::of($encodedBytes)->toBytes() . " Tj\n";
+    }
+
+    public static function showTextNextLine(string $encodedBytes): string
+    {
+        return PdfString::of($encodedBytes)->toBytes() . " '\n";
     }
 
     private static function num(float $value): string

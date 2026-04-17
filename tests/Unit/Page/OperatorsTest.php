@@ -99,4 +99,44 @@ final class OperatorsTest extends TestCase
         // 90° CW in Y-down user space = cos=0, -sin=-1, sin=1, cos=0
         self::assertSame("0 -1 1 0 0 0 cm\n", Operators::rotate(90));
     }
+
+    public function testBeginText(): void
+    {
+        self::assertSame("BT\n", Operators::beginText());
+    }
+
+    public function testEndText(): void
+    {
+        self::assertSame("ET\n", Operators::endText());
+    }
+
+    public function testSetFontAndSize(): void
+    {
+        self::assertSame("/F1 14 Tf\n", Operators::setFontAndSize('F1', 14));
+    }
+
+    public function testSetTextLeading(): void
+    {
+        self::assertSame("16.8 TL\n", Operators::setTextLeading(16.8));
+    }
+
+    public function testTextMatrix(): void
+    {
+        self::assertSame("1 0 0 -1 100 200 Tm\n", Operators::textMatrix(1, 0, 0, -1, 100, 200));
+    }
+
+    public function testShowText(): void
+    {
+        self::assertSame("(Hello) Tj\n", Operators::showText('Hello'));
+    }
+
+    public function testShowTextEscapesParens(): void
+    {
+        self::assertSame("(He said \\(hi\\)) Tj\n", Operators::showText('He said (hi)'));
+    }
+
+    public function testShowTextNextLine(): void
+    {
+        self::assertSame("(Next) '\n", Operators::showTextNextLine('Next'));
+    }
 }
