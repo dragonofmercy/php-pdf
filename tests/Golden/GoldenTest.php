@@ -231,4 +231,51 @@ final class GoldenTest extends TestCase
             "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
         );
     }
+
+    public function testPageWithTextMatchesFixtureBytes(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+
+        $page->setFont(\PhpPdf\Font::helvetica()->bold(), 18);
+        $page->text(50, 50, 'Hello World');
+
+        $page->setFont(\PhpPdf\Font::times()->italic(), 12);
+        $page->text(50, 100, 'Résumé — café, naïveté, œuvre');
+
+        $page->setFont(\PhpPdf\Font::courier(), 10);
+        $page->text(50, 150, "Line 1\nLine 2\nLine 3");
+
+        $page->setFont(\PhpPdf\Font::helvetica(), 14);
+        $page->text(50, 220, 'Prix : 19,99 €');
+
+        $actual = $doc->output();
+        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-text.pdf');
+        self::assertIsString($expected);
+        self::assertSame(
+            $expected,
+            $actual,
+            'Output diverges from fixture. If the change is intentional, run: php tests/Golden/regenerate.php',
+        );
+    }
+
+    public function testPageWithTextPassesQpdfCheck(): void
+    {
+        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
+        }
+
+        $process = new \Symfony\Component\Process\Process([
+            $qpdf,
+            '--check',
+            __DIR__ . '/fixtures/page-with-text.pdf',
+        ]);
+        $process->run();
+        self::assertSame(
+            0,
+            $process->getExitCode(),
+            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
+        );
+    }
 }
