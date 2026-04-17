@@ -64,4 +64,75 @@ final class DocumentTest extends TestCase
         self::assertNull($m->creationDate);
         self::assertNull($m->documentId);
     }
+
+    public function testOutputWithMetadataEmitsInfoReferenceInTrailer(): void
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Test')
+            ->author('User')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00Z'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        // /Info 3 0 R appears in the trailer dict
+        self::assertMatchesRegularExpression('/trailer\n<< .*\/Info 3 0 R/', $bytes);
+    }
+
+    public function testOutputWithMetadataEmitsIdInTrailer(): void
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Test')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00Z'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        self::assertStringContainsString(
+            '/ID [<ABCDEF0123456789ABCDEF0123456789> <ABCDEF0123456789ABCDEF0123456789>]',
+            $bytes,
+        );
+    }
+
+    public function testOutputWithMetadataEmitsMetadataReferenceInCatalog(): void
+    {
+        $doc = new Document();
+        $doc->metadata()->title('X')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00Z'));
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        // Catalog (object 1) has /Metadata 4 0 R
+        self::assertMatchesRegularExpression(
+            '/1 0 obj\n<< [^>]*\/Metadata 4 0 R[^>]* >>\nendobj/',
+            $bytes,
+        );
+    }
+
+    public function testOutputWithoutMetadataIsByteIdenticalToPhase0(): void
+    {
+        // Regression check: no metadata usage -> same output as Phase 0 fixture
+        $doc = new Document();
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        $fixture = file_get_contents(__DIR__ . '/../Golden/fixtures/empty-page.pdf');
+        self::assertIsString($fixture);
+        self::assertSame($fixture, $bytes);
+    }
+
+    public function testDefaultProducerIsSetWhenMetadataUsed(): void
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('T')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00Z'));
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        // Producer default -> TextString UTF-16BE hex starting with <FEFF
+        self::assertStringContainsString('/Producer <FEFF', $bytes);
+    }
 }
