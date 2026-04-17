@@ -150,4 +150,48 @@ final class DocumentTest extends TestCase
         self::assertSame(0b11, $e->permissions);
         self::assertFalse($e->encryptMetadata);
     }
+
+    public function testEncryptedOutputContainsEncryptReferenceInTrailer(): void
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Secret')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00Z'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->encryption()
+            ->userPassword('user')
+            ->ownerPassword('owner')
+            ->allowPrint()
+            ->withRandomSource(fn (int $n) => str_repeat("\x00", $n));
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        self::assertStringContainsString('/Encrypt 5 0 R', $bytes);
+        self::assertStringContainsString('/ID [<ABCDEF', $bytes);
+    }
+
+    public function testEncryptedOutputWithoutMetadataStillEmitsEncrypt(): void
+    {
+        $doc = new Document();
+        $doc->encryption()
+            ->userPassword('user')
+            ->ownerPassword('owner')
+            ->withRandomSource(fn (int $n) => str_repeat("\x00", $n));
+        $doc->addPage();
+        $bytes = $doc->output();
+
+        self::assertStringContainsString('/Encrypt 3 0 R', $bytes);
+        self::assertStringContainsString('/ID [<', $bytes);
+        self::assertStringNotContainsString('/Info', $bytes);
+    }
+
+    public function testEncryptionRequiresUserAndOwnerPasswords(): void
+    {
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('user password');
+        $doc = new Document();
+        $doc->encryption()->ownerPassword('owner');
+        $doc->addPage();
+        $doc->output();
+    }
 }

@@ -9,6 +9,12 @@ use PhpPdf\Document\Encryption;
 use PhpPdf\Document\Metadata;
 use PhpPdf\Document\MetadataStream;
 use PhpPdf\Document\XmpWriter;
+use PhpPdf\Encryption\Cipher;
+use PhpPdf\Encryption\EncryptedPdfWriter;
+use PhpPdf\Encryption\EncryptionDictBuilder;
+use PhpPdf\Encryption\EncryptionKey;
+use PhpPdf\Encryption\ObjectTransformer;
+use PhpPdf\Encryption\PasswordHash;
 use PhpPdf\Exception\PdfException;
 use PhpPdf\Writer\Object\Dictionary;
 use PhpPdf\Writer\Object\IndirectObject;
@@ -22,15 +28,10 @@ use PhpPdf\Writer\PdfWriter;
 use PhpPdf\Writer\Trailer;
 use PhpPdf\Writer\XrefTable;
 
-/**
- * Public entry point for building PDF documents. Phase 1a adds optional
- * metadata via metadata() and an auto-generated XMP packet.
- */
 final class Document
 {
-    private const string VERSION = '0.1-phase1a';
+    private const string VERSION = '0.1-phase1b';
 
-    /** A4 portrait in PDF user units (1 unit = 1/72 inch). */
     private const float A4_WIDTH = 595.28;
     private const float A4_HEIGHT = 841.89;
 
@@ -61,6 +62,10 @@ final class Document
             throw new PdfException('Document has no pages');
         }
 
+        if ($this->encryption !== null) {
+            return $this->outputEncrypted($this->encryption, $this->metadata);
+        }
+
         return $this->metadata === null
             ? $this->outputWithoutMetadata()
             : $this->outputWithMetadata($this->metadata);
@@ -74,6 +79,8 @@ final class Document
             throw new PdfException("Failed to write PDF to {$path}");
         }
     }
+
+    // ----- unencrypted paths (unchanged from Phase 1a) -----
 
     private function outputWithoutMetadata(): string
     {
@@ -98,8 +105,7 @@ final class Document
                 ->withEntry(Name::of('Count'), PdfNumber::ofInt($this->pageCount)),
         );
 
-        $objects = [$catalog, $pages, ...$pageObjects];
-        return (new PdfWriter())->write($objects, $catalog->reference());
+        return (new PdfWriter())->write([$catalog, $pages, ...$pageObjects], $catalog->reference());
     }
 
     private function outputWithMetadata(Metadata $metadata): string
@@ -147,6 +153,112 @@ final class Document
             documentId: $documentId,
         );
     }
+
+    // ----- encrypted path -----
+
+    private function outputEncrypted(Encryption $encryption, ?Metadata $metadata): string
+    {
+        if ($encryption->userPassword === null || $encryption->ownerPassword === null) {
+            throw new PdfException('Both user password and owner password are required for encryption');
+        }
+
+        $randomSource = $encryption->randomSource ?? static function (int $n): string {
+            if ($n < 1) {
+                throw new PdfException('randomSource requires a positive byte count');
+            }
+            return random_bytes($n);
+        };
+
+        $cipher = new Cipher();
+        $passwordHash = new PasswordHash();
+        $encryptionKey = new EncryptionKey(
+            userPassword: $encryption->userPassword,
+            ownerPassword: $encryption->ownerPassword,
+            permissions: $encryption->permissions,
+            encryptMetadata: $encryption->encryptMetadata,
+            randomSource: $randomSource,
+            passwordHash: $passwordHash,
+            cipher: $cipher,
+        );
+
+        $pagesRef = PdfReference::to(2, 0);
+        $hasMetadata = $metadata !== null;
+
+        $objects = [];
+        $encryptObjectNumber = $hasMetadata ? 5 : 3;
+        $metadataObjectNumber = $hasMetadata ? 4 : null;
+        $firstPageObjectNumber = $hasMetadata ? 6 : 4;
+
+        $catalogDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Catalog'))
+            ->withEntry(Name::of('Pages'), $pagesRef);
+        if ($hasMetadata) {
+            $catalogDict = $catalogDict->withEntry(Name::of('Metadata'), PdfReference::to(4, 0));
+        }
+        $catalog = IndirectObject::of(1, 0, $catalogDict);
+        $objects[] = $catalog;
+
+        [$pageObjects, $pageRefs] = $this->buildPageObjects(firstObjectNumber: $firstPageObjectNumber, pagesRef: $pagesRef);
+        $pages = IndirectObject::of(
+            2,
+            0,
+            Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Pages'))
+                ->withEntry(Name::of('Kids'), PdfArray::of(...$pageRefs))
+                ->withEntry(Name::of('Count'), PdfNumber::ofInt($this->pageCount)),
+        );
+        $objects[] = $pages;
+
+        $infoRef = null;
+        $effectiveMetadata = null;
+        if ($metadata !== null) {
+            $effectiveMetadata = clone $metadata;
+            $effectiveMetadata->producer ??= 'phppdf ' . self::VERSION;
+            $effectiveMetadata->creationDate ??= new DateTimeImmutable();
+
+            $infoObject = IndirectObject::of(3, 0, $this->buildInfoDictionary($effectiveMetadata));
+            $objects[] = $infoObject;
+            $infoRef = $infoObject->reference();
+
+            $xmpXml = (new XmpWriter())->write($effectiveMetadata);
+            $objects[] = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
+        }
+
+        $encryptDict = (new EncryptionDictBuilder())->build(
+            $encryptionKey,
+            '',
+            $encryption->encryptMetadata,
+            $encryption->permissions,
+        );
+        $encryptObject = IndirectObject::of($encryptObjectNumber, 0, $encryptDict);
+        $objects[] = $encryptObject;
+
+        $objects = array_merge($objects, $pageObjects);
+
+        $documentId = $hasMetadata
+            ? ($metadata->documentId ?? $this->deriveDocumentId($effectiveMetadata))
+            : bin2hex($randomSource(16));
+
+        $transformer = new ObjectTransformer(
+            cipher: $cipher,
+            fileKey: $encryptionKey->fileKey(),
+            randomSource: $randomSource,
+            encryptObjectNumber: $encryptObjectNumber,
+            metadataObjectNumber: $metadataObjectNumber,
+            encryptMetadata: $encryption->encryptMetadata,
+        );
+
+        return (new EncryptedPdfWriter())->write(
+            objects: $objects,
+            root: $catalog->reference(),
+            info: $infoRef,
+            encrypt: $encryptObject->reference(),
+            documentId: $documentId,
+            transformer: $transformer,
+        );
+    }
+
+    // ----- shared helpers -----
 
     /**
      * @return array{list<IndirectObject>, list<PdfReference>}
@@ -197,22 +309,13 @@ final class Document
             $dict = $dict->withEntry(Name::of('Producer'), TextString::of($m->producer));
         }
         if ($m->creationDate !== null) {
-            $dict = $dict->withEntry(
-                Name::of('CreationDate'),
-                PdfString::of($this->formatPdfDate($m->creationDate)),
-            );
+            $dict = $dict->withEntry(Name::of('CreationDate'), PdfString::of($this->formatPdfDate($m->creationDate)));
         }
         if ($m->modDate !== null) {
-            $dict = $dict->withEntry(
-                Name::of('ModDate'),
-                PdfString::of($this->formatPdfDate($m->modDate)),
-            );
+            $dict = $dict->withEntry(Name::of('ModDate'), PdfString::of($this->formatPdfDate($m->modDate)));
         }
         if ($m->trapped !== null) {
-            $dict = $dict->withEntry(
-                Name::of('Trapped'),
-                Name::of($m->trapped ? 'True' : 'False'),
-            );
+            $dict = $dict->withEntry(Name::of('Trapped'), Name::of($m->trapped ? 'True' : 'False'));
         }
         return $dict;
     }
