@@ -23,6 +23,12 @@ final readonly class IndirectObject implements PdfObject
         return new self($objectNumber, $generation, $payload);
     }
 
+    /** @internal */
+    public function payload(): PdfObject
+    {
+        return $this->payload;
+    }
+
     public function reference(): PdfReference
     {
         return PdfReference::to($this->objectNumber, $this->generation);

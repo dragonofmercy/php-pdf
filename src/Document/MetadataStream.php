@@ -19,6 +19,12 @@ final readonly class MetadataStream implements PdfObject
 {
     public function __construct(private string $xmp) {}
 
+    /** @internal */
+    public function xmpContent(): string
+    {
+        return $this->xmp;
+    }
+
     public function toBytes(): string
     {
         $dict = Dictionary::empty()

@@ -20,6 +20,28 @@ final readonly class CompressedStream implements PdfObject
         return new self($content);
     }
 
+    /**
+     * Returns the gzcompressed bytes.
+     *
+     * @internal
+     */
+    public function compressedContent(): string
+    {
+        $compressed = gzcompress($this->content, 9);
+        if ($compressed === false) {
+            throw new \PhpPdf\Exception\PdfException('FlateDecode compression failed');
+        }
+        return $compressed;
+    }
+
+    /**
+     * @internal
+     */
+    public function filterDict(): Dictionary
+    {
+        return Dictionary::empty()->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
+    }
+
     public function toBytes(): string
     {
         $compressed = gzcompress($this->content, 9);

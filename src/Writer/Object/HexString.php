@@ -19,6 +19,12 @@ final readonly class HexString implements PdfObject
         return new self(strtoupper($hex));
     }
 
+    /** @internal */
+    public function hex(): string
+    {
+        return $this->hex;
+    }
+
     public function toBytes(): string
     {
         return '<' . $this->hex . '>';

@@ -18,6 +18,12 @@ final readonly class Stream implements PdfObject
         return new self($content);
     }
 
+    /** @internal */
+    public function content(): string
+    {
+        return $this->content;
+    }
+
     public function toBytes(): string
     {
         $dict = Dictionary::empty()->withEntry(

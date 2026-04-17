@@ -18,6 +18,12 @@ final readonly class PdfString implements PdfObject
         return new self($value);
     }
 
+    /** @internal */
+    public function value(): string
+    {
+        return $this->value;
+    }
+
     public function toBytes(): string
     {
         $escaped = strtr(

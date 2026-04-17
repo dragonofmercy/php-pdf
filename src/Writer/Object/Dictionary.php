@@ -23,6 +23,15 @@ final readonly class Dictionary implements PdfObject
         return new self([]);
     }
 
+    /**
+     * @return list<array{0: Name, 1: PdfObject}>
+     * @internal
+     */
+    public function entries(): array
+    {
+        return array_values($this->entries);
+    }
+
     public function withEntry(Name $key, PdfObject $value): self
     {
         $entries = $this->entries;

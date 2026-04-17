@@ -19,6 +19,12 @@ final readonly class TextString implements PdfObject
         return new self($utf8);
     }
 
+    /** @internal */
+    public function value(): string
+    {
+        return $this->utf8;
+    }
+
     public function toBytes(): string
     {
         $utf16 = mb_convert_encoding($this->utf8, 'UTF-16BE', 'UTF-8');

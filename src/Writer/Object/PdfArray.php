@@ -27,6 +27,15 @@ final readonly class PdfArray implements PdfObject
         return new self(array_values($elements));
     }
 
+    /**
+     * @return list<PdfObject>
+     * @internal
+     */
+    public function elements(): array
+    {
+        return $this->elements;
+    }
+
     public function toBytes(): string
     {
         $parts = array_map(static fn (PdfObject $el): string => $el->toBytes(), $this->elements);
