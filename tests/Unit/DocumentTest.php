@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpPdf\Tests\Unit;
 
 use PhpPdf\Document;
+use PhpPdf\Document\Metadata;
 use PhpPdf\Exception\PdfException;
 use PHPUnit\Framework\TestCase;
 
@@ -47,5 +48,20 @@ final class DocumentTest extends TestCase
         $doc = new Document();
         $doc->addPage();
         $doc->save('/nonexistent_dir_phppdf/out.pdf');
+    }
+
+    public function testMetadataReturnsSameInstanceAcrossCalls(): void
+    {
+        $doc = new Document();
+        self::assertSame($doc->metadata(), $doc->metadata());
+    }
+
+    public function testMetadataDefaultsAreAllNull(): void
+    {
+        $m = (new Document())->metadata();
+        self::assertNull($m->title);
+        self::assertNull($m->author);
+        self::assertNull($m->creationDate);
+        self::assertNull($m->documentId);
     }
 }

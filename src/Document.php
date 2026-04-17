@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpPdf;
 
+use PhpPdf\Document\Metadata;
 use PhpPdf\Exception\PdfException;
 use PhpPdf\Writer\Object\Dictionary;
 use PhpPdf\Writer\Object\IndirectObject;
@@ -28,10 +29,16 @@ final class Document
     private const float A4_HEIGHT = 841.89;
 
     private int $pageCount = 0;
+    private ?Metadata $metadata = null;
 
     public function addPage(): void
     {
         $this->pageCount++;
+    }
+
+    public function metadata(): Metadata
+    {
+        return $this->metadata ??= new Metadata();
     }
 
     public function output(): string
