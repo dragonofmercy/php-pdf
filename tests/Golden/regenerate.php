@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
+use PhpPdf\Color;
 use PhpPdf\Document;
 
 $fixturesDir = __DIR__ . '/fixtures';
 if (!is_dir($fixturesDir)) {
     mkdir($fixturesDir, 0755, true);
 }
+
+$zeros = fn (int $n): string => str_repeat("\x00", $n);
 
 // Fixture 1: empty page without metadata (Phase 0 compat)
 $doc = new Document();
@@ -33,7 +36,6 @@ echo "Regenerated document-with-metadata.pdf\n";
 
 // Fixture 3: encrypted document (Phase 1b)
 $doc = new Document();
-$zeros = fn (int $n): string => str_repeat("\x00", $n);
 $doc->metadata()
     ->title('Confidential')
     ->author('User')
@@ -48,3 +50,40 @@ $doc->encryption()
 $doc->addPage();
 $doc->save($fixturesDir . '/encrypted-document.pdf');
 echo "Regenerated encrypted-document.pdf\n";
+
+// Fixture 4: page with graphics (Phase 2a)
+$doc = new Document();
+$page = $doc->addPage();
+
+$page->setStrokeColor(Color::hex('#ff0000'))
+     ->setLineWidth(1)
+     ->rect(20, 20, 100, 50)
+     ->stroke();
+
+$page->setFillColor(Color::rgb(0, 0, 255))
+     ->circle(200, 200, 40)
+     ->fill();
+
+$page->setStrokeColor(Color::gray(128))
+     ->setLineWidth(2)
+     ->line(0, 0, 595, 842)
+     ->stroke();
+
+$page->setFillColor(Color::hex('#00aa00'))
+     ->path()
+     ->moveTo(300, 500)
+     ->lineTo(400, 500)
+     ->lineTo(350, 450)
+     ->close()
+     ->fill();
+
+$page->save()
+     ->translate(450, 100)
+     ->rotate(30)
+     ->setFillColor(Color::hex('#ff8800'))
+     ->rect(-10, -10, 20, 20)
+     ->fill();
+$page->restore();
+
+$doc->save($fixturesDir . '/page-with-graphics.pdf');
+echo "Regenerated page-with-graphics.pdf\n";
