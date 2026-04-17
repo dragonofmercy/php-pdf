@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpPdf\Tests\Unit\Font;
+
+use PhpPdf\Font;
+use PhpPdf\Font\FontRegistry;
+use PHPUnit\Framework\TestCase;
+
+final class FontRegistryTest extends TestCase
+{
+    public function testEmptyByDefault(): void
+    {
+        $registry = new FontRegistry();
+        self::assertTrue($registry->isEmpty());
+        self::assertSame([], $registry->registeredFonts());
+    }
+
+    public function testShortNameAssignsF1ToFirstFont(): void
+    {
+        $registry = new FontRegistry();
+        self::assertSame('F1', $registry->shortName(Font::helvetica()));
+    }
+
+    public function testShortNameAssignsF2ToSecondDistinctFont(): void
+    {
+        $registry = new FontRegistry();
+        $registry->shortName(Font::helvetica());
+        self::assertSame('F2', $registry->shortName(Font::times()));
+    }
+
+    public function testSameFontReturnsSameShortName(): void
+    {
+        $registry = new FontRegistry();
+        $a = $registry->shortName(Font::helvetica());
+        $b = $registry->shortName(Font::helvetica());
+        self::assertSame($a, $b);
+    }
+
+    public function testVariantsAreDistinct(): void
+    {
+        $registry = new FontRegistry();
+        $a = $registry->shortName(Font::helvetica());
+        $b = $registry->shortName(Font::helvetica()->bold());
+        self::assertNotSame($a, $b);
+    }
+
+    public function testRegisteredFontsPreservesOrder(): void
+    {
+        $registry = new FontRegistry();
+        $registry->shortName(Font::times());
+        $registry->shortName(Font::helvetica());
+        $registry->shortName(Font::courier());
+
+        $names = array_map(
+            static fn (Font $f): string => $f->pdfName(),
+            $registry->registeredFonts(),
+        );
+        self::assertSame(['Times-Roman', 'Helvetica', 'Courier'], $names);
+    }
+
+    public function testIsEmptyAfterRegistrations(): void
+    {
+        $registry = new FontRegistry();
+        $registry->shortName(Font::helvetica());
+        self::assertFalse($registry->isEmpty());
+    }
+}
