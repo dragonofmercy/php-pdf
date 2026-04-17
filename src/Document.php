@@ -109,7 +109,7 @@ final class Document
                 ->withEntry(Name::of('Pages'), $pagesRef),
         );
 
-        [$pageAndContentObjects, $pageRefs, $fontRefs] = $this->buildPagesAndFonts(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesAndFonts(firstObjectNumber: 3, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -141,7 +141,7 @@ final class Document
                 ->withEntry(Name::of('Metadata'), $metadataStreamRef),
         );
 
-        [$pageAndContentObjects, $pageRefs, $fontRefs] = $this->buildPagesAndFonts(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesAndFonts(firstObjectNumber: 5, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -211,7 +211,7 @@ final class Document
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
 
-        [$pageAndContentObjects, $pageRefs, $fontRefs] = $this->buildPagesAndFonts(
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesAndFonts(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
@@ -282,9 +282,9 @@ final class Document
      *
      * All objects share a single numbering starting at $firstObjectNumber.
      *
-     * Returns [allObjects, pageRefs, fontRefsByShortName].
+     * Returns [allObjects, pageRefs].
      *
-     * @return array{list<IndirectObject>, list<PdfReference>, array<string, PdfReference>}
+     * @return array{list<IndirectObject>, list<PdfReference>}
      */
     private function buildPagesAndFonts(int $firstObjectNumber, PdfReference $pagesRef): array
     {
@@ -362,7 +362,7 @@ final class Document
             $objects[] = IndirectObject::of($fontRef->objectNumber, 0, $fontDict);
         }
 
-        return [$objects, $pageRefs, $fontRefs];
+        return [$objects, $pageRefs];
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
