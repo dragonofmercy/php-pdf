@@ -241,6 +241,22 @@ final class PageTest extends TestCase
         self::assertStringContainsString("(Caf\xE9) Tj\n", $content);
     }
 
+    public function testSetFontThrowsOnZeroSize(): void
+    {
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('positive');
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 0);
+    }
+
+    public function testSetFontThrowsOnNegativeSize(): void
+    {
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('positive');
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), -5.0);
+    }
+
     public function testFontsUsedAccessorReturnsRegisteredForThisPage(): void
     {
         $page = $this->page();

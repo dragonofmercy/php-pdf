@@ -181,6 +181,9 @@ final class Page
 
     public function setFont(Font $font, float $size): self
     {
+        if ($size <= 0) {
+            throw new PdfException('Font size must be positive, got ' . $size);
+        }
         $this->currentFont = $font;
         $this->currentSize = $size;
         $this->customLeading = null;
