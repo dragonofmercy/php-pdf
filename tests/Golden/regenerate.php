@@ -6,6 +6,7 @@ require __DIR__ . '/../../vendor/autoload.php';
 
 use PhpPdf\Color;
 use PhpPdf\Document;
+use PhpPdf\Font;
 
 $fixturesDir = __DIR__ . '/fixtures';
 if (!is_dir($fixturesDir)) {
@@ -87,3 +88,22 @@ $page->restore();
 
 $doc->save($fixturesDir . '/page-with-graphics.pdf');
 echo "Regenerated page-with-graphics.pdf\n";
+
+// Fixture 5: page with text (Phase 2b)
+$doc = new Document();
+$page = $doc->addPage();
+
+$page->setFont(Font::helvetica()->bold(), 18);
+$page->text(50, 50, 'Hello World');
+
+$page->setFont(Font::times()->italic(), 12);
+$page->text(50, 100, 'Résumé — café, naïveté, œuvre');
+
+$page->setFont(Font::courier(), 10);
+$page->text(50, 150, "Line 1\nLine 2\nLine 3");
+
+$page->setFont(Font::helvetica(), 14);
+$page->text(50, 220, 'Prix : 19,99 €');
+
+$doc->save($fixturesDir . '/page-with-text.pdf');
+echo "Regenerated page-with-text.pdf\n";
