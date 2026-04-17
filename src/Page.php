@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace PhpPdf;
 
+use PhpPdf\Exception\PdfException;
+use PhpPdf\Font\FontRegistry;
+use PhpPdf\Font\WinAnsiEncoder;
 use PhpPdf\Page\ContentStream;
 use PhpPdf\Page\Operators;
 
 /**
- * A single page of the PDF document. Exposes geometric drawing primitives
- * plus graphics state mutators, transforms, and a save/restore stack.
- * Coordinate system: top-left origin, Y-down, points (1/72 inch).
+ * A single page of the PDF document. Exposes geometric drawing primitives,
+ * text rendering via the 12 standard PDF fonts, plus graphics state
+ * mutators, transforms, and a save/restore stack. Coordinate system:
+ * top-left origin, Y-down, points (1/72 inch).
  */
 final class Page
 {
@@ -18,9 +22,17 @@ final class Page
 
     private readonly ContentStream $stream;
 
+    private ?Font $currentFont = null;
+    private ?float $currentSize = null;
+    private ?float $customLeading = null;
+
+    /** @var array<string, Font> Fonts used by this page, keyed by PDF canonical name */
+    private array $fontsUsed = [];
+
     public function __construct(
         public readonly float $pageWidth,
         public readonly float $pageHeight,
+        private readonly FontRegistry $fontRegistry,
     ) {
         $this->stream = new ContentStream($pageHeight);
     }
@@ -31,6 +43,15 @@ final class Page
     public function contentStream(): ContentStream
     {
         return $this->stream;
+    }
+
+    /**
+     * @internal
+     * @return list<Font>
+     */
+    public function fontsUsed(): array
+    {
+        return array_values($this->fontsUsed);
     }
 
     // ----- Primitives -----
@@ -153,6 +174,53 @@ final class Page
     public function restore(): self
     {
         $this->stream->append(Operators::restoreState());
+        return $this;
+    }
+
+    // ----- Text (Phase 2b) -----
+
+    public function setFont(Font $font, float $size): self
+    {
+        $this->currentFont = $font;
+        $this->currentSize = $size;
+        $this->customLeading = null;
+        $this->fontsUsed[$font->pdfName()] = $font;
+        $this->fontRegistry->shortName($font);
+        return $this;
+    }
+
+    public function setLeading(float $leading): self
+    {
+        $this->customLeading = $leading;
+        return $this;
+    }
+
+    public function text(float $x, float $y, string $text): self
+    {
+        if ($this->currentFont === null || $this->currentSize === null) {
+            throw new PdfException('setFont() must be called before text()');
+        }
+
+        $shortName = $this->fontRegistry->shortName($this->currentFont);
+        $size = $this->currentSize;
+        $leading = $this->customLeading ?? ($size * 1.2);
+
+        $this->stream->append(Operators::beginText());
+        $this->stream->append(Operators::setFontAndSize($shortName, $size));
+        $this->stream->append(Operators::setTextLeading($leading));
+        $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $x, $y));
+
+        $lines = explode("\n", $text);
+        foreach ($lines as $index => $line) {
+            $encoded = WinAnsiEncoder::encode($line);
+            if ($index === 0) {
+                $this->stream->append(Operators::showText($encoded));
+            } else {
+                $this->stream->append(Operators::showTextNextLine($encoded));
+            }
+        }
+
+        $this->stream->append(Operators::endText());
         return $this;
     }
 }

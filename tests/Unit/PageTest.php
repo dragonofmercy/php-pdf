@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpPdf\Tests\Unit;
 
 use PhpPdf\Color;
+use PhpPdf\Font;
 use PhpPdf\LineCap;
 use PhpPdf\LineJoin;
 use PhpPdf\Page;
@@ -27,7 +28,11 @@ final class PageTest extends TestCase
 
     private function page(): Page
     {
-        return new Page(pageWidth: 595.28, pageHeight: 841.89);
+        return new Page(
+            pageWidth: 595.28,
+            pageHeight: 841.89,
+            fontRegistry: new \PhpPdf\Font\FontRegistry(),
+        );
     }
 
     public function testLineAppendsMoveAndLineThenStrokes(): void
@@ -131,5 +136,114 @@ final class PageTest extends TestCase
             ->translate(10, 10)
             ->restore();
         self::assertSame($page, $result);
+    }
+
+    public function testSetFontRegistersInRegistryAndDoesNotEmitImmediately(): void
+    {
+        $registry = new \PhpPdf\Font\FontRegistry();
+        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry);
+
+        $page->setFont(Font::helvetica()->bold(), 14);
+
+        // Registry has the font now
+        self::assertFalse($registry->isEmpty());
+        self::assertSame('Helvetica-Bold', $registry->registeredFonts()[0]->pdfName());
+
+        // No bytes emitted yet — Tf goes inside text()'s BT/ET block
+        self::assertSame('', $this->content($page));
+    }
+
+    public function testTextThrowsIfNoFontSet(): void
+    {
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('setFont');
+        $page = $this->page();
+        $page->text(50, 50, 'Hello');
+    }
+
+    public function testSimpleTextEmitsFullBlock(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 12);
+        $page->text(100, 200, 'Hello');
+
+        $content = $this->content($page);
+        // Expected content block (leading = 12 * 1.2 = 14.4)
+        self::assertStringContainsString("BT\n", $content);
+        self::assertStringContainsString("/F1 12 Tf\n", $content);
+        self::assertStringContainsString("14.4 TL\n", $content);
+        self::assertStringContainsString("1 0 0 -1 100 200 Tm\n", $content);
+        self::assertStringContainsString("(Hello) Tj\n", $content);
+        self::assertStringContainsString("ET\n", $content);
+    }
+
+    public function testMultilineTextUsesApostropheOperator(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 10);
+        $page->text(0, 0, "A\nB\nC");
+
+        $content = $this->content($page);
+        self::assertStringContainsString("(A) Tj\n", $content);
+        self::assertStringContainsString("(B) '\n", $content);
+        self::assertStringContainsString("(C) '\n", $content);
+    }
+
+    public function testSetLeadingOverridesDefault(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 10);
+        $page->setLeading(20);
+        $page->text(0, 0, 'Hi');
+
+        $content = $this->content($page);
+        self::assertStringContainsString("20 TL\n", $content);
+        self::assertStringNotContainsString("12 TL\n", $content);
+    }
+
+    public function testSetFontResetsLeadingOverride(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 10);
+        $page->setLeading(20);
+        // Change font — previous override should reset
+        $page->setFont(Font::helvetica(), 30);
+        $page->text(0, 0, 'Hi');
+
+        $content = $this->content($page);
+        // New default: 30 * 1.2 = 36
+        self::assertStringContainsString("36 TL\n", $content);
+        self::assertStringNotContainsString("20 TL\n", $content);
+    }
+
+    public function testTextEncodesUnicodeViaWinAnsi(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 10);
+        $page->text(0, 0, 'Café');
+
+        $content = $this->content($page);
+        // "Café" WinAnsi bytes: C=0x43, a=0x61, f=0x66, é=0xE9
+        self::assertStringContainsString("(Caf\xE9) Tj\n", $content);
+    }
+
+    public function testFontsUsedAccessorReturnsRegisteredForThisPage(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 10);
+        $page->text(0, 0, 'A');
+        $page->setFont(Font::times(), 12);
+        $page->text(0, 20, 'B');
+
+        $used = $page->fontsUsed();
+        self::assertCount(2, $used);
+        self::assertContains('Helvetica', array_map(
+            static fn (Font $f): string => $f->pdfName(),
+            $used,
+        ));
+        self::assertContains('Times-Roman', array_map(
+            static fn (Font $f): string => $f->pdfName(),
+            $used,
+        ));
     }
 }
