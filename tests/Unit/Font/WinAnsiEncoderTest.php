@@ -64,4 +64,15 @@ final class WinAnsiEncoderTest extends TestCase
         // 🎉 (U+1F389, requires UTF-16 surrogate pair) → ?
         self::assertSame('?', WinAnsiEncoder::encode('🎉'));
     }
+
+    public function testInvalidContinuationByteReplacedByQuestionMark(): void
+    {
+        // \xC3 is a valid UTF-8 lead byte (expecting a continuation), but
+        // \xFF is NOT a valid continuation byte (it doesn't match 10xxxxxx).
+        // The encoder must fail safe and output '?'.
+        self::assertSame('?', WinAnsiEncoder::encode("\xC3\xFF"));
+
+        // \xE2 is a 3-byte lead, but \x00 is not a valid continuation.
+        self::assertSame('?', WinAnsiEncoder::encode("\xE2\x00\x80"));
+    }
 }

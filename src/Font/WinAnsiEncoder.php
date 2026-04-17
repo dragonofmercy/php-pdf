@@ -80,7 +80,13 @@ final class WinAnsiEncoder
                     $i++;
                     continue;
                 }
-                $cp = (($byte & 0x1F) << 6) | (ord($utf8[$i + 1]) & 0x3F);
+                $c1 = ord($utf8[$i + 1]);
+                if (($c1 & 0xC0) !== 0x80) {
+                    $output .= '?';
+                    $i += 2;
+                    continue;
+                }
+                $cp = (($byte & 0x1F) << 6) | ($c1 & 0x3F);
                 $i += 2;
             } elseif (($byte & 0xF0) === 0xE0) {
                 // 3-byte sequence
@@ -89,9 +95,16 @@ final class WinAnsiEncoder
                     $i++;
                     continue;
                 }
+                $c1 = ord($utf8[$i + 1]);
+                $c2 = ord($utf8[$i + 2]);
+                if (($c1 & 0xC0) !== 0x80 || ($c2 & 0xC0) !== 0x80) {
+                    $output .= '?';
+                    $i += 3;
+                    continue;
+                }
                 $cp = (($byte & 0x0F) << 12)
-                    | ((ord($utf8[$i + 1]) & 0x3F) << 6)
-                    | (ord($utf8[$i + 2]) & 0x3F);
+                    | (($c1 & 0x3F) << 6)
+                    | ($c2 & 0x3F);
                 $i += 3;
             } elseif (($byte & 0xF8) === 0xF0) {
                 // 4-byte sequence (outside BMP — never in WinAnsi)
