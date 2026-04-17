@@ -53,4 +53,58 @@ final class GoldenTest extends TestCase
             @unlink($tmp);
         }
     }
+
+    public function testDocumentWithMetadataMatchesFixtureBytes(): void
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Test')
+            ->author('User')
+            ->subject('Phase 1a')
+            ->keywords('phppdf, test')
+            ->creator('Test Suite')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->addPage();
+        $actual = $doc->output();
+
+        $expected = file_get_contents(__DIR__ . '/fixtures/document-with-metadata.pdf');
+        self::assertIsString($expected);
+        self::assertSame(
+            $expected,
+            $actual,
+            'Output diverges from fixture. If the change is intentional, run: php tests/Golden/regenerate.php',
+        );
+    }
+
+    public function testDocumentWithMetadataPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
+        }
+
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Test')
+            ->author('User')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->addPage();
+        $tmp = tempnam(sys_get_temp_dir(), 'phppdf_golden_meta_');
+        self::assertIsString($tmp);
+
+        try {
+            file_put_contents($tmp, $doc->output());
+            $process = new Process([$qpdf, '--check', $tmp]);
+            $process->run();
+            self::assertSame(
+                0,
+                $process->getExitCode(),
+                "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
+            );
+        } finally {
+            @unlink($tmp);
+        }
+    }
 }
