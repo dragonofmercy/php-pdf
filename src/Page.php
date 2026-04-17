@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpPdf;
+
+use PhpPdf\Page\ContentStream;
+use PhpPdf\Page\Operators;
+
+/**
+ * A single page of the PDF document. Exposes geometric drawing primitives
+ * plus graphics state mutators, transforms, and a save/restore stack.
+ * Coordinate system: top-left origin, Y-down, points (1/72 inch).
+ */
+final class Page
+{
+    private const float BEZIER_KAPPA = 0.5522847498;
+
+    private readonly ContentStream $stream;
+
+    public function __construct(
+        public readonly float $pageWidth,
+        public readonly float $pageHeight,
+    ) {
+        $this->stream = new ContentStream($pageHeight);
+    }
+
+    /**
+     * @internal
+     */
+    public function contentStream(): ContentStream
+    {
+        return $this->stream;
+    }
+
+    // ----- Primitives -----
+
+    public function line(float $x1, float $y1, float $x2, float $y2): PathOperation
+    {
+        $this->stream->append(Operators::moveTo($x1, $y1));
+        $this->stream->append(Operators::lineTo($x2, $y2));
+        return new PathOperation($this->stream);
+    }
+
+    public function rect(float $x, float $y, float $w, float $h): PathOperation
+    {
+        $this->stream->append(Operators::rectangle($x, $y, $w, $h));
+        return new PathOperation($this->stream);
+    }
+
+    public function circle(float $cx, float $cy, float $r): PathOperation
+    {
+        $k = self::BEZIER_KAPPA * $r;
+        $this->stream->append(Operators::moveTo($cx + $r, $cy));
+        $this->stream->append(Operators::curveTo(
+            $cx + $r, $cy + $k,
+            $cx + $k, $cy + $r,
+            $cx, $cy + $r,
+        ));
+        $this->stream->append(Operators::curveTo(
+            $cx - $k, $cy + $r,
+            $cx - $r, $cy + $k,
+            $cx - $r, $cy,
+        ));
+        $this->stream->append(Operators::curveTo(
+            $cx - $r, $cy - $k,
+            $cx - $k, $cy - $r,
+            $cx, $cy - $r,
+        ));
+        $this->stream->append(Operators::curveTo(
+            $cx + $k, $cy - $r,
+            $cx + $r, $cy - $k,
+            $cx + $r, $cy,
+        ));
+        $this->stream->append(Operators::closePath());
+        return new PathOperation($this->stream);
+    }
+
+    public function path(): Path
+    {
+        return new Path($this->stream);
+    }
+
+    // ----- Graphics state -----
+
+    public function setStrokeColor(Color $color): self
+    {
+        $this->stream->append($color->toPdfOperator(stroke: true) . "\n");
+        return $this;
+    }
+
+    public function setFillColor(Color $color): self
+    {
+        $this->stream->append($color->toPdfOperator(stroke: false) . "\n");
+        return $this;
+    }
+
+    public function setLineWidth(float $width): self
+    {
+        $this->stream->append(Operators::setLineWidth($width));
+        return $this;
+    }
+
+    /**
+     * @param list<float> $pattern dashes and gaps alternating, in points
+     */
+    public function setDashPattern(array $pattern, float $phase = 0.0): self
+    {
+        $this->stream->append(Operators::setDashPattern($pattern, $phase));
+        return $this;
+    }
+
+    public function setLineCap(LineCap $cap): self
+    {
+        $this->stream->append(Operators::setLineCap($cap));
+        return $this;
+    }
+
+    public function setLineJoin(LineJoin $join): self
+    {
+        $this->stream->append(Operators::setLineJoin($join));
+        return $this;
+    }
+
+    // ----- Transforms -----
+
+    public function translate(float $x, float $y): self
+    {
+        $this->stream->append(Operators::translate($x, $y));
+        return $this;
+    }
+
+    public function rotate(float $degrees): self
+    {
+        $this->stream->append(Operators::rotate($degrees));
+        return $this;
+    }
+
+    public function scale(float $sx, float $sy): self
+    {
+        $this->stream->append(Operators::scale($sx, $sy));
+        return $this;
+    }
+
+    // ----- State stack -----
+
+    public function save(): self
+    {
+        $this->stream->append(Operators::saveState());
+        return $this;
+    }
+
+    public function restore(): self
+    {
+        $this->stream->append(Operators::restoreState());
+        return $this;
+    }
+}
