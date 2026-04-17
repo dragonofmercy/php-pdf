@@ -46,4 +46,17 @@ final class CompressedStreamTest extends TestCase
 
         self::assertSame($original, gzuncompress($compressed));
     }
+
+    public function testCompressedContentStartsWithZlibMagicByte(): void
+    {
+        $bytes = CompressedStream::of('Hello, World!')->toBytes();
+
+        $streamStart = strpos($bytes, "stream\n");
+        $endstreamPos = strrpos($bytes, "\nendstream");
+        self::assertIsInt($streamStart);
+        self::assertIsInt($endstreamPos);
+        $compressed = substr($bytes, $streamStart + strlen("stream\n"), $endstreamPos - $streamStart - strlen("stream\n"));
+
+        self::assertSame(0x78, ord($compressed[0]), 'zlib stream should start with magic byte 0x78');
+    }
 }
