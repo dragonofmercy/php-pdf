@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpPdf;
 
 use DateTimeImmutable;
+use PhpPdf\Document\Encryption;
 use PhpPdf\Document\Metadata;
 use PhpPdf\Document\MetadataStream;
 use PhpPdf\Document\XmpWriter;
@@ -37,10 +38,16 @@ final class Document
 
     private int $pageCount = 0;
     private ?Metadata $metadata = null;
+    private ?Encryption $encryption = null;
 
     public function metadata(): Metadata
     {
         return $this->metadata ??= new Metadata();
+    }
+
+    public function encryption(): Encryption
+    {
+        return $this->encryption ??= new Encryption();
     }
 
     public function addPage(): void

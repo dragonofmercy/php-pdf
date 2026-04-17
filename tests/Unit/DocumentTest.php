@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpPdf\Tests\Unit;
 
 use PhpPdf\Document;
+use PhpPdf\Document\Encryption;
 use PhpPdf\Document\Metadata;
 use PhpPdf\Exception\PdfException;
 use PHPUnit\Framework\TestCase;
@@ -134,5 +135,19 @@ final class DocumentTest extends TestCase
 
         // Producer default -> TextString UTF-16BE hex starting with <FEFF
         self::assertStringContainsString('/Producer <FEFF', $bytes);
+    }
+
+    public function testEncryptionReturnsSameInstanceAcrossCalls(): void
+    {
+        $doc = new Document();
+        self::assertSame($doc->encryption(), $doc->encryption());
+    }
+
+    public function testEncryptionDefaultsToReservedBits(): void
+    {
+        $e = (new Document())->encryption();
+        self::assertNull($e->userPassword);
+        self::assertSame(0b11, $e->permissions);
+        self::assertFalse($e->encryptMetadata);
     }
 }
