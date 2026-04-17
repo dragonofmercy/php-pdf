@@ -30,3 +30,21 @@ $doc->metadata()
 $doc->addPage();
 $doc->save($fixturesDir . '/document-with-metadata.pdf');
 echo "Regenerated document-with-metadata.pdf\n";
+
+// Fixture 3: encrypted document (Phase 1b)
+$doc = new Document();
+$zeros = fn (int $n): string => str_repeat("\x00", $n);
+$doc->metadata()
+    ->title('Confidential')
+    ->author('User')
+    ->creationDate(new DateTimeImmutable('2026-01-01T12:00:00+00:00'))
+    ->documentId('abcdef0123456789abcdef0123456789');
+$doc->encryption()
+    ->userPassword('user')
+    ->ownerPassword('owner')
+    ->allowPrint()
+    ->allowCopy()
+    ->withRandomSource($zeros);
+$doc->addPage();
+$doc->save($fixturesDir . '/encrypted-document.pdf');
+echo "Regenerated encrypted-document.pdf\n";
