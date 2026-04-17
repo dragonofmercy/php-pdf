@@ -27,7 +27,7 @@ final class EncryptionDictBuilderTest extends TestCase
 
     public function testDictContainsRequiredEntries(): void
     {
-        $dict = (new EncryptionDictBuilder())->build($this->makeKey(), $this->makeKey()->u(), false, 0b11);
+        $dict = (new EncryptionDictBuilder())->build($this->makeKey(), false, 0xFFFFF0C0);
         $bytes = $dict->toBytes();
 
         foreach (['/Filter /Standard', '/V 5', '/R 6', '/Length 256', '/StmF /StdCF', '/StrF /StdCF', '/EncryptMetadata'] as $needle) {
@@ -37,7 +37,7 @@ final class EncryptionDictBuilderTest extends TestCase
 
     public function testCryptFilterSubDict(): void
     {
-        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(), 'u', false, 0b11)->toBytes();
+        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(), false, 0xFFFFF0C0)->toBytes();
         self::assertStringContainsString('/CFM /AESV3', $bytes);
         self::assertStringContainsString('/AuthEvent /DocOpen', $bytes);
     }
@@ -45,7 +45,7 @@ final class EncryptionDictBuilderTest extends TestCase
     public function testUandOareEmittedAsHexStrings(): void
     {
         $key = $this->makeKey();
-        $bytes = (new EncryptionDictBuilder())->build($key, 'u', false, 0b11)->toBytes();
+        $bytes = (new EncryptionDictBuilder())->build($key, false, 0xFFFFF0C0)->toBytes();
         self::assertSame(1, preg_match('/\/U <[0-9A-F]{96}>/', $bytes));
         self::assertSame(1, preg_match('/\/O <[0-9A-F]{96}>/', $bytes));
         self::assertSame(1, preg_match('/\/UE <[0-9A-F]{64}>/', $bytes));
@@ -55,19 +55,19 @@ final class EncryptionDictBuilderTest extends TestCase
 
     public function testEncryptMetadataTrueSerializesCorrectly(): void
     {
-        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(true), 'u', true, 0b11)->toBytes();
+        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(true), true, 0xFFFFF0C0)->toBytes();
         self::assertStringContainsString('/EncryptMetadata true', $bytes);
     }
 
     public function testEncryptMetadataFalseSerializesCorrectly(): void
     {
-        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(), 'u', false, 0b11)->toBytes();
+        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(), false, 0xFFFFF0C0)->toBytes();
         self::assertStringContainsString('/EncryptMetadata false', $bytes);
     }
 
     public function testPermissionsEmittedAsSignedInteger(): void
     {
-        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(false, -44), 'u', false, -44)->toBytes();
+        $bytes = (new EncryptionDictBuilder())->build($this->makeKey(false, -44), false, -44)->toBytes();
         self::assertStringContainsString('/P -44', $bytes);
     }
 }

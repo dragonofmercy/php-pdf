@@ -19,7 +19,6 @@ final class EncryptionDictBuilder
 {
     public function build(
         EncryptionKey $key,
-        string $unusedId,
         bool $encryptMetadata,
         int $permissions,
     ): Dictionary {

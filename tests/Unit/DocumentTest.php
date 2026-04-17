@@ -147,7 +147,7 @@ final class DocumentTest extends TestCase
     {
         $e = (new Document())->encryption();
         self::assertNull($e->userPassword);
-        self::assertSame(0b11, $e->permissions);
+        self::assertSame(0xFFFFF0C0, $e->permissions);
         self::assertFalse($e->encryptMetadata);
     }
 

@@ -26,7 +26,7 @@ final class EncryptionTest extends TestCase
         $e = new Encryption();
         self::assertNull($e->userPassword);
         self::assertNull($e->ownerPassword);
-        self::assertSame(0b11, $e->permissions);
+        self::assertSame(0xFFFFF0C0, $e->permissions);
         self::assertFalse($e->encryptMetadata);
         self::assertNull($e->randomSource);
     }
@@ -34,24 +34,24 @@ final class EncryptionTest extends TestCase
     public function testAllowPrintSetsExpectedBits(): void
     {
         $e = (new Encryption())->allowPrint();
-        self::assertSame(0b11 | 0x804, $e->permissions);
+        self::assertSame(0xFFFFF0C0 | 0x804, $e->permissions);
     }
 
     public function testAllowCopySetsExpectedBits(): void
     {
         $e = (new Encryption())->allowCopy();
-        self::assertSame(0b11 | 0x210, $e->permissions);
+        self::assertSame(0xFFFFF0C0 | 0x210, $e->permissions);
     }
 
     public function testAllowModifySetsExpectedBits(): void
     {
         $e = (new Encryption())->allowModify();
-        self::assertSame(0b11 | 0x528, $e->permissions);
+        self::assertSame(0xFFFFF0C0 | 0x528, $e->permissions);
     }
 
     public function testAllowMultipleAreUnioned(): void
     {
         $e = (new Encryption())->allowPrint()->allowCopy()->allowModify();
-        self::assertSame(0b11 | 0x804 | 0x210 | 0x528, $e->permissions);
+        self::assertSame(0xFFFFF0C0 | 0x804 | 0x210 | 0x528, $e->permissions);
     }
 }

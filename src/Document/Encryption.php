@@ -17,8 +17,8 @@ final class Encryption
     public ?string $userPassword = null;
     public ?string $ownerPassword = null;
 
-    /** 32-bit permissions bitfield. Bits 1-2 are reserved and set. */
-    public int $permissions = 0b11;
+    /** ISO 32000-2: bits 1-2 reserved 0, bits 7-8 reserved 1, bits 13-32 reserved 1 — default denies all perm bits. */
+    public int $permissions = 0xFFFFF0C0;
 
     public bool $encryptMetadata = false;
 

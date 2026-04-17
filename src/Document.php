@@ -226,7 +226,6 @@ final class Document
 
         $encryptDict = (new EncryptionDictBuilder())->build(
             $encryptionKey,
-            '',
             $encryption->encryptMetadata,
             $encryption->permissions,
         );

@@ -63,6 +63,9 @@ final class EncryptionKey
 
     public function ue(): string
     {
+        if ($this->ue !== null) {
+            return $this->ue;
+        }
         $this->u();
         assert($this->u !== null);
         $keySalt = substr($this->u, 40, 8);
@@ -96,6 +99,9 @@ final class EncryptionKey
 
     public function oe(): string
     {
+        if ($this->oe !== null) {
+            return $this->oe;
+        }
         $this->o();
         assert($this->o !== null);
         $keySalt = substr($this->o, 40, 8);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpPdf\Encryption;
 
 use PhpPdf\Document\MetadataStream;
+use PhpPdf\Exception\PdfException;
 use PhpPdf\Writer\Object\CompressedStream;
 use PhpPdf\Writer\Object\Dictionary;
 use PhpPdf\Writer\Object\HexString;
@@ -69,7 +70,7 @@ final class ObjectTransformer
             $value instanceof Name, $value instanceof PdfNumber, $value instanceof PdfReference => $value,
             $value instanceof PdfString => $this->encryptBytes($value->value()),
             $value instanceof TextString => $this->encryptBytes("\xFE\xFF" . mb_convert_encoding($value->value(), 'UTF-16BE', 'UTF-8')),
-            $value instanceof HexString => $this->encryptBytes(hex2bin($value->hex()) ?: ''),
+            $value instanceof HexString => $this->encryptBytes(self::decodeHex($value->hex())),
             $value instanceof Dictionary => $this->transformDictionary($value),
             $value instanceof PdfArray => $this->transformArray($value),
             $value instanceof Stream => $this->encryptRawStream($value->content()),
@@ -137,5 +138,14 @@ final class ObjectTransformer
             $obj->generation,
             new EncryptedStreamBytes($dict, $payload->xmpContent()),
         );
+    }
+
+    private static function decodeHex(string $hex): string
+    {
+        $bytes = hex2bin($hex);
+        if ($bytes === false) {
+            throw new PdfException("Invalid hex string for encryption: {$hex}");
+        }
+        return $bytes;
     }
 }
