@@ -31,8 +31,9 @@ final class XrefTable
     {
         $size = $this->size();
         $out = "xref\n0 $size\n0000000000 65535 f \n";
-        ksort($this->offsets);
-        foreach ($this->offsets as $offset) {
+        $offsets = $this->offsets;
+        ksort($offsets);
+        foreach ($offsets as $offset) {
             $out .= sprintf("%010d 00000 n \n", $offset);
         }
         return $out;
