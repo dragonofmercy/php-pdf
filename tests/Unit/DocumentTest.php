@@ -218,4 +218,51 @@ final class DocumentTest extends TestCase
         self::assertStringContainsString('/Contents 4 0 R', $bytes);
         self::assertStringContainsString('/Filter /FlateDecode', $bytes);
     }
+
+    public function testFontResourcesEmittedWhenPageUsesText(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(\PhpPdf\Font::helvetica()->bold(), 14);
+        $page->text(50, 50, 'Hello');
+
+        $bytes = $doc->output();
+
+        // The page dict contains /Resources with /Font /F1 pointing to an indirect object
+        self::assertMatchesRegularExpression(
+            '/\/Resources << \/Font << \/F1 \d+ 0 R >> >>/',
+            $bytes,
+        );
+
+        // A font indirect object exists with /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold
+        self::assertStringContainsString('/Type /Font', $bytes);
+        self::assertStringContainsString('/Subtype /Type1', $bytes);
+        self::assertStringContainsString('/BaseFont /Helvetica-Bold', $bytes);
+        self::assertStringContainsString('/Encoding /WinAnsiEncoding', $bytes);
+    }
+
+    public function testFontsSharedAcrossPages(): void
+    {
+        $doc = new Document();
+        $p1 = $doc->addPage();
+        $p1->setFont(\PhpPdf\Font::helvetica(), 12);
+        $p1->text(50, 50, 'A');
+
+        $p2 = $doc->addPage();
+        $p2->setFont(\PhpPdf\Font::helvetica(), 18);  // same font, different size
+        $p2->text(50, 50, 'B');
+
+        $bytes = $doc->output();
+
+        // Only one /BaseFont /Helvetica entry in the file
+        self::assertSame(1, substr_count($bytes, '/BaseFont /Helvetica '));
+    }
+
+    public function testPageWithoutTextHasNoResources(): void
+    {
+        $doc = new Document();
+        $doc->addPage();  // no drawing, no text
+        $bytes = $doc->output();
+        self::assertStringNotContainsString('/Resources', $bytes);
+    }
 }

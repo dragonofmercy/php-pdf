@@ -16,6 +16,7 @@ use PhpPdf\Encryption\EncryptionKey;
 use PhpPdf\Encryption\ObjectTransformer;
 use PhpPdf\Encryption\PasswordHash;
 use PhpPdf\Exception\PdfException;
+use PhpPdf\Font\FontRegistry;
 use PhpPdf\Writer\Object\CompressedStream;
 use PhpPdf\Writer\Object\Dictionary;
 use PhpPdf\Writer\Object\IndirectObject;
@@ -41,8 +42,15 @@ final class Document
     /** @var list<Page> */
     private array $pages = [];
 
+    private readonly FontRegistry $fontRegistry;
+
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
+
+    public function __construct()
+    {
+        $this->fontRegistry = new FontRegistry();
+    }
 
     public function metadata(): Metadata
     {
@@ -56,7 +64,11 @@ final class Document
 
     public function addPage(): Page
     {
-        $page = new Page(pageWidth: self::A4_WIDTH, pageHeight: self::A4_HEIGHT);
+        $page = new Page(
+            pageWidth: self::A4_WIDTH,
+            pageHeight: self::A4_HEIGHT,
+            fontRegistry: $this->fontRegistry,
+        );
         $this->pages[] = $page;
         return $page;
     }
@@ -97,7 +109,7 @@ final class Document
                 ->withEntry(Name::of('Pages'), $pagesRef),
         );
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesWithContents(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $fontRefs] = $this->buildPagesAndFonts(firstObjectNumber: 3, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -129,7 +141,7 @@ final class Document
                 ->withEntry(Name::of('Metadata'), $metadataStreamRef),
         );
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesWithContents(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $fontRefs] = $this->buildPagesAndFonts(firstObjectNumber: 5, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -199,7 +211,7 @@ final class Document
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesWithContents(
+        [$pageAndContentObjects, $pageRefs, $fontRefs] = $this->buildPagesAndFonts(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
@@ -263,18 +275,42 @@ final class Document
     }
 
     /**
-     * @return array{list<IndirectObject>, list<PdfReference>}
+     * Builds:
+     *   - page IndirectObjects (with optional /Contents and /Resources entries),
+     *   - content-stream IndirectObjects (for pages that drew something),
+     *   - font IndirectObjects (one per registered font in the whole doc).
+     *
+     * All objects share a single numbering starting at $firstObjectNumber.
+     *
+     * Returns [allObjects, pageRefs, fontRefsByShortName].
+     *
+     * @return array{list<IndirectObject>, list<PdfReference>, array<string, PdfReference>}
      */
-    private function buildPagesWithContents(int $firstObjectNumber, PdfReference $pagesRef): array
+    private function buildPagesAndFonts(int $firstObjectNumber, PdfReference $pagesRef): array
     {
         $objects = [];
         $pageRefs = [];
         $nextObjectNumber = $firstObjectNumber;
 
+        /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
+        $pending = [];
         foreach ($this->pages as $page) {
-            $pageObjectNumber = $nextObjectNumber++;
-            $pageRefs[] = PdfReference::to($pageObjectNumber, 0);
+            $pageNum = $nextObjectNumber++;
+            $contentNum = $page->contentStream()->isEmpty() ? null : $nextObjectNumber++;
+            $pending[] = [$page, $pageNum, $contentNum];
+            $pageRefs[] = PdfReference::to($pageNum, 0);
+        }
 
+        // Reserve object numbers for each registered font after the pages+contents.
+        $fontRefs = [];
+        foreach ($this->fontRegistry->registeredFonts() as $font) {
+            $fontNum = $nextObjectNumber++;
+            $shortName = $this->fontRegistry->shortName($font);
+            $fontRefs[$shortName] = PdfReference::to($fontNum, 0);
+        }
+
+        // Emit page dicts (with /Resources if fonts used on that page), then content streams.
+        foreach ($pending as [$page, $pageNum, $contentNum]) {
             $pageDict = Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Page'))
                 ->withEntry(Name::of('Parent'), $pagesRef)
@@ -285,25 +321,48 @@ final class Document
                     PdfNumber::ofFloat($page->pageHeight),
                 ));
 
-            $contentStream = $page->contentStream();
-            if (!$contentStream->isEmpty()) {
-                $contentObjectNumber = $nextObjectNumber++;
+            $pageFonts = $page->fontsUsed();
+            if ($pageFonts !== []) {
+                $fontDict = Dictionary::empty();
+                foreach ($pageFonts as $font) {
+                    $shortName = $this->fontRegistry->shortName($font);
+                    $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+                }
+                $pageDict = $pageDict->withEntry(
+                    Name::of('Resources'),
+                    Dictionary::empty()->withEntry(Name::of('Font'), $fontDict),
+                );
+            }
+
+            if ($contentNum !== null) {
                 $pageDict = $pageDict->withEntry(
                     Name::of('Contents'),
-                    PdfReference::to($contentObjectNumber, 0),
+                    PdfReference::to($contentNum, 0),
                 );
-                $objects[] = IndirectObject::of($pageObjectNumber, 0, $pageDict);
+                $objects[] = IndirectObject::of($pageNum, 0, $pageDict);
                 $objects[] = IndirectObject::of(
-                    $contentObjectNumber,
+                    $contentNum,
                     0,
-                    CompressedStream::of($contentStream->bytes()),
+                    CompressedStream::of($page->contentStream()->bytes()),
                 );
             } else {
-                $objects[] = IndirectObject::of($pageObjectNumber, 0, $pageDict);
+                $objects[] = IndirectObject::of($pageNum, 0, $pageDict);
             }
         }
 
-        return [$objects, $pageRefs];
+        // Emit font IndirectObjects.
+        foreach ($this->fontRegistry->registeredFonts() as $font) {
+            $shortName = $this->fontRegistry->shortName($font);
+            $fontRef = $fontRefs[$shortName];
+            $fontDict = Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Font'))
+                ->withEntry(Name::of('Subtype'), Name::of('Type1'))
+                ->withEntry(Name::of('BaseFont'), Name::of($font->pdfName()))
+                ->withEntry(Name::of('Encoding'), Name::of('WinAnsiEncoding'));
+            $objects[] = IndirectObject::of($fontRef->objectNumber, 0, $fontDict);
+        }
+
+        return [$objects, $pageRefs, $fontRefs];
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
