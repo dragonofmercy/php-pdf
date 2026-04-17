@@ -166,4 +166,69 @@ final class GoldenTest extends TestCase
             @unlink($decrypted);
         }
     }
+
+    public function testPageWithGraphicsMatchesFixtureBytes(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+
+        $page->setStrokeColor(\PhpPdf\Color::hex('#ff0000'))
+             ->setLineWidth(1)
+             ->rect(20, 20, 100, 50)
+             ->stroke();
+
+        $page->setFillColor(\PhpPdf\Color::rgb(0, 0, 255))
+             ->circle(200, 200, 40)
+             ->fill();
+
+        $page->setStrokeColor(\PhpPdf\Color::gray(128))
+             ->setLineWidth(2)
+             ->line(0, 0, 595, 842)
+             ->stroke();
+
+        $page->setFillColor(\PhpPdf\Color::hex('#00aa00'))
+             ->path()
+             ->moveTo(300, 500)
+             ->lineTo(400, 500)
+             ->lineTo(350, 450)
+             ->close()
+             ->fill();
+
+        $page->save()
+             ->translate(450, 100)
+             ->rotate(30)
+             ->setFillColor(\PhpPdf\Color::hex('#ff8800'))
+             ->rect(-10, -10, 20, 20)
+             ->fill();
+        $page->restore();
+
+        $actual = $doc->output();
+        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-graphics.pdf');
+        self::assertIsString($expected);
+        self::assertSame(
+            $expected,
+            $actual,
+            'Output diverges from fixture. If the change is intentional, run: php tests/Golden/regenerate.php',
+        );
+    }
+
+    public function testPageWithGraphicsPassesQpdfCheck(): void
+    {
+        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
+        }
+
+        $process = new \Symfony\Component\Process\Process([
+            $qpdf,
+            '--check',
+            __DIR__ . '/fixtures/page-with-graphics.pdf',
+        ]);
+        $process->run();
+        self::assertSame(
+            0,
+            $process->getExitCode(),
+            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
+        );
+    }
 }
