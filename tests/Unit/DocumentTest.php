@@ -299,4 +299,41 @@ final class DocumentTest extends TestCase
         };
         self::assertSame($build(), $build());
     }
+
+    public function testDocumentEmitsXObjectResourceWhenImageUsed(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $img = \DragonOfMercy\PhpPdf\Image::fromBytes(
+            \DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory::pngRgb(width: 4, height: 4),
+        );
+        $page->image($img, x: 0, y: 0, w: 100, h: 100);
+        $bytes = $doc->output();
+        // Page resource dictionary contains an XObject sub-dictionary referencing /Im1.
+        self::assertStringContainsString('/XObject << /Im1', $bytes);
+        // The image XObject itself is present.
+        self::assertStringContainsString('/Subtype /Image', $bytes);
+        self::assertStringContainsString('/Filter /FlateDecode', $bytes);
+    }
+
+    public function testDocumentReservesContiguousObjectNumbersForImageAndSmask(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $img = \DragonOfMercy\PhpPdf\Image::fromBytes(
+            \DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory::pngRgbAlpha(width: 4, height: 4),
+        );
+        $page->image($img, x: 0, y: 0, w: 50, h: 50);
+        $bytes = $doc->output();
+        // The main image's /SMask reference points at object N+1 (whatever N is, the +1 is contiguous).
+        self::assertMatchesRegularExpression('#/SMask (\d+) 0 R#', $bytes, 'SMask reference present');
+        if (preg_match('#/SMask (\d+) 0 R#', $bytes, $m) === 1) {
+            $smaskNum = (int) $m[1];
+            self::assertMatchesRegularExpression(
+                "#\\b{$smaskNum} 0 obj\\b#",
+                $bytes,
+                'SMask object definition present at the referenced number',
+            );
+        }
+    }
 }

@@ -18,7 +18,10 @@ use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Image;
+use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Image\PngMetadata;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -117,7 +120,7 @@ final class Document
                 ->withEntry(Name::of('Pages'), $pagesRef),
         );
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesAndFonts(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -149,7 +152,7 @@ final class Document
                 ->withEntry(Name::of('Metadata'), $metadataStreamRef),
         );
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesAndFonts(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
 
         $pages = IndirectObject::of(
             2,
@@ -219,7 +222,7 @@ final class Document
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesAndFonts(
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
@@ -286,7 +289,8 @@ final class Document
      * Builds:
      *   - page IndirectObjects (with optional /Contents and /Resources entries),
      *   - content-stream IndirectObjects (for pages that drew something),
-     *   - font IndirectObjects (one per registered font in the whole doc).
+     *   - font IndirectObjects (one per registered font in the whole doc),
+     *   - image and SMask IndirectObjects (for each registered image).
      *
      * All objects share a single numbering starting at $firstObjectNumber.
      *
@@ -294,7 +298,7 @@ final class Document
      *
      * @return array{list<IndirectObject>, list<PdfReference>}
      */
-    private function buildPagesAndFonts(int $firstObjectNumber, PdfReference $pagesRef): array
+    private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
         $objects = [];
         $pageRefs = [];
@@ -317,7 +321,20 @@ final class Document
             $fontRefs[$shortName] = PdfReference::to($fontNum, 0);
         }
 
-        // Emit page dicts (with /Resources if fonts used on that page), then content streams.
+        // Reserve object numbers for each registered image (and SMask if applicable).
+        /** @var array<string, PdfReference> $imageRefs short name => main image reference */
+        $imageRefs = [];
+        /** @var list<array{Image, int}> $imageEmissions image + its assigned main object number */
+        $imageEmissions = [];
+        foreach ($this->imageRegistry->registeredImages() as $idx => $image) {
+            $shortName = 'Im' . ($idx + 1);
+            $imageNum = $nextObjectNumber;
+            $imageRefs[$shortName] = PdfReference::to($imageNum, 0);
+            $nextObjectNumber += self::imageObjectCount($image);
+            $imageEmissions[] = [$image, $imageNum];
+        }
+
+        // Emit page dicts (with /Resources if fonts and/or images used on that page), then content streams.
         foreach ($pending as [$page, $pageNum, $contentNum]) {
             $pageDict = Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Page'))
@@ -330,16 +347,29 @@ final class Document
                 ));
 
             $pageFonts = $page->fontsUsed();
-            if ($pageFonts !== []) {
-                $fontDict = Dictionary::empty();
-                foreach ($pageFonts as $font) {
-                    $shortName = $this->fontRegistry->shortName($font);
-                    $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+            $pageImages = $page->imagesUsed();
+
+            if ($pageFonts !== [] || $pageImages !== []) {
+                $resources = Dictionary::empty();
+                if ($pageFonts !== []) {
+                    $fontDict = Dictionary::empty();
+                    foreach ($pageFonts as $font) {
+                        $shortName = $this->fontRegistry->shortName($font);
+                        $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+                    }
+                    $resources = $resources->withEntry(Name::of('Font'), $fontDict);
                 }
-                $pageDict = $pageDict->withEntry(
-                    Name::of('Resources'),
-                    Dictionary::empty()->withEntry(Name::of('Font'), $fontDict),
-                );
+                if ($pageImages !== []) {
+                    $xObjectDict = Dictionary::empty();
+                    foreach ($pageImages as $imageShort) {
+                        $xObjectDict = $xObjectDict->withEntry(
+                            Name::of($imageShort),
+                            $imageRefs[$imageShort],
+                        );
+                    }
+                    $resources = $resources->withEntry(Name::of('XObject'), $xObjectDict);
+                }
+                $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
             }
 
             if ($contentNum !== null) {
@@ -370,7 +400,24 @@ final class Document
             $objects[] = IndirectObject::of($fontRef->objectNumber, 0, $fontDict);
         }
 
+        // Emit image (and SMask) IndirectObjects.
+        $embedder = new ImageEmbedder();
+        foreach ($imageEmissions as [$image, $imageNum]) {
+            foreach ($embedder->embed($image, $imageNum) as $obj) {
+                $objects[] = $obj;
+            }
+        }
+
         return [$objects, $pageRefs];
+    }
+
+    private static function imageObjectCount(Image $image): int
+    {
+        $meta = $image->metadata;
+        if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
+            return 2;
+        }
+        return 1;
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
