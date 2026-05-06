@@ -134,6 +134,92 @@ final class CellRenderer
     }
 
     /**
+     * Layout for `Fit::CONDENSE`: each `\n`-separated paragraph stays on a
+     * single line with a Tz scale percentage so it fits within `$innerW`.
+     */
+    public function condenseText(string $rawText, float $innerW, Font $font, float $size): CondenseResult
+    {
+        $metrics = $this->metrics->metricsFor($font);
+        // Split BEFORE encoding (WinAnsiEncoder maps \n to '?').
+        $paragraphs = explode("\n", $rawText);
+
+        $lines = [];
+        $scales = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $encoded = WinAnsiEncoder::encode($paragraph);
+            $paraWidth = $metrics->stringWidth($encoded, $size);
+            if ($paraWidth <= 0.0 + 0.0001 || $paraWidth <= $innerW + 0.0001) {
+                $scale = 100.0;
+            } else {
+                $scale = ($innerW / $paraWidth) * 100.0;
+            }
+            $lines[] = $encoded;
+            $scales[] = $scale;
+        }
+
+        return new CondenseResult(lines: $lines, scales: $scales);
+    }
+
+    /**
+     * Layout for `Fit::SHRINK`: a single proportional ratio is applied so the
+     * longest paragraph fits in `$innerW`. Below `originalSize/100` the
+     * effectiveSize is clamped and `textOverflow` is set true.
+     */
+    public function shrinkText(
+        string $rawText,
+        float $innerW,
+        Font $font,
+        float $originalSize,
+        ?float $customLeading = null,
+    ): ShrinkResult {
+        $metrics = $this->metrics->metricsFor($font);
+        // Split BEFORE encoding.
+        $paragraphs = array_map(
+            static fn (string $p): string => WinAnsiEncoder::encode($p),
+            explode("\n", $rawText),
+        );
+
+        $maxWidth = 0.0;
+        foreach ($paragraphs as $paragraph) {
+            $w = $metrics->stringWidth($paragraph, $originalSize);
+            if ($w > $maxWidth) {
+                $maxWidth = $w;
+            }
+        }
+
+        if ($maxWidth <= 0.0 + 0.0001 || $maxWidth <= $innerW + 0.0001) {
+            $effectiveSize = $originalSize;
+            $textOverflow = false;
+        } else {
+            $ratio = $innerW / $maxWidth;
+            $effectiveSize = $originalSize * $ratio;
+            $minSize = $originalSize / 100.0;
+            if ($effectiveSize < $minSize) {
+                $effectiveSize = $minSize;
+                $textOverflow = true;
+            } else {
+                $textOverflow = false;
+            }
+        }
+
+        $effectiveLeading = $customLeading ?? ($effectiveSize * 1.2);
+
+        $widths = [];
+        foreach ($paragraphs as $paragraph) {
+            $widths[] = $metrics->stringWidth($paragraph, $effectiveSize);
+        }
+
+        return new ShrinkResult(
+            lines: $paragraphs,
+            widths: $widths,
+            effectiveSize: $effectiveSize,
+            effectiveLeading: $effectiveLeading,
+            textOverflow: $textOverflow,
+        );
+    }
+
+    /**
      * Force-breaks a word that exceeds innerW into chunks that each fit.
      *
      * @return array{0: list<string>, 1: list<float>}

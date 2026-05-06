@@ -90,4 +90,77 @@ final class CellRendererTest extends TestCase
         self::assertSame([0.0], $result->widths);
         self::assertSame(0, $result->brokenWords);
     }
+
+    public function testCondenseTextNoCompressionWhenFits(): void
+    {
+        $r = $this->renderer();
+        // Helvetica "Hi" at 12pt is well below 1000pt -- scale stays 100.
+        $result = $r->condenseText('Hi', 1000.0, Font::helvetica(), 12.0);
+        self::assertSame(['Hi'], $result->lines);
+        self::assertSame([100.0], $result->scales);
+    }
+
+    public function testCondenseTextScalesDownWhenOverflows(): void
+    {
+        $r = $this->renderer();
+        // Force overflow: paraWidth is roughly Helvetica "Hello" ~ 27.34pt at 12pt.
+        // innerW = 13.67 -> scale ~ 50.
+        $result = $r->condenseText('Hello', 13.67, Font::helvetica(), 12.0);
+        self::assertSame(['Hello'], $result->lines);
+        self::assertCount(1, $result->scales);
+        self::assertLessThan(100.0, $result->scales[0]);
+        self::assertGreaterThan(0.0, $result->scales[0]);
+    }
+
+    public function testCondenseTextSplitsOnNewlines(): void
+    {
+        $r = $this->renderer();
+        $result = $r->condenseText("a\nbb", 1000.0, Font::courier(), 10.0);
+        self::assertSame(['a', 'bb'], $result->lines);
+        self::assertSame([100.0, 100.0], $result->scales);
+    }
+
+    public function testCondenseTextEmptyParagraphScaleIs100(): void
+    {
+        $r = $this->renderer();
+        $result = $r->condenseText('', 100.0, Font::helvetica(), 12.0);
+        self::assertSame([''], $result->lines);
+        self::assertSame([100.0], $result->scales);
+    }
+
+    public function testShrinkTextNoShrinkWhenFits(): void
+    {
+        $r = $this->renderer();
+        $result = $r->shrinkText('Hi', 1000.0, Font::helvetica(), 12.0);
+        self::assertSame(12.0, $result->effectiveSize);
+        self::assertFalse($result->textOverflow);
+    }
+
+    public function testShrinkTextReducesSizeProportionally(): void
+    {
+        $r = $this->renderer();
+        // Hello at Helvetica 12 ~ 27.336. innerW=13.67 -> ratio ~0.5 -> effectiveSize ~6.0.
+        $result = $r->shrinkText('Hello', 13.67, Font::helvetica(), 12.0);
+        self::assertEqualsWithDelta(6.0, $result->effectiveSize, 0.05);
+        self::assertCount(1, $result->lines);
+        self::assertCount(1, $result->widths);
+    }
+
+    public function testShrinkTextRatioBasedOnLongestLine(): void
+    {
+        $r = $this->renderer();
+        // Two paragraphs; longest determines ratio.
+        $result = $r->shrinkText("a\nHello", 13.67, Font::helvetica(), 12.0);
+        self::assertCount(2, $result->lines);
+        self::assertEqualsWithDelta(6.0, $result->effectiveSize, 0.05);
+    }
+
+    public function testShrinkTextExtremeNarrowSetsOverflow(): void
+    {
+        $r = $this->renderer();
+        // 0.1pt is way below the originalSize/100 minSize threshold.
+        $result = $r->shrinkText('Hello', 0.1, Font::helvetica(), 12.0);
+        self::assertTrue($result->textOverflow);
+        self::assertEqualsWithDelta(0.12, $result->effectiveSize, 0.001);
+    }
 }
