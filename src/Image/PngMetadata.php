@@ -123,12 +123,25 @@ final readonly class PngMetadata
             throw new PdfException('PNG has no IDAT chunks (empty image)');
         }
 
-        // Phase 4 step 1: opaque color types only. Alpha cases are handled in Task 7.
         $alphaBytes = null;
         $colorBytes = null;
 
-        // tRNS on PALETTE will be handled in Task 7 (alpha separator).
-        // GRAY_ALPHA / RGB_ALPHA will also be handled in Task 7.
+        if ($colorType === PngColorType::GRAY_ALPHA || $colorType === PngColorType::RGB_ALPHA) {
+            [$colorBytes, $alphaBytes] = self::separateAlphaChannel(
+                idat: $idat,
+                width: $width,
+                height: $height,
+                bpp: $colorType === PngColorType::RGB_ALPHA ? 4 : 2,
+                colorChannels: $colorType === PngColorType::RGB_ALPHA ? 3 : 1,
+            );
+        } elseif ($colorType === PngColorType::PALETTE && $trns !== null) {
+            $alphaBytes = self::generateAlphaFromTrns(
+                idat: $idat,
+                width: $width,
+                height: $height,
+                trns: $trns,
+            );
+        }
 
         return new self(
             width: $width,
@@ -140,5 +153,88 @@ final readonly class PngMetadata
             alphaBytes: $alphaBytes,
             colorBytes: $colorBytes,
         );
+    }
+
+    /**
+     * Decompresses idat, de-filters, splits color and alpha bytes into two separate
+     * filter-prefixed scanline streams, and re-zlib-compresses each.
+     *
+     * @return array{string, string} [colorBytes, alphaBytes] both gzcompressed.
+     */
+    private static function separateAlphaChannel(
+        string $idat,
+        int $width,
+        int $height,
+        int $bpp,
+        int $colorChannels,
+    ): array {
+        $decompressed = @gzuncompress($idat);
+        if ($decompressed === false) {
+            throw new PdfException('PNG IDAT zlib decompression failed');
+        }
+        $raw = PngFilters::unfilter($decompressed, $width, $height, $bpp);
+
+        $colorOut = '';
+        $alphaOut = '';
+        $rawOffset = 0;
+
+        for ($y = 0; $y < $height; $y++) {
+            $colorRow = '';
+            $alphaRow = '';
+            for ($x = 0; $x < $width; $x++) {
+                for ($c = 0; $c < $colorChannels; $c++) {
+                    $colorRow .= $raw[$rawOffset + $c];
+                }
+                $alphaRow .= $raw[$rawOffset + $colorChannels];
+                $rawOffset += $bpp;
+            }
+            $colorOut .= "\x00" . $colorRow;     // filter type None
+            $alphaOut .= "\x00" . $alphaRow;
+        }
+
+        $colorCompressed = gzcompress($colorOut, 6);
+        $alphaCompressed = gzcompress($alphaOut, 6);
+        if ($colorCompressed === false || $alphaCompressed === false) {
+            throw new PdfException('PNG channel recompression failed');
+        }
+
+        return [$colorCompressed, $alphaCompressed];
+    }
+
+    /**
+     * For PALETTE + tRNS: derives a per-pixel alpha stream by looking up
+     * tRNS[paletteIndex] for every pixel. tRNS may be shorter than the
+     * palette; missing entries default to 0xFF (fully opaque).
+     */
+    private static function generateAlphaFromTrns(
+        string $idat,
+        int $width,
+        int $height,
+        string $trns,
+    ): string {
+        $decompressed = @gzuncompress($idat);
+        if ($decompressed === false) {
+            throw new PdfException('PNG IDAT zlib decompression failed');
+        }
+        $raw = PngFilters::unfilter($decompressed, $width, $height, bpp: 1);
+
+        $trnsLen = strlen($trns);
+        $alphaOut = '';
+        $offset = 0;
+        for ($y = 0; $y < $height; $y++) {
+            $row = '';
+            for ($x = 0; $x < $width; $x++) {
+                $index = ord($raw[$offset]);
+                $row .= $index < $trnsLen ? $trns[$index] : "\xFF";
+                $offset++;
+            }
+            $alphaOut .= "\x00" . $row;
+        }
+
+        $compressed = gzcompress($alphaOut, 6);
+        if ($compressed === false) {
+            throw new PdfException('PNG alpha channel compression failed');
+        }
+        return $compressed;
     }
 }

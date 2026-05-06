@@ -97,4 +97,64 @@ final class PngMetadataTest extends TestCase
         $this->expectExceptionMessage('PLTE');
         PngMetadata::parse($bytes);
     }
+
+    public function testParsesGrayAlpha(): void
+    {
+        $meta = PngMetadata::parse(TestImageFactory::pngGrayAlpha(width: 2, height: 2));
+        self::assertSame(PngColorType::GRAY_ALPHA, $meta->colorType);
+        self::assertNotNull($meta->colorBytes);
+        self::assertNotNull($meta->alphaBytes);
+        // After zlib-decompress + unfilter, color stream should be 2x2 = 4 bytes and alpha 4 bytes.
+        $color = gzuncompress($meta->colorBytes);
+        $alpha = gzuncompress($meta->alphaBytes);
+        self::assertNotFalse($color);
+        self::assertNotFalse($alpha);
+        // Each scanline = 1 filter byte + 2 data bytes => 6 bytes total per stream.
+        self::assertSame(6, strlen($color));
+        self::assertSame(6, strlen($alpha));
+        // Color bytes (skip filter byte at start of each row).
+        self::assertSame("\x80\x80", substr($color, 1, 2));
+        self::assertSame("\x80\x80", substr($alpha, 1, 2));
+    }
+
+    public function testParsesRgbAlpha(): void
+    {
+        $meta = PngMetadata::parse(TestImageFactory::pngRgbAlpha(width: 2, height: 2));
+        self::assertSame(PngColorType::RGB_ALPHA, $meta->colorType);
+        self::assertNotNull($meta->colorBytes);
+        self::assertNotNull($meta->alphaBytes);
+        $color = gzuncompress($meta->colorBytes);
+        $alpha = gzuncompress($meta->alphaBytes);
+        self::assertNotFalse($color);
+        self::assertNotFalse($alpha);
+        // 2 rows; each row: 1 filter byte + 2 pixels of 3 RGB bytes = 7 color bytes.
+        self::assertSame(2 * (1 + 6), strlen($color));
+        // Alpha: 1 filter byte + 2 alpha bytes per row = 6 bytes.
+        self::assertSame(2 * (1 + 2), strlen($alpha));
+        // First color row data (skip filter byte): R=0xFF G=0x00 B=0x00 R=0xFF G=0x00 B=0x00.
+        self::assertSame("\xFF\x00\x00\xFF\x00\x00", substr($color, 1, 6));
+        self::assertSame("\xFF\xFF", substr($alpha, 1, 2));
+    }
+
+    public function testParsesPaletteWithTrnsGeneratesAlpha(): void
+    {
+        $meta = PngMetadata::parse(TestImageFactory::pngPaletteWithTrns(width: 2, height: 2));
+        self::assertSame(PngColorType::PALETTE, $meta->colorType);
+        self::assertNotNull($meta->palette);
+        self::assertNotNull($meta->alphaBytes);
+        // Color (idatBytes) is preserved verbatim.
+        self::assertNotSame('', $meta->idatBytes);
+        // Alpha stream: 1 filter byte + 2 alpha bytes per row, both index 0 -> tRNS[0] = 0x00.
+        $alpha = gzuncompress($meta->alphaBytes);
+        self::assertNotFalse($alpha);
+        self::assertSame(2 * (1 + 2), strlen($alpha));
+        self::assertSame("\x00\x00", substr($alpha, 1, 2));
+    }
+
+    public function testPaletteWithoutTrnsHasNoAlpha(): void
+    {
+        $meta = PngMetadata::parse(TestImageFactory::pngPalette());
+        self::assertNull($meta->alphaBytes);
+        self::assertNull($meta->colorBytes);
+    }
 }
