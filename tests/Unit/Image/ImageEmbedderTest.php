@@ -58,4 +58,44 @@ final class ImageEmbedderTest extends TestCase
         self::assertNotFalse($lengthPos);
         self::assertLessThan($lengthPos, $decodePos, '/Decode must precede /Length per PDF convention');
     }
+
+    public function testEmbedsOpaquePngRgb(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::pngRgb(width: 16, height: 8));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 5);
+        self::assertCount(1, $objects);
+        $bytes = $objects[0]->toBytes();
+        self::assertStringContainsString('/Subtype /Image', $bytes);
+        self::assertStringContainsString('/Width 16', $bytes);
+        self::assertStringContainsString('/Height 8', $bytes);
+        self::assertStringContainsString('/ColorSpace /DeviceRGB', $bytes);
+        self::assertStringContainsString('/BitsPerComponent 8', $bytes);
+        self::assertStringContainsString('/Filter /FlateDecode', $bytes);
+        self::assertStringContainsString('/Predictor 15', $bytes);
+        self::assertStringContainsString('/Columns 16', $bytes);
+        self::assertStringContainsString('/Colors 3', $bytes);
+    }
+
+    public function testEmbedsOpaquePngGrayscale(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::pngGray(width: 4, height: 4));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 1);
+        self::assertCount(1, $objects);
+        $bytes = $objects[0]->toBytes();
+        self::assertStringContainsString('/ColorSpace /DeviceGray', $bytes);
+        self::assertStringContainsString('/Colors 1', $bytes);
+    }
+
+    public function testEmbedsPalettePng(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::pngPalette(width: 4, height: 4));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 1);
+        self::assertCount(1, $objects);
+        $bytes = $objects[0]->toBytes();
+        // /ColorSpace [/Indexed /DeviceRGB 1 <palette-hex>]
+        self::assertStringContainsString('/ColorSpace [/Indexed /DeviceRGB 1', $bytes);
+        // The 2-color palette (FF0000 00FF00) appears as a hex literal somewhere in the dict.
+        self::assertStringContainsString('<FF000000FF00>', $bytes);
+        self::assertStringContainsString('/Colors 1', $bytes);
+    }
 }
