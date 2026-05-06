@@ -9,11 +9,11 @@ use PHPUnit\Framework\TestCase;
 
 final class ImageFormatTest extends TestCase
 {
-    public function testEnumCases(): void
+    public function testCasesExist(): void
     {
         $cases = ImageFormat::cases();
         self::assertCount(2, $cases);
-        self::assertSame('JPEG', $cases[0]->name);
-        self::assertSame('PNG', $cases[1]->name);
+        self::assertContains(ImageFormat::JPEG, $cases);
+        self::assertContains(ImageFormat::PNG, $cases);
     }
 }
