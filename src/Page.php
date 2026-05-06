@@ -229,6 +229,37 @@ final class Page
     }
 
     /**
+     * Returns the width in points of the longest line of $text rendered
+     * with the supplied font and size -- or, if either argument is null, the
+     * current state set via setFont(). Empty string returns 0.0. Throws
+     * PdfException when no state is set and required arguments are missing.
+     */
+    public function stringWidth(string $text, ?Font $font = null, ?float $size = null): float
+    {
+        $resolvedFont = $font ?? $this->currentFont;
+        $resolvedSize = $size ?? $this->currentSize;
+
+        if ($resolvedFont === null || $resolvedSize === null) {
+            throw new PdfException('No font set: pass $font and $size, or call setFont() first');
+        }
+
+        if ($text === '') {
+            return 0.0;
+        }
+
+        $metrics = $this->metricsRegistry->metricsFor($resolvedFont);
+        $maxWidth = 0.0;
+        foreach (explode("\n", $text) as $line) {
+            $encoded = WinAnsiEncoder::encode($line);
+            $width = $metrics->stringWidth($encoded, $resolvedSize);
+            if ($width > $maxWidth) {
+                $maxWidth = $width;
+            }
+        }
+        return $maxWidth;
+    }
+
+    /**
      * @internal
      */
     public function metricsRegistry(): MetricsRegistry

@@ -279,4 +279,66 @@ final class PageTest extends TestCase
             $used,
         ));
     }
+
+    public function testStringWidthWithExplicitFontAndSize(): void
+    {
+        $page = new Page(
+            pageWidth: 595.0,
+            pageHeight: 842.0,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+        );
+        // Helvetica space=278/1000 em, 'H'=722, 'e'=556, 'l'=222, 'l'=222, 'o'=556 => "Hello" = 2278
+        // At size 12: 2278 / 1000 * 12 = 27.336
+        self::assertEqualsWithDelta(27.336, $page->stringWidth('Hello', Font::helvetica(), 12.0), 0.0001);
+    }
+
+    public function testStringWidthUsesCurrentFontWhenArgsOmitted(): void
+    {
+        $page = new Page(
+            pageWidth: 595.0,
+            pageHeight: 842.0,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+        );
+        $page->setFont(Font::helvetica(), 12.0);
+        self::assertEqualsWithDelta(27.336, $page->stringWidth('Hello'), 0.0001);
+    }
+
+    public function testStringWidthEmptyStringIsZero(): void
+    {
+        $page = new Page(
+            pageWidth: 595.0,
+            pageHeight: 842.0,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+        );
+        $page->setFont(Font::helvetica(), 12.0);
+        self::assertSame(0.0, $page->stringWidth(''));
+    }
+
+    public function testStringWidthMultilineReturnsMaxLineWidth(): void
+    {
+        $page = new Page(
+            pageWidth: 595.0,
+            pageHeight: 842.0,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+        );
+        $page->setFont(Font::courier(), 10.0);
+        // Courier is monospace 600/1000 em. "a" = 600, "abc" = 1800. At size 10: max = 1800/1000*10 = 18.0
+        self::assertEqualsWithDelta(18.0, $page->stringWidth("a\nabc"), 0.0001);
+    }
+
+    public function testStringWidthThrowsWhenNoStateAndNoArgs(): void
+    {
+        $page = new Page(
+            pageWidth: 595.0,
+            pageHeight: 842.0,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+        );
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $page->stringWidth('Hello');
+    }
 }
