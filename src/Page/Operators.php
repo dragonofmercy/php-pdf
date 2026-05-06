@@ -159,6 +159,16 @@ final class Operators
         return PdfString::of($encodedBytes)->toBytes() . " '\n";
     }
 
+    public static function setHorizontalScaling(float $percent): string
+    {
+        return self::num($percent) . " Tz\n";
+    }
+
+    public static function setWordSpacing(float $points): string
+    {
+        return self::num($points) . " Tw\n";
+    }
+
     private static function num(float $value): string
     {
         return PdfNumber::ofFloat($value)->toBytes();

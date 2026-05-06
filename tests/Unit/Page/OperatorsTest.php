@@ -139,4 +139,16 @@ final class OperatorsTest extends TestCase
     {
         self::assertSame("(Next) '\n", Operators::showTextNextLine('Next'));
     }
+
+    public function testSetHorizontalScaling(): void
+    {
+        self::assertSame("80 Tz\n", Operators::setHorizontalScaling(80.0));
+        self::assertSame("100 Tz\n", Operators::setHorizontalScaling(100.0));
+    }
+
+    public function testSetWordSpacing(): void
+    {
+        self::assertSame("2.5 Tw\n", Operators::setWordSpacing(2.5));
+        self::assertSame("0 Tw\n", Operators::setWordSpacing(0.0));
+    }
 }
