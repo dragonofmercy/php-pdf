@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
 /**
  * PDF stream object (PDF 1.7 §7.3.8). Raw content, no compression.

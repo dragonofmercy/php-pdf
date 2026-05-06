@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer;
+namespace DragonOfMercy\PhpPdf\Writer;
 
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\HexString;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfArray;
-use PhpPdf\Writer\Object\PdfNumber;
-use PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\HexString;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 
 /**
  * PDF file trailer (PDF 1.7 §7.5.5).

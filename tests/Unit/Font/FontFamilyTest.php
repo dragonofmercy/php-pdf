@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Font;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
-use PhpPdf\Font\FontFamily;
+use DragonOfMercy\PhpPdf\Font\FontFamily;
 use PHPUnit\Framework\TestCase;
 
 final class FontFamilyTest extends TestCase

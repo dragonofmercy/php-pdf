@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer;
+namespace DragonOfMercy\PhpPdf\Writer;
 
 /**
  * PDF cross-reference table (PDF 1.7 §7.5.4). Stateful: callers invoke

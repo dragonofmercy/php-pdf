@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
 /**
  * PDF line cap styles (PDF 1.7 §8.4.3.3). Integer values match the PDF

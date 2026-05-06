@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Document;
+namespace DragonOfMercy\PhpPdf\Document;
 
 /**
  * Fluent builder for PDF encryption settings (R6 / AES-256 only).

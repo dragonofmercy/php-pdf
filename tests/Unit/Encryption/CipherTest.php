@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Encryption;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Encryption;
 
-use PhpPdf\Encryption\Cipher;
+use DragonOfMercy\PhpPdf\Encryption\Cipher;
 use PHPUnit\Framework\TestCase;
 
 final class CipherTest extends TestCase
@@ -54,7 +54,7 @@ final class CipherTest extends TestCase
 
     public function testEncryptFailureThrows(): void
     {
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         (new Cipher())->encrypt('hello', 'too-short', fn (int $n) => str_repeat("\x00", $n));
     }
 }

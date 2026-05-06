@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Encryption;
+namespace DragonOfMercy\PhpPdf\Encryption;
 
-use PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
  * Implements Algorithm 2.B from ISO 32000-2 (PDF 2.0) §7.6.4.3.3.

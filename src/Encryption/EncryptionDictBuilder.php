@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Encryption;
+namespace DragonOfMercy\PhpPdf\Encryption;
 
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\HexString;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfBoolean;
-use PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\HexString;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfBoolean;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 
 /**
  * Builds the /Encrypt dictionary for PDF 2.0 R6 / AES-256.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Font;
+namespace DragonOfMercy\PhpPdf\Font;
 
 /**
  * Value object holding the metric tables of a single PDF Type 1 font, in

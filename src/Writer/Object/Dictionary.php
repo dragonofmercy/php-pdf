@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
 /**
  * PDF dictionary object (PDF 1.7 §7.3.7). Immutable. Keys are stored by

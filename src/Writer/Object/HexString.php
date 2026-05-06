@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
 /**
  * PDF hexadecimal string (PDF 1.7 §7.3.4.3). Emitted as uppercase hex

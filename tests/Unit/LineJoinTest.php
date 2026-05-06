@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\LineJoin;
+use DragonOfMercy\PhpPdf\LineJoin;
 use PHPUnit\Framework\TestCase;
 
 final class LineJoinTest extends TestCase

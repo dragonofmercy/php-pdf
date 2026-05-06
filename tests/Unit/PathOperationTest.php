@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\Page\ContentStream;
-use PhpPdf\PathOperation;
+use DragonOfMercy\PhpPdf\Page\ContentStream;
+use DragonOfMercy\PhpPdf\PathOperation;
 use PHPUnit\Framework\TestCase;
 
 final class PathOperationTest extends TestCase

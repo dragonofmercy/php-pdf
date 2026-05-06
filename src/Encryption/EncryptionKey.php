@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Encryption;
+namespace DragonOfMercy\PhpPdf\Encryption;
 
-use PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
  * Derives the R6 encryption data: file key, U/O validation/key material,

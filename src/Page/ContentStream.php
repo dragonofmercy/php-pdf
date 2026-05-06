@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Page;
+namespace DragonOfMercy\PhpPdf\Page;
 
 /**
  * Byte buffer for a page's PDF content stream. Accumulates operator bytes

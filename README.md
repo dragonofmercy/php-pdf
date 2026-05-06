@@ -29,7 +29,7 @@ composer require dragonofmercy/phppdf
 ### Empty document
 
 ```php
-use PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Document;
 
 $pdf = new Document();
 $pdf->addPage();
@@ -57,7 +57,7 @@ $pdf->save('invoice.pdf');
 ### Graphics
 
 ```php
-use PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Color;
 
 $page = $pdf->addPage();
 $page->setStrokeColor(Color::hex('#ff0000'))
@@ -73,7 +73,7 @@ $page->setFillColor(Color::rgb(0, 0, 255))
 ### Text
 
 ```php
-use PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font;
 
 $page->setFont(Font::helvetica()->bold(), 18);
 $page->text(50, 50, 'Hello World');
@@ -88,11 +88,11 @@ $page->text(50, 150, "Line 1\nLine 2\nLine 3");
 ### Cells
 
 ```php
-use PhpPdf\Border;
-use PhpPdf\BorderStyle;
-use PhpPdf\Fit;
-use PhpPdf\TextAlign;
-use PhpPdf\VerticalAlign;
+use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\BorderStyle;
+use DragonOfMercy\PhpPdf\Fit;
+use DragonOfMercy\PhpPdf\TextAlign;
+use DragonOfMercy\PhpPdf\VerticalAlign;
 
 $page->setFont(Font::helvetica(), 12);
 

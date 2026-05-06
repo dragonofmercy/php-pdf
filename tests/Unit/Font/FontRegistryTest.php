@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Font;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
-use PhpPdf\Font;
-use PhpPdf\Font\FontRegistry;
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class FontRegistryTest extends TestCase

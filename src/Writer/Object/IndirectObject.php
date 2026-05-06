@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
 /**
  * PDF indirect object (PDF 1.7 §7.3.10). Wraps any PdfObject with an

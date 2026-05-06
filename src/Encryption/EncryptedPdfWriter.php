@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Encryption;
+namespace DragonOfMercy\PhpPdf\Encryption;
 
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\HexString;
-use PhpPdf\Writer\Object\IndirectObject;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfArray;
-use PhpPdf\Writer\Object\PdfNumber;
-use PhpPdf\Writer\Object\PdfReference;
-use PhpPdf\Writer\XrefTable;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\HexString;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\XrefTable;
 
 /**
  * PdfWriter variant that applies ObjectTransformer to every IndirectObject

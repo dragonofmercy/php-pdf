@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
 /**
  * Readonly result of `Page::cell()`. Carries the bottom-right anchor of the

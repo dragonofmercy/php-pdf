@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Font;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
-use PhpPdf\Exception\PdfException;
-use PhpPdf\Font;
-use PhpPdf\Font\FontMetrics;
-use PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontMetrics;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class MetricsRegistryTest extends TestCase

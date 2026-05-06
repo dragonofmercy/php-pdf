@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Document;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Document;
 
 use DateTimeImmutable;
-use PhpPdf\Document\Metadata;
-use PhpPdf\Document\XmpWriter;
+use DragonOfMercy\PhpPdf\Document\Metadata;
+use DragonOfMercy\PhpPdf\Document\XmpWriter;
 use PHPUnit\Framework\TestCase;
 
 final class XmpWriterTest extends TestCase

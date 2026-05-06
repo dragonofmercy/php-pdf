@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
-use PhpPdf\Font\FontFamily;
+use DragonOfMercy\PhpPdf\Font\FontFamily;
 
 /**
  * Fluent readonly builder for the 12 standard PDF fonts (Helvetica, Times,

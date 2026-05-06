@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
-use PhpPdf\Color;
-use PhpPdf\Document;
-use PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Font;
 
 $fixturesDir = __DIR__ . '/fixtures';
 if (!is_dir($fixturesDir)) {
@@ -117,17 +117,17 @@ $page->setFont(Font::helvetica(), 12);
 $page->cell(
     x: 50, y: 50, w: 300, h: 25,
     text: 'Invoice #2026-001',
-    border: PhpPdf\Border::all()->withWidth(0.8),
+    border: DragonOfMercy\PhpPdf\Border::all()->withWidth(0.8),
     fill: Color::rgb(242, 242, 242),
-    align: PhpPdf\TextAlign::CENTER,
-    verticalAlign: PhpPdf\VerticalAlign::MIDDLE,
+    align: DragonOfMercy\PhpPdf\TextAlign::CENTER,
+    verticalAlign: DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
 );
 
 // Wrapping prose with dashed border.
 $result = $page->cell(
     x: 50, y: 80, w: 300,
     text: 'Long paragraph that wraps automatically across multiple lines depending on the available width.',
-    border: PhpPdf\Border::all()->withStyle(PhpPdf\BorderStyle::DASHED),
+    border: DragonOfMercy\PhpPdf\Border::all()->withStyle(DragonOfMercy\PhpPdf\BorderStyle::DASHED),
 );
 
 // Right-aligned with a custom text color (no border).
@@ -135,52 +135,52 @@ $page->cell(
     x: 50, y: $result->y + 5, w: 300, h: 20,
     text: 'Total: 1234.56 EUR',
     textColor: Color::rgb(192, 0, 0),
-    align: PhpPdf\TextAlign::RIGHT,
-    verticalAlign: PhpPdf\VerticalAlign::MIDDLE,
+    align: DragonOfMercy\PhpPdf\TextAlign::RIGHT,
+    verticalAlign: DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
 );
 
 // Condense fit.
 $page->cell(
     x: 50, y: 200, w: 100, h: 20,
     text: 'Antidisestablishmentarianism',
-    border: PhpPdf\Border::all(),
-    fit: PhpPdf\Fit::CONDENSE,
-    verticalAlign: PhpPdf\VerticalAlign::MIDDLE,
+    border: DragonOfMercy\PhpPdf\Border::all(),
+    fit: DragonOfMercy\PhpPdf\Fit::CONDENSE,
+    verticalAlign: DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
 );
 
 // Shrink fit.
 $page->cell(
     x: 200, y: 200, w: 100, h: 20,
     text: 'Antidisestablishmentarianism',
-    border: PhpPdf\Border::all(),
-    fit: PhpPdf\Fit::SHRINK,
-    verticalAlign: PhpPdf\VerticalAlign::MIDDLE,
+    border: DragonOfMercy\PhpPdf\Border::all(),
+    fit: DragonOfMercy\PhpPdf\Fit::SHRINK,
+    verticalAlign: DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
 );
 
 // Partial dashed border (top/bottom only).
 $page->cell(
     x: 50, y: 240, w: 300, h: 18,
     text: 'Top-and-bottom only',
-    border: PhpPdf\Border::sides(top: true, bottom: true)
-        ->withStyle(PhpPdf\BorderStyle::DASHED),
-    align: PhpPdf\TextAlign::CENTER,
-    verticalAlign: PhpPdf\VerticalAlign::MIDDLE,
+    border: DragonOfMercy\PhpPdf\Border::sides(top: true, bottom: true)
+        ->withStyle(DragonOfMercy\PhpPdf\BorderStyle::DASHED),
+    align: DragonOfMercy\PhpPdf\TextAlign::CENTER,
+    verticalAlign: DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
 );
 
 // Dotted border.
 $page->cell(
     x: 50, y: 270, w: 300, h: 18,
     text: 'Dotted',
-    border: PhpPdf\Border::all()->withStyle(PhpPdf\BorderStyle::DOTTED)->withWidth(1.0),
-    align: PhpPdf\TextAlign::CENTER,
-    verticalAlign: PhpPdf\VerticalAlign::MIDDLE,
+    border: DragonOfMercy\PhpPdf\Border::all()->withStyle(DragonOfMercy\PhpPdf\BorderStyle::DOTTED)->withWidth(1.0),
+    align: DragonOfMercy\PhpPdf\TextAlign::CENTER,
+    verticalAlign: DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
 );
 
 // Empty cell as decorative spacer.
 $page->cell(
     x: 50, y: 300, w: 300, h: 8,
     text: '',
-    border: PhpPdf\Border::all(),
+    border: DragonOfMercy\PhpPdf\Border::all(),
     fill: Color::rgb(220, 220, 220),
 );
 

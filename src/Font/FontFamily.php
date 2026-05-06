@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Font;
+namespace DragonOfMercy\PhpPdf\Font;
 
 /**
  * One of the three standard PDF font families. Used internally by the `Font`

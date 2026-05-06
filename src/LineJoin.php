@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
 /**
  * PDF line join styles (PDF 1.7 §8.4.3.4). Integer values match the PDF

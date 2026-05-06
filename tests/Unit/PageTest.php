@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\Color;
-use PhpPdf\Font;
-use PhpPdf\Font\FontRegistry;
-use PhpPdf\Font\MetricsRegistry;
-use PhpPdf\LineCap;
-use PhpPdf\LineJoin;
-use PhpPdf\Page;
-use PhpPdf\Path;
-use PhpPdf\PathOperation;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\LineCap;
+use DragonOfMercy\PhpPdf\LineJoin;
+use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Path;
+use DragonOfMercy\PhpPdf\PathOperation;
 use PHPUnit\Framework\TestCase;
 
 final class PageTest extends TestCase
@@ -172,7 +172,7 @@ final class PageTest extends TestCase
 
     public function testTextThrowsIfNoFontSet(): void
     {
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $this->expectExceptionMessage('setFont');
         $page = $this->page();
         $page->text(50, 50, 'Hello');
@@ -246,7 +246,7 @@ final class PageTest extends TestCase
 
     public function testSetFontThrowsOnZeroSize(): void
     {
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $this->expectExceptionMessage('positive');
         $page = $this->page();
         $page->setFont(Font::helvetica(), 0);
@@ -254,7 +254,7 @@ final class PageTest extends TestCase
 
     public function testSetFontThrowsOnNegativeSize(): void
     {
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $this->expectExceptionMessage('positive');
         $page = $this->page();
         $page->setFont(Font::helvetica(), -5.0);
@@ -338,7 +338,7 @@ final class PageTest extends TestCase
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
         );
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->stringWidth('Hello');
     }
 
@@ -358,14 +358,14 @@ final class PageTest extends TestCase
     public function testSetCellsPaddingNegativeThrows(): void
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->setCellsPadding(-1.0);
     }
 
     public function testCellWithoutSetFontThrows(): void
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 100, text: 'Hello');
     }
 
@@ -373,7 +373,7 @@ final class PageTest extends TestCase
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
         $page->setFont(Font::helvetica(), 12);
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 0.0, text: 'Hello');
     }
 
@@ -381,7 +381,7 @@ final class PageTest extends TestCase
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
         $page->setFont(Font::helvetica(), 12);
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 100, h: -1.0, text: 'Hello');
     }
 
@@ -389,7 +389,7 @@ final class PageTest extends TestCase
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
         $page->setFont(Font::helvetica(), 12);
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 100, text: 'Hello', padding: -2.0);
     }
 
@@ -418,7 +418,7 @@ final class PageTest extends TestCase
         $registry = new FontRegistry();
         $page = new Page(595, 842, $registry, new MetricsRegistry());
         $page->setFont(Font::helvetica(), 12);
-        $page->cell(x: 0, y: 0, w: 100, text: '', border: \PhpPdf\Border::all());
+        $page->cell(x: 0, y: 0, w: 100, text: '', border: \DragonOfMercy\PhpPdf\Border::all());
         self::assertTrue($registry->isEmpty());
     }
 }

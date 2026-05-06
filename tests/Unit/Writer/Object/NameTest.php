@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Writer\Object;
 
-use PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use PHPUnit\Framework\TestCase;
 
 final class NameTest extends TestCase

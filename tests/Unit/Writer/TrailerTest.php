@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Writer;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Writer;
 
-use PhpPdf\Writer\Object\PdfReference;
-use PhpPdf\Writer\Trailer;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Trailer;
 use PHPUnit\Framework\TestCase;
 
 final class TrailerTest extends TestCase

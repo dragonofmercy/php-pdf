@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
 /**
  * Style of the border line drawn around a cell.

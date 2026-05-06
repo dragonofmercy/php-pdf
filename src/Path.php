@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
-use PhpPdf\Page\ContentStream;
-use PhpPdf\Page\Operators;
+use DragonOfMercy\PhpPdf\Page\ContentStream;
+use DragonOfMercy\PhpPdf\Page\Operators;
 
 /**
  * Multi-operation path builder returned by `Page::path()`. Buffers path

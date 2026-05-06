@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Writer;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Writer;
 
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\IndirectObject;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\PdfWriter;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\PdfWriter;
 use PHPUnit\Framework\TestCase;
 
 final class PdfWriterTest extends TestCase

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
-use PhpPdf\Exception\PdfException;
-use PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 
 /**
  * Immutable color value. Factories: rgb (0-255 ints), hex (#rrggbb, rrggbb,

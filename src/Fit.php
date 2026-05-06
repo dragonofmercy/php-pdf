@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
 /**
  * Strategy for fitting cell text into the available width.

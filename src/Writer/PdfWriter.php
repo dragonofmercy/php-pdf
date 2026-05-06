@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer;
+namespace DragonOfMercy\PhpPdf\Writer;
 
-use PhpPdf\Writer\Object\IndirectObject;
-use PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 
 /**
  * Low-level PDF byte assembler. Stateless across calls — each write() builds

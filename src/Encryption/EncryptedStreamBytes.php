@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Encryption;
+namespace DragonOfMercy\PhpPdf\Encryption;
 
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfNumber;
-use PhpPdf\Writer\Object\PdfObject;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 
 /**
  * A pre-encrypted stream body. Emits the frozen byte payload between

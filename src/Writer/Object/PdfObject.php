@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
 /**
  * Marker interface for all PDF value types that can be serialized to the

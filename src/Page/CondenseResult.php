@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Page;
+namespace DragonOfMercy\PhpPdf\Page;
 
 /**
  * Output of CellRenderer::condenseText. Each paragraph is on its own line

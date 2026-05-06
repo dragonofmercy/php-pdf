@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Document;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Document;
 
-use PhpPdf\Document\Encryption;
+use DragonOfMercy\PhpPdf\Document\Encryption;
 use PHPUnit\Framework\TestCase;
 
 final class EncryptionTest extends TestCase

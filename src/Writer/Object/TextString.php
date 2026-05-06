@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
 /**
  * PDF text string (PDF 1.7 §7.9.2.2). UTF-8 input is re-encoded as UTF-16BE

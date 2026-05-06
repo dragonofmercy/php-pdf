@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
-use PhpPdf\Border;
-use PhpPdf\CellResult;
-use PhpPdf\Exception\PdfException;
-use PhpPdf\Fit;
-use PhpPdf\Font\FontRegistry;
-use PhpPdf\Font\MetricsRegistry;
-use PhpPdf\Font\WinAnsiEncoder;
-use PhpPdf\Page\CellRenderer;
-use PhpPdf\Page\ContentStream;
-use PhpPdf\Page\Operators;
-use PhpPdf\TextAlign;
-use PhpPdf\VerticalAlign;
+use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\CellResult;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Fit;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
+use DragonOfMercy\PhpPdf\Page\CellRenderer;
+use DragonOfMercy\PhpPdf\Page\ContentStream;
+use DragonOfMercy\PhpPdf\Page\Operators;
+use DragonOfMercy\PhpPdf\TextAlign;
+use DragonOfMercy\PhpPdf\VerticalAlign;
 
 /**
  * A single page of the PDF document. Exposes geometric drawing primitives,

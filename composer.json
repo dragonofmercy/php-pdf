@@ -16,10 +16,10 @@
         "symfony/process": "^7.0"
     },
     "autoload": {
-        "psr-4": { "PhpPdf\\": "src/" }
+        "psr-4": { "DragonOfMercy\\PhpPdf\\": "src/" }
     },
     "autoload-dev": {
-        "psr-4": { "PhpPdf\\Tests\\": "tests/" }
+        "psr-4": { "DragonOfMercy\\PhpPdf\\Tests\\": "tests/" }
     },
     "scripts": {
         "test": "phpunit",

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Font;
+namespace DragonOfMercy\PhpPdf\Font;
 
-use PhpPdf\Exception\PdfException;
-use PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font;
 
 /**
  * Lazy-loading registry mapping `Font` instances to their `FontMetrics`

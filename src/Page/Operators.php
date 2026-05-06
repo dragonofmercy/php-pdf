@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Page;
+namespace DragonOfMercy\PhpPdf\Page;
 
-use PhpPdf\LineCap;
-use PhpPdf\LineJoin;
-use PhpPdf\Writer\Object\PdfNumber;
-use PhpPdf\Writer\Object\PdfString;
+use DragonOfMercy\PhpPdf\LineCap;
+use DragonOfMercy\PhpPdf\LineJoin;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 
 /**
  * Pure helpers that format PDF content stream operators with correct

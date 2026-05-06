@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\Border;
-use PhpPdf\BorderStyle;
-use PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\BorderStyle;
+use DragonOfMercy\PhpPdf\Color;
 use PHPUnit\Framework\TestCase;
 
 final class BorderTest extends TestCase

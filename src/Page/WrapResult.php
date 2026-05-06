@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Page;
+namespace DragonOfMercy\PhpPdf\Page;
 
 /**
  * Output of CellRenderer::wrapText. Carries the wrapped/encoded lines, their

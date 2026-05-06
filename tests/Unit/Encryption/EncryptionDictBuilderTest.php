@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Encryption;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Encryption;
 
-use PhpPdf\Encryption\Cipher;
-use PhpPdf\Encryption\EncryptionDictBuilder;
-use PhpPdf\Encryption\EncryptionKey;
-use PhpPdf\Encryption\PasswordHash;
+use DragonOfMercy\PhpPdf\Encryption\Cipher;
+use DragonOfMercy\PhpPdf\Encryption\EncryptionDictBuilder;
+use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
+use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use PHPUnit\Framework\TestCase;
 
 final class EncryptionDictBuilderTest extends TestCase

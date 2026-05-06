@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Font;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
-use PhpPdf\Font\WinAnsiEncoder;
+use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use PHPUnit\Framework\TestCase;
 
 final class WinAnsiEncoderTest extends TestCase

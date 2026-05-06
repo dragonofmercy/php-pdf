@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Exception;
+namespace DragonOfMercy\PhpPdf\Exception;
 
 /**
  * Root exception for the phppdf package. All exceptions thrown by public

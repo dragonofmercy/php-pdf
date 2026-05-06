@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Page;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Page;
 
-use PhpPdf\LineCap;
-use PhpPdf\LineJoin;
-use PhpPdf\Page\Operators;
+use DragonOfMercy\PhpPdf\LineCap;
+use DragonOfMercy\PhpPdf\LineJoin;
+use DragonOfMercy\PhpPdf\Page\Operators;
 use PHPUnit\Framework\TestCase;
 
 final class OperatorsTest extends TestCase

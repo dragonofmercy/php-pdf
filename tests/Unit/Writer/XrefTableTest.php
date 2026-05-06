@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Writer;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Writer;
 
-use PhpPdf\Writer\XrefTable;
+use DragonOfMercy\PhpPdf\Writer\XrefTable;
 use PHPUnit\Framework\TestCase;
 
 final class XrefTableTest extends TestCase

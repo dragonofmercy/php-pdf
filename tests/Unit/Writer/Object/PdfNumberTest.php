@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Writer\Object;
 
-use PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use PHPUnit\Framework\TestCase;
 
 final class PdfNumberTest extends TestCase

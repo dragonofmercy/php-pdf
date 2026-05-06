@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Page;
+namespace DragonOfMercy\PhpPdf\Page;
 
-use PhpPdf\Border;
-use PhpPdf\BorderStyle;
-use PhpPdf\CellResult;
-use PhpPdf\Color;
-use PhpPdf\Fit;
-use PhpPdf\Font;
-use PhpPdf\Font\FontMetrics;
-use PhpPdf\Font\MetricsRegistry;
-use PhpPdf\Font\WinAnsiEncoder;
-use PhpPdf\TextAlign;
-use PhpPdf\VerticalAlign;
+use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\BorderStyle;
+use DragonOfMercy\PhpPdf\CellResult;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Fit;
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontMetrics;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
+use DragonOfMercy\PhpPdf\TextAlign;
+use DragonOfMercy\PhpPdf\VerticalAlign;
 
 /**
  * Encapsulates the cell rendering pipeline (wrap/fit/layout/emit). Owned

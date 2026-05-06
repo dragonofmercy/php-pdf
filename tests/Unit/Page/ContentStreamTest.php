@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Page;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Page;
 
-use PhpPdf\Page\ContentStream;
+use DragonOfMercy\PhpPdf\Page\ContentStream;
 use PHPUnit\Framework\TestCase;
 
 final class ContentStreamTest extends TestCase

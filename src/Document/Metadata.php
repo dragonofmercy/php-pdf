@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Document;
+namespace DragonOfMercy\PhpPdf\Document;
 
 use DateTimeImmutable;
 

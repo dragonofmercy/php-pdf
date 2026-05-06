@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Font;
+namespace DragonOfMercy\PhpPdf\Font;
 
 /**
  * Maps UTF-8 strings to WinAnsiEncoding bytes (PDF 1.7 Annex D.2).

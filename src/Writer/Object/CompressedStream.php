@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Writer\Object;
+namespace DragonOfMercy\PhpPdf\Writer\Object;
 
-use PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
  * PDF stream with FlateDecode compression (PDF 1.7 §7.4.4).
@@ -29,7 +29,7 @@ final readonly class CompressedStream implements PdfObject
     {
         $compressed = gzcompress($this->content, 9);
         if ($compressed === false) {
-            throw new \PhpPdf\Exception\PdfException('FlateDecode compression failed');
+            throw new \DragonOfMercy\PhpPdf\Exception\PdfException('FlateDecode compression failed');
         }
         return $compressed;
     }

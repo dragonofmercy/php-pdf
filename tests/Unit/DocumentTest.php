@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\Document;
-use PhpPdf\Document\Encryption;
-use PhpPdf\Document\Metadata;
-use PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Document\Encryption;
+use DragonOfMercy\PhpPdf\Document\Metadata;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use PHPUnit\Framework\TestCase;
 
 final class DocumentTest extends TestCase
@@ -187,7 +187,7 @@ final class DocumentTest extends TestCase
 
     public function testEncryptionRequiresUserAndOwnerPasswords(): void
     {
-        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $this->expectExceptionMessage('user password');
         $doc = new Document();
         $doc->encryption()->ownerPassword('owner');
@@ -198,7 +198,7 @@ final class DocumentTest extends TestCase
     public function testAddPageReturnsPageInstance(): void
     {
         $doc = new Document();
-        self::assertInstanceOf(\PhpPdf\Page::class, $doc->addPage());
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Page::class, $doc->addPage());
     }
 
     public function testPageWithoutDrawingDoesNotEmitContentsEntry(): void
@@ -223,7 +223,7 @@ final class DocumentTest extends TestCase
     {
         $doc = new Document();
         $page = $doc->addPage();
-        $page->setFont(\PhpPdf\Font::helvetica()->bold(), 14);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica()->bold(), 14);
         $page->text(50, 50, 'Hello');
 
         $bytes = $doc->output();
@@ -245,11 +245,11 @@ final class DocumentTest extends TestCase
     {
         $doc = new Document();
         $p1 = $doc->addPage();
-        $p1->setFont(\PhpPdf\Font::helvetica(), 12);
+        $p1->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
         $p1->text(50, 50, 'A');
 
         $p2 = $doc->addPage();
-        $p2->setFont(\PhpPdf\Font::helvetica(), 18);  // same font, different size
+        $p2->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 18);  // same font, different size
         $p2->text(50, 50, 'B');
 
         $bytes = $doc->output();
@@ -270,7 +270,7 @@ final class DocumentTest extends TestCase
     {
         $doc = new Document();
         $page = $doc->addPage();
-        $page->setFont(\PhpPdf\Font::helvetica(), 12);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
         // No text() call
         $bytes = $doc->output();
 

@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Encryption;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Encryption;
 
-use PhpPdf\Document\MetadataStream;
-use PhpPdf\Encryption\Cipher;
-use PhpPdf\Encryption\ObjectTransformer;
-use PhpPdf\Writer\Object\CompressedStream;
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\HexString;
-use PhpPdf\Writer\Object\IndirectObject;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfArray;
-use PhpPdf\Writer\Object\PdfNumber;
-use PhpPdf\Writer\Object\PdfReference;
-use PhpPdf\Writer\Object\PdfString;
-use PhpPdf\Writer\Object\Stream;
-use PhpPdf\Writer\Object\TextString;
+use DragonOfMercy\PhpPdf\Document\MetadataStream;
+use DragonOfMercy\PhpPdf\Encryption\Cipher;
+use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
+use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\HexString;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
+use DragonOfMercy\PhpPdf\Writer\Object\Stream;
+use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 use PHPUnit\Framework\TestCase;
 
 final class ObjectTransformerTest extends TestCase

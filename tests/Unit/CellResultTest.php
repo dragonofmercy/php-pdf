@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\CellResult;
+use DragonOfMercy\PhpPdf\CellResult;
 use PHPUnit\Framework\TestCase;
 
 final class CellResultTest extends TestCase

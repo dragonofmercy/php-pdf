@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Golden;
+namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
-use PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Document;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -172,21 +172,21 @@ final class GoldenTest extends TestCase
         $doc = new Document();
         $page = $doc->addPage();
 
-        $page->setStrokeColor(\PhpPdf\Color::hex('#ff0000'))
+        $page->setStrokeColor(\DragonOfMercy\PhpPdf\Color::hex('#ff0000'))
              ->setLineWidth(1)
              ->rect(20, 20, 100, 50)
              ->stroke();
 
-        $page->setFillColor(\PhpPdf\Color::rgb(0, 0, 255))
+        $page->setFillColor(\DragonOfMercy\PhpPdf\Color::rgb(0, 0, 255))
              ->circle(200, 200, 40)
              ->fill();
 
-        $page->setStrokeColor(\PhpPdf\Color::gray(128))
+        $page->setStrokeColor(\DragonOfMercy\PhpPdf\Color::gray(128))
              ->setLineWidth(2)
              ->line(0, 0, 595, 842)
              ->stroke();
 
-        $page->setFillColor(\PhpPdf\Color::hex('#00aa00'))
+        $page->setFillColor(\DragonOfMercy\PhpPdf\Color::hex('#00aa00'))
              ->path()
              ->moveTo(300, 500)
              ->lineTo(400, 500)
@@ -197,7 +197,7 @@ final class GoldenTest extends TestCase
         $page->save()
              ->translate(450, 100)
              ->rotate(30)
-             ->setFillColor(\PhpPdf\Color::hex('#ff8800'))
+             ->setFillColor(\DragonOfMercy\PhpPdf\Color::hex('#ff8800'))
              ->rect(-10, -10, 20, 20)
              ->fill();
         $page->restore();
@@ -237,16 +237,16 @@ final class GoldenTest extends TestCase
         $doc = new Document();
         $page = $doc->addPage();
 
-        $page->setFont(\PhpPdf\Font::helvetica()->bold(), 18);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica()->bold(), 18);
         $page->text(50, 50, 'Hello World');
 
-        $page->setFont(\PhpPdf\Font::times()->italic(), 12);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::times()->italic(), 12);
         $page->text(50, 100, 'Résumé — café, naïveté, œuvre');
 
-        $page->setFont(\PhpPdf\Font::courier(), 10);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::courier(), 10);
         $page->text(50, 150, "Line 1\nLine 2\nLine 3");
 
-        $page->setFont(\PhpPdf\Font::helvetica(), 14);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 14);
         $page->text(50, 220, 'Prix : 19,99 €');
 
         $actual = $doc->output();
@@ -281,70 +281,70 @@ final class GoldenTest extends TestCase
 
     public function testPageWithCellsMatchesFixtureBytes(): void
     {
-        $doc = new \PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document();
         $page = $doc->addPage();
-        $page->setFont(\PhpPdf\Font::helvetica(), 12);
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
 
         $page->cell(
             x: 50, y: 50, w: 300, h: 25,
             text: 'Invoice #2026-001',
-            border: \PhpPdf\Border::all()->withWidth(0.8),
-            fill: \PhpPdf\Color::rgb(242, 242, 242),
-            align: \PhpPdf\TextAlign::CENTER,
-            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+            border: \DragonOfMercy\PhpPdf\Border::all()->withWidth(0.8),
+            fill: \DragonOfMercy\PhpPdf\Color::rgb(242, 242, 242),
+            align: \DragonOfMercy\PhpPdf\TextAlign::CENTER,
+            verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
         );
 
         $result = $page->cell(
             x: 50, y: 80, w: 300,
             text: 'Long paragraph that wraps automatically across multiple lines depending on the available width.',
-            border: \PhpPdf\Border::all()->withStyle(\PhpPdf\BorderStyle::DASHED),
+            border: \DragonOfMercy\PhpPdf\Border::all()->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DASHED),
         );
 
         $page->cell(
             x: 50, y: $result->y + 5, w: 300, h: 20,
             text: 'Total: 1234.56 EUR',
-            textColor: \PhpPdf\Color::rgb(192, 0, 0),
-            align: \PhpPdf\TextAlign::RIGHT,
-            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+            textColor: \DragonOfMercy\PhpPdf\Color::rgb(192, 0, 0),
+            align: \DragonOfMercy\PhpPdf\TextAlign::RIGHT,
+            verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
         );
 
         $page->cell(
             x: 50, y: 200, w: 100, h: 20,
             text: 'Antidisestablishmentarianism',
-            border: \PhpPdf\Border::all(),
-            fit: \PhpPdf\Fit::CONDENSE,
-            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+            border: \DragonOfMercy\PhpPdf\Border::all(),
+            fit: \DragonOfMercy\PhpPdf\Fit::CONDENSE,
+            verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
         );
 
         $page->cell(
             x: 200, y: 200, w: 100, h: 20,
             text: 'Antidisestablishmentarianism',
-            border: \PhpPdf\Border::all(),
-            fit: \PhpPdf\Fit::SHRINK,
-            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+            border: \DragonOfMercy\PhpPdf\Border::all(),
+            fit: \DragonOfMercy\PhpPdf\Fit::SHRINK,
+            verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
         );
 
         $page->cell(
             x: 50, y: 240, w: 300, h: 18,
             text: 'Top-and-bottom only',
-            border: \PhpPdf\Border::sides(top: true, bottom: true)->withStyle(\PhpPdf\BorderStyle::DASHED),
-            align: \PhpPdf\TextAlign::CENTER,
-            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+            border: \DragonOfMercy\PhpPdf\Border::sides(top: true, bottom: true)->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DASHED),
+            align: \DragonOfMercy\PhpPdf\TextAlign::CENTER,
+            verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
         );
 
         $page->cell(
             x: 50, y: 270, w: 300, h: 18,
             text: 'Dotted',
-            border: \PhpPdf\Border::all()->withStyle(\PhpPdf\BorderStyle::DOTTED)->withWidth(1.0),
-            align: \PhpPdf\TextAlign::CENTER,
-            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+            border: \DragonOfMercy\PhpPdf\Border::all()->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DOTTED)->withWidth(1.0),
+            align: \DragonOfMercy\PhpPdf\TextAlign::CENTER,
+            verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
         );
 
         $page->cell(
             x: 50, y: 300, w: 300, h: 8,
             text: '',
-            border: \PhpPdf\Border::all(),
-            fill: \PhpPdf\Color::rgb(220, 220, 220),
+            border: \DragonOfMercy\PhpPdf\Border::all(),
+            fill: \DragonOfMercy\PhpPdf\Color::rgb(220, 220, 220),
         );
 
         $actual = $doc->output();

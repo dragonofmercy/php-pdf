@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Font;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
-use PhpPdf\Font\FontMetrics;
+use DragonOfMercy\PhpPdf\Font\FontMetrics;
 use PHPUnit\Framework\TestCase;
 
 final class FontMetricsTest extends TestCase

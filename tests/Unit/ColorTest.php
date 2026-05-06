@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\Color;
-use PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use PHPUnit\Framework\TestCase;
 
 final class ColorTest extends TestCase

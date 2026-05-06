@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit\Encryption;
+namespace DragonOfMercy\PhpPdf\Tests\Unit\Encryption;
 
-use PhpPdf\Encryption\Cipher;
-use PhpPdf\Encryption\EncryptedPdfWriter;
-use PhpPdf\Encryption\ObjectTransformer;
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\IndirectObject;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Encryption\Cipher;
+use DragonOfMercy\PhpPdf\Encryption\EncryptedPdfWriter;
+use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use PHPUnit\Framework\TestCase;
 
 final class EncryptedPdfWriterTest extends TestCase

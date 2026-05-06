@@ -2,34 +2,34 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf;
+namespace DragonOfMercy\PhpPdf;
 
 use DateTimeImmutable;
-use PhpPdf\Document\Encryption;
-use PhpPdf\Document\Metadata;
-use PhpPdf\Document\MetadataStream;
-use PhpPdf\Document\XmpWriter;
-use PhpPdf\Encryption\Cipher;
-use PhpPdf\Encryption\EncryptedPdfWriter;
-use PhpPdf\Encryption\EncryptionDictBuilder;
-use PhpPdf\Encryption\EncryptionKey;
-use PhpPdf\Encryption\ObjectTransformer;
-use PhpPdf\Encryption\PasswordHash;
-use PhpPdf\Exception\PdfException;
-use PhpPdf\Font\FontRegistry;
-use PhpPdf\Font\MetricsRegistry;
-use PhpPdf\Writer\Object\CompressedStream;
-use PhpPdf\Writer\Object\Dictionary;
-use PhpPdf\Writer\Object\IndirectObject;
-use PhpPdf\Writer\Object\Name;
-use PhpPdf\Writer\Object\PdfArray;
-use PhpPdf\Writer\Object\PdfNumber;
-use PhpPdf\Writer\Object\PdfReference;
-use PhpPdf\Writer\Object\PdfString;
-use PhpPdf\Writer\Object\TextString;
-use PhpPdf\Writer\PdfWriter;
-use PhpPdf\Writer\Trailer;
-use PhpPdf\Writer\XrefTable;
+use DragonOfMercy\PhpPdf\Document\Encryption;
+use DragonOfMercy\PhpPdf\Document\Metadata;
+use DragonOfMercy\PhpPdf\Document\MetadataStream;
+use DragonOfMercy\PhpPdf\Document\XmpWriter;
+use DragonOfMercy\PhpPdf\Encryption\Cipher;
+use DragonOfMercy\PhpPdf\Encryption\EncryptedPdfWriter;
+use DragonOfMercy\PhpPdf\Encryption\EncryptionDictBuilder;
+use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
+use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
+use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
+use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
+use DragonOfMercy\PhpPdf\Writer\Object\TextString;
+use DragonOfMercy\PhpPdf\Writer\PdfWriter;
+use DragonOfMercy\PhpPdf\Writer\Trailer;
+use DragonOfMercy\PhpPdf\Writer\XrefTable;
 
 final class Document
 {

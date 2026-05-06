@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PhpPdf\Tests\Unit;
+namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
-use PhpPdf\Fit;
+use DragonOfMercy\PhpPdf\Fit;
 use PHPUnit\Framework\TestCase;
 
 final class FitTest extends TestCase
