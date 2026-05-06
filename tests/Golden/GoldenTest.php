@@ -278,4 +278,102 @@ final class GoldenTest extends TestCase
             "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
         );
     }
+
+    public function testPageWithCellsMatchesFixtureBytes(): void
+    {
+        $doc = new \PhpPdf\Document();
+        $page = $doc->addPage();
+        $page->setFont(\PhpPdf\Font::helvetica(), 12);
+
+        $page->cell(
+            x: 50, y: 50, w: 300, h: 25,
+            text: 'Invoice #2026-001',
+            border: \PhpPdf\Border::all()->withWidth(0.8),
+            fill: \PhpPdf\Color::rgb(242, 242, 242),
+            align: \PhpPdf\TextAlign::CENTER,
+            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+        );
+
+        $result = $page->cell(
+            x: 50, y: 80, w: 300,
+            text: 'Long paragraph that wraps automatically across multiple lines depending on the available width.',
+            border: \PhpPdf\Border::all()->withStyle(\PhpPdf\BorderStyle::DASHED),
+        );
+
+        $page->cell(
+            x: 50, y: $result->y + 5, w: 300, h: 20,
+            text: 'Total: 1234.56 EUR',
+            textColor: \PhpPdf\Color::rgb(192, 0, 0),
+            align: \PhpPdf\TextAlign::RIGHT,
+            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+        );
+
+        $page->cell(
+            x: 50, y: 200, w: 100, h: 20,
+            text: 'Antidisestablishmentarianism',
+            border: \PhpPdf\Border::all(),
+            fit: \PhpPdf\Fit::CONDENSE,
+            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+        );
+
+        $page->cell(
+            x: 200, y: 200, w: 100, h: 20,
+            text: 'Antidisestablishmentarianism',
+            border: \PhpPdf\Border::all(),
+            fit: \PhpPdf\Fit::SHRINK,
+            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+        );
+
+        $page->cell(
+            x: 50, y: 240, w: 300, h: 18,
+            text: 'Top-and-bottom only',
+            border: \PhpPdf\Border::sides(top: true, bottom: true)->withStyle(\PhpPdf\BorderStyle::DASHED),
+            align: \PhpPdf\TextAlign::CENTER,
+            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+        );
+
+        $page->cell(
+            x: 50, y: 270, w: 300, h: 18,
+            text: 'Dotted',
+            border: \PhpPdf\Border::all()->withStyle(\PhpPdf\BorderStyle::DOTTED)->withWidth(1.0),
+            align: \PhpPdf\TextAlign::CENTER,
+            verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+        );
+
+        $page->cell(
+            x: 50, y: 300, w: 300, h: 8,
+            text: '',
+            border: \PhpPdf\Border::all(),
+            fill: \PhpPdf\Color::rgb(220, 220, 220),
+        );
+
+        $actual = $doc->output();
+        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-cells.pdf');
+        self::assertIsString($expected);
+        self::assertSame(
+            $expected,
+            $actual,
+            'Output diverges from fixture. If the change is intentional, run: php tests/Golden/regenerate.php',
+        );
+    }
+
+    public function testPageWithCellsPassesQpdfCheck(): void
+    {
+        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
+        }
+
+        $process = new \Symfony\Component\Process\Process([
+            $qpdf,
+            '--check',
+            __DIR__ . '/fixtures/page-with-cells.pdf',
+        ]);
+        $process->run();
+        self::assertSame(
+            0,
+            $process->getExitCode(),
+            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
+        );
+    }
 }
