@@ -11,11 +11,12 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Text** — 12 standard PDF fonts (Helvetica / Times / Courier × Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `€ — œ Œ ‰` etc.). Multi-line via `\n`, custom leading.
 - **Cells** — rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right × top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
 - **Text measurement** — `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
+- **Images** — JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
 
 ## Not yet implemented
 
 - Custom fonts (TTF / OTF) and full Unicode (CJK, Cyrillic, Greek, Hebrew, etc.) — Phase 3, deferred.
-- Images (JPEG / PNG / SVG) — Phase 4.
+- SVG vector images — later phase.
 - Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering — later phases.
 
 ## Installation
@@ -138,6 +139,30 @@ $page->cell(
 $page->setFont(Font::helvetica(), 12);
 $width = $page->stringWidth('Hello'); // 27.336 (points)
 ```
+
+### Images
+
+```php
+use DragonOfMercy\PhpPdf\Image;
+
+// Path string: format auto-detected, file read once, cached for the document.
+$page->image('logo.png', x: 50, y: 50, w: 100, h: 50);
+
+// Instance: read bytes elsewhere, embed when convenient.
+$photo = Image::fromFile('photo.jpg');
+$page->image($photo, x: 50, y: 200, w: 200);   // h derived from aspect ratio
+
+// Same path used twice -> one XObject embedded, two placements.
+$page->image('logo.png', x: 400, y: 50, w: 80, h: 40);
+```
+
+Dimension rules:
+- Both `w` and `h` provided -> forced (may distort).
+- Only `w` -> `h` derived to preserve aspect ratio.
+- Only `h` -> `w` derived to preserve aspect ratio.
+- Neither -> intrinsic pixel size at 72 DPI (1 pixel = 1 point).
+
+`(x, y)` is the **top-left** corner in the page user space (Y-down origin, consistent with the rest of phppdf since Phase 2a).
 
 ## Development
 
