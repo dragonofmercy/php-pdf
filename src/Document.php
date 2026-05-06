@@ -17,6 +17,7 @@ use PhpPdf\Encryption\ObjectTransformer;
 use PhpPdf\Encryption\PasswordHash;
 use PhpPdf\Exception\PdfException;
 use PhpPdf\Font\FontRegistry;
+use PhpPdf\Font\MetricsRegistry;
 use PhpPdf\Writer\Object\CompressedStream;
 use PhpPdf\Writer\Object\Dictionary;
 use PhpPdf\Writer\Object\IndirectObject;
@@ -43,6 +44,7 @@ final class Document
     private array $pages = [];
 
     private readonly FontRegistry $fontRegistry;
+    private readonly MetricsRegistry $metricsRegistry;
 
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
@@ -50,6 +52,7 @@ final class Document
     public function __construct()
     {
         $this->fontRegistry = new FontRegistry();
+        $this->metricsRegistry = new MetricsRegistry();
     }
 
     public function metadata(): Metadata
@@ -68,6 +71,7 @@ final class Document
             pageWidth: self::A4_WIDTH,
             pageHeight: self::A4_HEIGHT,
             fontRegistry: $this->fontRegistry,
+            metricsRegistry: $this->metricsRegistry,
         );
         $this->pages[] = $page;
         return $page;

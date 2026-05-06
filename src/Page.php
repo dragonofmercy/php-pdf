@@ -6,6 +6,7 @@ namespace PhpPdf;
 
 use PhpPdf\Exception\PdfException;
 use PhpPdf\Font\FontRegistry;
+use PhpPdf\Font\MetricsRegistry;
 use PhpPdf\Font\WinAnsiEncoder;
 use PhpPdf\Page\ContentStream;
 use PhpPdf\Page\Operators;
@@ -33,6 +34,7 @@ final class Page
         public readonly float $pageWidth,
         public readonly float $pageHeight,
         private readonly FontRegistry $fontRegistry,
+        private readonly MetricsRegistry $metricsRegistry,
     ) {
         $this->stream = new ContentStream($pageHeight);
     }
@@ -224,5 +226,13 @@ final class Page
 
         $this->stream->append(Operators::endText());
         return $this;
+    }
+
+    /**
+     * @internal
+     */
+    public function metricsRegistry(): MetricsRegistry
+    {
+        return $this->metricsRegistry;
     }
 }

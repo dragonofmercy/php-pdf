@@ -278,4 +278,12 @@ final class DocumentTest extends TestCase
         self::assertStringNotContainsString('/BaseFont', $bytes);
         self::assertStringNotContainsString('/Type /Font', $bytes);
     }
+
+    public function testMetricsRegistrySharedAcrossPages(): void
+    {
+        $doc = new Document();
+        $page1 = $doc->addPage();
+        $page2 = $doc->addPage();
+        self::assertSame($page1->metricsRegistry(), $page2->metricsRegistry());
+    }
 }

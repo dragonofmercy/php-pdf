@@ -6,6 +6,8 @@ namespace PhpPdf\Tests\Unit;
 
 use PhpPdf\Color;
 use PhpPdf\Font;
+use PhpPdf\Font\FontRegistry;
+use PhpPdf\Font\MetricsRegistry;
 use PhpPdf\LineCap;
 use PhpPdf\LineJoin;
 use PhpPdf\Page;
@@ -31,7 +33,8 @@ final class PageTest extends TestCase
         return new Page(
             pageWidth: 595.28,
             pageHeight: 841.89,
-            fontRegistry: new \PhpPdf\Font\FontRegistry(),
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
         );
     }
 
@@ -140,8 +143,8 @@ final class PageTest extends TestCase
 
     public function testSetFontDoesNotRegisterUntilTextIsCalled(): void
     {
-        $registry = new \PhpPdf\Font\FontRegistry();
-        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry);
+        $registry = new FontRegistry();
+        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry, metricsRegistry: new MetricsRegistry());
 
         $page->setFont(Font::helvetica()->bold(), 14);
 
@@ -154,8 +157,8 @@ final class PageTest extends TestCase
 
     public function testFirstTextCallRegistersFontInRegistryAndOnPage(): void
     {
-        $registry = new \PhpPdf\Font\FontRegistry();
-        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry);
+        $registry = new FontRegistry();
+        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry, metricsRegistry: new MetricsRegistry());
 
         $page->setFont(Font::helvetica()->bold(), 14);
         self::assertTrue($registry->isEmpty());
