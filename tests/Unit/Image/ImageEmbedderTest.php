@@ -45,4 +45,17 @@ final class ImageEmbedderTest extends TestCase
         self::assertStringContainsString('/ColorSpace /DeviceCMYK', $bytes);
         self::assertStringContainsString('/Decode [1 0 1 0 1 0 1 0]', $bytes);
     }
+
+    public function testJpegCmykDictionaryEntriesInCorrectOrder(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::stubJpegCmyk(width: 8, height: 8));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 1);
+        $bytes = $objects[0]->toBytes();
+        // Decode must appear before Length in the dictionary.
+        $decodePos = strpos($bytes, '/Decode');
+        $lengthPos = strpos($bytes, '/Length');
+        self::assertNotFalse($decodePos);
+        self::assertNotFalse($lengthPos);
+        self::assertLessThan($lengthPos, $decodePos, '/Decode must precede /Length per PDF convention');
+    }
 }

@@ -60,8 +60,7 @@ final class ImageEmbedder
             ->withEntry(Name::of('Height'), PdfNumber::ofInt($meta->height))
             ->withEntry(Name::of('ColorSpace'), $colorSpace)
             ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt(8))
-            ->withEntry(Name::of('Filter'), Name::of('DCTDecode'))
-            ->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($image->bytes)));
+            ->withEntry(Name::of('Filter'), Name::of('DCTDecode'));
 
         if ($meta->components === 4) {
             $dict = $dict->withEntry(
@@ -74,6 +73,8 @@ final class ImageEmbedder
                 ),
             );
         }
+
+        $dict = $dict->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($image->bytes)));
 
         return [
             IndirectObject::of($objectNumber, 0, new ImageStream($dict, $image->bytes)),
