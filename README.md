@@ -180,3 +180,9 @@ The script handles the WinAnsi glyph-name mapping and emits one PHP file per fon
 ## License
 
 MIT - see [LICENSE](LICENSE).
+
+## Support
+
+If this project helps to increase your productivity, you can give me a cup of coffee :)
+
+<a href="https://ko-fi.com/dragonofmercy" target="_blank"><img src="https://cdn.ko-fi.com/cdn/kofi2.png?v=3" alt="Donate" width="160px" /></a>
