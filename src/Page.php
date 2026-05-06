@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace PhpPdf;
 
+use PhpPdf\Border;
+use PhpPdf\CellResult;
 use PhpPdf\Exception\PdfException;
+use PhpPdf\Fit;
 use PhpPdf\Font\FontRegistry;
 use PhpPdf\Font\MetricsRegistry;
 use PhpPdf\Font\WinAnsiEncoder;
+use PhpPdf\Page\CellRenderer;
 use PhpPdf\Page\ContentStream;
 use PhpPdf\Page\Operators;
+use PhpPdf\TextAlign;
+use PhpPdf\VerticalAlign;
 
 /**
  * A single page of the PDF document. Exposes geometric drawing primitives,
@@ -26,6 +32,7 @@ final class Page
     private ?Font $currentFont = null;
     private ?float $currentSize = null;
     private ?float $customLeading = null;
+    private float $cellsPadding = 2.0;
 
     /** @var array<string, Font> Fonts used by this page, keyed by PDF canonical name */
     private array $fontsUsed = [];
@@ -257,6 +264,75 @@ final class Page
             }
         }
         return $maxWidth;
+    }
+
+    public function setCellsPadding(float $padding): self
+    {
+        if ($padding < 0) {
+            throw new PdfException('Padding cannot be negative, got ' . $padding);
+        }
+        $this->cellsPadding = $padding;
+        return $this;
+    }
+
+    public function getCellsPadding(): float
+    {
+        return $this->cellsPadding;
+    }
+
+    public function cell(
+        float $x,
+        float $y,
+        float $w,
+        ?float $h = null,
+        string $text = '',
+        ?Border $border = null,
+        ?Color $fill = null,
+        ?Color $textColor = null,
+        TextAlign $align = TextAlign::LEFT,
+        VerticalAlign $verticalAlign = VerticalAlign::TOP,
+        Fit $fit = Fit::NONE,
+        ?float $padding = null,
+    ): CellResult {
+        if ($this->currentFont === null || $this->currentSize === null) {
+            throw new PdfException('setFont() must be called before cell()');
+        }
+        if ($w <= 0) {
+            throw new PdfException('Cell width must be positive, got ' . $w);
+        }
+        if ($h !== null && $h < 0) {
+            throw new PdfException('Cell height cannot be negative, got ' . $h);
+        }
+        $resolvedPadding = $padding ?? $this->cellsPadding;
+        if ($resolvedPadding < 0) {
+            throw new PdfException('Cell padding cannot be negative, got ' . $resolvedPadding);
+        }
+
+        $fontShortName = '';
+        if ($text !== '') {
+            $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
+            $fontShortName = $this->fontRegistry->shortName($this->currentFont);
+        }
+
+        $renderer = new CellRenderer(stream: $this->stream, metrics: $this->metricsRegistry);
+        return $renderer->render(
+            font: $this->currentFont,
+            size: $this->currentSize,
+            customLeading: $this->customLeading,
+            x: $x,
+            y: $y,
+            w: $w,
+            h: $h,
+            text: $text,
+            border: $border,
+            fill: $fill,
+            textColor: $textColor,
+            align: $align,
+            verticalAlign: $verticalAlign,
+            fit: $fit,
+            padding: $resolvedPadding,
+            fontShortName: $fontShortName,
+        );
     }
 
     /**

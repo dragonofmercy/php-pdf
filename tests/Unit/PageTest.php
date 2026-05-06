@@ -341,4 +341,84 @@ final class PageTest extends TestCase
         $this->expectException(\PhpPdf\Exception\PdfException::class);
         $page->stringWidth('Hello');
     }
+
+    public function testGetCellsPaddingDefaultIsTwo(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        self::assertSame(2.0, $page->getCellsPadding());
+    }
+
+    public function testSetCellsPaddingChangesDefault(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page->setCellsPadding(5.5);
+        self::assertSame(5.5, $page->getCellsPadding());
+    }
+
+    public function testSetCellsPaddingNegativeThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $page->setCellsPadding(-1.0);
+    }
+
+    public function testCellWithoutSetFontThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $page->cell(x: 50, y: 50, w: 100, text: 'Hello');
+    }
+
+    public function testCellWidthZeroThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $page->cell(x: 50, y: 50, w: 0.0, text: 'Hello');
+    }
+
+    public function testCellHeightNegativeThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $page->cell(x: 50, y: 50, w: 100, h: -1.0, text: 'Hello');
+    }
+
+    public function testCellPaddingNegativeThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $this->expectException(\PhpPdf\Exception\PdfException::class);
+        $page->cell(x: 50, y: 50, w: 100, text: 'Hello', padding: -2.0);
+    }
+
+    public function testCellHappyPathReturnsCellResult(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $r = $page->cell(x: 50, y: 50, w: 200, h: 25, text: 'Hello');
+        self::assertSame(250.0, $r->x);
+        self::assertSame(75.0, $r->y);
+        self::assertSame(25.0, $r->height);
+    }
+
+    public function testCellRegistersFontInRegistry(): void
+    {
+        $registry = new FontRegistry();
+        $page = new Page(595, 842, $registry, new MetricsRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        self::assertTrue($registry->isEmpty(), 'Font should not be registered before cell()');
+        $page->cell(x: 0, y: 0, w: 100, text: 'Hi');
+        self::assertFalse($registry->isEmpty(), 'Font should be registered after cell()');
+    }
+
+    public function testCellEmptyTextDoesNotRegisterFont(): void
+    {
+        $registry = new FontRegistry();
+        $page = new Page(595, 842, $registry, new MetricsRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(x: 0, y: 0, w: 100, text: '', border: \PhpPdf\Border::all());
+        self::assertTrue($registry->isEmpty());
+    }
 }
