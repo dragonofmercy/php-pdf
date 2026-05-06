@@ -186,3 +186,93 @@ $page->cell(
 
 $doc->save($fixturesDir . '/page-with-cells.pdf');
 echo "Regenerated page-with-cells.pdf\n";
+
+// Fixture 7: page with images (Phase 4)
+$doc = new Document();
+$page = $doc->addPage();
+
+// JPEG RGB - 32x16 cyan-magenta gradient.
+$jpegSrc = imagecreatetruecolor(32, 16);
+if ($jpegSrc === false) {
+    throw new RuntimeException('imagecreatetruecolor failed');
+}
+for ($x = 0; $x < 32; $x++) {
+    $r = min(255, max(0, (int) round($x * 255 / 31)));
+    $b = min(255, max(0, 255 - $r));
+    $color = imagecolorallocate($jpegSrc, $r, 0, $b);
+    if ($color === false) {
+        throw new RuntimeException('imagecolorallocate failed');
+    }
+    imageline($jpegSrc, $x, 0, $x, 15, $color);
+}
+ob_start();
+imagejpeg($jpegSrc, null, 90);
+$jpegBytes = ob_get_clean();
+imagedestroy($jpegSrc);
+if ($jpegBytes === false || $jpegBytes === '') {
+    throw new RuntimeException('JPEG capture failed');
+}
+$jpegImage = \DragonOfMercy\PhpPdf\Image::fromBytes($jpegBytes);
+
+// PNG RGB opaque - 24x12 horizontal red-green-blue strips.
+$pngSrc = imagecreatetruecolor(24, 12);
+if ($pngSrc === false) {
+    throw new RuntimeException('imagecreatetruecolor failed');
+}
+$red = imagecolorallocate($pngSrc, 255, 0, 0);
+$green = imagecolorallocate($pngSrc, 0, 255, 0);
+$blue = imagecolorallocate($pngSrc, 0, 0, 255);
+if ($red === false || $green === false || $blue === false) {
+    throw new RuntimeException('imagecolorallocate failed');
+}
+imagefilledrectangle($pngSrc, 0, 0, 23, 3, $red);
+imagefilledrectangle($pngSrc, 0, 4, 23, 7, $green);
+imagefilledrectangle($pngSrc, 0, 8, 23, 11, $blue);
+ob_start();
+imagepng($pngSrc);
+$pngOpaque = ob_get_clean();
+imagedestroy($pngSrc);
+if ($pngOpaque === false || $pngOpaque === '') {
+    throw new RuntimeException('PNG capture failed');
+}
+$pngOpaqueImage = \DragonOfMercy\PhpPdf\Image::fromBytes($pngOpaque);
+
+// PNG with alpha - 16x16 with a translucent diagonal.
+$pngAlphaSrc = imagecreatetruecolor(16, 16);
+if ($pngAlphaSrc === false) {
+    throw new RuntimeException('imagecreatetruecolor failed');
+}
+imagealphablending($pngAlphaSrc, false);
+imagesavealpha($pngAlphaSrc, true);
+$transparent = imagecolorallocatealpha($pngAlphaSrc, 0, 0, 0, 127);
+$semi = imagecolorallocatealpha($pngAlphaSrc, 200, 50, 50, 64);
+if ($transparent === false || $semi === false) {
+    throw new RuntimeException('imagecolorallocatealpha failed');
+}
+imagefilledrectangle($pngAlphaSrc, 0, 0, 15, 15, $transparent);
+for ($i = 0; $i < 16; $i++) {
+    imagesetpixel($pngAlphaSrc, $i, $i, $semi);
+    imagesetpixel($pngAlphaSrc, 15 - $i, $i, $semi);
+}
+ob_start();
+imagepng($pngAlphaSrc);
+$pngAlpha = ob_get_clean();
+imagedestroy($pngAlphaSrc);
+if ($pngAlpha === false || $pngAlpha === '') {
+    throw new RuntimeException('PNG alpha capture failed');
+}
+$pngAlphaImage = \DragonOfMercy\PhpPdf\Image::fromBytes($pngAlpha);
+
+// PNG palette - built via TestImageFactory to ensure color type 3.
+require_once __DIR__ . '/../Support/TestImageFactory.php';
+$paletteBytes = \DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory::pngPalette(width: 8, height: 8);
+$paletteImage = \DragonOfMercy\PhpPdf\Image::fromBytes($paletteBytes);
+
+// Placements:
+$page->image($jpegImage, x: 50, y: 50, w: 200, h: 100);            // forced both
+$page->image($pngOpaqueImage, x: 50, y: 200, w: 150);              // w-only (h derived)
+$page->image($pngAlphaImage, x: 250, y: 200, w: 100, h: 100);      // forced both
+$page->image($paletteImage, x: 400, y: 200);                        // intrinsic 8x8
+
+$doc->save($fixturesDir . '/page-with-images.pdf');
+echo "Regenerated page-with-images.pdf\n";
