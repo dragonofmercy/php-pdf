@@ -101,4 +101,18 @@ final class ImageRegistryTest extends TestCase
         $this->expectException(PdfException::class);
         $r->shortName('/nonexistent/path/img.png');
     }
+
+    public function testRegisterReturnsShortNameAndImage(): void
+    {
+        $r = new ImageRegistry();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(8, 4));
+        [$name, $resolved] = $r->register($img);
+        self::assertSame('Im1', $name);
+        self::assertSame($img, $resolved);
+        // Second call returns the cached entry.
+        [$name2, $resolved2] = $r->register($img);
+        self::assertSame('Im1', $name2);
+        self::assertSame($img, $resolved2);
+        self::assertCount(1, $r->registeredImages());
+    }
 }

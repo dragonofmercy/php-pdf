@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
 use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\LineCap;
 use DragonOfMercy\PhpPdf\LineJoin;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Path;
 use DragonOfMercy\PhpPdf\PathOperation;
+use DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory;
 use PHPUnit\Framework\TestCase;
 
 final class PageTest extends TestCase
@@ -427,5 +430,110 @@ final class PageTest extends TestCase
         $page->setFont(Font::helvetica(), 12);
         $page->cell(x: 0, y: 0, w: 100, text: '', border: \DragonOfMercy\PhpPdf\Border::all());
         self::assertTrue($registry->isEmpty());
+    }
+
+    public function testImageReturnsSelfForChaining(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        self::assertSame($page, $page->image($img, x: 10, y: 10, w: 100, h: 50));
+    }
+
+    public function testImageWithExplicitDimensions(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $page->image($img, x: 10, y: 20, w: 100, h: 50);
+        $bytes = $page->contentStream()->bytes();
+        self::assertStringContainsString('/Im1 Do', $bytes);
+        // CTM: 100 0 0 -50 10 70 cm  (y + effH = 20 + 50 = 70)
+        self::assertStringContainsString('100 0 0 -50 10 70 cm', $bytes);
+    }
+
+    public function testImageWidthOnlyDerivesHeightFromAspect(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        // Source 10x5 -> aspect 2:1. w=200 -> h derived = 100.
+        $img = Image::fromBytes(TestImageFactory::pngRgb(width: 10, height: 5));
+        $page->image($img, x: 0, y: 0, w: 200);
+        self::assertStringContainsString('200 0 0 -100 0 100 cm', $page->contentStream()->bytes());
+    }
+
+    public function testImageHeightOnlyDerivesWidthFromAspect(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        // Source 10x5 -> aspect 2:1. h=50 -> w derived = 100.
+        $img = Image::fromBytes(TestImageFactory::pngRgb(width: 10, height: 5));
+        $page->image($img, x: 0, y: 0, h: 50);
+        self::assertStringContainsString('100 0 0 -50 0 50 cm', $page->contentStream()->bytes());
+    }
+
+    public function testImageNeitherDimensionUsesIntrinsicSize(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(width: 64, height: 32));
+        $page->image($img, x: 5, y: 10);
+        self::assertStringContainsString('64 0 0 -32 5 42 cm', $page->contentStream()->bytes());
+    }
+
+    public function testImageThrowsOnNonPositiveWidth(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Image width must be positive');
+        $page->image($img, x: 0, y: 0, w: 0);
+    }
+
+    public function testImageThrowsOnNonPositiveHeight(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Image height must be positive');
+        $page->image($img, x: 0, y: 0, h: -5);
+    }
+
+    public function testImageWithStringPath(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $path = sys_get_temp_dir() . '/phppdf-page-' . uniqid() . '.png';
+        file_put_contents($path, TestImageFactory::pngRgb(width: 20, height: 10));
+        try {
+            $page->image($path, x: 0, y: 0);
+            $bytes = $page->contentStream()->bytes();
+            self::assertStringContainsString('/Im1 Do', $bytes);
+            self::assertStringContainsString('20 0 0 -10 0 10 cm', $bytes);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function testTwoImageCallsWithSamePathReuseShortName(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $path = sys_get_temp_dir() . '/phppdf-page-' . uniqid() . '.png';
+        file_put_contents($path, TestImageFactory::pngRgb(2, 2));
+        try {
+            $page->image($path, x: 0, y: 0, w: 50, h: 50);
+            $page->image($path, x: 60, y: 0, w: 30, h: 30);
+            $bytes = $page->contentStream()->bytes();
+            // Both placements reference the same XObject /Im1.
+            self::assertSame(2, substr_count($bytes, '/Im1 Do'));
+            // No /Im2 (same path -> same registration).
+            self::assertStringNotContainsString('/Im2', $bytes);
+            self::assertSame(['Im1'], $page->imagesUsed());
+        } finally {
+            @unlink($path);
+        }
     }
 }

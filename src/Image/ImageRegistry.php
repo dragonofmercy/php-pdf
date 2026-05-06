@@ -19,12 +19,18 @@ final class ImageRegistry
     /** @var array<string, array{Image, string}> internal key => [image, shortName] */
     private array $entries = [];
 
-    public function shortName(string|Image $image): string
+    /**
+     * Registers the image if not already present and returns
+     * [shortName, resolvedImage]. Pure cache lookup if already registered.
+     *
+     * @return array{string, Image}
+     */
+    public function register(string|Image $image): array
     {
         $key = $this->key($image);
 
         if (isset($this->entries[$key])) {
-            return $this->entries[$key][1];
+            return [$this->entries[$key][1], $this->entries[$key][0]];
         }
 
         $resolved = $image instanceof Image
@@ -33,7 +39,12 @@ final class ImageRegistry
 
         $next = 'Im' . (count($this->entries) + 1);
         $this->entries[$key] = [$resolved, $next];
-        return $next;
+        return [$next, $resolved];
+    }
+
+    public function shortName(string|Image $image): string
+    {
+        return $this->register($image)[0];
     }
 
     public function isEmpty(): bool

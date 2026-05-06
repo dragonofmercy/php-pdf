@@ -349,6 +349,49 @@ final class Page
         );
     }
 
+    public function image(
+        string|Image $image,
+        float $x,
+        float $y,
+        ?float $w = null,
+        ?float $h = null,
+    ): self {
+        if ($w !== null && $w <= 0.0) {
+            throw new PdfException("Image width must be positive, got {$w}");
+        }
+        if ($h !== null && $h <= 0.0) {
+            throw new PdfException("Image height must be positive, got {$h}");
+        }
+
+        [$shortName, $resolved] = $this->imageRegistry->register($image);
+        $intrinsicW = (float) $resolved->width;
+        $intrinsicH = (float) $resolved->height;
+
+        if ($w !== null && $h !== null) {
+            $effW = $w;
+            $effH = $h;
+        } elseif ($w !== null) {
+            $effW = $w;
+            $effH = $w * $intrinsicH / $intrinsicW;
+        } elseif ($h !== null) {
+            $effH = $h;
+            $effW = $h * $intrinsicW / $intrinsicH;
+        } else {
+            $effW = $intrinsicW;
+            $effH = $intrinsicH;
+        }
+
+        $this->stream->append(Operators::saveState());
+        $this->stream->append(Operators::concatMatrix(
+            $effW, 0, 0, -$effH, $x, $y + $effH,
+        ));
+        $this->stream->append(Operators::invokeXObject($shortName));
+        $this->stream->append(Operators::restoreState());
+
+        $this->imagesUsed[$shortName] = true;
+        return $this;
+    }
+
     /**
      * @internal
      */
