@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace PhpPdf\Page;
 
+use PhpPdf\Border;
+use PhpPdf\BorderStyle;
+use PhpPdf\CellResult;
+use PhpPdf\Color;
+use PhpPdf\Fit;
 use PhpPdf\Font;
 use PhpPdf\Font\FontMetrics;
 use PhpPdf\Font\MetricsRegistry;
 use PhpPdf\Font\WinAnsiEncoder;
+use PhpPdf\TextAlign;
+use PhpPdf\VerticalAlign;
 
 /**
  * Encapsulates the cell rendering pipeline (wrap/fit/layout/emit). Owned
@@ -23,18 +30,210 @@ final class CellRenderer
     ) {}
 
     /**
-     * Full cell rendering pipeline: lays out text, emits PDF operators into the
-     * content stream, and returns a CellResult. Implemented in Task 13.
-     *
-     * @internal
+     * Renders the cell into the bound ContentStream and returns geometry.
+     * The fontShortName parameter is the registry-assigned `/F<n>` value
+     * already minus the leading slash (e.g. `'F1'`).
      */
-    public function render(): never
+    public function render(
+        Font $font,
+        float $size,
+        ?float $customLeading,
+        float $x,
+        float $y,
+        float $w,
+        ?float $h,
+        string $text,
+        ?Border $border,
+        ?Color $fill,
+        ?Color $textColor,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        Fit $fit,
+        float $padding,
+        string $fontShortName,
+    ): CellResult {
+        $innerW = max(0.0, $w - 2.0 * $padding);
+        $metrics = $this->metrics->metricsFor($font);
+
+        // ---- Phase 1: layout ----
+        $lines = [];
+        $widths = [];
+        $brokenWords = 0;
+        $textOverflow = false;
+        $effectiveSize = $size;
+        $effectiveLeading = $customLeading ?? ($size * 1.2);
+        $scales = null;
+
+        if ($text === '') {
+            $lineCount = 0;
+            $textHeight = 0.0;
+        } else {
+            switch ($fit) {
+                case Fit::NONE:
+                    $wrap = $this->wrapText($text, $innerW, $font, $size);
+                    $lines = $wrap->lines;
+                    $widths = $wrap->widths;
+                    $brokenWords = $wrap->brokenWords;
+                    break;
+
+                case Fit::CONDENSE:
+                    $cond = $this->condenseText($text, $innerW, $font, $size);
+                    $lines = $cond->lines;
+                    $scales = $cond->scales;
+                    $widths = [];
+                    foreach ($lines as $i => $line) {
+                        $paraWidth = $metrics->stringWidth($line, $size);
+                        $widths[] = $paraWidth * $scales[$i] / 100.0;
+                    }
+                    break;
+
+                case Fit::SHRINK:
+                    $shr = $this->shrinkText($text, $innerW, $font, $size, $customLeading);
+                    $lines = $shr->lines;
+                    $widths = $shr->widths;
+                    $effectiveSize = $shr->effectiveSize;
+                    $effectiveLeading = $shr->effectiveLeading;
+                    $textOverflow = $shr->textOverflow;
+                    break;
+            }
+            $lineCount = count($lines);
+            $textHeight = $lineCount * $effectiveLeading;
+        }
+
+        $cellHeight = max($h ?? 0.0, $textHeight + 2.0 * $padding);
+
+        // ---- Phase 2: emit ----
+        $this->stream->append(Operators::saveState());
+
+        if ($fill !== null) {
+            $this->stream->append($fill->toPdfOperator(stroke: false));
+            $this->stream->append(Operators::rectangle($x, $y, $w, $cellHeight));
+            $this->stream->append(Operators::fill());
+        }
+
+        if ($border !== null && !$border->isEmpty()) {
+            $this->emitBorders($border, $x, $y, $w, $cellHeight);
+        }
+
+        if ($text !== '') {
+            $this->emitText(
+                metrics: $metrics,
+                lines: $lines,
+                widths: $widths,
+                scales: $scales,
+                effectiveSize: $effectiveSize,
+                effectiveLeading: $effectiveLeading,
+                cellX: $x,
+                cellY: $y,
+                cellW: $w,
+                cellH: $cellHeight,
+                padding: $padding,
+                align: $align,
+                verticalAlign: $verticalAlign,
+                textColor: $textColor,
+                fontShortName: $fontShortName,
+            );
+        }
+
+        $this->stream->append(Operators::restoreState());
+
+        return new CellResult(
+            x: $x + $w,
+            y: $y + $cellHeight,
+            height: $cellHeight,
+            lineCount: $lineCount,
+            brokenWords: $brokenWords,
+            textOverflow: $textOverflow,
+        );
+    }
+
+    private function emitBorders(Border $border, float $x, float $y, float $w, float $h): void
     {
-        // Task 13 will replace this stub with the full emission pipeline.
-        // The stream property is appended to here (a no-op empty append) to
-        // satisfy static analysis until the full implementation lands.
-        $this->stream->append('');
-        throw new \LogicException('CellRenderer::render() is not yet implemented (Task 13).');
+        $sides = [
+            ['active' => $border->top,    'x1' => $x,       'y1' => $y,      'x2' => $x + $w, 'y2' => $y],
+            ['active' => $border->right,  'x1' => $x + $w,  'y1' => $y,      'x2' => $x + $w, 'y2' => $y + $h],
+            ['active' => $border->bottom, 'x1' => $x,       'y1' => $y + $h, 'x2' => $x + $w, 'y2' => $y + $h],
+            ['active' => $border->left,   'x1' => $x,       'y1' => $y,      'x2' => $x,      'y2' => $y + $h],
+        ];
+
+        $dashPattern = match ($border->style) {
+            BorderStyle::SOLID => [],
+            BorderStyle::DASHED => [3.0, 3.0],
+            BorderStyle::DOTTED => [$border->width, 2.0 * $border->width],
+        };
+
+        foreach ($sides as $s) {
+            if (!$s['active']) {
+                continue;
+            }
+            $this->stream->append(Operators::saveState());
+            $this->stream->append($border->color->toPdfOperator(stroke: true));
+            $this->stream->append(Operators::setLineWidth($border->width));
+            $this->stream->append(Operators::setDashPattern($dashPattern, 0.0));
+            $this->stream->append(Operators::moveTo($s['x1'], $s['y1']));
+            $this->stream->append(Operators::lineTo($s['x2'], $s['y2']));
+            $this->stream->append(Operators::stroke());
+            $this->stream->append(Operators::restoreState());
+        }
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<float> $widths
+     * @param list<float>|null $scales per-line Tz (Fit::CONDENSE), null otherwise
+     */
+    private function emitText(
+        FontMetrics $metrics,
+        array $lines,
+        array $widths,
+        ?array $scales,
+        float $effectiveSize,
+        float $effectiveLeading,
+        float $cellX,
+        float $cellY,
+        float $cellW,
+        float $cellH,
+        float $padding,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        ?Color $textColor,
+        string $fontShortName,
+    ): void {
+        $lineCount = count($lines);
+        $textHeight = $lineCount * $effectiveLeading;
+        $ascent = $metrics->ascentAt($effectiveSize);
+
+        $firstBaseline = match ($verticalAlign) {
+            VerticalAlign::TOP    => $cellY + $padding + $ascent,
+            VerticalAlign::MIDDLE => $cellY + ($cellH - $textHeight) / 2.0 + $ascent,
+            VerticalAlign::BOTTOM => $cellY + $cellH - $padding - $textHeight + $ascent,
+        };
+
+        if ($textColor !== null) {
+            $this->stream->append($textColor->toPdfOperator(stroke: false));
+        }
+
+        $this->stream->append(Operators::beginText());
+        $this->stream->append(Operators::setFontAndSize($fontShortName, $effectiveSize));
+        $this->stream->append(Operators::setTextLeading($effectiveLeading));
+
+        foreach ($lines as $i => $line) {
+            $lineWidth = $widths[$i];
+            $lineX = match ($align) {
+                TextAlign::LEFT   => $cellX + $padding,
+                TextAlign::CENTER => $cellX + ($cellW - $lineWidth) / 2.0,
+                TextAlign::RIGHT  => $cellX + $cellW - $padding - $lineWidth,
+            };
+            $lineBaseline = $firstBaseline + $i * $effectiveLeading;
+            // Counter-flip Y to compensate the page-level Y-down CTM.
+            $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $lineX, $lineBaseline));
+            if ($scales !== null) {
+                $this->stream->append(Operators::setHorizontalScaling($scales[$i]));
+            }
+            $this->stream->append(Operators::showText($line));
+        }
+
+        $this->stream->append(Operators::endText());
     }
 
     /**

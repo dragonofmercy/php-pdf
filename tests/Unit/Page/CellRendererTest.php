@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpPdf\Tests\Unit\Page;
 
+use PhpPdf\CellResult;
 use PhpPdf\Font;
 use PhpPdf\Font\MetricsRegistry;
 use PhpPdf\Page\CellRenderer;
@@ -162,5 +163,239 @@ final class CellRendererTest extends TestCase
         $result = $r->shrinkText('Hello', 0.1, Font::helvetica(), 12.0);
         self::assertTrue($result->textOverflow);
         self::assertEqualsWithDelta(0.12, $result->effectiveSize, 0.001);
+    }
+
+    /**
+     * @param callable(CellRenderer, ContentStream, string): CellResult $configure
+     * @return array{0: CellResult, 1: string}
+     */
+    private function renderAndStream(
+        callable $configure,
+        string $text = 'Hello',
+        ?int $expectedLines = null,
+    ): array {
+        $stream = new ContentStream(842.0);
+        $r = new CellRenderer(stream: $stream, metrics: new MetricsRegistry());
+        $result = $configure($r, $stream, $text);
+        if ($expectedLines !== null) {
+            self::assertSame($expectedLines, $result->lineCount);
+        }
+        return [$result, $stream->bytes()];
+    }
+
+    public function testRenderEmitsBeginEndText(): void
+    {
+        [$res, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(),
+                size: 12.0,
+                customLeading: null,
+                x: 50.0,
+                y: 50.0,
+                w: 200.0,
+                h: null,
+                text: 'Hello',
+                border: null,
+                fill: null,
+                textColor: null,
+                align: \PhpPdf\TextAlign::LEFT,
+                verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE,
+                padding: 2.0,
+                fontShortName: 'F1',
+            ),
+        );
+        self::assertStringContainsString("BT\n", $bytes);
+        self::assertStringContainsString("ET\n", $bytes);
+        self::assertStringContainsString('/F1', $bytes);
+        self::assertSame(1, $res->lineCount);
+    }
+
+    public function testRenderWrapsBlocksInQAndQ(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 50.0, y: 50.0, w: 100.0, h: null, text: 'Hi',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        // q must come before Q; both must be present.
+        $qPos = strpos($bytes, "q\n");
+        $qEndPos = strrpos($bytes, "Q\n");
+        self::assertNotFalse($qPos);
+        self::assertNotFalse($qEndPos);
+        self::assertLessThan($qEndPos, $qPos);
+    }
+
+    public function testRenderEmitsFillRectangleWhenFillSet(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 10.0, y: 20.0, w: 100.0, h: 30.0, text: '',
+                border: null, fill: \PhpPdf\Color::rgb(255, 0, 0),
+                textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertStringContainsString('1 0 0 rg', $bytes);
+        self::assertStringContainsString("re\n", $bytes);
+        self::assertStringContainsString("f\n", $bytes);
+    }
+
+    public function testRenderEmitsBordersForActiveSidesOnly(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
+                border: \PhpPdf\Border::sides(top: true, bottom: true),
+                fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        // Two strokes, one for each active side.
+        self::assertSame(2, substr_count($bytes, "S\n"));
+    }
+
+    public function testRenderSkipsBordersWhenBorderIsNull(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertSame(0, substr_count($bytes, "S\n"));
+    }
+
+    public function testRenderSkipsBordersWhenIsEmpty(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
+                border: \PhpPdf\Border::none(), fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertSame(0, substr_count($bytes, "S\n"));
+    }
+
+    public function testRenderEmitsDashedPattern(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
+                border: \PhpPdf\Border::all()->withStyle(\PhpPdf\BorderStyle::DASHED),
+                fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertStringContainsString('[3 3] 0 d', $bytes);
+    }
+
+    public function testRenderEmitsDottedPatternProportionalToWidth(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
+                border: \PhpPdf\Border::all()->withStyle(\PhpPdf\BorderStyle::DOTTED)->withWidth(2.0),
+                fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        // DOTTED at width=2 -> [2 4] dash pattern.
+        self::assertStringContainsString('[2 4] 0 d', $bytes);
+    }
+
+    public function testRenderEmitsTzForCondense(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 13.67, h: 20.0, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::CONDENSE, padding: 0.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertStringContainsString(' Tz', $bytes);
+    }
+
+    public function testRenderShrinkUsesSmallerTfSize(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 13.67, h: 20.0, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::SHRINK, padding: 0.0, fontShortName: 'F1',
+            ),
+        );
+        // Tf size will be ~6, never the original 12.
+        self::assertMatchesRegularExpression('#/F1 [0-9]+(\.[0-9]+)? Tf#', $bytes);
+        self::assertStringNotContainsString('/F1 12 Tf', $bytes);
+    }
+
+    public function testRenderEmptyTextSkipsBeginText(): void
+    {
+        [$res, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
+                border: \PhpPdf\Border::all(), fill: \PhpPdf\Color::rgb(255, 255, 255),
+                textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertStringNotContainsString("BT\n", $bytes);
+        self::assertSame(0, $res->lineCount);
+    }
+
+    public function testRenderResultGeometry(): void
+    {
+        [$res] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 50.0, y: 50.0, w: 200.0, h: 25.0, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        self::assertSame(250.0, $res->x);
+        self::assertSame(75.0, $res->y);
+        self::assertSame(25.0, $res->height);
+    }
+
+    public function testRenderHeightActsAsMinHeight(): void
+    {
+        [$res] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 50.0, h: 5.0, text: "Hello\nworld\nhere",
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 0.0, fontShortName: 'F1',
+            ),
+        );
+        // 3 lines of leading 14.4 each = 43.2, far exceeds h=5. Cell grows.
+        self::assertGreaterThan(5.0, $res->height);
     }
 }
