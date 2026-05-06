@@ -17,6 +17,7 @@ final class PngColorTypeTest extends TestCase
         self::assertSame(4, PngColorType::GRAY_ALPHA->value);
         self::assertSame(6, PngColorType::RGB_ALPHA->value);
         self::assertSame(PngColorType::RGB, PngColorType::from(2));
+        /** @phpstan-ignore staticMethod.alreadyNarrowedType */
         self::assertNull(PngColorType::tryFrom(99));
     }
 }
