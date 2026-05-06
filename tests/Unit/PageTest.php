@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\LineCap;
 use DragonOfMercy\PhpPdf\LineJoin;
 use DragonOfMercy\PhpPdf\Page;
@@ -35,6 +36,7 @@ final class PageTest extends TestCase
             pageHeight: 841.89,
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
     }
 
@@ -144,7 +146,7 @@ final class PageTest extends TestCase
     public function testSetFontDoesNotRegisterUntilTextIsCalled(): void
     {
         $registry = new FontRegistry();
-        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry, metricsRegistry: new MetricsRegistry());
+        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry, metricsRegistry: new MetricsRegistry(), imageRegistry: new ImageRegistry());
 
         $page->setFont(Font::helvetica()->bold(), 14);
 
@@ -158,7 +160,7 @@ final class PageTest extends TestCase
     public function testFirstTextCallRegistersFontInRegistryAndOnPage(): void
     {
         $registry = new FontRegistry();
-        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry, metricsRegistry: new MetricsRegistry());
+        $page = new Page(pageWidth: 595.28, pageHeight: 841.89, fontRegistry: $registry, metricsRegistry: new MetricsRegistry(), imageRegistry: new ImageRegistry());
 
         $page->setFont(Font::helvetica()->bold(), 14);
         self::assertTrue($registry->isEmpty());
@@ -287,6 +289,7 @@ final class PageTest extends TestCase
             pageHeight: 842.0,
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
         // Helvetica space=278/1000 em, 'H'=722, 'e'=556, 'l'=222, 'l'=222, 'o'=556 => "Hello" = 2278
         // At size 12: 2278 / 1000 * 12 = 27.336
@@ -300,6 +303,7 @@ final class PageTest extends TestCase
             pageHeight: 842.0,
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
         $page->setFont(Font::helvetica(), 12.0);
         self::assertEqualsWithDelta(27.336, $page->stringWidth('Hello'), 0.0001);
@@ -312,6 +316,7 @@ final class PageTest extends TestCase
             pageHeight: 842.0,
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
         $page->setFont(Font::helvetica(), 12.0);
         self::assertSame(0.0, $page->stringWidth(''));
@@ -324,6 +329,7 @@ final class PageTest extends TestCase
             pageHeight: 842.0,
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
         $page->setFont(Font::courier(), 10.0);
         // Courier is monospace 600/1000 em. "a" = 600, "abc" = 1800. At size 10: max = 1800/1000*10 = 18.0
@@ -337,6 +343,7 @@ final class PageTest extends TestCase
             pageHeight: 842.0,
             fontRegistry: new FontRegistry(),
             metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->stringWidth('Hello');
@@ -344,34 +351,34 @@ final class PageTest extends TestCase
 
     public function testGetCellsPaddingDefaultIsTwo(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         self::assertSame(2.0, $page->getCellsPadding());
     }
 
     public function testSetCellsPaddingChangesDefault(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setCellsPadding(5.5);
         self::assertSame(5.5, $page->getCellsPadding());
     }
 
     public function testSetCellsPaddingNegativeThrows(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->setCellsPadding(-1.0);
     }
 
     public function testCellWithoutSetFontThrows(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 100, text: 'Hello');
     }
 
     public function testCellWidthZeroThrows(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 0.0, text: 'Hello');
@@ -379,7 +386,7 @@ final class PageTest extends TestCase
 
     public function testCellHeightNegativeThrows(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 100, h: -1.0, text: 'Hello');
@@ -387,7 +394,7 @@ final class PageTest extends TestCase
 
     public function testCellPaddingNegativeThrows(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->cell(x: 50, y: 50, w: 100, text: 'Hello', padding: -2.0);
@@ -395,7 +402,7 @@ final class PageTest extends TestCase
 
     public function testCellHappyPathReturnsCellResult(): void
     {
-        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry());
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         $r = $page->cell(x: 50, y: 50, w: 200, h: 25, text: 'Hello');
         self::assertSame(250.0, $r->x);
@@ -406,7 +413,7 @@ final class PageTest extends TestCase
     public function testCellRegistersFontInRegistry(): void
     {
         $registry = new FontRegistry();
-        $page = new Page(595, 842, $registry, new MetricsRegistry());
+        $page = new Page(595, 842, $registry, new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         self::assertTrue($registry->isEmpty(), 'Font should not be registered before cell()');
         $page->cell(x: 0, y: 0, w: 100, text: 'Hi');
@@ -416,7 +423,7 @@ final class PageTest extends TestCase
     public function testCellEmptyTextDoesNotRegisterFont(): void
     {
         $registry = new FontRegistry();
-        $page = new Page(595, 842, $registry, new MetricsRegistry());
+        $page = new Page(595, 842, $registry, new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         $page->cell(x: 0, y: 0, w: 100, text: '', border: \DragonOfMercy\PhpPdf\Border::all());
         self::assertTrue($registry->isEmpty());

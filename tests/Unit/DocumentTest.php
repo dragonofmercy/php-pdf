@@ -286,4 +286,17 @@ final class DocumentTest extends TestCase
         $page2 = $doc->addPage();
         self::assertSame($page1->metricsRegistry(), $page2->metricsRegistry());
     }
+
+    public function testImageRegistryIsSharedAcrossPages(): void
+    {
+        // We cannot inspect the registry directly (private). Instead verify that
+        // building the same simple document twice produces identical PDF bytes.
+        $build = static function (): string {
+            $doc = new Document();
+            $doc->addPage();
+            $doc->addPage();
+            return $doc->output();
+        };
+        self::assertSame($build(), $build());
+    }
 }

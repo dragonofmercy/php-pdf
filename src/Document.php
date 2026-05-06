@@ -18,6 +18,7 @@ use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -45,6 +46,7 @@ final class Document
 
     private readonly FontRegistry $fontRegistry;
     private readonly MetricsRegistry $metricsRegistry;
+    private readonly ImageRegistry $imageRegistry;
 
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
@@ -53,6 +55,7 @@ final class Document
     {
         $this->fontRegistry = new FontRegistry();
         $this->metricsRegistry = new MetricsRegistry();
+        $this->imageRegistry = new ImageRegistry();
     }
 
     public function metadata(): Metadata
@@ -72,6 +75,7 @@ final class Document
             pageHeight: self::A4_HEIGHT,
             fontRegistry: $this->fontRegistry,
             metricsRegistry: $this->metricsRegistry,
+            imageRegistry: $this->imageRegistry,
         );
         $this->pages[] = $page;
         return $page;

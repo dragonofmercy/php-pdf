@@ -10,6 +10,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
@@ -37,11 +38,15 @@ final class Page
     /** @var array<string, Font> Fonts used by this page, keyed by PDF canonical name */
     private array $fontsUsed = [];
 
+    /** @var array<string, true> Short names of images this page references */
+    private array $imagesUsed = [];
+
     public function __construct(
         public readonly float $pageWidth,
         public readonly float $pageHeight,
         private readonly FontRegistry $fontRegistry,
         private readonly MetricsRegistry $metricsRegistry,
+        private readonly ImageRegistry $imageRegistry,
     ) {
         $this->stream = new ContentStream($pageHeight);
     }
@@ -61,6 +66,15 @@ final class Page
     public function fontsUsed(): array
     {
         return array_values($this->fontsUsed);
+    }
+
+    /**
+     * @internal
+     * @return list<string>
+     */
+    public function imagesUsed(): array
+    {
+        return array_keys($this->imagesUsed);
     }
 
     // ----- Primitives -----
@@ -341,5 +355,13 @@ final class Page
     public function metricsRegistry(): MetricsRegistry
     {
         return $this->metricsRegistry;
+    }
+
+    /**
+     * @internal
+     */
+    public function imageRegistry(): ImageRegistry
+    {
+        return $this->imageRegistry;
     }
 }
