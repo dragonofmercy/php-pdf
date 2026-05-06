@@ -190,6 +190,7 @@ final class TestImageFactory
 
     private static function ihdr(int $width, int $height, int $bitDepth, int $colorType, int $interlace = 0): string
     {
+        // PNG IHDR: width(4 BE) + height(4 BE) + bitDepth(1) + colorType(1) + compMethod(0) + filterMethod(0) + interlace(1) = 13 bytes
         return pack('NNCCxxC', $width, $height, $bitDepth, $colorType, $interlace);
     }
 
