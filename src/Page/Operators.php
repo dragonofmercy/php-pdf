@@ -169,6 +169,11 @@ final class Operators
         return self::num($points) . " Tw\n";
     }
 
+    public static function invokeXObject(string $shortName): string
+    {
+        return '/' . $shortName . " Do\n";
+    }
+
     private static function num(float $value): string
     {
         return PdfNumber::ofFloat($value)->toBytes();

@@ -151,4 +151,10 @@ final class OperatorsTest extends TestCase
         self::assertSame("2.5 Tw\n", Operators::setWordSpacing(2.5));
         self::assertSame("0 Tw\n", Operators::setWordSpacing(0.0));
     }
+
+    public function testInvokeXObject(): void
+    {
+        self::assertSame("/Im1 Do\n", Operators::invokeXObject('Im1'));
+        self::assertSame("/Im42 Do\n", Operators::invokeXObject('Im42'));
+    }
 }
