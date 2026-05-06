@@ -398,4 +398,88 @@ final class CellRendererTest extends TestCase
         // 3 lines of leading 14.4 each = 43.2, far exceeds h=5. Cell grows.
         self::assertGreaterThan(5.0, $res->height);
     }
+
+    public function testRenderTextAlignCenterPositionsLineCorrectly(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 100.0, h: null, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::CENTER, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 0.0, fontShortName: 'F1',
+            ),
+        );
+        // 'Hello' at Helvetica 12pt = 27.336pt. cellW = 100, padding = 0.
+        // CENTER x = (100 - 27.336) / 2 = 36.332.
+        self::assertMatchesRegularExpression('/1 0 0 -1 36\.33[0-9]+ [0-9.]+ Tm/', $bytes);
+    }
+
+    public function testRenderTextAlignRightPositionsLineCorrectly(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 100.0, h: null, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::RIGHT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        // 'Hello' at Helvetica 12pt = 27.336pt. cellW = 100, padding = 2.
+        // RIGHT x = 100 - 2 - 27.336 = 70.664.
+        self::assertMatchesRegularExpression('/1 0 0 -1 70\.66[0-9]+ [0-9.]+ Tm/', $bytes);
+    }
+
+    public function testRenderVerticalAlignMiddlePositionsBaseline(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 100.0, h: 40.0, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::MIDDLE,
+                fit: \PhpPdf\Fit::NONE, padding: 0.0, fontShortName: 'F1',
+            ),
+        );
+        // textHeight = 1 line * 12 * 1.2 = 14.4. cellH = 40.
+        // baseline = 0 + (40 - 14.4) / 2 + ascent(12) = 12.8 + 8.616 = 21.416.
+        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 21\.41[0-9]+ Tm/', $bytes);
+    }
+
+    public function testRenderVerticalAlignBottomPositionsBaseline(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 100.0, h: 40.0, text: 'Hello',
+                border: null, fill: null, textColor: null,
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::BOTTOM,
+                fit: \PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
+            ),
+        );
+        // textHeight = 1 line * 12 * 1.2 = 14.4. cellH = 40, padding = 2.
+        // baseline = 0 + 40 - 2 - 14.4 + ascent(12) = 23.6 + 8.616 = 32.216.
+        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 32\.21[0-9]+ Tm/', $bytes);
+    }
+
+    public function testRenderTextColorEmittedBeforeBeginText(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 100.0, h: null, text: 'Hello',
+                border: null, fill: null, textColor: \PhpPdf\Color::rgb(255, 0, 0),
+                align: \PhpPdf\TextAlign::LEFT, verticalAlign: \PhpPdf\VerticalAlign::TOP,
+                fit: \PhpPdf\Fit::NONE, padding: 0.0, fontShortName: 'F1',
+            ),
+        );
+        // textColor red emits "1 0 0 rg" before BT. The color is set inside the q/Q
+        // wrap and inside the BT/ET block.
+        $rgPos = strpos($bytes, '1 0 0 rg');
+        $btPos = strpos($bytes, "BT\n");
+        self::assertNotFalse($rgPos);
+        self::assertNotFalse($btPos);
+        self::assertLessThan($btPos, $rgPos);
+    }
 }
