@@ -111,8 +111,35 @@ final class ImageEmbedder
             return [$imageObject];
         }
 
-        // PNG with alpha — Task 14 will fill this in.
-        throw new PdfException('PNG SMask emission not yet implemented');
+        // PNG with alpha: emit a parallel SMask XObject.
+        // $hasAlpha === true guarantees alphaBytes is non-null at this point.
+        $alpha = $meta->alphaBytes;
+
+        $smaskDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Image'))
+            ->withEntry(Name::of('Width'), PdfNumber::ofInt($meta->width))
+            ->withEntry(Name::of('Height'), PdfNumber::ofInt($meta->height))
+            ->withEntry(Name::of('ColorSpace'), Name::of('DeviceGray'))
+            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($meta->bitDepth))
+            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'))
+            ->withEntry(
+                Name::of('DecodeParms'),
+                Dictionary::empty()
+                    ->withEntry(Name::of('Predictor'), PdfNumber::ofInt(15))
+                    ->withEntry(Name::of('Columns'), PdfNumber::ofInt($meta->width))
+                    ->withEntry(Name::of('Colors'), PdfNumber::ofInt(1))
+                    ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($meta->bitDepth)),
+            )
+            ->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($alpha)));
+
+        $smaskObject = IndirectObject::of(
+            $smaskObjectNumber ?? throw new PdfException('SMask object number missing'),
+            0,
+            new ImageStream($smaskDict, $alpha),
+        );
+
+        return [$imageObject, $smaskObject];
     }
 
     private function pngImageDictionary(PngMetadata $meta, ?int $smaskObjectNumber): Dictionary

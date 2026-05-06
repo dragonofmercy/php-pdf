@@ -98,4 +98,43 @@ final class ImageEmbedderTest extends TestCase
         self::assertStringContainsString('<FF000000FF00>', $bytes);
         self::assertStringContainsString('/Colors 1', $bytes);
     }
+
+    public function testEmbedsPngRgbAlphaWithSmask(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::pngRgbAlpha(width: 4, height: 4));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 7);
+        self::assertCount(2, $objects);
+        self::assertSame(7, $objects[0]->objectNumber);
+        self::assertSame(8, $objects[1]->objectNumber);
+
+        $imageBytes = $objects[0]->toBytes();
+        self::assertStringContainsString('/SMask 8 0 R', $imageBytes);
+        self::assertStringContainsString('/ColorSpace /DeviceRGB', $imageBytes);
+
+        $smaskBytes = $objects[1]->toBytes();
+        self::assertStringContainsString('/Subtype /Image', $smaskBytes);
+        self::assertStringContainsString('/ColorSpace /DeviceGray', $smaskBytes);
+        self::assertStringContainsString('/Width 4', $smaskBytes);
+        self::assertStringContainsString('/Height 4', $smaskBytes);
+        self::assertStringContainsString('/Filter /FlateDecode', $smaskBytes);
+    }
+
+    public function testEmbedsPngGrayAlphaWithSmask(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::pngGrayAlpha(width: 2, height: 2));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 1);
+        self::assertCount(2, $objects);
+        self::assertStringContainsString('/ColorSpace /DeviceGray', $objects[0]->toBytes());
+        self::assertStringContainsString('/SMask 2 0 R', $objects[0]->toBytes());
+    }
+
+    public function testEmbedsPalettePngWithTrnsHasSmask(): void
+    {
+        $img = Image::fromBytes(TestImageFactory::pngPaletteWithTrns(width: 2, height: 2));
+        $objects = (new ImageEmbedder())->embed($img, firstObjectNumber: 1);
+        self::assertCount(2, $objects);
+        self::assertStringContainsString('/ColorSpace [/Indexed /DeviceRGB', $objects[0]->toBytes());
+        self::assertStringContainsString('/SMask 2 0 R', $objects[0]->toBytes());
+        self::assertStringContainsString('/ColorSpace /DeviceGray', $objects[1]->toBytes());
+    }
 }
