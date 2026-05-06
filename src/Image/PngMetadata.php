@@ -13,11 +13,14 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * an /SMask XObject.
  *
  * Field semantics:
- *  - $idatBytes: zlib-compressed PNG-filtered bytes for the main image.
- *    For separated color types, this is null and $colorBytes is used instead.
+ *  - $idatBytes: zlib-compressed PNG-filtered bytes from the original IDAT
+ *    chunks. Always populated. For color types where alpha was separated
+ *    (GRAY_ALPHA / RGB_ALPHA), this stream still contains the interleaved
+ *    color+alpha data and the embedder ignores it in favor of $colorBytes.
  *  - $palette: raw PLTE bytes (3 bytes per entry) for PALETTE images, null otherwise.
  *  - $colorBytes: zlib-compressed color-only stream when alpha was separated;
- *    null when the original idat is used as-is.
+ *    null when the original idat is used as-is. The embedder prefers this
+ *    over $idatBytes when set.
  *  - $alphaBytes: zlib-compressed alpha-only stream when alpha is present;
  *    null for fully opaque images.
  *

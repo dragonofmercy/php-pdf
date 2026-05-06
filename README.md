@@ -174,7 +174,7 @@ composer install
 composer check   # PHPStan max + PHPUnit (unit + golden)
 ```
 
-`composer test` runs the full suite (328 tests at Phase 2c). `composer analyse` runs PHPStan at level max.
+`composer test` runs the full suite (402 tests at Phase 4). `composer analyse` runs PHPStan at level max.
 
 ### Golden tests
 

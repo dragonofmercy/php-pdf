@@ -400,11 +400,4 @@ final class Page
         return $this->metricsRegistry;
     }
 
-    /**
-     * @internal
-     */
-    public function imageRegistry(): ImageRegistry
-    {
-        return $this->imageRegistry;
-    }
 }
