@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Barcode;
 
-use DragonOfMercy\PhpPdf\{Color, Page};
+use DragonOfMercy\PhpPdf\{Color, Font, Page};
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
@@ -61,7 +61,89 @@ final readonly class Ean13 implements Barcode
 
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
-        throw new PdfException('Ean13::draw() not yet implemented (Task 6)');
+        if ($h === null) {
+            throw new PdfException('Ean13 requires explicit h (height)');
+        }
+
+        $unit = $page->unit;
+        $xPt = $unit->toPoints($x);
+        $yPt = $unit->toPoints($y);
+        $wPt = $unit->toPoints($w);
+        $hPt = $unit->toPoints($h);
+
+        // Module count incl. quiet zone: 11 (left) + 95 + 7 (right) = 113.
+        $totalModules = 113;
+        $moduleW = $wPt / $totalModules;
+        $barsHeight = $hPt * 0.85;
+        $textHeight = $hPt - $barsHeight;
+
+        $modules = $this->encodeModules();
+        // Pad with leading false for left quiet zone, trailing false for right.
+        $padded = array_merge(
+            array_fill(0, 11, false),
+            $modules,
+            array_fill(0, 7, false),
+        );
+
+        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+
+        $contentStream = $page->contentStream();
+        $contentStream->append(Renderer::wrap($body, $this->color));
+
+        if ($this->showText) {
+            $this->drawHumanText($page, $xPt, $yPt, $wPt, $hPt, $moduleW, $barsHeight, $textHeight);
+        }
+    }
+
+    /**
+     * Draws the EAN-13 human-readable digits in the official layout:
+     *   - first digit detached to the left, inside the quiet zone
+     *   - 6 digits centred under the left half (between left guard and centre)
+     *   - 6 digits centred under the right half (between centre and right guard)
+     */
+    private function drawHumanText(
+        Page $page,
+        float $xPt,
+        float $yPt,
+        float $wPt,
+        float $hPt,
+        float $moduleW,
+        float $barsHeight,
+        float $textHeight,
+    ): void {
+        $first = $this->digits[0];
+        $left = substr($this->digits, 1, 6);
+        $right = substr($this->digits, 7, 6);
+
+        // Font + size: Helvetica, sized to fit the half-width comfortably.
+        $fontSize = min(12.0, $wPt / 14.0);
+        $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
+        // Convert text Y back to the page unit so page->text() works.
+        $textYUnit = $page->unit->fromPoints($textY);
+
+        $page->save();
+        $page->setFillColor($this->color);
+        $page->setFont(Font::helvetica(), $fontSize);
+
+        // First digit: x ~= xPt + 1 module (in unit).
+        $firstX = $page->unit->fromPoints($xPt + $moduleW);
+        $page->text($firstX, $textYUnit, $first);
+
+        // Left half (between modules 14 and 47 in padded coords): 6 digits centred.
+        // module index 14 = end of left guard, 47 = start of centre. Width = 33 modules.
+        $leftStartX = $page->unit->fromPoints($xPt + 14 * $moduleW);
+        $leftHalfWidth = 33 * $moduleW;
+        $leftWidth = $page->stringWidth($left); // in unit
+        $leftX = $leftStartX + ($page->unit->fromPoints($leftHalfWidth) - $leftWidth) / 2;
+        $page->text($leftX, $textYUnit, $left);
+
+        // Right half: module index 52 = end of centre, 85 = start of right guard. Width = 33.
+        $rightStartX = $page->unit->fromPoints($xPt + 52 * $moduleW);
+        $rightWidth = $page->stringWidth($right);
+        $rightX = $rightStartX + ($page->unit->fromPoints($leftHalfWidth) - $rightWidth) / 2;
+        $page->text($rightX, $textYUnit, $right);
+
+        $page->restore();
     }
 
     /**

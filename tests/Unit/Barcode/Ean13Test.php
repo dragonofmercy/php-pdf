@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Barcode;
 
 use DragonOfMercy\PhpPdf\Barcode\Ean13;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
 final class Ean13Test extends TestCase
@@ -84,5 +87,66 @@ final class Ean13Test extends TestCase
             $idx = $startOfRightDigits + $d * 7;
             self::assertTrue($modules[$idx], "Right digit #{$d} should start with a bar");
         }
+    }
+
+    public function testDrawProducesQRgRectsAndF(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->barcode(Ean13::of('9780131103627'), x: 10.0, y: 10.0, w: 113.0, h: 30.0);
+        $bytes = $page->contentStream()->bytes();
+        // q ... 0 0 0 rg ... at least one re ... f ... Q
+        self::assertStringContainsString("\nq\n", $bytes);
+        self::assertStringContainsString("0 0 0 rg\n", $bytes);
+        self::assertStringContainsString(' re', $bytes);
+        self::assertStringContainsString("\nf\n", $bytes);
+        self::assertStringContainsString("\nQ\n", $bytes);
+    }
+
+    public function testDrawWithCustomColorEmitsThatColor(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->barcode(
+            Ean13::of('9780131103627')->withColor(Color::rgb(255, 0, 0)),
+            x: 10.0, y: 10.0, w: 113.0, h: 30.0,
+        );
+        $bytes = $page->contentStream()->bytes();
+        self::assertStringContainsString("1 0 0 rg\n", $bytes);
+    }
+
+    public function testDrawWithoutTextDoesNotEmitTj(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->barcode(
+            Ean13::of('9780131103627')->withoutText(),
+            x: 10.0, y: 10.0, w: 113.0, h: 30.0,
+        );
+        $bytes = $page->contentStream()->bytes();
+        // Without human text, no Tj operator should appear inside the barcode block.
+        // (Other Tj might appear elsewhere if the page had text -- this page has only the barcode.)
+        self::assertStringNotContainsString(' Tj', $bytes);
+    }
+
+    public function testDrawWithTextEmitsHelveticaTjForDigits(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->barcode(Ean13::of('9780131103627'), x: 10.0, y: 10.0, w: 113.0, h: 30.0);
+        $bytes = $page->contentStream()->bytes();
+        // Human text: "9 780131 103627" -- detached "9", then "780131" and "103627".
+        self::assertStringContainsString('(9)', $bytes);
+        self::assertStringContainsString('(780131)', $bytes);
+        self::assertStringContainsString('(103627)', $bytes);
+    }
+
+    public function testDrawRequiresHeight(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Ean13 requires explicit h (height)');
+        $page->barcode(Ean13::of('9780131103627'), x: 10.0, y: 10.0, w: 113.0);
     }
 }
