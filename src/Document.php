@@ -49,6 +49,10 @@ final class Document
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
 
+    private ?PageLayout $pageLayout = null;
+    private ?PageMode $pageMode = null;
+    private ?OpenAction $openAction = null;
+
     /** Last format used (or implicit default). Reused when addPage() is called with no $format. */
     private PageFormat $lastFormat = PageFormat::A4;
 
@@ -72,6 +76,36 @@ final class Document
     public function encryption(): Encryption
     {
         return $this->encryption ??= new Encryption();
+    }
+
+    /**
+     * How the viewer should arrange pages (single, columns, two-page spread).
+     * See {@see PageLayout}. Pass `null` to clear and let the viewer decide.
+     */
+    public function setPageLayout(?PageLayout $layout): self
+    {
+        $this->pageLayout = $layout;
+        return $this;
+    }
+
+    /**
+     * Which side panel (outline, thumbs, attachments...) the viewer reveals
+     * on opening, or whether to launch full screen. See {@see PageMode}.
+     */
+    public function setPageMode(?PageMode $mode): self
+    {
+        $this->pageMode = $mode;
+        return $this;
+    }
+
+    /**
+     * Initial view (target page + zoom/fit) applied when the document opens.
+     * See {@see OpenAction} for the named constructors.
+     */
+    public function setOpenAction(?OpenAction $action): self
+    {
+        $this->openAction = $action;
+        return $this;
     }
 
     /**
@@ -174,15 +208,13 @@ final class Document
     {
         $pagesRef = PdfReference::to(2, 0);
 
-        $catalog = IndirectObject::of(
-            1,
-            0,
-            Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Catalog'))
-                ->withEntry(Name::of('Pages'), $pagesRef),
-        );
-
         [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
+
+        $catalogDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Catalog'))
+            ->withEntry(Name::of('Pages'), $pagesRef);
+        $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
+        $catalog = IndirectObject::of(1, 0, $catalogDict);
 
         $pages = IndirectObject::of(
             2,
@@ -205,16 +237,14 @@ final class Document
         $pagesRef = PdfReference::to(2, 0);
         $metadataStreamRef = PdfReference::to(4, 0);
 
-        $catalog = IndirectObject::of(
-            1,
-            0,
-            Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Catalog'))
-                ->withEntry(Name::of('Pages'), $pagesRef)
-                ->withEntry(Name::of('Metadata'), $metadataStreamRef),
-        );
-
         [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
+
+        $catalogDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Catalog'))
+            ->withEntry(Name::of('Pages'), $pagesRef)
+            ->withEntry(Name::of('Metadata'), $metadataStreamRef);
+        $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
+        $catalog = IndirectObject::of(1, 0, $catalogDict);
 
         $pages = IndirectObject::of(
             2,
@@ -275,19 +305,20 @@ final class Document
         $metadataObjectNumber = $hasMetadata ? 4 : null;
         $firstPageObjectNumber = $hasMetadata ? 6 : 4;
 
+        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(
+            firstObjectNumber: $firstPageObjectNumber,
+            pagesRef: $pagesRef,
+        );
+
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
             ->withEntry(Name::of('Pages'), $pagesRef);
         if ($hasMetadata) {
             $catalogDict = $catalogDict->withEntry(Name::of('Metadata'), PdfReference::to(4, 0));
         }
+        $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
-
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(
-            firstObjectNumber: $firstPageObjectNumber,
-            pagesRef: $pagesRef,
-        );
 
         $pages = IndirectObject::of(
             2,
@@ -465,6 +496,48 @@ final class Document
         }
 
         return [$objects, $pageRefs];
+    }
+
+    /**
+     * Adds /PageLayout, /PageMode and /OpenAction to the catalog dict when
+     * the user has configured them. Page refs are required because /OpenAction
+     * targets a specific page by reference.
+     *
+     * @param list<PdfReference> $pageRefs
+     */
+    private function withViewerPrefs(Dictionary $catalogDict, array $pageRefs): Dictionary
+    {
+        if ($this->pageLayout !== null) {
+            $catalogDict = $catalogDict->withEntry(
+                Name::of('PageLayout'),
+                Name::of($this->pageLayout->value),
+            );
+        }
+        if ($this->pageMode !== null) {
+            $catalogDict = $catalogDict->withEntry(
+                Name::of('PageMode'),
+                Name::of($this->pageMode->value),
+            );
+        }
+        if ($this->openAction !== null) {
+            $idx = $this->openAction->pageIndex;
+            if ($idx < 1 || $idx > count($pageRefs)) {
+                throw new PdfException(sprintf(
+                    'OpenAction targets page %d but document has %d page(s)',
+                    $idx,
+                    count($pageRefs),
+                ));
+            }
+            $catalogDict = $catalogDict->withEntry(
+                Name::of('OpenAction'),
+                $this->openAction->toPdfArray(
+                    $pageRefs[$idx - 1],
+                    $this->pages[$idx - 1]->pageHeight,
+                    $this->unit,
+                ),
+            );
+        }
+        return $catalogDict;
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary

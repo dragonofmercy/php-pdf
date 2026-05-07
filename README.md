@@ -6,7 +6,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 
 ## What works today
 
-- **Document scaffolding** — PDF 1.7 output, deterministic byte-identical fixtures, encryption (RC4 + AES-128), metadata + XMP.
+- **Document scaffolding** — PDF 1.7 output, deterministic byte-identical fixtures, encryption (RC4 + AES-128), metadata + XMP, viewer preferences (page layout, page mode, initial open action).
 - **Pages** — standard formats (A3, A4, A5, A6, Letter, Legal) with portrait / landscape orientation, plus arbitrary custom dimensions for labels and similar. Coordinates and sizes default to millimetres; switch to PDF points with `Unit::PT`.
 - **Graphics** — lines, rectangles, circles, paths (move/line/curve), fill/stroke, dash patterns, line caps/joins, save/restore, transforms (translate/rotate/scale).
 - **Text** — 12 standard PDF fonts (Helvetica / Times / Courier × Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `EUR -- oe Oe %.` etc.). Multi-line via `\n`, custom leading.
@@ -78,6 +78,32 @@ $pdf->encryption()
 $pdf->addPage();
 $pdf->save('invoice.pdf');
 ```
+
+### Viewer preferences
+
+Hints stored in the catalog that the PDF viewer applies when opening the document. Three independent setters, all optional. Equivalent to TCPDF's `setDisplayMode()` but split into typed setters with named-constructor value objects.
+
+```php
+use DragonOfMercy\PhpPdf\{OpenAction, PageLayout, PageMode};
+
+$pdf->setPageLayout(PageLayout::TWO_COLUMN_RIGHT) // single page / one column / two-column / two-page; *Right starts on the right (book/magazine)
+    ->setPageMode(PageMode::USE_OUTLINES)         // none / outlines / thumbs / full screen / OC layers / attachments
+    ->setOpenAction(OpenAction::fitWidth(top: 0)); // initial view: page + zoom/fit
+```
+
+`OpenAction` constructors (page is 1-indexed, defaults to 1):
+
+```php
+OpenAction::fit($page);                                   // entire page fits in viewport
+OpenAction::fitWidth($page, top: 50);                     // page width fills viewport, top at 50 mm from page top
+OpenAction::fitHeight($page, left: 0);                    // page height fills viewport
+OpenAction::zoom($page, left: 10, top: 20, zoom: 1.5);    // top-left corner at (10, 20) mm, zoomed 150%
+OpenAction::actualSize($page);                            // 100% zoom anchored at top-left
+```
+
+Coordinates use the document's unit and a top-down Y axis (consistent with the rest of the API). They are converted to PDF native (bottom-up, points) at serialisation. Out-of-range page indices throw `PdfException` at output time.
+
+Pass `null` to any setter to clear it. These are hints: Acrobat respects them faithfully, browser viewers (Chrome, Firefox PDF.js) honour some and ignore others, notably full-screen mode.
 
 ### Graphics
 
@@ -201,7 +227,7 @@ composer install
 composer check   # PHPStan max + PHPUnit (unit + golden)
 ```
 
-`composer test` runs the full suite (433 tests at Phase 4). `composer analyse` runs PHPStan at level max.
+`composer test` runs the full suite (449 tests at Phase 4). `composer analyse` runs PHPStan at level max.
 
 ### Golden tests
 
