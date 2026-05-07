@@ -49,58 +49,10 @@ final class PageWithImagesTest extends TestCase
         $doc = new Document();
         $page = $doc->addPage();
 
-        // JPEG RGB - 32x16 cyan-magenta gradient.
-        $jpegSrc = imagecreatetruecolor(32, 16);
-        self::assertNotFalse($jpegSrc);
-        for ($x = 0; $x < 32; $x++) {
-            $r = min(255, max(0, (int) round($x * 255 / 31)));
-            $b = min(255, max(0, 255 - $r));
-            $color = imagecolorallocate($jpegSrc, $r, 0, $b);
-            self::assertNotFalse($color);
-            imageline($jpegSrc, $x, 0, $x, 15, $color);
-        }
-        ob_start();
-        imagejpeg($jpegSrc, null, 90);
-        $jpegBytes = (string) ob_get_clean();
-        $jpegImage = Image::fromBytes($jpegBytes);
-
-        // PNG RGB opaque - 24x12 horizontal red-green-blue strips.
-        $pngSrc = imagecreatetruecolor(24, 12);
-        self::assertNotFalse($pngSrc);
-        $red = imagecolorallocate($pngSrc, 255, 0, 0);
-        $green = imagecolorallocate($pngSrc, 0, 255, 0);
-        $blue = imagecolorallocate($pngSrc, 0, 0, 255);
-        self::assertNotFalse($red);
-        self::assertNotFalse($green);
-        self::assertNotFalse($blue);
-        imagefilledrectangle($pngSrc, 0, 0, 23, 3, $red);
-        imagefilledrectangle($pngSrc, 0, 4, 23, 7, $green);
-        imagefilledrectangle($pngSrc, 0, 8, 23, 11, $blue);
-        ob_start();
-        imagepng($pngSrc);
-        $pngOpaque = (string) ob_get_clean();
-        $pngOpaqueImage = Image::fromBytes($pngOpaque);
-
-        // PNG with alpha - 16x16 with a translucent diagonal.
-        $pngAlphaSrc = imagecreatetruecolor(16, 16);
-        self::assertNotFalse($pngAlphaSrc);
-        imagealphablending($pngAlphaSrc, false);
-        imagesavealpha($pngAlphaSrc, true);
-        $transparent = imagecolorallocatealpha($pngAlphaSrc, 0, 0, 0, 127);
-        $semi = imagecolorallocatealpha($pngAlphaSrc, 200, 50, 50, 64);
-        self::assertNotFalse($transparent);
-        self::assertNotFalse($semi);
-        imagefilledrectangle($pngAlphaSrc, 0, 0, 15, 15, $transparent);
-        for ($i = 0; $i < 16; $i++) {
-            imagesetpixel($pngAlphaSrc, $i, $i, $semi);
-            imagesetpixel($pngAlphaSrc, 15 - $i, $i, $semi);
-        }
-        ob_start();
-        imagepng($pngAlphaSrc);
-        $pngAlpha = (string) ob_get_clean();
-        $pngAlphaImage = Image::fromBytes($pngAlpha);
-
-        // PNG palette - built via TestImageFactory to ensure color type 3.
+        $assets = __DIR__ . '/assets';
+        $jpegImage = Image::fromFile($assets . '/jpeg-rgb-32x16.jpg');
+        $pngOpaqueImage = Image::fromFile($assets . '/png-opaque-rgb-24x12.png');
+        $pngAlphaImage = Image::fromFile($assets . '/png-alpha-rgba-16x16.png');
         $paletteImage = Image::fromBytes(TestImageFactory::pngPalette(width: 8, height: 8));
 
         $page->image($jpegImage, x: 50, y: 50, w: 200, h: 100);
