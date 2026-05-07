@@ -10,8 +10,8 @@ use DragonOfMercy\PhpPdf\Image\PngMetadata;
 
 /**
  * Public value object representing an image to be embedded in the PDF.
- * Construct via {@see self::fromFile()} or {@see self::fromBytes()};
- * format is auto-detected from magic bytes.
+ * Construct via {@see self::fromFile()}, {@see self::fromBytes()}, or
+ * {@see self::fromBase64()}; format is auto-detected from magic bytes.
  *
  * Once parsed, an Image instance is immutable and can be passed to
  * {@see Page::image()} any number of times -- the document-level
@@ -24,7 +24,8 @@ final readonly class Image
 
     /**
      * @internal Public for type-narrowing in the embedder; user code should
-     *           construct via {@see self::fromFile()} or {@see self::fromBytes()}.
+     *           construct via {@see self::fromFile()}, {@see self::fromBytes()},
+     *           or {@see self::fromBase64()}.
      */
     public function __construct(
         public int $width,
@@ -41,6 +42,28 @@ final readonly class Image
             throw new PdfException("Cannot read image file: {$path}");
         }
         return self::fromBytes($data);
+    }
+
+    /**
+     * Accepts either a raw base64 string or a data URI of the form
+     * `data:image/png;base64,...` (the prefix is stripped automatically).
+     */
+    public static function fromBase64(string $data): self
+    {
+        if (str_starts_with($data, 'data:')) {
+            $comma = strpos($data, ',');
+            if ($comma === false) {
+                throw new PdfException('Invalid data URI: missing comma separator');
+            }
+            $data = substr($data, $comma + 1);
+        }
+
+        $decoded = base64_decode($data, true);
+        if ($decoded === false) {
+            throw new PdfException('Invalid base64-encoded image data');
+        }
+
+        return self::fromBytes($decoded);
     }
 
     public static function fromBytes(string $data): self

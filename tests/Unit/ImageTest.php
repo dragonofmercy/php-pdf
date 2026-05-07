@@ -65,6 +65,38 @@ final class ImageTest extends TestCase
         Image::fromBytes("\xFF");
     }
 
+    public function testFromBase64DecodesRawString(): void
+    {
+        $original = TestImageFactory::pngRgb(width: 4, height: 4);
+        $img = Image::fromBase64(base64_encode($original));
+        self::assertSame(ImageFormat::PNG, $img->format);
+        self::assertSame(4, $img->width);
+        self::assertSame($original, $img->bytes);
+    }
+
+    public function testFromBase64StripsDataUriPrefix(): void
+    {
+        $original = TestImageFactory::stubJpegRgb(width: 3, height: 2);
+        $img = Image::fromBase64('data:image/jpeg;base64,' . base64_encode($original));
+        self::assertSame(ImageFormat::JPEG, $img->format);
+        self::assertSame(3, $img->width);
+        self::assertSame(2, $img->height);
+    }
+
+    public function testFromBase64RejectsInvalidBase64(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Invalid base64');
+        Image::fromBase64('!!!not-valid-base64!!!');
+    }
+
+    public function testFromBase64RejectsMalformedDataUri(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Invalid data URI');
+        Image::fromBase64('data:image/png;base64');
+    }
+
     public function testBytesAreStoredVerbatim(): void
     {
         $original = TestImageFactory::pngRgb(width: 4, height: 4);

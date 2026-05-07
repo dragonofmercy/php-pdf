@@ -208,6 +208,10 @@ $page->image('logo.png', x: 20, y: 20, w: 40, h: 20);   // 40x20 mm
 $photo = Image::fromFile('photo.jpg');
 $page->image($photo, x: 20, y: 60, w: 80);              // h derived from aspect ratio
 
+// From in-memory bytes or base64 (data URI prefix accepted, e.g. canvas.toDataURL()).
+$signature = Image::fromBase64($request->input('signature_png'));
+$page->image($signature, x: 20, y: 100, w: 60);
+
 // Same path used twice -> one XObject embedded, two placements.
 $page->image('logo.png', x: 150, y: 20, w: 30, h: 15);
 ```
