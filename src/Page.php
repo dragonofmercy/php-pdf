@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf;
 
+use DragonOfMercy\PhpPdf\Barcode\Barcode;
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
@@ -421,6 +422,21 @@ final class Page
         $this->stream->append(Operators::restoreState());
 
         $this->imagesUsed[$shortName] = true;
+        return $this;
+    }
+
+    /**
+     * Draws a barcode (1D or QR) at the given top-left position in the page
+     * unit. The barcode itself manages its rendering, including a save/restore
+     * of the graphics state, so this call does not alter the page's current
+     * fill color, font, etc.
+     *
+     * For 1D barcodes (EAN-13, EAN-8, Code 128) `h` is required; for QR it is
+     * optional (defaults to `w`, since QR is square).
+     */
+    public function barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null): self
+    {
+        $code->draw($this, $x, $y, $w, $h);
         return $this;
     }
 
