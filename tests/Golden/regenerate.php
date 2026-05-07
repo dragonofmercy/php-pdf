@@ -222,3 +222,13 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-ean13.pdf');
 echo "Regenerated barcode-ean13.pdf\n";
+
+// Fixture 9: EAN-8 barcode (Phase 5)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Ean8::of('73513537'),
+    x: 20.0, y: 20.0, w: 30.0, h: 18.0,
+);
+$doc->save($fixturesDir . '/barcode-ean8.pdf');
+echo "Regenerated barcode-ean8.pdf\n";

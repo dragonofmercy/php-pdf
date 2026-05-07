@@ -274,4 +274,16 @@ final readonly class Ean13 implements Barcode
         $sum = $odd + 3 * $even;
         return (10 - ($sum % 10)) % 10;
     }
+
+    /**
+     * @internal Shared with Ean8.
+     * @return list<list<bool>>
+     */
+    public static function SET_A_FOR_EAN8(): array { return self::SET_A; }
+
+    /**
+     * @internal Shared with Ean8.
+     * @return list<list<bool>>
+     */
+    public static function SET_C_FOR_EAN8(): array { return self::SET_C; }
 }
