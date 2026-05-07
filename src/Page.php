@@ -340,6 +340,12 @@ final class Page
             $fontShortName = $this->fontRegistry->shortName($this->currentFont);
         }
 
+        // Border width is supplied in the document unit; CellRenderer works
+        // entirely in points, so convert before handing the border off.
+        $borderForRenderer = $border !== null
+            ? $border->withWidth($this->toPt($border->width))
+            : null;
+
         $renderer = new CellRenderer(stream: $this->stream, metrics: $this->metricsRegistry);
         $result = $renderer->render(
             font: $this->currentFont,
@@ -350,7 +356,7 @@ final class Page
             w: $this->toPt($w),
             h: $h !== null ? $this->toPt($h) : null,
             text: $text,
-            border: $border,
+            border: $borderForRenderer,
             fill: $fill,
             textColor: $textColor,
             align: $align,

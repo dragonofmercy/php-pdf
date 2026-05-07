@@ -57,4 +57,9 @@ final readonly class FontMetrics
     {
         return $this->descent * $size / 1000.0;
     }
+
+    public function capHeightAt(float $size): float
+    {
+        return $this->capHeight * $size / 1000.0;
+    }
 }

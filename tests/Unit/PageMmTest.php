@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
+use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\Unit;
+use DragonOfMercy\PhpPdf\VerticalAlign;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -98,6 +102,51 @@ final class PageMmTest extends TestCase
         // y was 20 mm and h was 15 mm: bottom y = 35 mm
         self::assertEqualsWithDelta(35.0, $result->y, 1e-6);
         self::assertEqualsWithDelta(15.0, $result->height, 1e-6);
+    }
+
+    public function testCellFillDoesNotLeakIntoTextColor(): void
+    {
+        // Regression: when a cell had a non-null `fill` but no explicit
+        // `textColor`, the fill colour stayed active as the non-stroking
+        // colour, so the text was rendered in the fill colour (e.g. text
+        // invisible on a light grey filled cell). The fill must therefore
+        // be emitted inside its own q/Q so it cannot contaminate the
+        // subsequent text rendering.
+        $page = (new Document(Unit::MM))->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(
+            x: 10, y: 10, w: 80, h: 10,
+            text: 'Header',
+            fill: Color::rgb(242, 242, 242),
+            align: TextAlign::CENTER,
+            verticalAlign: VerticalAlign::MIDDLE,
+        );
+        $body = $this->content($page);
+
+        $fillStart = strpos($body, '0.94902 0.94902 0.94902 rg');
+        $textStart = strpos($body, 'BT');
+        self::assertNotFalse($fillStart);
+        self::assertNotFalse($textStart);
+        // Between the fill colour and the BT, there must be a Q that closes
+        // the fill scope so the text is not painted in light grey.
+        $between = substr($body, $fillStart, $textStart - $fillStart);
+        self::assertStringContainsString('Q', $between);
+    }
+
+    public function testCellBorderWidthIsConvertedToPoints(): void
+    {
+        // Regression: Border::withWidth(0.3) means 0.3 in the document unit
+        // (mm by default). The CellRenderer used to emit the value verbatim
+        // as `0.3 w`, producing a hairline instead of a 0.3 mm stroke.
+        $page = (new Document(Unit::MM))->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(
+            x: 10, y: 10, w: 80, h: 10,
+            text: 'X',
+            border: Border::all()->withWidth(0.3),
+        );
+        // 0.3 mm = 0.850394 pt
+        self::assertStringContainsString('0.850394 w', $this->content($page));
     }
 
     public function testImageDimensionsAreConverted(): void

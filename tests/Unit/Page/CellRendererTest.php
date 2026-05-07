@@ -442,9 +442,9 @@ final class CellRendererTest extends TestCase
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: 0.0, fontShortName: 'F1',
             ),
         );
-        // textHeight = 1 line * 12 * 1.2 = 14.4. cellH = 40.
-        // baseline = 0 + (40 - 14.4) / 2 + ascent(12) = 12.8 + 8.616 = 21.416.
-        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 21\.41[0-9]+ Tm/', $bytes);
+        // Centre-on-cap-height: capHeight(8.616) at Helvetica 12pt. cellH = 40.
+        // baseline = 0 + (40 + 8.616) / 2 = 24.308.
+        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 24\.30[0-9]+ Tm/', $bytes);
     }
 
     public function testRenderVerticalAlignBottomPositionsBaseline(): void
@@ -458,9 +458,9 @@ final class CellRendererTest extends TestCase
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: 2.0, fontShortName: 'F1',
             ),
         );
-        // textHeight = 1 line * 12 * 1.2 = 14.4. cellH = 40, padding = 2.
-        // baseline = 0 + 40 - 2 - 14.4 + ascent(12) = 23.6 + 8.616 = 32.216.
-        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 32\.21[0-9]+ Tm/', $bytes);
+        // Cap-height centring: BOTTOM aligns the baseline of the last line
+        // with cellY + cellH - padding. cellH = 40, padding = 2 → baseline = 38.
+        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 38(?:\.0+)? Tm/', $bytes);
     }
 
     public function testRenderTextColorEmittedBeforeBeginText(): void

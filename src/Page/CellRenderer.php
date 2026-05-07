@@ -106,9 +106,11 @@ final class CellRenderer
         $this->stream->append(Operators::saveState());
 
         if ($fill !== null) {
+            $this->stream->append(Operators::saveState());
             $this->stream->append($fill->toPdfOperator(stroke: false));
             $this->stream->append(Operators::rectangle($x, $y, $w, $cellHeight));
             $this->stream->append(Operators::fill());
+            $this->stream->append(Operators::restoreState());
         }
 
         if ($border !== null && !$border->isEmpty()) {
@@ -200,13 +202,19 @@ final class CellRenderer
         string $fontShortName,
     ): void {
         $lineCount = count($lines);
-        $textHeight = $lineCount * $effectiveLeading;
-        $ascent = $metrics->ascentAt($effectiveSize);
+        $capHeight = $metrics->capHeightAt($effectiveSize);
+        // Centre on cap-height rather than ascent+descent: the visible mass of
+        // text without descenders (capitals, digits, "Invoice #2026-001") sits
+        // between baseline-capHeight and baseline, so centring that band gives
+        // the result the eye expects. Trade-off: descenders (g, p, q) reach
+        // about descent_abs below the bottom edge -- acceptable for a row of
+        // visible-mass-centred text.
+        $capBlockHeight = $capHeight + ($lineCount - 1) * $effectiveLeading;
 
         $firstBaseline = match ($verticalAlign) {
-            VerticalAlign::TOP    => $cellY + $padding + $ascent,
-            VerticalAlign::MIDDLE => $cellY + ($cellH - $textHeight) / 2.0 + $ascent,
-            VerticalAlign::BOTTOM => $cellY + $cellH - $padding - $textHeight + $ascent,
+            VerticalAlign::TOP    => $cellY + $padding + $capHeight,
+            VerticalAlign::MIDDLE => $cellY + ($cellH - $capBlockHeight) / 2.0 + $capHeight,
+            VerticalAlign::BOTTOM => $cellY + $cellH - $padding - ($lineCount - 1) * $effectiveLeading,
         };
 
         if ($textColor !== null) {
