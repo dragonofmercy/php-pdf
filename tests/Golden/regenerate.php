@@ -242,3 +242,13 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-code128.pdf');
 echo "Regenerated barcode-code128.pdf\n";
+
+// Fixture 11: QR Code (Phase 5)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\QrCode::of('https://example.com'),
+    x: 20.0, y: 20.0, w: 40.0,
+);
+$doc->save($fixturesDir . '/barcode-qr.pdf');
+echo "Regenerated barcode-qr.pdf\n";
