@@ -71,7 +71,6 @@ final readonly class QrCode implements Barcode
         $matrix->placeData($bits);
 
         // Try every mask, pick best.
-        $bestMask = 0;
         $bestScore = PHP_INT_MAX;
         $bestModules = $matrix->modules;
         for ($m = 0; $m < 8; $m++) {
@@ -85,7 +84,6 @@ final readonly class QrCode implements Barcode
             $score = Mask::score($candidate);
             if ($score < $bestScore) {
                 $bestScore = $score;
-                $bestMask = $m;
                 $bestModules = $candidate;
             }
         }
