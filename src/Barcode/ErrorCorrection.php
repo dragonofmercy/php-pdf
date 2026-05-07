@@ -28,4 +28,15 @@ enum ErrorCorrection: string
             self::H => 0b10,
         };
     }
+
+    /** @internal index 0..3 used for ISO Table lookups (L=0, M=1, Q=2, H=3). */
+    public function ordinal(): int
+    {
+        return match ($this) {
+            self::L => 0,
+            self::M => 1,
+            self::Q => 2,
+            self::H => 3,
+        };
+    }
 }

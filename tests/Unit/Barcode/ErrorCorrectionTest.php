@@ -26,4 +26,12 @@ final class ErrorCorrectionTest extends TestCase
         self::assertSame(0b11, ErrorCorrection::Q->formatBits());
         self::assertSame(0b10, ErrorCorrection::H->formatBits());
     }
+
+    public function testOrdinalForIsoTableLookup(): void
+    {
+        self::assertSame(0, ErrorCorrection::L->ordinal());
+        self::assertSame(1, ErrorCorrection::M->ordinal());
+        self::assertSame(2, ErrorCorrection::Q->ordinal());
+        self::assertSame(3, ErrorCorrection::H->ordinal());
+    }
 }
