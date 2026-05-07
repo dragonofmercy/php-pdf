@@ -71,21 +71,23 @@ final readonly class QrCode implements Barcode
         $matrix->placeData($bits);
 
         // Try every mask, pick best.
+        // Version info bits are identical across all 8 candidates, so they are
+        // placed once on $bestModules after the loop to avoid 8x redundant work.
         $bestScore = PHP_INT_MAX;
         $bestModules = $matrix->modules;
         for ($m = 0; $m < 8; $m++) {
             $candidate = Mask::apply($matrix->modules, $matrix->reserved, $m);
             // Format bits MUST be placed before scoring.
             Mask::placeFormatBits($candidate, $this->errorCorrection, $m);
-            // Version info bits required for V7+ (V7-V10 in this release).
-            if ($encoded->version >= 7) {
-                Mask::placeVersionBits($candidate, $encoded->version);
-            }
             $score = Mask::score($candidate);
             if ($score < $bestScore) {
                 $bestScore = $score;
                 $bestModules = $candidate;
             }
+        }
+        // Version info bits required for V7+ (V7-V10 in this release).
+        if ($encoded->version >= 7) {
+            Mask::placeVersionBits($bestModules, $encoded->version);
         }
 
         // Render: 4-module quiet zone INCLUDED in $size.

@@ -65,16 +65,22 @@ final class Mask
         $size = count($modules);
         $score = 0;
 
-        // N1: rows and columns with 5+ same-colour runs.
-        for ($r = 0; $r < $size; $r++) {
-            $score += self::scoreRowRuns(array_values($modules[$r]));
-        }
+        // Build the transposed matrix once so column passes share the same data.
+        $transposed = [];
         for ($c = 0; $c < $size; $c++) {
             $col = [];
             for ($r = 0; $r < $size; $r++) {
                 $col[] = $modules[$r][$c];
             }
-            $score += self::scoreRowRuns($col);
+            $transposed[$c] = $col;
+        }
+
+        // N1: rows and columns with 5+ same-colour runs.
+        for ($r = 0; $r < $size; $r++) {
+            $score += self::scoreRowRuns($modules[$r]);
+        }
+        for ($c = 0; $c < $size; $c++) {
+            $score += self::scoreRowRuns($transposed[$c]);
         }
 
         // N2: 2x2 same-colour blocks.
@@ -90,20 +96,15 @@ final class Mask
         // N3: 1:1:3:1:1 + 4 light modules on either side (finder-like pattern).
         $pattern = [true, false, true, true, true, false, true];
         for ($r = 0; $r < $size; $r++) {
-            $row = array_values($modules[$r]);
             for ($c = 0; $c <= $size - 11; $c++) {
-                if (self::matchFinderRun($row, $c, $pattern)) {
+                if (self::matchFinderRun($modules[$r], $c, $pattern)) {
                     $score += 40;
                 }
             }
         }
         for ($c = 0; $c < $size; $c++) {
-            $col = [];
-            for ($r = 0; $r < $size; $r++) {
-                $col[] = $modules[$r][$c];
-            }
             for ($r = 0; $r <= $size - 11; $r++) {
-                if (self::matchFinderRun($col, $r, $pattern)) {
+                if (self::matchFinderRun($transposed[$c], $r, $pattern)) {
                     $score += 40;
                 }
             }
@@ -127,7 +128,7 @@ final class Mask
     }
 
     /**
-     * @param list<bool> $line
+     * @param array<int, bool> $line
      */
     private static function scoreRowRuns(array $line): int
     {
@@ -149,7 +150,7 @@ final class Mask
     }
 
     /**
-     * @param list<bool> $line
+     * @param array<int, bool> $line
      * @param list<bool> $pattern
      */
     private static function matchFinderRun(array $line, int $offset, array $pattern): bool
