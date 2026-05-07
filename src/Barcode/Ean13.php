@@ -74,6 +74,9 @@ final readonly class Ean13 implements Barcode
         // Module count incl. quiet zone: 11 (left) + 95 + 7 (right) = 113.
         $totalModules = 113;
         $moduleW = $wPt / $totalModules;
+        // 85% of h goes to the bars, 15% to the human-readable text below.
+        // This is a layout choice (not an ISO value); good visual balance for typical
+        // EAN-13 sizes. If you want bars-only, use ->withoutText() instead of tweaking this.
         $barsHeight = $hPt * 0.85;
         $textHeight = $hPt - $barsHeight;
 
@@ -91,7 +94,7 @@ final readonly class Ean13 implements Barcode
         $contentStream->append(Renderer::wrap($body, $this->color));
 
         if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $wPt, $hPt, $moduleW, $barsHeight, $textHeight);
+            $this->drawHumanText($page, $xPt, $yPt, $hPt, $moduleW, $barsHeight, $textHeight);
         }
     }
 
@@ -105,7 +108,6 @@ final readonly class Ean13 implements Barcode
         Page $page,
         float $xPt,
         float $yPt,
-        float $wPt,
         float $hPt,
         float $moduleW,
         float $barsHeight,
@@ -116,7 +118,11 @@ final readonly class Ean13 implements Barcode
         $right = substr($this->digits, 7, 6);
 
         // Font + size: Helvetica, sized to fit the half-width comfortably.
-        $fontSize = min(12.0, $wPt / 14.0);
+        // wPt reconstructed: totalModules (113) * moduleW.
+        $fontSize = min(12.0, (113 * $moduleW) / 14.0);
+        // Baseline for the human-readable digits: centre of the text band, raised by
+        // half the cap-height (approximated as fontSize * 0.7 / 2) so the glyphs sit
+        // vertically centred in the reserved 15% strip.
         $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
         // Convert text Y back to the page unit so page->text() works.
         $textYUnit = $page->unit->fromPoints($textY);
