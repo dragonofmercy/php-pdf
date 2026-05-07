@@ -276,14 +276,14 @@ final readonly class Ean13 implements Barcode
     }
 
     /**
-     * @internal Shared with Ean8.
+     * @internal Exposed for peer barcode classes (Ean8 etc.).
      * @return list<list<bool>>
      */
-    public static function SET_A_FOR_EAN8(): array { return self::SET_A; }
+    public static function setA(): array { return self::SET_A; }
 
     /**
-     * @internal Shared with Ean8.
+     * @internal Exposed for peer barcode classes (Ean8 etc.).
      * @return list<list<bool>>
      */
-    public static function SET_C_FOR_EAN8(): array { return self::SET_C; }
+    public static function setC(): array { return self::SET_C; }
 }

@@ -17,6 +17,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  */
 final readonly class Ean8 implements Barcode
 {
+    /** Total module count including 7+7 quiet zones (7 + 3+28+5+28+3 + 7 = 81). */
+    private const int TOTAL_MODULES = 81;
+
     private function __construct(
         public string $digits,
         public Color $color,
@@ -88,8 +91,8 @@ final readonly class Ean8 implements Barcode
     {
         // EAN-8 always uses set A on the left side and set C on the right.
         $modules = [true, false, true]; // left guard 101
-        $setA = Ean13::SET_A_FOR_EAN8();
-        $setC = Ean13::SET_C_FOR_EAN8();
+        $setA = Ean13::setA();
+        $setC = Ean13::setC();
         for ($i = 0; $i < 4; $i++) {
             $d = (int) $this->digits[$i];
             foreach ($setA[$d] as $bit) {
@@ -119,7 +122,7 @@ final readonly class Ean8 implements Barcode
         $hPt = $unit->toPoints($h);
 
         // 7 + 67 + 7 = 81 total modules (quiet zones + barcode).
-        $totalModules = 81;
+        $totalModules = self::TOTAL_MODULES;
         $moduleW = $wPt / $totalModules;
         // 85% of h goes to the bars, 15% to the human-readable text below.
         $barsHeight = $hPt * 0.85;
@@ -148,7 +151,7 @@ final readonly class Ean8 implements Barcode
         $right = substr($this->digits, 4, 4);
 
         // Font sized to fit the half-width comfortably.
-        $fontSize = min(12.0, 81 * $moduleW / 10.0);
+        $fontSize = min(12.0, self::TOTAL_MODULES * $moduleW / 10.0);
         // Baseline: centre of the text band, raised by half the cap-height.
         $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
         $textYUnit = $page->unit->fromPoints($textY);
