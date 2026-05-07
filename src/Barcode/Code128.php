@@ -53,7 +53,42 @@ final readonly class Code128 implements Barcode
 
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
-        throw new PdfException('Code128::draw() not yet implemented (Task 12)');
+        if ($h === null) {
+            throw new PdfException('Code128 requires explicit h (height)');
+        }
+        $unit = $page->unit;
+        $xPt = $unit->toPoints($x);
+        $yPt = $unit->toPoints($y);
+        $wPt = $unit->toPoints($w);
+        $hPt = $unit->toPoints($h);
+
+        $modules = $this->encodeModules();
+        // Quiet zone 10 modules each side per ISO 15417.
+        $totalModules = count($modules) + 20;
+        $moduleW = $wPt / $totalModules;
+        // 85% of h goes to bars, 15% to human-readable text below.
+        $barsHeight = $hPt * 0.85;
+        $textHeight = $hPt - $barsHeight;
+
+        $padded = array_merge(array_fill(0, 10, false), $modules, array_fill(0, 10, false));
+        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+        $page->contentStream()->append(Renderer::wrap($body, $this->color));
+
+        if ($this->showText) {
+            // Font sized to fit the data; minimum 8pt cap-height-ish, max 12pt.
+            $fontSize = min(12.0, $wPt / max(strlen($this->data), 8) * 0.8);
+            // Baseline: centre of text band + half cap-height (approx fontSize * 0.35).
+            $textY = $yPt + $barsHeight + $textHeight / 2 + $fontSize * 0.35;
+            $textYUnit = $page->unit->fromPoints($textY);
+
+            $page->save();
+            $page->setFillColor($this->color);
+            $page->setFont(Font::helvetica(), $fontSize);
+            $textWidth = $page->stringWidth($this->data);
+            $textX = $page->unit->fromPoints($xPt + $wPt / 2) - $textWidth / 2;
+            $page->text($textX, $textYUnit, $this->data);
+            $page->restore();
+        }
     }
 
     /**

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Barcode;
 
 use DragonOfMercy\PhpPdf\Barcode\Code128;
+use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
 final class Code128Test extends TestCase
@@ -103,5 +105,26 @@ final class Code128Test extends TestCase
         self::assertCount(11 * 9 + 13, $modules);
         // First module of every symbol must be a bar (true).
         self::assertTrue($modules[0]);
+    }
+
+    public function testDrawProducesRectsAndHumanText(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->barcode(Code128::of('PJJ123C'), x: 10.0, y: 10.0, w: 132.0, h: 25.0);
+        $bytes = $page->contentStream()->bytes();
+        self::assertStringContainsString("\nq\n", $bytes);
+        self::assertStringContainsString(' re', $bytes);
+        self::assertStringContainsString("\nf\n", $bytes);
+        self::assertStringContainsString('(PJJ123C)', $bytes);
+    }
+
+    public function testDrawRequiresHeight(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Code128 requires explicit h (height)');
+        $page->barcode(Code128::of('PJJ123C'), x: 10.0, y: 10.0, w: 132.0);
     }
 }

@@ -232,3 +232,13 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-ean8.pdf');
 echo "Regenerated barcode-ean8.pdf\n";
+
+// Fixture 10: Code 128 barcode (Phase 5)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Code128::of('SHIP-2026-001'),
+    x: 20.0, y: 20.0, w: 70.0, h: 18.0,
+);
+$doc->save($fixturesDir . '/barcode-code128.pdf');
+echo "Regenerated barcode-code128.pdf\n";
