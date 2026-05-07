@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Barcode\Qr;
 
 use DragonOfMercy\PhpPdf\Barcode\ErrorCorrection;
 use DragonOfMercy\PhpPdf\Barcode\Qr\Encoder;
+use DragonOfMercy\PhpPdf\Barcode\Qr\QrMode;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use PHPUnit\Framework\TestCase;
 
@@ -13,17 +14,17 @@ final class EncoderTest extends TestCase
 {
     public function testDetectModeNumeric(): void
     {
-        self::assertSame('numeric', Encoder::detectMode('01234567'));
+        self::assertSame(QrMode::Numeric, Encoder::detectMode('01234567'));
     }
 
     public function testDetectModeAlphanumeric(): void
     {
-        self::assertSame('alphanumeric', Encoder::detectMode('HELLO WORLD'));
+        self::assertSame(QrMode::Alphanumeric, Encoder::detectMode('HELLO WORLD'));
     }
 
     public function testDetectModeByteForLowercase(): void
     {
-        self::assertSame('byte', Encoder::detectMode('hello'));
+        self::assertSame(QrMode::Byte, Encoder::detectMode('hello'));
     }
 
     public function testIso18004AnnexI01234567IsVersion1ECM(): void

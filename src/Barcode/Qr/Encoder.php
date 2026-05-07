@@ -99,10 +99,10 @@ final class Encoder
         ],
     ];
 
-    public static function detectMode(string $data): string
+    public static function detectMode(string $data): QrMode
     {
         if ($data === '') {
-            return 'byte';
+            return QrMode::Byte;
         }
         $isNumeric = true;
         $isAlphanumeric = true;
@@ -116,9 +116,9 @@ final class Encoder
                 $isAlphanumeric = false;
             }
         }
-        if ($isNumeric) return 'numeric';
-        if ($isAlphanumeric) return 'alphanumeric';
-        return 'byte';
+        if ($isNumeric) return QrMode::Numeric;
+        if ($isAlphanumeric) return QrMode::Alphanumeric;
+        return QrMode::Byte;
     }
 
     public static function encode(string $data, ErrorCorrection $ec): EncodeResult
@@ -171,7 +171,7 @@ final class Encoder
         return new EncodeResult($version, $ec, $final);
     }
 
-    private static function pickVersion(string $data, string $mode, ErrorCorrection $ec): int
+    private static function pickVersion(string $data, QrMode $mode, ErrorCorrection $ec): int
     {
         for ($v = 1; $v <= self::MAX_VERSION; $v++) {
             $totalData = self::CAPACITY_TABLE[$v][$ec->ordinal()][0];
@@ -188,14 +188,13 @@ final class Encoder
         ));
     }
 
-    private static function bitsNeeded(string $data, string $mode, int $version): int
+    private static function bitsNeeded(string $data, QrMode $mode, int $version): int
     {
         $charCountBits = self::charCountBits($mode, $version);
         $dataBits = match ($mode) {
-            'numeric' => self::numericBits(strlen($data)),
-            'alphanumeric' => self::alphanumericBits(strlen($data)),
-            'byte' => 8 * strlen($data),
-            default => throw new PdfException("Unknown QR mode: {$mode}"),
+            QrMode::Numeric => self::numericBits(strlen($data)),
+            QrMode::Alphanumeric => self::alphanumericBits(strlen($data)),
+            QrMode::Byte => 8 * strlen($data),
         };
         return 4 + $charCountBits + $dataBits;
     }
@@ -214,70 +213,35 @@ final class Encoder
         return 11 * $pairs + ($rem ? 6 : 0);
     }
 
-    private static function charCountBits(string $mode, int $version): int
+    private static function charCountBits(QrMode $mode, int $version): int
     {
         // ISO 18004 Table 3. V1-V9 use the first group, V10 uses the V10-V26 row.
         if ($version <= 9) {
             return match ($mode) {
-                'numeric' => 10,
-                'alphanumeric' => 9,
-                'byte' => 8,
-                default => throw new PdfException("Unknown QR mode: {$mode}"),
+                QrMode::Numeric => 10,
+                QrMode::Alphanumeric => 9,
+                QrMode::Byte => 8,
             };
         }
         // V10+ (here only V10):
         return match ($mode) {
-            'numeric' => 12,
-            'alphanumeric' => 11,
-            'byte' => 16,
-            default => throw new PdfException("Unknown QR mode: {$mode}"),
+            QrMode::Numeric => 12,
+            QrMode::Alphanumeric => 11,
+            QrMode::Byte => 16,
         };
     }
 
-    private static function buildBitstream(string $data, string $mode, int $version, ErrorCorrection $ec): string
+    private static function buildBitstream(string $data, QrMode $mode, int $version, ErrorCorrection $ec): string
     {
         $bits = '';
-        $modeIndicator = match ($mode) {
-            'numeric' => '0001',
-            'alphanumeric' => '0010',
-            'byte' => '0100',
-            default => throw new PdfException("Unknown QR mode: {$mode}"),
-        };
-        $bits .= $modeIndicator;
+        $bits .= $mode->indicator();
         $bits .= str_pad(decbin(strlen($data)), self::charCountBits($mode, $version), '0', STR_PAD_LEFT);
 
-        switch ($mode) {
-            case 'numeric':
-                for ($i = 0; $i < strlen($data); $i += 3) {
-                    $chunk = substr($data, $i, 3);
-                    $bitsForChunk = strlen($chunk) === 3 ? 10 : (strlen($chunk) === 2 ? 7 : 4);
-                    $bits .= str_pad(decbin((int)$chunk), $bitsForChunk, '0', STR_PAD_LEFT);
-                }
-                break;
-            case 'alphanumeric':
-                for ($i = 0; $i < strlen($data); $i += 2) {
-                    if ($i + 1 < strlen($data)) {
-                        $v1 = strpos(self::ALPHANUM_CHARSET, $data[$i]);
-                        $v2 = strpos(self::ALPHANUM_CHARSET, $data[$i + 1]);
-                        if ($v1 === false || $v2 === false) {
-                            throw new PdfException('Internal error: alphanumeric mode received non-alphanumeric byte.');
-                        }
-                        $bits .= str_pad(decbin($v1 * 45 + $v2), 11, '0', STR_PAD_LEFT);
-                    } else {
-                        $v1 = strpos(self::ALPHANUM_CHARSET, $data[$i]);
-                        if ($v1 === false) {
-                            throw new PdfException('Internal error: alphanumeric mode received non-alphanumeric byte.');
-                        }
-                        $bits .= str_pad(decbin($v1), 6, '0', STR_PAD_LEFT);
-                    }
-                }
-                break;
-            case 'byte':
-                for ($i = 0; $i < strlen($data); $i++) {
-                    $bits .= str_pad(decbin(ord($data[$i])), 8, '0', STR_PAD_LEFT);
-                }
-                break;
-        }
+        match ($mode) {
+            QrMode::Numeric => $bits .= self::encodeNumericBits($data),
+            QrMode::Alphanumeric => $bits .= self::encodeAlphanumericBits($data),
+            QrMode::Byte => $bits .= self::encodeByteBits($data),
+        };
 
         // Terminator: up to 4 zero bits, capped at remaining capacity.
         $totalDataCodewords = self::CAPACITY_TABLE[$version][$ec->ordinal()][0];
@@ -296,6 +260,48 @@ final class Encoder
         $padBytes = intdiv($totalDataBits - strlen($bits), 8);
         for ($i = 0; $i < $padBytes; $i++) {
             $bits .= ($i % 2 === 0) ? '11101100' : '00010001';
+        }
+        return $bits;
+    }
+
+    private static function encodeNumericBits(string $data): string
+    {
+        $bits = '';
+        for ($i = 0; $i < strlen($data); $i += 3) {
+            $chunk = substr($data, $i, 3);
+            $bitsForChunk = strlen($chunk) === 3 ? 10 : (strlen($chunk) === 2 ? 7 : 4);
+            $bits .= str_pad(decbin((int)$chunk), $bitsForChunk, '0', STR_PAD_LEFT);
+        }
+        return $bits;
+    }
+
+    private static function encodeAlphanumericBits(string $data): string
+    {
+        $bits = '';
+        for ($i = 0; $i < strlen($data); $i += 2) {
+            if ($i + 1 < strlen($data)) {
+                $v1 = strpos(self::ALPHANUM_CHARSET, $data[$i]);
+                $v2 = strpos(self::ALPHANUM_CHARSET, $data[$i + 1]);
+                if ($v1 === false || $v2 === false) {
+                    throw new PdfException('Internal error: alphanumeric mode received non-alphanumeric byte.');
+                }
+                $bits .= str_pad(decbin($v1 * 45 + $v2), 11, '0', STR_PAD_LEFT);
+            } else {
+                $v1 = strpos(self::ALPHANUM_CHARSET, $data[$i]);
+                if ($v1 === false) {
+                    throw new PdfException('Internal error: alphanumeric mode received non-alphanumeric byte.');
+                }
+                $bits .= str_pad(decbin($v1), 6, '0', STR_PAD_LEFT);
+            }
+        }
+        return $bits;
+    }
+
+    private static function encodeByteBits(string $data): string
+    {
+        $bits = '';
+        for ($i = 0; $i < strlen($data); $i++) {
+            $bits .= str_pad(decbin(ord($data[$i])), 8, '0', STR_PAD_LEFT);
         }
         return $bits;
     }
