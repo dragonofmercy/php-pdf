@@ -27,19 +27,20 @@ final class ImageRegistry
      */
     public function register(string|Image $image): array
     {
-        $key = $this->key($image);
+        if ($image instanceof Image) {
+            $key = 'obj:' . spl_object_id($image);
+            if (isset($this->entries[$key])) {
+                return [$this->entries[$key][1], $this->entries[$key][0]];
+            }
+            return $this->store($key, $image);
+        }
 
+        $resolvedPath = self::resolvePath($image);
+        $key = 'path:' . $resolvedPath;
         if (isset($this->entries[$key])) {
             return [$this->entries[$key][1], $this->entries[$key][0]];
         }
-
-        $resolved = $image instanceof Image
-            ? $image
-            : Image::fromFile(self::resolvePath($image));
-
-        $next = 'Im' . (count($this->entries) + 1);
-        $this->entries[$key] = [$resolved, $next];
-        return [$next, $resolved];
+        return $this->store($key, Image::fromFile($resolvedPath));
     }
 
     public function shortName(string|Image $image): string
@@ -60,12 +61,14 @@ final class ImageRegistry
         return array_map(static fn (array $entry): Image => $entry[0], array_values($this->entries));
     }
 
-    private function key(string|Image $image): string
+    /**
+     * @return array{string, Image}
+     */
+    private function store(string $key, Image $image): array
     {
-        if ($image instanceof Image) {
-            return 'obj:' . spl_object_id($image);
-        }
-        return 'path:' . self::resolvePath($image);
+        $next = 'Im' . (count($this->entries) + 1);
+        $this->entries[$key] = [$image, $next];
+        return [$next, $image];
     }
 
     private static function resolvePath(string $path): string

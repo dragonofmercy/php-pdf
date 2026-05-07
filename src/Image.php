@@ -36,9 +36,6 @@ final readonly class Image
 
     public static function fromFile(string $path): self
     {
-        if (!is_file($path)) {
-            throw new PdfException("Image file not found: {$path}");
-        }
         $data = @file_get_contents($path);
         if ($data === false) {
             throw new PdfException("Cannot read image file: {$path}");

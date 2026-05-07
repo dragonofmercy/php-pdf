@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Encryption;
 use DragonOfMercy\PhpPdf\Document\MetadataStream;
 use DragonOfMercy\PhpPdf\Encryption\Cipher;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
+use DragonOfMercy\PhpPdf\Image\ImageStream;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -94,6 +95,27 @@ final class ObjectTransformerTest extends TestCase
         $result = $this->make()->transform(IndirectObject::of(1, 0, CompressedStream::of('hello')));
         $bytes = $result->toBytes();
         self::assertStringContainsString('/Filter /FlateDecode', $bytes);
+    }
+
+    public function testImageStreamBodyIsEncryptedAndDictionaryPreserved(): void
+    {
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Image'))
+            ->withEntry(Name::of('Width'), PdfNumber::ofInt(2))
+            ->withEntry(Name::of('Height'), PdfNumber::ofInt(2))
+            ->withEntry(Name::of('Filter'), Name::of('DCTDecode'));
+        $body = "RAW_JPEG_BYTES";
+        $obj = IndirectObject::of(7, 0, new ImageStream($dict, $body));
+
+        $bytes = $this->make()->transform($obj)->toBytes();
+
+        self::assertStringContainsString('/Type /XObject', $bytes);
+        self::assertStringContainsString('/Subtype /Image', $bytes);
+        self::assertStringContainsString('/Filter /DCTDecode', $bytes);
+        self::assertStringNotContainsString($body, $bytes, 'image body must not appear unencrypted');
+        // AES-CBC: 16-byte IV + PKCS7-padded ciphertext (a 14-byte body pads to 16).
+        self::assertStringContainsString('/Length 32', $bytes);
     }
 
     public function testMetadataStreamNotEncryptedWhenFlagFalse(): void

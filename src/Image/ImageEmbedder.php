@@ -39,6 +39,15 @@ final class ImageEmbedder
         };
     }
 
+    public static function objectCount(Image $image): int
+    {
+        $meta = $image->metadata;
+        if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
+            return 2;
+        }
+        return 1;
+    }
+
     /**
      * @return list<IndirectObject>
      */
@@ -56,13 +65,7 @@ final class ImageEmbedder
             default => throw new PdfException("Cannot embed JPEG with {$meta->components} components"),
         };
 
-        $dict = Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('XObject'))
-            ->withEntry(Name::of('Subtype'), Name::of('Image'))
-            ->withEntry(Name::of('Width'), PdfNumber::ofInt($meta->width))
-            ->withEntry(Name::of('Height'), PdfNumber::ofInt($meta->height))
-            ->withEntry(Name::of('ColorSpace'), $colorSpace)
-            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt(8))
+        $dict = $this->xObjectBase($meta->width, $meta->height, 8, $colorSpace)
             ->withEntry(Name::of('Filter'), Name::of('DCTDecode'));
 
         if ($meta->components === 4) {
@@ -76,8 +79,6 @@ final class ImageEmbedder
                 ),
             );
         }
-
-        $dict = $dict->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($image->bytes)));
 
         return [
             IndirectObject::of($objectNumber, 0, new ImageStream($dict, $image->bytes)),
@@ -94,79 +95,69 @@ final class ImageEmbedder
             throw new PdfException('Embedder received non-PNG metadata for PNG format');
         }
 
-        $hasAlpha = $meta->alphaBytes !== null;
+        $alpha = $meta->alphaBytes;
         $imageObjectNumber = $objectNumber;
-        $smaskObjectNumber = $hasAlpha ? $objectNumber + 1 : null;
+        $smaskRef = $alpha !== null ? PdfReference::to($objectNumber + 1, 0) : null;
 
-        $dict = $this->pngImageDictionary($meta, $smaskObjectNumber);
+        $dict = $this->pngImageDictionary($meta, $smaskRef);
         $body = $meta->colorBytes ?? $meta->idatBytes;
 
         $imageObject = IndirectObject::of(
             $imageObjectNumber,
             0,
-            new ImageStream($dict->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($body))), $body),
+            new ImageStream($dict, $body),
         );
 
-        if (!$hasAlpha) {
+        if ($alpha === null) {
             return [$imageObject];
         }
 
-        // PNG with alpha: emit a parallel SMask XObject.
-        // $hasAlpha === true guarantees alphaBytes is non-null at this point.
-        $alpha = $meta->alphaBytes;
-
-        $smaskDict = Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('XObject'))
-            ->withEntry(Name::of('Subtype'), Name::of('Image'))
-            ->withEntry(Name::of('Width'), PdfNumber::ofInt($meta->width))
-            ->withEntry(Name::of('Height'), PdfNumber::ofInt($meta->height))
-            ->withEntry(Name::of('ColorSpace'), Name::of('DeviceGray'))
-            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($meta->bitDepth))
+        $smaskDict = $this->xObjectBase($meta->width, $meta->height, $meta->bitDepth, Name::of('DeviceGray'))
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'))
-            ->withEntry(
-                Name::of('DecodeParms'),
-                Dictionary::empty()
-                    ->withEntry(Name::of('Predictor'), PdfNumber::ofInt(15))
-                    ->withEntry(Name::of('Columns'), PdfNumber::ofInt($meta->width))
-                    ->withEntry(Name::of('Colors'), PdfNumber::ofInt(1))
-                    ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($meta->bitDepth)),
-            )
-            ->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($alpha)));
+            ->withEntry(Name::of('DecodeParms'), $this->pngDecodeParms($meta->width, 1, $meta->bitDepth));
 
-        $smaskObject = IndirectObject::of(
-            $smaskObjectNumber ?? throw new PdfException('SMask object number missing'),
-            0,
-            new ImageStream($smaskDict, $alpha),
-        );
-
-        return [$imageObject, $smaskObject];
+        return [
+            $imageObject,
+            IndirectObject::of($objectNumber + 1, 0, new ImageStream($smaskDict, $alpha)),
+        ];
     }
 
-    private function pngImageDictionary(PngMetadata $meta, ?int $smaskObjectNumber): Dictionary
+    private function pngImageDictionary(PngMetadata $meta, ?PdfReference $smaskRef): Dictionary
     {
         [$colorSpace, $colorChannels] = $this->pngColorSpace($meta);
 
-        $decodeParms = Dictionary::empty()
-            ->withEntry(Name::of('Predictor'), PdfNumber::ofInt(15))
-            ->withEntry(Name::of('Columns'), PdfNumber::ofInt($meta->width))
-            ->withEntry(Name::of('Colors'), PdfNumber::ofInt($colorChannels))
-            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($meta->bitDepth));
-
-        $dict = Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('XObject'))
-            ->withEntry(Name::of('Subtype'), Name::of('Image'))
-            ->withEntry(Name::of('Width'), PdfNumber::ofInt($meta->width))
-            ->withEntry(Name::of('Height'), PdfNumber::ofInt($meta->height))
-            ->withEntry(Name::of('ColorSpace'), $colorSpace)
-            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($meta->bitDepth))
+        $dict = $this->xObjectBase($meta->width, $meta->height, $meta->bitDepth, $colorSpace)
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'))
-            ->withEntry(Name::of('DecodeParms'), $decodeParms);
+            ->withEntry(
+                Name::of('DecodeParms'),
+                $this->pngDecodeParms($meta->width, $colorChannels, $meta->bitDepth),
+            );
 
-        if ($smaskObjectNumber !== null) {
-            $dict = $dict->withEntry(Name::of('SMask'), PdfReference::to($smaskObjectNumber, 0));
+        if ($smaskRef !== null) {
+            $dict = $dict->withEntry(Name::of('SMask'), $smaskRef);
         }
 
         return $dict;
+    }
+
+    private function xObjectBase(int $width, int $height, int $bitsPerComponent, PdfObject $colorSpace): Dictionary
+    {
+        return Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Image'))
+            ->withEntry(Name::of('Width'), PdfNumber::ofInt($width))
+            ->withEntry(Name::of('Height'), PdfNumber::ofInt($height))
+            ->withEntry(Name::of('ColorSpace'), $colorSpace)
+            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($bitsPerComponent));
+    }
+
+    private function pngDecodeParms(int $columns, int $colors, int $bitsPerComponent): Dictionary
+    {
+        return Dictionary::empty()
+            ->withEntry(Name::of('Predictor'), PdfNumber::ofInt(15))
+            ->withEntry(Name::of('Columns'), PdfNumber::ofInt($columns))
+            ->withEntry(Name::of('Colors'), PdfNumber::ofInt($colors))
+            ->withEntry(Name::of('BitsPerComponent'), PdfNumber::ofInt($bitsPerComponent));
     }
 
     /**

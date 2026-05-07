@@ -48,7 +48,7 @@ final class ImageTest extends TestCase
     public function testFromFileThrowsWhenMissing(): void
     {
         $this->expectException(PdfException::class);
-        $this->expectExceptionMessage('Image file not found');
+        $this->expectExceptionMessage('Cannot read image file');
         Image::fromFile('/this/path/does/not/exist.png');
     }
 

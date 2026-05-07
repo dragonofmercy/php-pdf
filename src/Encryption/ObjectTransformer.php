@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Encryption;
 
 use DragonOfMercy\PhpPdf\Document\MetadataStream;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Image\ImageStream;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -75,6 +76,7 @@ final class ObjectTransformer
             $value instanceof PdfArray => $this->transformArray($value),
             $value instanceof Stream => $this->encryptRawStream($value->content()),
             $value instanceof CompressedStream => $this->encryptCompressedStream($value),
+            $value instanceof ImageStream => $this->encryptImageStream($value),
             $value instanceof MetadataStream => $this->encryptRawStream($value->xmpContent())
                                                     ->withType('Metadata')
                                                     ->withSubtype('XML'),
@@ -116,6 +118,12 @@ final class ObjectTransformer
     {
         $encrypted = $this->cipher->encrypt($stream->compressedContent(), $this->fileKey, $this->randomSource);
         return new EncryptedStreamBytes($stream->filterDict(), $encrypted);
+    }
+
+    private function encryptImageStream(ImageStream $stream): EncryptedStreamBytes
+    {
+        $encrypted = $this->cipher->encrypt($stream->body(), $this->fileKey, $this->randomSource);
+        return new EncryptedStreamBytes($stream->dictionary(), $encrypted);
     }
 
     private function wrapMetadataUnencrypted(IndirectObject $obj): IndirectObject
