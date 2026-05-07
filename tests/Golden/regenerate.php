@@ -212,3 +212,13 @@ $page->image($paletteImage, x: 400, y: 200);                        // intrinsic
 
 $doc->save($fixturesDir . '/page-with-images.pdf');
 echo "Regenerated page-with-images.pdf\n";
+
+// Fixture 8: EAN-13 barcode (Phase 5)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Ean13::of('9780131103627'),
+    x: 20.0, y: 20.0, w: 50.0, h: 18.0,
+);
+$doc->save($fixturesDir . '/barcode-ean13.pdf');
+echo "Regenerated barcode-ean13.pdf\n";
