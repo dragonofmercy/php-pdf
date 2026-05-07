@@ -13,6 +13,7 @@
         </testsuite>
         <testsuite name="Golden">
             <directory>tests/Golden</directory>
+            <exclude>tests/Golden/AbstractBarcodeGoldenTest.php</exclude>
         </testsuite>
     </testsuites>
     <source>
