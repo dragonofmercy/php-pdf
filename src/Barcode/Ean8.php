@@ -91,18 +91,16 @@ final readonly class Ean8 implements Barcode
     {
         // EAN-8 always uses set A on the left side and set C on the right.
         $modules = [true, false, true]; // left guard 101
-        $setA = Ean13::setA();
-        $setC = Ean13::setC();
         for ($i = 0; $i < 4; $i++) {
             $d = (int) $this->digits[$i];
-            foreach ($setA[$d] as $bit) {
+            foreach (EanSymbols::SET_A[$d] as $bit) {
                 $modules[] = $bit;
             }
         }
         array_push($modules, false, true, false, true, false); // centre guard 01010
         for ($i = 0; $i < 4; $i++) {
             $d = (int) $this->digits[4 + $i];
-            foreach ($setC[$d] as $bit) {
+            foreach (EanSymbols::SET_C[$d] as $bit) {
                 $modules[] = $bit;
             }
         }
