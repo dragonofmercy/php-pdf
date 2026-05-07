@@ -36,6 +36,7 @@ final class GaloisField
             $exp[$i] = $x;
             $log[$x] = $i;
             $x <<= 1;
+            // 0x100 = bit 8 overflow detection: time to reduce mod 0x11D.
             if ($x & 0x100) {
                 $x ^= 0x11D;
             }
@@ -48,6 +49,12 @@ final class GaloisField
         self::$initialised = true;
     }
 
+    /**
+     * Returns alpha^i in GF(256), where alpha = 2 is the primitive element.
+     * Negative exponents and exponents above 255 are reduced modulo 255
+     * (the multiplicative order of alpha), which is the standard convention
+     * in GF(256) polynomial arithmetic.
+     */
     public static function exp(int $i): int
     {
         self::init();
@@ -55,6 +62,12 @@ final class GaloisField
         return self::$exp[$idx];
     }
 
+    /**
+     * Returns the discrete log base alpha (= 2) of `$v` in GF(256).
+     * Defined only for non-zero `$v` in 1..255.
+     *
+     * @throws \InvalidArgumentException if $v is 0 or out of range.
+     */
     public static function log(int $v): int
     {
         self::init();
@@ -65,6 +78,9 @@ final class GaloisField
     }
 
     /**
+     * Returns the product of two GF(256) elements (range 0..255 each).
+     * Returns 0 immediately if either operand is 0 (to avoid undefined log(0)).
+     *
      * @param int<0, 255> $a
      * @param int<0, 255> $b
      */
