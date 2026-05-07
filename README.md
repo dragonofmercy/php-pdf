@@ -2,7 +2,7 @@
 
 Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime dependencies beyond the standard `mbstring`, `openssl`, and `zlib` extensions.
 
-> **Status:** work in progress, pre-1.0. The public API is reasonably stable for what is shipped (Phase 2c) but is not yet frozen.
+> **Status:** work in progress, pre-1.0. The public API is reasonably stable for what is shipped (Phase 5) but is not yet frozen.
 
 ## What works today
 
@@ -13,11 +13,14 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Cells** — rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
 - **Text measurement** — `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
 - **Images** — JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
+- **Barcodes & QR codes** — EAN-13, EAN-8, Code 128 (auto A/B/C set switching), QR Code (V1-V10, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
 
 ## Not yet implemented
 
 - Custom fonts (TTF / OTF) and full Unicode (CJK, Cyrillic, Greek, Hebrew, etc.) -- Phase 3, deferred.
 - SVG vector images -- later phase.
+- QR Code versions V11-V40 -- capped at V10 in this release (covers URLs, vCards, payment payloads). Add to demand.
+- Other barcode formats (UPC-A, Code 39 / 93, ITF, DataMatrix, PDF417, Aztec) -- add on demand.
 - Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
 
 ## Installation
@@ -217,6 +220,49 @@ Dimension rules:
 
 `(x, y)` is the **top-left** corner in the page user space (Y-down origin, consistent with the rest of phppdf since Phase 2a).
 
+### Barcodes & QR codes
+
+```php
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Barcode\{Ean13, Ean8, Code128, QrCode, ErrorCorrection};
+
+// EAN-13 with 12 digits (checksum auto-computed) and human-readable digits below.
+$page->barcode(Ean13::of('978013110362'), x: 20, y: 20, w: 50, h: 18);
+
+// Code 128, no human text, custom red color.
+$page->barcode(
+    Code128::of('SHIP-2026-001')->withoutText()->withColor(Color::rgb(192, 0, 0)),
+    x: 20, y: 50, w: 70, h: 12,
+);
+
+// QR Code with high error-correction (30%), branded color.
+$page->barcode(
+    QrCode::of('https://example.com')
+        ->withErrorCorrection(ErrorCorrection::H)
+        ->withColor(Color::hex('#003366')),
+    x: 130, y: 20, w: 40,
+);
+```
+
+Standards supported:
+
+- **EAN-13** (ISO/IEC 15420) -- 12 or 13 digits, auto checksum.
+- **EAN-8** -- 7 or 8 digits, auto checksum.
+- **Code 128** (ISO/IEC 15417) -- ASCII 0-127, auto-switching between sets A/B/C to minimise width.
+- **QR Code** (ISO/IEC 18004) -- versions 1-10 (covers ~395 alphanumeric or ~271 byte chars at L), error correction L/M/Q/H, modes numeric / alphanumeric / byte.
+
+API shape:
+
+- `Page::barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null)` -- one method, polymorphic by value object.
+- 1D codes (Ean13, Ean8, Code128) require `h`; QR codes only need `w` (h defaults to `w`).
+- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) -- all immutable.
+- Default color is **black**, not the page's current fillColor (deterministic regardless of page state).
+- Coordinates use the document unit (mm by default), top-down Y axis (consistent with the rest of the API).
+
+Recommended sizes for reliable scanning: EAN-13 >= 25 mm wide, QR module >= 0.5 mm (so a V3 QR ~ 15 mm minimum).
+
+The quiet zone is **included** in the `w` / `h` you provide. The barcode wraps its rendering in a graphics state save/restore, so it does not alter your page's current font / fill color.
+
 ## Development
 
 The library lives entirely under `build/`. Clone the repo, then:
@@ -227,11 +273,11 @@ composer install
 composer check   # PHPStan max + PHPUnit (unit + golden)
 ```
 
-`composer test` runs the full suite (449 tests at Phase 4). `composer analyse` runs PHPStan at level max.
+`composer test` runs the full suite (527 tests at Phase 5). `composer analyse` runs PHPStan at level max.
 
 ### Golden tests
 
-Seven binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
+Eleven binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
 
 - Linux: `sudo apt-get install qpdf`
 - macOS: `brew install qpdf`
