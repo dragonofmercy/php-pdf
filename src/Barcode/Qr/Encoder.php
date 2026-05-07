@@ -233,14 +233,15 @@ final class Encoder
 
     private static function buildBitstream(string $data, QrMode $mode, int $version, ErrorCorrection $ec): string
     {
+        $len = strlen($data);
         $bits = '';
         $bits .= $mode->indicator();
-        $bits .= str_pad(decbin(strlen($data)), self::charCountBits($mode, $version), '0', STR_PAD_LEFT);
+        $bits .= str_pad(decbin($len), self::charCountBits($mode, $version), '0', STR_PAD_LEFT);
 
         match ($mode) {
-            QrMode::Numeric => $bits .= self::encodeNumericBits($data),
-            QrMode::Alphanumeric => $bits .= self::encodeAlphanumericBits($data),
-            QrMode::Byte => $bits .= self::encodeByteBits($data),
+            QrMode::Numeric => $bits .= self::encodeNumericBits($data, $len),
+            QrMode::Alphanumeric => $bits .= self::encodeAlphanumericBits($data, $len),
+            QrMode::Byte => $bits .= self::encodeByteBits($data, $len),
         };
 
         // Terminator: up to 4 zero bits, capped at remaining capacity.
@@ -264,22 +265,23 @@ final class Encoder
         return $bits;
     }
 
-    private static function encodeNumericBits(string $data): string
+    private static function encodeNumericBits(string $data, int $len): string
     {
         $bits = '';
-        for ($i = 0; $i < strlen($data); $i += 3) {
+        for ($i = 0; $i < $len; $i += 3) {
             $chunk = substr($data, $i, 3);
-            $bitsForChunk = strlen($chunk) === 3 ? 10 : (strlen($chunk) === 2 ? 7 : 4);
+            $chunkLen = strlen($chunk);
+            $bitsForChunk = $chunkLen === 3 ? 10 : ($chunkLen === 2 ? 7 : 4);
             $bits .= str_pad(decbin((int)$chunk), $bitsForChunk, '0', STR_PAD_LEFT);
         }
         return $bits;
     }
 
-    private static function encodeAlphanumericBits(string $data): string
+    private static function encodeAlphanumericBits(string $data, int $len): string
     {
         $bits = '';
-        for ($i = 0; $i < strlen($data); $i += 2) {
-            if ($i + 1 < strlen($data)) {
+        for ($i = 0; $i < $len; $i += 2) {
+            if ($i + 1 < $len) {
                 $v1 = strpos(self::ALPHANUM_CHARSET, $data[$i]);
                 $v2 = strpos(self::ALPHANUM_CHARSET, $data[$i + 1]);
                 if ($v1 === false || $v2 === false) {
@@ -297,10 +299,10 @@ final class Encoder
         return $bits;
     }
 
-    private static function encodeByteBits(string $data): string
+    private static function encodeByteBits(string $data, int $len): string
     {
         $bits = '';
-        for ($i = 0; $i < strlen($data); $i++) {
+        for ($i = 0; $i < $len; $i++) {
             $bits .= str_pad(decbin(ord($data[$i])), 8, '0', STR_PAD_LEFT);
         }
         return $bits;

@@ -247,9 +247,8 @@ final class Mask
      * top-left finder and mirrored near the other two finders.
      *
      * @param array<int, array<int, bool>> $modules in/out
-     * @param array<int, array<int, bool>> $reserved (unused here, kept for symmetry)
      */
-    public static function placeFormatBits(array &$modules, array $reserved, ErrorCorrection $ec, int $maskId): void
+    public static function placeFormatBits(array &$modules, ErrorCorrection $ec, int $maskId): void
     {
         $bits = self::formatBits($ec, $maskId);
         $size = count($modules);

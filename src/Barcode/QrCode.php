@@ -76,7 +76,7 @@ final readonly class QrCode implements Barcode
         for ($m = 0; $m < 8; $m++) {
             $candidate = Mask::apply($matrix->modules, $matrix->reserved, $m);
             // Format bits MUST be placed before scoring.
-            Mask::placeFormatBits($candidate, $matrix->reserved, $this->errorCorrection, $m);
+            Mask::placeFormatBits($candidate, $this->errorCorrection, $m);
             // Version info bits required for V7+ (V7-V10 in this release).
             if ($encoded->version >= 7) {
                 Mask::placeVersionBits($candidate, $encoded->version);
@@ -108,17 +108,9 @@ final readonly class QrCode implements Barcode
         $page->contentStream()->append(Renderer::wrap($body, $this->color));
     }
 
-    /** Remainder bits per ISO 18004 Table 1. V1-V10 only in this release. */
+    /** Remainder bits per ISO 18004 Table 1. V1 + V7-V10 = 0; V2-V6 = 7. */
     private static function remainderBits(int $version): int
     {
-        // V1: 0, V2-V6: 7, V7-V10: 0 (we cap at V10).
-        if ($version === 1) {
-            return 0;
-        }
-        if ($version >= 2 && $version <= 6) {
-            return 7;
-        }
-        // V7-V10 (or beyond if ever supported): 0
-        return 0;
+        return ($version >= 2 && $version <= 6) ? 7 : 0;
     }
 }

@@ -18,6 +18,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  */
 final readonly class Ean13 implements Barcode
 {
+    /** Total module count including quiet zones: 11 (left quiet) + 95 (bars) + 7 (right quiet). */
+    private const int TOTAL_MODULES = 113;
+
     private function __construct(
         public string $digits,
         public Color $color,
@@ -71,8 +74,7 @@ final readonly class Ean13 implements Barcode
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        // Module count incl. quiet zone: 11 (left) + 95 + 7 (right) = 113.
-        $totalModules = 113;
+        $totalModules = self::TOTAL_MODULES;
         $moduleW = $wPt / $totalModules;
         // 85% of h goes to the bars, 15% to the human-readable text below.
         // This is a layout choice (not an ISO value); good visual balance for typical
@@ -118,13 +120,11 @@ final readonly class Ean13 implements Barcode
         $right = substr($this->digits, 7, 6);
 
         // Font + size: Helvetica, sized to fit the half-width comfortably.
-        // wPt reconstructed: totalModules (113) * moduleW.
-        $fontSize = min(12.0, (113 * $moduleW) / 14.0);
+        $fontSize = min(12.0, (self::TOTAL_MODULES * $moduleW) / 14.0);
         // Baseline for the human-readable digits: centre of the text band, raised by
         // half the cap-height (approximated as fontSize * 0.7 / 2) so the glyphs sit
         // vertically centred in the reserved 15% strip.
         $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
-        // Convert text Y back to the page unit so page->text() works.
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();

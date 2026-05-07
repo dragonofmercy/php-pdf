@@ -32,7 +32,7 @@ final class ReedSolomon
             for ($j = 0; $j < $polyLen; $j++) {
                 /** @var int<0, 255> $coeff */
                 $coeff = $poly[$j];
-                $next[$j] = ($next[$j] ^ GaloisField::mul($coeff, 1)) & 0xFF;
+                $next[$j] = ($next[$j] ^ $coeff) & 0xFF; // *x (alpha^0 = 1)
                 $next[$j + 1] = ($next[$j + 1] ^ GaloisField::mul($coeff, $alphaI)) & 0xFF;
             }
             $poly = $next;
