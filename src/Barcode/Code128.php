@@ -173,6 +173,15 @@ final readonly class Code128 implements Barcode
         [2, 3, 3, 1, 1, 1], // 106
     ];
 
+    private const int CODE_C  = 99;    // switch to set C
+    private const int CODE_B  = 100;   // switch to set B
+    private const int CODE_A  = 101;   // switch to set A
+    private const int START_A = 103;
+    private const int START_B = 104;
+    private const int START_C = 105;
+    private const int STOP    = 106;
+    private const int CHECKSUM_MODULUS = 103; // same numeric value as START_A but different role per ISO 15417
+
     /** Stop pattern: 13 modules (4 bars + 3 spaces + final bar). */
     /** @var list<int> */
     private const array STOP_PATTERN = [2, 3, 3, 1, 1, 1, 2];
@@ -209,9 +218,9 @@ final readonly class Code128 implements Barcode
         foreach ($values as $i => $v) {
             $checksum += ($i + 1) * $v;
         }
-        $checksum %= 103;
+        $checksum %= self::CHECKSUM_MODULUS;
 
-        return array_merge([$start], $values, [$checksum, 106]);
+        return array_merge([$start], $values, [$checksum, self::STOP]);
     }
 
     /**
@@ -234,13 +243,13 @@ final readonly class Code128 implements Barcode
         $i = 0;
 
         if (self::startsWithDigits($data, 0, $len === 2 ? 2 : 4)) {
-            $start = 105; // StartC
+            $start = self::START_C;
             $set = 'C';
         } elseif ($len > 0 && ord($data[0]) < 32) {
-            $start = 103; // StartA
+            $start = self::START_A;
             $set = 'A';
         } else {
-            $start = 104; // StartB
+            $start = self::START_B;
             $set = 'B';
         }
 
@@ -252,14 +261,14 @@ final readonly class Code128 implements Barcode
                     continue;
                 }
                 // switch back to B
-                $values[] = 100; // Code B
+                $values[] = self::CODE_B;
                 $set = 'B';
                 continue;
             }
             if ($set === 'B') {
                 $byte = ord($data[$i]);
                 if ($byte < 32) {
-                    $values[] = 101; // Code A
+                    $values[] = self::CODE_A;
                     $set = 'A';
                     continue;
                 }
@@ -267,7 +276,7 @@ final readonly class Code128 implements Barcode
                 if (self::startsWithDigits($data, $i, 6)
                     || ($i + 4 === $len && self::startsWithDigits($data, $i, 4))
                 ) {
-                    $values[] = 99; // Code C
+                    $values[] = self::CODE_C;
                     $set = 'C';
                     continue;
                 }
@@ -278,12 +287,12 @@ final readonly class Code128 implements Barcode
             // set === 'A'
             $byte = ord($data[$i]);
             if ($byte >= 96 && $byte <= 127) {
-                $values[] = 100; // Code B
+                $values[] = self::CODE_B;
                 $set = 'B';
                 continue;
             }
             if (self::startsWithDigits($data, $i, 6)) {
-                $values[] = 99; // Code C
+                $values[] = self::CODE_C;
                 $set = 'C';
                 continue;
             }
