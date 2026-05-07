@@ -106,6 +106,8 @@ final class Matrix
 
     private function placeDarkModule(): void
     {
+        // ISO 18004 Section 6.3.7: dark module at (4V + 9, 8) -- one fixed bit,
+        // present on every QR Code regardless of version.
         $row = 4 * $this->version + 9;
         $col = 8;
         $this->modules[$row][$col] = true;
@@ -151,7 +153,9 @@ final class Matrix
 
     private function reserveVersionInfo(): void
     {
-        // 6x3 blocks near top-right and bottom-left finders (V7+).
+        // V7+ only. ISO 18004 Section 6.10: two 6x3 blocks of 18 bits each,
+        // adjacent to the top-right and bottom-left finders.
+        // size - 11 = 3 columns from the finder border (size - 8 - 3).
         for ($i = 0; $i < 6; $i++) {
             for ($j = 0; $j < 3; $j++) {
                 $this->reserved[$this->size - 11 + $j][$i] = true;
@@ -173,7 +177,9 @@ final class Matrix
             if ($x === 6) {
                 $x--; // skip timing column
             }
-            $upward = ((($size - 1 - $x) >> 1) & 1) === 0; // first strip goes up
+            // Strip index = (size-1 - x) / 2. Strip 0 (rightmost 2-col strip) walks
+            // upward; strips alternate direction from there.
+            $upward = ((($size - 1 - $x) >> 1) & 1) === 0;
             for ($y = 0; $y < $size; $y++) {
                 $row = $upward ? $size - 1 - $y : $y;
                 for ($dx = 0; $dx < 2; $dx++) {
