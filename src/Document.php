@@ -37,9 +37,6 @@ final class Document
 {
     private const string VERSION = '0.1-phase1a';
 
-    private const float A4_WIDTH = 595.28;
-    private const float A4_HEIGHT = 841.89;
-
     private const string HEADER = "%PDF-1.7\n%\xE2\xE3\xCF\xD3\n";
 
     /** @var list<Page> */
@@ -52,7 +49,15 @@ final class Document
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
 
-    public function __construct()
+    /** Last format used (or implicit default). Reused when addPage() is called with no $format. */
+    private PageFormat $lastFormat = PageFormat::A4;
+
+    /** @var array{float, float}|null Custom dimensions [w, h] in user unit; takes precedence over $lastFormat when set. */
+    private ?array $lastCustom = null;
+
+    private Orientation $lastOrientation = Orientation::PORTRAIT;
+
+    public function __construct(public readonly Unit $unit = Unit::MM)
     {
         $this->fontRegistry = new FontRegistry();
         $this->metricsRegistry = new MetricsRegistry();
@@ -69,17 +74,76 @@ final class Document
         return $this->encryption ??= new Encryption();
     }
 
-    public function addPage(): Page
-    {
+    /**
+     * Appends a new page. Without arguments, reuses the format and orientation
+     * from the previous addPage() call (or A4 portrait on the first call).
+     *
+     * @param PageFormat|array{0: int|float, 1: int|float}|null $format A standard
+     *     format, a [width, height] pair in the document's unit for custom sizes
+     *     (labels, business cards), or null to keep the previous value.
+     */
+    public function addPage(
+        PageFormat|array|null $format = null,
+        ?Orientation $orientation = null,
+    ): Page {
+        if ($format !== null) {
+            if (is_array($format)) {
+                $this->lastCustom = $this->validateCustom($format);
+            } else {
+                $this->lastFormat = $format;
+                $this->lastCustom = null;
+            }
+        }
+        if ($orientation !== null) {
+            $this->lastOrientation = $orientation;
+        }
+
+        if ($this->lastCustom !== null) {
+            // Custom dimensions are taken verbatim; orientation does not apply.
+            [$w, $h] = $this->lastCustom;
+            $widthPoints = $this->unit->toPoints($w);
+            $heightPoints = $this->unit->toPoints($h);
+        } else {
+            [$mmW, $mmH] = $this->lastFormat->dimensionsMm();
+            if ($this->lastOrientation === Orientation::LANDSCAPE) {
+                [$mmW, $mmH] = [$mmH, $mmW];
+            }
+            $widthPoints = Unit::MM->toPoints($mmW);
+            $heightPoints = Unit::MM->toPoints($mmH);
+        }
+
         $page = new Page(
-            pageWidth: self::A4_WIDTH,
-            pageHeight: self::A4_HEIGHT,
+            pageWidth: $widthPoints,
+            pageHeight: $heightPoints,
             fontRegistry: $this->fontRegistry,
             metricsRegistry: $this->metricsRegistry,
             imageRegistry: $this->imageRegistry,
+            unit: $this->unit,
         );
         $this->pages[] = $page;
         return $page;
+    }
+
+    /**
+     * @param array<int|string, mixed> $format
+     * @return array{float, float}
+     */
+    private function validateCustom(array $format): array
+    {
+        if (count($format) !== 2 || !array_is_list($format)) {
+            throw new PdfException('Custom page format must be [width, height]');
+        }
+        [$w, $h] = $format;
+        if ((!is_int($w) && !is_float($w)) || (!is_int($h) && !is_float($h))) {
+            throw new PdfException('Custom page format dimensions must be numeric');
+        }
+        if ($w <= 0) {
+            throw new PdfException('Page width must be positive, got ' . $w);
+        }
+        if ($h <= 0) {
+            throw new PdfException('Page height must be positive, got ' . $h);
+        }
+        return [(float) $w, (float) $h];
     }
 
     public function output(): string

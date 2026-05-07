@@ -7,6 +7,7 @@ require __DIR__ . '/../../vendor/autoload.php';
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Unit;
 
 $fixturesDir = __DIR__ . '/fixtures';
 if (!is_dir($fixturesDir)) {
@@ -16,13 +17,13 @@ if (!is_dir($fixturesDir)) {
 $zeros = fn (int $n): string => str_repeat("\x00", $n);
 
 // Fixture 1: empty page without metadata (Phase 0 compat)
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $doc->addPage();
 $doc->save($fixturesDir . '/empty-page.pdf');
 echo "Regenerated empty-page.pdf\n";
 
 // Fixture 2: document with metadata (Phase 1a)
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $doc->metadata()
     ->title('Test')
     ->author('User')
@@ -36,7 +37,7 @@ $doc->save($fixturesDir . '/document-with-metadata.pdf');
 echo "Regenerated document-with-metadata.pdf\n";
 
 // Fixture 3: encrypted document (Phase 1b)
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $doc->metadata()
     ->title('Confidential')
     ->author('User')
@@ -53,7 +54,7 @@ $doc->save($fixturesDir . '/encrypted-document.pdf');
 echo "Regenerated encrypted-document.pdf\n";
 
 // Fixture 4: page with graphics (Phase 2a)
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $page = $doc->addPage();
 
 $page->setStrokeColor(Color::hex('#ff0000'))
@@ -90,7 +91,7 @@ $doc->save($fixturesDir . '/page-with-graphics.pdf');
 echo "Regenerated page-with-graphics.pdf\n";
 
 // Fixture 5: page with text (Phase 2b)
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $page = $doc->addPage();
 
 $page->setFont(Font::helvetica()->bold(), 18);
@@ -109,7 +110,7 @@ $doc->save($fixturesDir . '/page-with-text.pdf');
 echo "Regenerated page-with-text.pdf\n";
 
 // Fixture 6: page with cells (Phase 2c)
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $page = $doc->addPage();
 $page->setFont(Font::helvetica(), 12);
 
@@ -193,7 +194,7 @@ echo "Regenerated page-with-cells.pdf\n";
 // is built via TestImageFactory (deterministic byte-construction).
 require_once __DIR__ . '/../Support/TestImageFactory.php';
 
-$doc = new Document();
+$doc = new Document(Unit::PT);
 $page = $doc->addPage();
 
 $assetsDir = __DIR__ . '/assets';

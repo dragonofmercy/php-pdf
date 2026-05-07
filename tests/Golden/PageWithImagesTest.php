@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory;
+use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -46,7 +47,7 @@ final class PageWithImagesTest extends TestCase
 
     private function buildPdfBytes(): string
     {
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $page = $doc->addPage();
 
         $assets = __DIR__ . '/assets';

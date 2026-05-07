@@ -22,7 +22,9 @@ use DragonOfMercy\PhpPdf\VerticalAlign;
  * A single page of the PDF document. Exposes geometric drawing primitives,
  * text rendering via the 12 standard PDF fonts, plus graphics state
  * mutators, transforms, and a save/restore stack. Coordinate system:
- * top-left origin, Y-down, points (1/72 inch).
+ * top-left origin, Y-down. Coordinates and sizes are in the document's
+ * configured Unit (mm by default); font sizes and leading are always in
+ * points (typographic convention).
  */
 final class Page
 {
@@ -33,7 +35,8 @@ final class Page
     private ?Font $currentFont = null;
     private ?float $currentSize = null;
     private ?float $customLeading = null;
-    private float $cellsPadding = 2.0;
+    /** Padding stored in points (internal canonical unit). */
+    private float $cellsPaddingPt = 2.0;
 
     /** @var array<string, Font> Fonts used by this page, keyed by PDF canonical name */
     private array $fontsUsed = [];
@@ -47,6 +50,7 @@ final class Page
         private readonly FontRegistry $fontRegistry,
         private readonly MetricsRegistry $metricsRegistry,
         private readonly ImageRegistry $imageRegistry,
+        public readonly Unit $unit = Unit::PT,
     ) {
         $this->stream = new ContentStream($pageHeight);
     }
@@ -81,40 +85,48 @@ final class Page
 
     public function line(float $x1, float $y1, float $x2, float $y2): PathOperation
     {
-        $this->stream->append(Operators::moveTo($x1, $y1));
-        $this->stream->append(Operators::lineTo($x2, $y2));
+        $this->stream->append(Operators::moveTo($this->toPt($x1), $this->toPt($y1)));
+        $this->stream->append(Operators::lineTo($this->toPt($x2), $this->toPt($y2)));
         return new PathOperation($this->stream);
     }
 
     public function rect(float $x, float $y, float $w, float $h): PathOperation
     {
-        $this->stream->append(Operators::rectangle($x, $y, $w, $h));
+        $this->stream->append(Operators::rectangle(
+            $this->toPt($x),
+            $this->toPt($y),
+            $this->toPt($w),
+            $this->toPt($h),
+        ));
         return new PathOperation($this->stream);
     }
 
     public function circle(float $cx, float $cy, float $r): PathOperation
     {
-        $k = self::BEZIER_KAPPA * $r;
-        $this->stream->append(Operators::moveTo($cx + $r, $cy));
+        $cxPt = $this->toPt($cx);
+        $cyPt = $this->toPt($cy);
+        $rPt = $this->toPt($r);
+        $k = self::BEZIER_KAPPA * $rPt;
+        $this->stream->append(Operators::moveTo($cxPt + $rPt, $cyPt));
         $this->stream->append(Operators::curveTo(
-            $cx + $r, $cy + $k,
-            $cx + $k, $cy + $r,
-            $cx, $cy + $r,
+            $cxPt + $rPt, $cyPt + $k,
+            $cxPt + $k, $cyPt + $rPt,
+            $cxPt, $cyPt + $rPt,
         ));
         $this->stream->append(Operators::curveTo(
-            $cx - $k, $cy + $r,
-            $cx - $r, $cy + $k,
-            $cx - $r, $cy,
+            $cxPt - $k, $cyPt + $rPt,
+            $cxPt - $rPt, $cyPt + $k,
+            $cxPt - $rPt, $cyPt,
         ));
         $this->stream->append(Operators::curveTo(
-            $cx - $r, $cy - $k,
-            $cx - $k, $cy - $r,
-            $cx, $cy - $r,
+            $cxPt - $rPt, $cyPt - $k,
+            $cxPt - $k, $cyPt - $rPt,
+            $cxPt, $cyPt - $rPt,
         ));
         $this->stream->append(Operators::curveTo(
-            $cx + $k, $cy - $r,
-            $cx + $r, $cy - $k,
-            $cx + $r, $cy,
+            $cxPt + $k, $cyPt - $rPt,
+            $cxPt + $rPt, $cyPt - $k,
+            $cxPt + $rPt, $cyPt,
         ));
         $this->stream->append(Operators::closePath());
         return new PathOperation($this->stream);
@@ -122,7 +134,7 @@ final class Page
 
     public function path(): Path
     {
-        return new Path($this->stream);
+        return new Path($this->stream, $this->unit);
     }
 
     // ----- Graphics state -----
@@ -141,16 +153,17 @@ final class Page
 
     public function setLineWidth(float $width): self
     {
-        $this->stream->append(Operators::setLineWidth($width));
+        $this->stream->append(Operators::setLineWidth($this->toPt($width)));
         return $this;
     }
 
     /**
-     * @param list<float> $pattern dashes and gaps alternating, in points
+     * @param list<float> $pattern dashes and gaps alternating, in the document unit
      */
     public function setDashPattern(array $pattern, float $phase = 0.0): self
     {
-        $this->stream->append(Operators::setDashPattern($pattern, $phase));
+        $patternPt = array_map(fn (float $v): float => $this->toPt($v), $pattern);
+        $this->stream->append(Operators::setDashPattern($patternPt, $this->toPt($phase)));
         return $this;
     }
 
@@ -170,7 +183,7 @@ final class Page
 
     public function translate(float $x, float $y): self
     {
-        $this->stream->append(Operators::translate($x, $y));
+        $this->stream->append(Operators::translate($this->toPt($x), $this->toPt($y)));
         return $this;
     }
 
@@ -233,7 +246,7 @@ final class Page
         $this->stream->append(Operators::beginText());
         $this->stream->append(Operators::setFontAndSize($shortName, $size));
         $this->stream->append(Operators::setTextLeading($leading));
-        $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $x, $y));
+        $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $this->toPt($x), $this->toPt($y)));
 
         $lines = explode("\n", $text);
         foreach ($lines as $index => $line) {
@@ -250,10 +263,9 @@ final class Page
     }
 
     /**
-     * Returns the width in points of the longest line of $text rendered
-     * with the supplied font and size -- or, if either argument is null, the
-     * current state set via setFont(). Empty string returns 0.0. Throws
-     * PdfException when no state is set and required arguments are missing.
+     * Returns the width of the longest line of $text, expressed in the
+     * document's unit. Uses the supplied font/size, or the current state set
+     * via setFont() if either is null. Empty string returns 0.0.
      */
     public function stringWidth(string $text, ?Font $font = null, ?float $size = null): float
     {
@@ -277,7 +289,7 @@ final class Page
                 $maxWidth = $width;
             }
         }
-        return $maxWidth;
+        return $this->fromPt($maxWidth);
     }
 
     public function setCellsPadding(float $padding): self
@@ -285,13 +297,13 @@ final class Page
         if ($padding < 0) {
             throw new PdfException('Padding cannot be negative, got ' . $padding);
         }
-        $this->cellsPadding = $padding;
+        $this->cellsPaddingPt = $this->toPt($padding);
         return $this;
     }
 
     public function getCellsPadding(): float
     {
-        return $this->cellsPadding;
+        return $this->fromPt($this->cellsPaddingPt);
     }
 
     public function cell(
@@ -317,10 +329,10 @@ final class Page
         if ($h !== null && $h < 0) {
             throw new PdfException('Cell height cannot be negative, got ' . $h);
         }
-        $resolvedPadding = $padding ?? $this->cellsPadding;
-        if ($resolvedPadding < 0) {
-            throw new PdfException('Cell padding cannot be negative, got ' . $resolvedPadding);
+        if ($padding !== null && $padding < 0) {
+            throw new PdfException('Cell padding cannot be negative, got ' . $padding);
         }
+        $resolvedPaddingPt = $padding !== null ? $this->toPt($padding) : $this->cellsPaddingPt;
 
         $fontShortName = '';
         if ($text !== '') {
@@ -329,14 +341,14 @@ final class Page
         }
 
         $renderer = new CellRenderer(stream: $this->stream, metrics: $this->metricsRegistry);
-        return $renderer->render(
+        $result = $renderer->render(
             font: $this->currentFont,
             size: $this->currentSize,
             customLeading: $this->customLeading,
-            x: $x,
-            y: $y,
-            w: $w,
-            h: $h,
+            x: $this->toPt($x),
+            y: $this->toPt($y),
+            w: $this->toPt($w),
+            h: $h !== null ? $this->toPt($h) : null,
             text: $text,
             border: $border,
             fill: $fill,
@@ -344,8 +356,17 @@ final class Page
             align: $align,
             verticalAlign: $verticalAlign,
             fit: $fit,
-            padding: $resolvedPadding,
+            padding: $resolvedPaddingPt,
             fontShortName: $fontShortName,
+        );
+
+        return new CellResult(
+            x: $this->fromPt($result->x),
+            y: $this->fromPt($result->y),
+            height: $this->fromPt($result->height),
+            lineCount: $result->lineCount,
+            brokenWords: $result->brokenWords,
+            textOverflow: $result->textOverflow,
         );
     }
 
@@ -364,26 +385,31 @@ final class Page
         }
 
         [$shortName, $resolved] = $this->imageRegistry->register($image);
-        $intrinsicW = (float) $resolved->width;
-        $intrinsicH = (float) $resolved->height;
+        // Intrinsic image dimensions are pixel counts; the library treats one
+        // pixel as one PDF point when neither width nor height is supplied.
+        $intrinsicWPt = (float) $resolved->width;
+        $intrinsicHPt = (float) $resolved->height;
 
         if ($w !== null && $h !== null) {
-            $effW = $w;
-            $effH = $h;
+            $effWPt = $this->toPt($w);
+            $effHPt = $this->toPt($h);
         } elseif ($w !== null) {
-            $effW = $w;
-            $effH = $w * $intrinsicH / $intrinsicW;
+            $effWPt = $this->toPt($w);
+            $effHPt = $effWPt * $intrinsicHPt / $intrinsicWPt;
         } elseif ($h !== null) {
-            $effH = $h;
-            $effW = $h * $intrinsicW / $intrinsicH;
+            $effHPt = $this->toPt($h);
+            $effWPt = $effHPt * $intrinsicWPt / $intrinsicHPt;
         } else {
-            $effW = $intrinsicW;
-            $effH = $intrinsicH;
+            $effWPt = $intrinsicWPt;
+            $effHPt = $intrinsicHPt;
         }
+
+        $xPt = $this->toPt($x);
+        $yPt = $this->toPt($y);
 
         $this->stream->append(Operators::saveState());
         $this->stream->append(Operators::concatMatrix(
-            $effW, 0, 0, -$effH, $x, $y + $effH,
+            $effWPt, 0, 0, -$effHPt, $xPt, $yPt + $effHPt,
         ));
         $this->stream->append(Operators::invokeXObject($shortName));
         $this->stream->append(Operators::restoreState());
@@ -400,4 +426,13 @@ final class Page
         return $this->metricsRegistry;
     }
 
+    private function toPt(float $value): float
+    {
+        return $this->unit->toPoints($value);
+    }
+
+    private function fromPt(float $value): float
+    {
+        return $this->unit->fromPoints($value);
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -15,7 +16,7 @@ final class GoldenTest extends TestCase
 
     public function testEmptyPageMatchesFixtureBytes(): void
     {
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $doc->addPage();
         $actual = $doc->output();
 
@@ -35,7 +36,7 @@ final class GoldenTest extends TestCase
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
 
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $doc->addPage();
         $tmp = tempnam(sys_get_temp_dir(), 'phppdf_golden_');
         self::assertIsString($tmp);
@@ -56,7 +57,7 @@ final class GoldenTest extends TestCase
 
     public function testDocumentWithMetadataMatchesFixtureBytes(): void
     {
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $doc->metadata()
             ->title('Test')
             ->author('User')
@@ -84,7 +85,7 @@ final class GoldenTest extends TestCase
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
 
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $doc->metadata()
             ->title('Test')
             ->author('User')
@@ -110,7 +111,7 @@ final class GoldenTest extends TestCase
 
     public function testEncryptedDocumentMatchesFixtureBytes(): void
     {
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $doc->metadata()
             ->title('Confidential')
             ->author('User')
@@ -169,7 +170,7 @@ final class GoldenTest extends TestCase
 
     public function testPageWithGraphicsMatchesFixtureBytes(): void
     {
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $page = $doc->addPage();
 
         $page->setStrokeColor(\DragonOfMercy\PhpPdf\Color::hex('#ff0000'))
@@ -234,7 +235,7 @@ final class GoldenTest extends TestCase
 
     public function testPageWithTextMatchesFixtureBytes(): void
     {
-        $doc = new Document();
+        $doc = new Document(Unit::PT);
         $page = $doc->addPage();
 
         $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica()->bold(), 18);
@@ -281,7 +282,7 @@ final class GoldenTest extends TestCase
 
     public function testPageWithCellsMatchesFixtureBytes(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new Document(Unit::PT);
         $page = $doc->addPage();
         $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
 

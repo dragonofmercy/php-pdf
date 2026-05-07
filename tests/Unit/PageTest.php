@@ -434,7 +434,7 @@ final class PageTest extends TestCase
 
     public function testImageReturnsSelfForChaining(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
         self::assertSame($page, $page->image($img, x: 10, y: 10, w: 100, h: 50));
@@ -442,7 +442,7 @@ final class PageTest extends TestCase
 
     public function testImageWithExplicitDimensions(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
         $page->image($img, x: 10, y: 20, w: 100, h: 50);
@@ -454,7 +454,7 @@ final class PageTest extends TestCase
 
     public function testImageWidthOnlyDerivesHeightFromAspect(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         // Source 10x5 -> aspect 2:1. w=200 -> h derived = 100.
         $img = Image::fromBytes(TestImageFactory::pngRgb(width: 10, height: 5));
@@ -464,7 +464,7 @@ final class PageTest extends TestCase
 
     public function testImageHeightOnlyDerivesWidthFromAspect(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         // Source 10x5 -> aspect 2:1. h=50 -> w derived = 100.
         $img = Image::fromBytes(TestImageFactory::pngRgb(width: 10, height: 5));
@@ -474,7 +474,7 @@ final class PageTest extends TestCase
 
     public function testImageNeitherDimensionUsesIntrinsicSize(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $img = Image::fromBytes(TestImageFactory::pngRgb(width: 64, height: 32));
         $page->image($img, x: 5, y: 10);
@@ -483,7 +483,7 @@ final class PageTest extends TestCase
 
     public function testImageThrowsOnNonPositiveWidth(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
         $this->expectException(PdfException::class);
@@ -493,7 +493,7 @@ final class PageTest extends TestCase
 
     public function testImageThrowsOnNonPositiveHeight(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
         $this->expectException(PdfException::class);
@@ -503,7 +503,7 @@ final class PageTest extends TestCase
 
     public function testImageWithStringPath(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $path = sys_get_temp_dir() . '/phppdf-page-' . uniqid() . '.png';
         file_put_contents($path, TestImageFactory::pngRgb(width: 20, height: 10));
@@ -519,7 +519,7 @@ final class PageTest extends TestCase
 
     public function testTwoImageCallsWithSamePathReuseShortName(): void
     {
-        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
         $page = $doc->addPage();
         $path = sys_get_temp_dir() . '/phppdf-page-' . uniqid() . '.png';
         file_put_contents($path, TestImageFactory::pngRgb(2, 2));

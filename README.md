@@ -7,17 +7,18 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 ## What works today
 
 - **Document scaffolding** — PDF 1.7 output, deterministic byte-identical fixtures, encryption (RC4 + AES-128), metadata + XMP.
+- **Pages** — standard formats (A3, A4, A5, A6, Letter, Legal) with portrait / landscape orientation, plus arbitrary custom dimensions for labels and similar. Coordinates and sizes default to millimetres; switch to PDF points with `Unit::PT`.
 - **Graphics** — lines, rectangles, circles, paths (move/line/curve), fill/stroke, dash patterns, line caps/joins, save/restore, transforms (translate/rotate/scale).
-- **Text** — 12 standard PDF fonts (Helvetica / Times / Courier × Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `€ — œ Œ ‰` etc.). Multi-line via `\n`, custom leading.
-- **Cells** — rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right × top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
+- **Text** — 12 standard PDF fonts (Helvetica / Times / Courier × Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `EUR -- oe Oe %.` etc.). Multi-line via `\n`, custom leading.
+- **Cells** — rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
 - **Text measurement** — `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
 - **Images** — JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
 
 ## Not yet implemented
 
-- Custom fonts (TTF / OTF) and full Unicode (CJK, Cyrillic, Greek, Hebrew, etc.) — Phase 3, deferred.
-- SVG vector images — later phase.
-- Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering — later phases.
+- Custom fonts (TTF / OTF) and full Unicode (CJK, Cyrillic, Greek, Hebrew, etc.) -- Phase 3, deferred.
+- SVG vector images -- later phase.
+- Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
 
 ## Installation
 
@@ -39,6 +40,29 @@ $pdf->save('out.pdf');
 
 `$pdf->output()` returns the PDF bytes as a string instead of writing to disk.
 
+### Pages and units
+
+By default the document works in millimetres. Font sizes and leading stay in PDF points (typographic convention). Switch the whole document to points with `Unit::PT`.
+
+```php
+use DragonOfMercy\PhpPdf\{Document, PageFormat, Orientation, Unit};
+
+$pdf = new Document();                              // mm by default
+$pdf->addPage();                                    // A4 portrait
+$pdf->addPage(PageFormat::A6);                      // A6 portrait
+$pdf->addPage();                                    // A6 portrait (remembered)
+$pdf->addPage(orientation: Orientation::LANDSCAPE); // last format in landscape
+$pdf->addPage([99, 38]);                            // custom 99x38 mm (label)
+
+// Available formats: A3, A4, A5, A6, LETTER, LEGAL.
+
+// To work in PDF points instead:
+$pdf = new Document(Unit::PT);
+$pdf->addPage(); // 595.28 x 841.89 pt
+```
+
+The document remembers the last format and orientation, so a multi-page label sheet only needs `addPage([99, 38])` once. Passing a `PageFormat` clears any custom dimensions; for custom arrays, the orientation argument is ignored (you provide the dimensions in the order you want).
+
 ### Metadata + encryption
 
 ```php
@@ -57,17 +81,19 @@ $pdf->save('invoice.pdf');
 
 ### Graphics
 
+All coordinates and sizes are in the document's unit (millimetres by default).
+
 ```php
 use DragonOfMercy\PhpPdf\Color;
 
 $page = $pdf->addPage();
 $page->setStrokeColor(Color::hex('#ff0000'))
-     ->setLineWidth(1)
-     ->rect(20, 20, 100, 50)
+     ->setLineWidth(0.5)               // 0.5 mm
+     ->rect(20, 20, 80, 40)            // 80x40 mm at (20, 20) mm
      ->stroke();
 
 $page->setFillColor(Color::rgb(0, 0, 255))
-     ->circle(200, 200, 40)
+     ->circle(105, 150, 20)             // centre at (105, 150) mm, r = 20 mm
      ->fill();
 ```
 
@@ -76,14 +102,15 @@ $page->setFillColor(Color::rgb(0, 0, 255))
 ```php
 use DragonOfMercy\PhpPdf\Font;
 
+// Font size is in points, regardless of the document unit.
 $page->setFont(Font::helvetica()->bold(), 18);
-$page->text(50, 50, 'Hello World');
+$page->text(20, 30, 'Hello World');     // (20, 30) mm
 
 $page->setFont(Font::times()->italic(), 12);
-$page->text(50, 100, 'Resume - cafe, naivete, oeuvre');
+$page->text(20, 50, 'Resume - cafe, naivete, oeuvre');
 
 $page->setFont(Font::courier(), 10);
-$page->text(50, 150, "Line 1\nLine 2\nLine 3");
+$page->text(20, 70, "Line 1\nLine 2\nLine 3");
 ```
 
 ### Cells
@@ -99,9 +126,9 @@ $page->setFont(Font::helvetica(), 12);
 
 // Header centered, bordered, filled.
 $page->cell(
-    x: 50, y: 50, w: 300, h: 25,
+    x: 20, y: 20, w: 170, h: 10,
     text: 'Invoice #2026-001',
-    border: Border::all()->withWidth(0.8),
+    border: Border::all()->withWidth(0.3),
     fill: Color::rgb(242, 242, 242),
     align: TextAlign::CENTER,
     verticalAlign: VerticalAlign::MIDDLE,
@@ -109,14 +136,14 @@ $page->cell(
 
 // Wrapping prose with dashed border.
 $result = $page->cell(
-    x: 50, y: 80, w: 300,
+    x: 20, y: 35, w: 170,
     text: 'Long paragraph that wraps automatically across multiple lines.',
     border: Border::all()->withStyle(BorderStyle::DASHED),
 );
 
 // Right-aligned with custom text color.
 $page->cell(
-    x: 50, y: $result->y + 5, w: 300, h: 20,
+    x: 20, y: $result->y + 2, w: 170, h: 8,
     text: 'Total: 1234.56 EUR',
     textColor: Color::rgb(192, 0, 0),
     align: TextAlign::RIGHT,
@@ -124,20 +151,20 @@ $page->cell(
 
 // Long word condensed to fit a narrow cell.
 $page->cell(
-    x: 50, y: 200, w: 100, h: 20,
+    x: 20, y: 80, w: 40, h: 8,
     text: 'Antidisestablishmentarianism',
     border: Border::all(),
     fit: Fit::CONDENSE,
 );
 ```
 
-`cell()` returns a `CellResult` carrying `x`, `y` (the bottom-right anchor for stacking), `height`, `lineCount`, `brokenWords`, and `textOverflow`.
+`cell()` returns a `CellResult` carrying `x`, `y` (the bottom-right anchor for stacking, in the document's unit), `height`, `lineCount`, `brokenWords`, and `textOverflow`.
 
 ### Text measurement
 
 ```php
 $page->setFont(Font::helvetica(), 12);
-$width = $page->stringWidth('Hello'); // 27.336 (points)
+$width = $page->stringWidth('Hello'); // ~9.64 (mm), or ~27.34 in PT mode
 ```
 
 ### Images
@@ -146,21 +173,21 @@ $width = $page->stringWidth('Hello'); // 27.336 (points)
 use DragonOfMercy\PhpPdf\Image;
 
 // Path string: format auto-detected, file read once, cached for the document.
-$page->image('logo.png', x: 50, y: 50, w: 100, h: 50);
+$page->image('logo.png', x: 20, y: 20, w: 40, h: 20);   // 40x20 mm
 
 // Instance: read bytes elsewhere, embed when convenient.
 $photo = Image::fromFile('photo.jpg');
-$page->image($photo, x: 50, y: 200, w: 200);   // h derived from aspect ratio
+$page->image($photo, x: 20, y: 60, w: 80);              // h derived from aspect ratio
 
 // Same path used twice -> one XObject embedded, two placements.
-$page->image('logo.png', x: 400, y: 50, w: 80, h: 40);
+$page->image('logo.png', x: 150, y: 20, w: 30, h: 15);
 ```
 
 Dimension rules:
 - Both `w` and `h` provided -> forced (may distort).
 - Only `w` -> `h` derived to preserve aspect ratio.
 - Only `h` -> `w` derived to preserve aspect ratio.
-- Neither -> intrinsic pixel size at 72 DPI (1 pixel = 1 point).
+- Neither -> intrinsic pixel size at 72 DPI (1 pixel = 1 point ~= 0.353 mm).
 
 `(x, y)` is the **top-left** corner in the page user space (Y-down origin, consistent with the rest of phppdf since Phase 2a).
 
@@ -174,11 +201,11 @@ composer install
 composer check   # PHPStan max + PHPUnit (unit + golden)
 ```
 
-`composer test` runs the full suite (402 tests at Phase 4). `composer analyse` runs PHPStan at level max.
+`composer test` runs the full suite (433 tests at Phase 4). `composer analyse` runs PHPStan at level max.
 
 ### Golden tests
 
-Six binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
+Seven binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
 
 - Linux: `sudo apt-get install qpdf`
 - macOS: `brew install qpdf`
