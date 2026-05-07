@@ -23,15 +23,16 @@ interface Barcode
     /**
      * Renders the barcode onto the page at (x, y) with width w and height h.
      * Coordinates are in the page's unit, top-down Y axis.
+     * (x, y) is the top-left corner of the barcode bounding box (including the quiet zone), in the page's unit.
      *
      * For 1D barcodes, h is required; passing null throws.
      * For QR (which is square), h is optional: if null, h = w; if provided,
      * it must equal w or a PdfException is thrown.
      *
-     * Wraps the rendering in q ... Q so the page's graphics state is unchanged
-     * after the call.
-     *
-     * @internal Called from Page::barcode().
+     * This method is not part of the public drawing API; call
+     * {@see \DragonOfMercy\PhpPdf\Page::barcode()} instead. Implementations
+     * must wrap their rendering in `q ... Q` so the page's graphics state
+     * is unchanged after the call.
      */
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void;
 }
