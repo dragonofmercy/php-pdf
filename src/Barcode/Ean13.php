@@ -87,7 +87,7 @@ final readonly class Ean13 implements Barcode
         [false, false, false, true, false, true, true],   // 9 -> 0001011
     ];
 
-    /** ISO 15420 set B (even parity) -- mirror of A read backwards. */
+    /** ISO 15420 set B (even parity) -- mirror of C read backwards. */
     private const array SET_B = [
         [false, true, false, false, true, true, true],   // 0 -> 0100111
         [false, true, true, false, false, true, true],   // 1 -> 0110011
