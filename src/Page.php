@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\Utf8;
 use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
@@ -69,8 +70,6 @@ final class Page
         private readonly ?FontResolver $fontResolver = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
-        // The pair must be supplied together; null/null means "no default
-        // font" so the existing setFont()-or-throw contract still applies.
         if (($defaultFont === null) !== ($defaultSize === null)) {
             throw new PdfException('Page default font requires both font and size, or neither');
         }
@@ -81,8 +80,6 @@ final class Page
             $this->currentFont = $defaultFont;
             $this->currentSize = $defaultSize;
         }
-        // Cells padding stored as a CellPadding-in-pt; the user-facing
-        // values come in document unit (or default 2pt all-sides).
         $this->cellsPaddingPt = $defaultCellsPadding !== null
             ? $this->paddingToPt($this->normalizePadding($defaultCellsPadding))
             : CellPadding::all(2.0);
@@ -396,31 +393,7 @@ final class Page
     private static function stringWidthFromCmap(string $utf8, ParsedTtf $ttf, float $size): float
     {
         $totalEm = 0;
-        $i = 0;
-        $len = strlen($utf8);
-        while ($i < $len) {
-            $b0 = ord($utf8[$i]);
-            if ($b0 < 0x80) {
-                $cp = $b0;
-                $i++;
-            } elseif (($b0 & 0xE0) === 0xC0 && $i + 1 < $len) {
-                $cp = (($b0 & 0x1F) << 6) | (ord($utf8[$i + 1]) & 0x3F);
-                $i += 2;
-            } elseif (($b0 & 0xF0) === 0xE0 && $i + 2 < $len) {
-                $cp = (($b0 & 0x0F) << 12)
-                    | ((ord($utf8[$i + 1]) & 0x3F) << 6)
-                    | (ord($utf8[$i + 2]) & 0x3F);
-                $i += 3;
-            } elseif (($b0 & 0xF8) === 0xF0 && $i + 3 < $len) {
-                $cp = (($b0 & 0x07) << 18)
-                    | ((ord($utf8[$i + 1]) & 0x3F) << 12)
-                    | ((ord($utf8[$i + 2]) & 0x3F) << 6)
-                    | (ord($utf8[$i + 3]) & 0x3F);
-                $i += 4;
-            } else {
-                $cp = -1;
-                $i++;
-            }
+        foreach (Utf8::codepoints($utf8) as [$cp, $_]) {
             $gid = $cp >= 0 ? ($ttf->cmap[$cp] ?? 0) : 0;
             $totalEm += $ttf->advanceWidthsByGid[$gid] ?? 0;
         }
@@ -545,8 +518,6 @@ final class Page
             ? $this->paddingToPt($this->normalizePadding($padding))
             : $this->cellsPaddingPt;
 
-        // Auto-size width to the longest text line plus horizontal padding when
-        // omitted. Mirrors image()'s "derive from intrinsic" convention.
         if ($w === null) {
             if ($text === '') {
                 throw new PdfException('Cell width is required when text is empty');
@@ -735,10 +706,10 @@ final class Page
     }
 
     /**
-     * Folds CRLF and lone CR to LF so the downstream `explode("\n", ...)`
-     * doesn't leave a stray \r on the previous paragraph -- WinAnsiEncoder
-     * maps unknown control bytes to '?', which would surface as a literal
-     * question mark next to text on Windows-originated input.
+     * Folds CRLF and lone CR to LF so explode("\n", ...) does not leave a
+     * trailing \r on the previous paragraph -- on the standard-font path
+     * that \r would render as '?' (WinAnsi mapping for unknown control
+     * bytes), and on the custom-TTF path it would render as GID 0 (.notdef).
      */
     private static function normalizeNewlines(string $text): string
     {

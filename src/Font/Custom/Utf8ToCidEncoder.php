@@ -19,31 +19,7 @@ final class Utf8ToCidEncoder
     public static function encode(string $utf8, ParsedTtf $font): string
     {
         $output = '';
-        $i = 0;
-        $len = strlen($utf8);
-        while ($i < $len) {
-            $b0 = ord($utf8[$i]);
-            if ($b0 < 0x80) {
-                $cp = $b0;
-                $i++;
-            } elseif (($b0 & 0xE0) === 0xC0 && $i + 1 < $len) {
-                $cp = (($b0 & 0x1F) << 6) | (ord($utf8[$i + 1]) & 0x3F);
-                $i += 2;
-            } elseif (($b0 & 0xF0) === 0xE0 && $i + 2 < $len) {
-                $cp = (($b0 & 0x0F) << 12)
-                    | ((ord($utf8[$i + 1]) & 0x3F) << 6)
-                    | (ord($utf8[$i + 2]) & 0x3F);
-                $i += 3;
-            } elseif (($b0 & 0xF8) === 0xF0 && $i + 3 < $len) {
-                $cp = (($b0 & 0x07) << 18)
-                    | ((ord($utf8[$i + 1]) & 0x3F) << 12)
-                    | ((ord($utf8[$i + 2]) & 0x3F) << 6)
-                    | (ord($utf8[$i + 3]) & 0x3F);
-                $i += 4;
-            } else {
-                $cp = -1;
-                $i++;
-            }
+        foreach (Utf8::codepoints($utf8) as [$cp, $_]) {
             $gid = $cp >= 0 ? ($font->cmap[$cp] ?? 0) : 0;
             $output .= chr(($gid >> 8) & 0xFF) . chr($gid & 0xFF);
         }
