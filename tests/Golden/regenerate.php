@@ -252,3 +252,39 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-qr.pdf');
 echo "Regenerated barcode-qr.pdf\n";
+
+// Fixture 12: page with custom TTF (Phase 3a)
+$fontsDir = $fixturesDir . '/fonts';
+if (is_file($fontsDir . '/FreeSans.ttf') && is_file($fontsDir . '/FreeSansBold.ttf')) {
+    $doc = new Document(Unit::PT);
+    $doc->registerFontFamily(
+        'FS',
+        regular: $fontsDir . '/FreeSans.ttf',
+        bold: $fontsDir . '/FreeSansBold.ttf',
+    );
+
+    $page = $doc->addPage();
+
+    $page->setFont(Font::helvetica(), 11);
+    $page->text(50, 50, 'Standard Helvetica baseline');
+
+    $page->setFont(Font::custom('FS'), 14);
+    $page->text(50, 80, 'Custom FreeSans regular');
+
+    $page->setFont(Font::custom('FS')->bold(), 14);
+    $page->text(50, 110, 'Custom FreeSans bold');
+
+    $page->setFont(Font::custom('FS'), 12);
+    $page->text(50, 140, 'Resume cafe naivete oeuvre');
+
+    $page->setFont(Font::custom('FS'), 12);
+    $page->text(50, 170, 'alpha beta gamma delta');
+
+    $page->setFont(Font::custom('FS')->bold(), 12);
+    $page->text(50, 200, 'moskva sankt-peterburg');
+
+    $doc->save($fixturesDir . '/page-with-ttf.pdf');
+    echo "Regenerated page-with-ttf.pdf\n";
+} else {
+    echo "Skipped page-with-ttf.pdf (FreeSans fixtures absent)\n";
+}
