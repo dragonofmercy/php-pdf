@@ -147,6 +147,13 @@ $page->text(20, 50, 'Resume - cafe, naivete, oeuvre');
 
 $page->setFont(Font::courier(), 10);
 $page->text(20, 70, "Line 1\nLine 2\nLine 3");
+
+// Size is optional once a font is set: change family/variant, keep the size.
+$page->setFont(Font::helvetica()->bold()); // still 10pt from the previous call
+
+// Read back the current font / size if you need to save and restore them.
+$savedFont = $page->getFont();
+$savedSize = $page->getFontSize();
 ```
 
 #### Custom TTF fonts

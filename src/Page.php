@@ -255,9 +255,30 @@ final class Page
 
     // ----- Text (Phase 2b) -----
 
-    public function setFont(Font $font, float $size): self
+    public function getFont(): Font
     {
-        if ($size <= 0) {
+        if ($this->currentFont === null) {
+            throw new PdfException('No font set: call setFont() first');
+        }
+        return $this->currentFont;
+    }
+
+    public function getFontSize(): float
+    {
+        if ($this->currentSize === null) {
+            throw new PdfException('No font set: call setFont() first');
+        }
+        return $this->currentSize;
+    }
+
+    public function setFont(Font $font, ?float $size = null): self
+    {
+        if ($size === null) {
+            if ($this->currentSize === null) {
+                throw new PdfException('Font size is required when no font has been set previously');
+            }
+            $size = $this->currentSize;
+        } elseif ($size <= 0) {
             throw new PdfException('Font size must be positive, got ' . $size);
         }
         if ($font->isCustom()) {

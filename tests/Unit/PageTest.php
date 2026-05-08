@@ -265,6 +265,52 @@ final class PageTest extends TestCase
         $page->setFont(Font::helvetica(), -5.0);
     }
 
+    public function testGetFontReturnsCurrentFont(): void
+    {
+        $page = $this->page();
+        $font = Font::times()->bold();
+        $page->setFont($font, 14);
+        self::assertSame($font, $page->getFont());
+    }
+
+    public function testGetFontThrowsWhenNoFontSet(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('No font set');
+        $this->page()->getFont();
+    }
+
+    public function testGetFontSizeReturnsCurrentSize(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 14.5);
+        self::assertSame(14.5, $page->getFontSize());
+    }
+
+    public function testGetFontSizeThrowsWhenNoFontSet(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('No font set');
+        $this->page()->getFontSize();
+    }
+
+    public function testSetFontReusesCurrentSizeWhenSizeOmitted(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 18);
+        $newFont = Font::times()->italic();
+        $page->setFont($newFont);
+        self::assertSame($newFont, $page->getFont());
+        self::assertSame(18.0, $page->getFontSize());
+    }
+
+    public function testSetFontWithoutSizeThrowsWhenNoCurrentSize(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Font size is required');
+        $this->page()->setFont(Font::helvetica());
+    }
+
     public function testFontsUsedAccessorReturnsRegisteredForThisPage(): void
     {
         $page = $this->page();
