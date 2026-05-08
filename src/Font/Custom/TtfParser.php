@@ -245,11 +245,74 @@ final class TtfParser
         return $unpacked['v'];
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir */
+    /**
+     * Extracts the PostScriptName (name id 6). Prefers Platform 3 Encoding 1
+     * (Microsoft Unicode BMP, decoded as UTF-16BE); falls back to Platform 1
+     * Encoding 0 (Macintosh Roman, decoded as ASCII).
+     *
+     * @param array<string, array{offset: int, length: int}> $dir
+     */
     private static function readNameTable(string $bytes, array $dir, string $ctx): string
     {
-        self::requireTable($dir, 'name', $ctx);
-        throw new \RuntimeException('readNameTable not implemented');
+        $entry = self::requireTable($dir, 'name', $ctx);
+        $offset = $entry['offset'];
+        if ($entry['length'] < 6) {
+            throw new PdfException("Invalid 'name' table in {$ctx}: too short");
+        }
+        $count = self::readUint16($bytes, $offset + 2);
+        $stringOffset = self::readUint16($bytes, $offset + 4);
+
+        /** @var array{0: int, 1: string, 2: int}|null $best */
+        $best = null;
+        for ($i = 0; $i < $count; $i++) {
+            $rec = $offset + 6 + $i * 12;
+            $platformId = self::readUint16($bytes, $rec);
+            $encodingId = self::readUint16($bytes, $rec + 2);
+            $nameId = self::readUint16($bytes, $rec + 6);
+            $length = self::readUint16($bytes, $rec + 8);
+            $strOffset = self::readUint16($bytes, $rec + 10);
+
+            if ($nameId !== 6) {
+                continue;
+            }
+
+            $raw = substr($bytes, $offset + $stringOffset + $strOffset, $length);
+
+            $score = match (true) {
+                $platformId === 3 && $encodingId === 1 => 2,
+                $platformId === 1 && $encodingId === 0 => 1,
+                default => 0,
+            };
+            if ($score === 0) {
+                continue;
+            }
+            if ($best === null || $score > $best[0]) {
+                $best = [$score, $raw, $platformId];
+            }
+        }
+
+        if ($best === null) {
+            throw new PdfException("No PostScriptName (name id 6) found in {$ctx}");
+        }
+
+        [, $raw, $platformId] = $best;
+        $name = $platformId === 3
+            ? mb_convert_encoding($raw, 'UTF-8', 'UTF-16BE')
+            : $raw;
+
+        return self::sanitizePostScriptName($name);
+    }
+
+    private static function sanitizePostScriptName(string $raw): string
+    {
+        $sanitized = preg_replace('/[^A-Za-z0-9._\-]/', '', $raw);
+        if (!is_string($sanitized) || $sanitized === '') {
+            $sanitized = 'CustomFont';
+        }
+        if (ctype_digit(substr($sanitized, 0, 1))) {
+            $sanitized = 'F' . $sanitized;
+        }
+        return $sanitized;
     }
 
     /** @param array<string, array{offset: int, length: int}> $dir
