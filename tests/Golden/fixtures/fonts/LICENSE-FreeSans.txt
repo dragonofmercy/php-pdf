@@ -1,0 +1,10 @@
+FreeSans.ttf and FreeSansBold.ttf are part of the GNU FreeFont project
+(https://www.gnu.org/software/freefont/), licensed under the GNU General
+Public License version 3 with the GPL Font Exception.
+
+The GPL Font Exception explicitly permits embedding these fonts in documents
+distributed under any license. See the FreeFont project page or the LICENSE
+file in the upstream archive for the full license text.
+
+These fixtures are used as test data for the PHP PDF library and are not part
+of the library's runtime distribution.
