@@ -6,20 +6,22 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 
 ## What works today
 
-- **Document scaffolding** — PDF 1.7 output, deterministic byte-identical fixtures, encryption (RC4 + AES-128), metadata + XMP, viewer preferences (page layout, page mode, initial open action).
-- **Pages** — standard formats (A3, A4, A5, A6, Letter, Legal) with portrait / landscape orientation, plus arbitrary custom dimensions for labels and similar. Coordinates and sizes default to millimetres; switch to PDF points with `Unit::PT`.
-- **Graphics** — lines, rectangles, circles, paths (move/line/curve), fill/stroke, dash patterns, line caps/joins, save/restore, transforms (translate/rotate/scale).
-- **Text** — 12 standard PDF fonts (Helvetica / Times / Courier × Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `EUR -- oe Oe %.` etc.). Multi-line via `\n`, custom leading.
-- **Cells** — rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
-- **Text measurement** — `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
-- **Images** — JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
-- **Barcodes & QR codes** — EAN-13, EAN-8, Code 128 (auto A/B/C set switching), QR Code (V1-V10, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
+- **Document scaffolding** - PDF 1.7 output, deterministic byte-identical fixtures, encryption (RC4 + AES-128), metadata + XMP, viewer preferences (page layout, page mode, initial open action).
+- **Pages** - standard formats (A3, A4, A5, A6, Letter, Legal) with portrait / landscape orientation, plus arbitrary custom dimensions for labels and similar. Coordinates and sizes default to millimetres; switch to PDF points with `Unit::PT`.
+- **Graphics** - lines, rectangles, circles, paths (move/line/curve), fill/stroke, dash patterns, line caps/joins, save/restore, transforms (translate/rotate/scale).
+- **Text** - 12 standard PDF fonts (Helvetica / Times / Courier x Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `EUR -- oe Oe %.` etc.). Multi-line via `\n`, custom leading.
+- **Custom TTF fonts** - register your own TrueType fonts via `Document::registerFontFamily('alias', regular: ..., bold: ..., italic: ..., boldItalic: ...)`. Composite CIDFont/Type0 with Identity-H encoding and embedded ToUnicode CMap (copy-paste works). Full Unicode reach beyond WinAnsi: Latin Extended, Greek, Cyrillic, etc. cmap subtable formats 4 and 12 supported. Fonts are embedded whole (subsetting comes in Phase 3b).
+- **Cells** - rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
+- **Text measurement** - `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
+- **Images** - JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
+- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), QR Code (V1-V10, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
 
 ## Not yet implemented
 
-- Custom OTF/CFF fonts, TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping, and TTF subsetting -- out of Phase 3a scope. TrueType (`.ttf`) embedding for left-to-right scripts is supported (see "Custom TTF fonts" below).
+- Custom OTF/CFF fonts (`.otf`), TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping -- out of Phase 3a scope.
+- TTF subsetting -- whole-font embedding only in Phase 3a, subsetting planned for Phase 3b.
 - SVG vector images -- later phase.
-- QR Code versions V11-V40 -- capped at V10 in this release (covers URLs, vCards, payment payloads). Add to demand.
+- QR Code versions V11-V40 -- capped at V10 in this release (covers URLs, vCards, payment payloads). Add on demand.
 - Other barcode formats (UPC-A, Code 39 / 93, ITF, DataMatrix, PDF417, Aztec) -- add on demand.
 - Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
 
@@ -162,10 +164,12 @@ $pdf->registerFontFamily('Inter',
 
 $page = $pdf->addPage();
 $page->setFont(Font::custom('Inter'), 14);
-$page->text(50, 50, 'Resume cafe naivete oeuvre');
+$page->text(50, 50, 'Resume, cafe, naivete, oeuvre'); // Latin, also fine in WinAnsi
+$page->text(50, 70, "\u{0391} \u{0392} \u{0393} \u{0394}"); // Greek: Alpha Beta Gamma Delta
+$page->text(50, 90, "\u{041C}\u{043E}\u{0441}\u{043A}\u{0432}\u{0430}"); // Cyrillic: Moscow
 
 $page->setFont(Font::custom('Inter')->bold(), 14);
-$page->text(50, 80, 'Bold variant');
+$page->text(50, 110, 'Bold variant');
 
 $pdf->save('out.pdf');
 ```
