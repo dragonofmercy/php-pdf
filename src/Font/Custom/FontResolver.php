@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DragonOfMercy\PhpPdf\Font\Custom;
+
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font;
+use LogicException;
+
+/**
+ * Resolves a custom Font (alias + bold/italic flags) to a concrete ParsedTtf
+ * via the fallback chain: exact match > closest weight match > regular.
+ *
+ * Decision rule:
+ *   bold+italic -> boldItalic | bold | italic | regular
+ *   bold        -> bold | regular
+ *   italic      -> italic | regular
+ *   regular     -> regular
+ *
+ * The italic-only fallback intentionally avoids dropping to bold: the user
+ * asked for slant, not weight.
+ *
+ * @internal
+ */
+final class FontResolver
+{
+    /**
+     * @param array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> $registrations
+     */
+    public function __construct(private readonly array $registrations) {}
+
+    public function resolve(Font $font): ParsedTtf
+    {
+        if (!$font->isCustom()) {
+            throw new LogicException('FontResolver::resolve() called with a non-custom Font');
+        }
+        $alias = $font->customAlias();
+        if ($alias === null || !isset($this->registrations[$alias])) {
+            throw new PdfException(
+                "Font alias '" . ($alias ?? '') . "' is not registered. "
+                . 'Call Document::registerFontFamily() first.',
+            );
+        }
+        $reg = $this->registrations[$alias];
+
+        if ($font->isBold() && $font->isItalic()) {
+            return $reg['boldItalic'] ?? $reg['bold'] ?? $reg['italic'] ?? $reg['regular'];
+        }
+        if ($font->isBold()) {
+            return $reg['bold'] ?? $reg['regular'];
+        }
+        if ($font->isItalic()) {
+            return $reg['italic'] ?? $reg['regular'];
+        }
+        return $reg['regular'];
+    }
+}
