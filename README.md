@@ -17,7 +17,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 
 ## Not yet implemented
 
-- Custom fonts (TTF / OTF) and full Unicode (CJK, Cyrillic, Greek, Hebrew, etc.) -- Phase 3, deferred.
+- Custom OTF/CFF fonts, TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping, and TTF subsetting -- out of Phase 3a scope. TrueType (`.ttf`) embedding for left-to-right scripts is supported (see "Custom TTF fonts" below).
 - SVG vector images -- later phase.
 - QR Code versions V11-V40 -- capped at V10 in this release (covers URLs, vCards, payment payloads). Add to demand.
 - Other barcode formats (UPC-A, Code 39 / 93, ITF, DataMatrix, PDF417, Aztec) -- add on demand.
@@ -146,6 +146,57 @@ $page->text(20, 50, 'Resume - cafe, naivete, oeuvre');
 $page->setFont(Font::courier(), 10);
 $page->text(20, 70, "Line 1\nLine 2\nLine 3");
 ```
+
+#### Custom TTF fonts
+
+Beyond the 12 built-in standard PDF fonts, you can register your own TrueType fonts for the document. Each registration declares a family alias and up to four variant files (regular, bold, italic, boldItalic):
+
+```php
+use DragonOfMercy\PhpPdf\{Document, Font};
+
+$pdf = new Document();
+$pdf->registerFontFamily('Inter',
+    regular: __DIR__ . '/fonts/Inter.ttf',
+    bold: __DIR__ . '/fonts/Inter-Bold.ttf',
+);
+
+$page = $pdf->addPage();
+$page->setFont(Font::custom('Inter'), 14);
+$page->text(50, 50, 'Resume cafe naivete oeuvre');
+
+$page->setFont(Font::custom('Inter')->bold(), 14);
+$page->text(50, 80, 'Bold variant');
+
+$pdf->save('out.pdf');
+```
+
+`Font::custom('alias')` mirrors the standard factories (`Font::helvetica()`, `Font::times()`, `Font::courier()`) and supports the same chaining: `->bold()`, `->italic()`, both combined.
+
+Variant fallback chain when a requested style is not registered:
+
+- `Font::custom('alias')->bold()->italic()` -> `boldItalic > bold > italic > regular`
+- `Font::custom('alias')->bold()` -> `bold > regular`
+- `Font::custom('alias')->italic()` -> `italic > regular`
+- `Font::custom('alias')` -> `regular` (always required)
+
+`registerFontFamily()` parses each TTF eagerly: missing files, unsupported flavours, malformed tables, and missing required tables raise `PdfException` immediately at registration time, not later during page rendering.
+
+Currently supported in Phase 3a:
+
+- TrueType outlines (`.ttf`) only.
+- `cmap` subtable formats 4 (BMP, U+0000 to U+FFFF) and 12 (full Unicode, including supplementary planes).
+- Identity-H encoding, left-to-right scripts (Latin, Greek, Cyrillic, etc.). Copy-paste from the rendered PDF works correctly thanks to the embedded ToUnicode CMap.
+- The entire TTF is embedded as-is (no subsetting). Subsetting is planned for Phase 3b.
+
+Not supported in Phase 3a (out of scope):
+
+- OpenType / CFF outlines (`.otf`).
+- TrueType Collection (`.ttc`).
+- Variable fonts (fvar / gvar).
+- Kerning (GPOS / `kern` table).
+- Ligatures and complex shaping (GSUB).
+- Right-to-left, Arabic, Indic, and other scripts requiring shaping.
+- Identity-V (vertical writing).
 
 ### Cells
 
@@ -351,11 +402,11 @@ composer install
 composer check   # PHPStan max + PHPUnit (unit + golden)
 ```
 
-`composer test` runs the full suite (527 tests at Phase 5). `composer analyse` runs PHPStan at level max.
+`composer test` runs the full suite (621 tests at Phase 3a). `composer analyse` runs PHPStan at level max.
 
 ### Golden tests
 
-Eleven binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
+Twelve binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
 
 - Linux: `sudo apt-get install qpdf`
 - macOS: `brew install qpdf`
