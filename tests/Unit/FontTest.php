@@ -86,4 +86,52 @@ final class FontTest extends TestCase
     {
         self::assertNotSame(Font::helvetica(), Font::helvetica());
     }
+
+    public function testCustomFactoryProducesCustomFont(): void
+    {
+        $font = Font::custom('Inter');
+        self::assertTrue($font->isCustom());
+        self::assertSame('Inter', $font->customAlias());
+        self::assertFalse($font->isBold());
+        self::assertFalse($font->isItalic());
+    }
+
+    public function testCustomFontIsBoldAndItalicChainable(): void
+    {
+        $font = Font::custom('Inter')->bold()->italic();
+        self::assertTrue($font->isCustom());
+        self::assertSame('Inter', $font->customAlias());
+        self::assertTrue($font->isBold());
+        self::assertTrue($font->isItalic());
+    }
+
+    public function testCustomFontPdfNameThrows(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('pdfName() is not supported for custom fonts');
+        Font::custom('Inter')->pdfName();
+    }
+
+    public function testStandardFontIsNotCustom(): void
+    {
+        self::assertFalse(Font::helvetica()->isCustom());
+        self::assertNull(Font::helvetica()->customAlias());
+    }
+
+    public function testStandardFontExposesIsBoldIsItalic(): void
+    {
+        self::assertFalse(Font::helvetica()->isBold());
+        self::assertTrue(Font::helvetica()->bold()->isBold());
+        self::assertFalse(Font::helvetica()->isItalic());
+        self::assertTrue(Font::helvetica()->italic()->isItalic());
+    }
+
+    public function testCustomFontEqualityViaAliasAndFlags(): void
+    {
+        $a = Font::custom('Inter')->bold();
+        $b = Font::custom('Inter')->bold();
+        $c = Font::custom('Roboto')->bold();
+        self::assertEquals($a, $b);
+        self::assertNotEquals($a, $c);
+    }
 }
