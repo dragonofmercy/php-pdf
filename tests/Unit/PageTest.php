@@ -432,6 +432,142 @@ final class PageTest extends TestCase
         self::assertTrue($registry->isEmpty());
     }
 
+    public function testCellAutoWidthFromText(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $expected = $page->stringWidth('Hello') + 2 * 1.5;
+        $r = $page->cell(x: 10, y: 10, text: 'Hello', padding: 1.5);
+        self::assertEqualsWithDelta($expected + 10, $r->x, 0.0001);
+    }
+
+    public function testCellAutoWidthUsesDefaultPadding(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->setCellsPadding(2.0);
+        $expected = $page->stringWidth('Hi') + 2 * 2.0;
+        $r = $page->cell(x: 0, y: 0, text: 'Hi');
+        self::assertEqualsWithDelta($expected, $r->x, 0.0001);
+    }
+
+    public function testCellAutoWidthEmptyTextThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Cell width is required when text is empty');
+        $page->cell(x: 50, y: 50, border: \DragonOfMercy\PhpPdf\Border::all());
+    }
+
+    public function testCellLnRightAdvancesCursorHorizontally(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        // h: 30 with padding 0 dominates the auto text-height (14.4), so
+        // cellHeight stays predictable at 30.
+        $page->cell(x: 20, y: 30, w: 40, h: 30, text: 'A', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::RIGHT);
+        $r = $page->cell(w: 25, h: 30, text: 'B', padding: 0);
+        self::assertSame(85.0, $r->x);   // 20 + 40 + 25
+        self::assertSame(60.0, $r->y);   // 30 + 30
+    }
+
+    public function testCellLnNewlineReturnsToRowStart(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(x: 20, y: 30, w: 40, h: 30, text: 'A', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::RIGHT);
+        $page->cell(w: 25, h: 30, text: 'B', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::NEWLINE);
+        $r = $page->cell(w: 30, h: 30, text: 'C', padding: 0);
+        self::assertSame(50.0, $r->x);   // back to row start (20) + 30
+        self::assertSame(90.0, $r->y);   // 30 + 30 + 30
+    }
+
+    public function testCellLnBelowKeepsColumn(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(x: 80, y: 30, w: 40, h: 30, text: 'A', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::BELOW);
+        $r = $page->cell(w: 40, h: 30, text: 'B', padding: 0);
+        self::assertSame(120.0, $r->x); // 80 + 40
+        self::assertSame(90.0, $r->y);  // 30 + 30 + 30
+    }
+
+    public function testCellWithoutCursorAndOmittedXThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('no cursor set');
+        $page->cell(w: 30, h: 10, text: 'A');
+    }
+
+    public function testGetXThrowsWhenCursorUnset(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('No cursor set');
+        $page->getX();
+    }
+
+    public function testGetYThrowsWhenCursorUnset(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $page->getY();
+    }
+
+    public function testSetXSetYRoundTrip(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setX(42.0)->setY(73.0);
+        self::assertSame(42.0, $page->getX());
+        self::assertSame(73.0, $page->getY());
+    }
+
+    public function testSetXYRoundTrip(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setXY(10.5, 20.25);
+        self::assertSame(10.5, $page->getX());
+        self::assertSame(20.25, $page->getY());
+    }
+
+    public function testCellAfterSetXYUsesCursor(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->setXY(40, 60);
+        $r = $page->cell(w: 30, h: 30, text: 'A', padding: 0);
+        self::assertSame(70.0, $r->x);   // 40 + 30
+        self::assertSame(90.0, $r->y);   // 60 + 30
+    }
+
+    public function testSetXResetsLineStartForNewline(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(x: 20, y: 30, w: 40, h: 30, text: 'A', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::RIGHT);
+        $page->setX(100); // redefines the row-start anchor
+        $page->cell(w: 30, h: 30, text: 'B', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::NEWLINE);
+        $r = $page->cell(w: 20, h: 30, text: 'C', padding: 0);
+        self::assertSame(120.0, $r->x); // 100 (new row start) + 20
+        self::assertSame(90.0, $r->y);  // 30 + 30 from NEWLINE
+    }
+
+    public function testCellWithoutLnDoesNotMoveCursor(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(x: 20, y: 30, w: 40, h: 30, text: 'A', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::RIGHT);
+        // Second cell does NOT pass ln => cursor stays at (60, 30); third call still
+        // resolves from that same cursor (no drift).
+        $page->cell(w: 25, h: 30, text: 'B', padding: 0);
+        $r = $page->cell(w: 25, h: 30, text: 'C', padding: 0);
+        self::assertSame(85.0, $r->x);   // 20 + 40 + 25, same as previous call
+        self::assertSame(60.0, $r->y);
+    }
+
     public function testImageReturnsSelfForChaining(): void
     {
         $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);

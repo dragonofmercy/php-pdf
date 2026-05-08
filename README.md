@@ -185,9 +185,55 @@ $page->cell(
     border: Border::all(),
     fit: Fit::CONDENSE,
 );
+
+// Width auto-derived from the longest text line + horizontal padding.
+$page->cell(x: 20, y: 95, text: 'Auto-sized label', border: Border::all());
 ```
 
 `cell()` returns a `CellResult` carrying `x`, `y` (the bottom-right anchor for stacking, in the document's unit), `height`, `lineCount`, `brokenWords`, and `textOverflow`.
+
+When `w` is omitted, the cell auto-sizes its width to fit the longest line of `text` plus horizontal padding (default or per-call). This requires non-empty text -- omitting both `w` and `text` raises an error.
+
+#### Cursor flow with `ln`
+
+`cell()` can drive an internal cursor so the next call can omit `x` and `y`. The
+`ln` parameter (a `NextPosition` enum) chooses where to leave the cursor after
+rendering. Without `ln`, the cursor is unchanged.
+
+```php
+use DragonOfMercy\PhpPdf\NextPosition;
+
+$page->setCellsPadding(2);
+
+// Row of three cells: only the first call sets x/y. The first two pass
+// ln: NextPosition::RIGHT to keep filling the row; the third uses NEWLINE
+// to drop down to the next row.
+$page->cell(x: 20, y: 20, w: 40, h: 8, text: 'Name',  border: Border::all(), ln: NextPosition::RIGHT);
+$page->cell(           w: 60, h: 8, text: 'Email', border: Border::all(), ln: NextPosition::RIGHT);
+$page->cell(           w: 30, h: 8, text: 'Phone', border: Border::all(), ln: NextPosition::NEWLINE);
+
+// Now resumes at (20, 28), ready to render the next row.
+$page->cell(w: 40, h: 8, text: 'Alice',           border: Border::all(), ln: NextPosition::RIGHT);
+$page->cell(w: 60, h: 8, text: 'alice@host.test', border: Border::all(), ln: NextPosition::RIGHT);
+$page->cell(w: 30, h: 8, text: '+41 21 000 0000', border: Border::all());
+```
+
+`NextPosition` cases:
+- `RIGHT`: cursor moves to the right edge of the cell just drawn (continue the row).
+- `NEWLINE`: cursor returns to the x at which the row started and advances y by the rendered height (carriage-return + line-feed).
+- `BELOW`: cursor stays at the cell's left edge and advances y (vertical stack at the same column).
+
+An explicit `x` always becomes the new "row start" used by `NEWLINE`. Calling `cell()` without `x` before any cursor is set raises an error.
+
+The cursor is also exposed directly via `getX()`, `getY()`, `setX()`, `setY()`, and `setXY()` -- handy to seed the cursor before the first `cell()`, jump to a known position mid-flow, or read the current position after a stack of cells:
+
+```php
+$page->setXY(20, 20);            // seed the cursor
+$page->cell(w: 50, h: 8, text: 'Header', ln: NextPosition::NEWLINE);
+$y = $page->getY();              // bottom of the row, ready for the body
+```
+
+`setX()` and `setXY()` also redefine the row-start anchor used by `NEWLINE`, just like passing an explicit `x` to `cell()`.
 
 ### Text measurement
 

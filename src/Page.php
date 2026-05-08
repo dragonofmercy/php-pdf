@@ -39,6 +39,12 @@ final class Page
     /** Padding stored in points (internal canonical unit). */
     private float $cellsPaddingPt = 2.0;
 
+    /** Cell cursor (in pt). Populated by cell() when ln updates the position. */
+    private ?float $cursorXPt = null;
+    private ?float $cursorYPt = null;
+    /** x of the start of the current row of cells (in pt), used by NEWLINE. */
+    private ?float $lineStartXPt = null;
+
     /** @var array<string, Font> Fonts used by this page, keyed by PDF canonical name */
     private array $fontsUsed = [];
 
@@ -307,10 +313,56 @@ final class Page
         return $this->fromPt($this->cellsPaddingPt);
     }
 
+    /**
+     * Returns the current cell cursor x in the document's unit.
+     * Throws if no cursor has been set yet (no prior cell() with `ln`,
+     * setX/setXY/setY, etc.).
+     */
+    public function getX(): float
+    {
+        if ($this->cursorXPt === null) {
+            throw new PdfException('No cursor set: call setX/setXY or cell() first');
+        }
+        return $this->fromPt($this->cursorXPt);
+    }
+
+    public function getY(): float
+    {
+        if ($this->cursorYPt === null) {
+            throw new PdfException('No cursor set: call setY/setXY or cell() first');
+        }
+        return $this->fromPt($this->cursorYPt);
+    }
+
+    /**
+     * Sets the cell cursor x. Also redefines the row-start anchor used by
+     * NextPosition::NEWLINE -- analogous to passing an explicit x to cell().
+     */
+    public function setX(float $x): self
+    {
+        $this->cursorXPt = $this->toPt($x);
+        $this->lineStartXPt = $this->cursorXPt;
+        return $this;
+    }
+
+    public function setY(float $y): self
+    {
+        $this->cursorYPt = $this->toPt($y);
+        return $this;
+    }
+
+    public function setXY(float $x, float $y): self
+    {
+        $this->cursorXPt = $this->toPt($x);
+        $this->cursorYPt = $this->toPt($y);
+        $this->lineStartXPt = $this->cursorXPt;
+        return $this;
+    }
+
     public function cell(
-        float $x,
-        float $y,
-        float $w,
+        ?float $x = null,
+        ?float $y = null,
+        ?float $w = null,
         ?float $h = null,
         string $text = '',
         ?Border $border = null,
@@ -320,11 +372,12 @@ final class Page
         VerticalAlign $verticalAlign = VerticalAlign::TOP,
         Fit $fit = Fit::NONE,
         ?float $padding = null,
+        ?NextPosition $ln = null,
     ): CellResult {
         if ($this->currentFont === null || $this->currentSize === null) {
             throw new PdfException('setFont() must be called before cell()');
         }
-        if ($w <= 0) {
+        if ($w !== null && $w <= 0) {
             throw new PdfException('Cell width must be positive, got ' . $w);
         }
         if ($h !== null && $h < 0) {
@@ -333,7 +386,36 @@ final class Page
         if ($padding !== null && $padding < 0) {
             throw new PdfException('Cell padding cannot be negative, got ' . $padding);
         }
+
+        // An explicit x defines a new row anchor for NEWLINE; an omitted x
+        // falls back to the cursor maintained by previous cell() calls.
+        $xExplicit = $x !== null;
+        if ($x === null) {
+            if ($this->cursorXPt === null) {
+                throw new PdfException('Cell x is required: no cursor set yet');
+            }
+            $x = $this->fromPt($this->cursorXPt);
+        }
+        if ($y === null) {
+            if ($this->cursorYPt === null) {
+                throw new PdfException('Cell y is required: no cursor set yet');
+            }
+            $y = $this->fromPt($this->cursorYPt);
+        }
+        if ($xExplicit) {
+            $this->lineStartXPt = $this->toPt($x);
+        }
+
         $resolvedPaddingPt = $padding !== null ? $this->toPt($padding) : $this->cellsPaddingPt;
+
+        // Auto-size width to the longest text line plus horizontal padding when
+        // omitted. Mirrors image()'s "derive from intrinsic" convention.
+        if ($w === null) {
+            if ($text === '') {
+                throw new PdfException('Cell width is required when text is empty');
+            }
+            $w = $this->stringWidth($text) + 2 * $this->fromPt($resolvedPaddingPt);
+        }
 
         $fontShortName = '';
         if ($text !== '') {
@@ -366,6 +448,26 @@ final class Page
             padding: $resolvedPaddingPt,
             fontShortName: $fontShortName,
         );
+
+        if ($ln !== null) {
+            $xPt = $this->toPt($x);
+            $yPt = $this->toPt($y);
+            $bottomPt = $yPt + $result->height;
+            switch ($ln) {
+                case NextPosition::RIGHT:
+                    $this->cursorXPt = $xPt + $this->toPt($w);
+                    $this->cursorYPt = $yPt;
+                    break;
+                case NextPosition::NEWLINE:
+                    $this->cursorXPt = $this->lineStartXPt ?? $xPt;
+                    $this->cursorYPt = $bottomPt;
+                    break;
+                case NextPosition::BELOW:
+                    $this->cursorXPt = $xPt;
+                    $this->cursorYPt = $bottomPt;
+                    break;
+            }
+        }
 
         return new CellResult(
             x: $this->fromPt($result->x),
