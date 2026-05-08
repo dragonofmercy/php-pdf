@@ -339,6 +339,22 @@ final class PageTest extends TestCase
         self::assertEqualsWithDelta(18.0, $page->stringWidth("a\nabc"), 0.0001);
     }
 
+    public function testStringWidthCrlfMatchesLfOnlyInput(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::courier(), 10.0);
+        // CRLF and CR should normalize to LF; without normalization the
+        // trailing \r on the first paragraph encodes as '?' and inflates width.
+        self::assertSame(
+            $page->stringWidth("a\nabc"),
+            $page->stringWidth("a\r\nabc"),
+        );
+        self::assertSame(
+            $page->stringWidth("a\nabc"),
+            $page->stringWidth("a\rabc"),
+        );
+    }
+
     public function testStringWidthThrowsWhenNoStateAndNoArgs(): void
     {
         $page = new Page(
@@ -500,6 +516,35 @@ final class PageTest extends TestCase
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $this->expectExceptionMessage('no cursor set');
         $page->cell(w: 30, h: 10, text: 'A');
+    }
+
+    public function testCellNormalizesCrlfInText(): void
+    {
+        $a = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $a->setFont(Font::helvetica(), 12);
+        $a->cell(x: 20, y: 30, w: 80, h: 40, text: "Chalet Kitoko\nRoute des Narcisses", padding: 0);
+
+        $b = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $b->setFont(Font::helvetica(), 12);
+        $b->cell(x: 20, y: 30, w: 80, h: 40, text: "Chalet Kitoko\r\nRoute des Narcisses", padding: 0);
+
+        // CRLF must produce the exact same content stream as LF (no stray '?'
+        // from the trailing \r being WinAnsi-encoded as a control character).
+        self::assertSame($a->contentStream()->bytes(), $b->contentStream()->bytes());
+        self::assertStringNotContainsString('Kitoko?', $a->contentStream()->bytes());
+    }
+
+    public function testTextNormalizesCrlf(): void
+    {
+        $a = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $a->setFont(Font::helvetica(), 12);
+        $a->text(20, 30, "Chalet Kitoko\nRoute des Narcisses");
+
+        $b = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $b->setFont(Font::helvetica(), 12);
+        $b->text(20, 30, "Chalet Kitoko\r\nRoute des Narcisses");
+
+        self::assertSame($a->contentStream()->bytes(), $b->contentStream()->bytes());
     }
 
     public function testGetXThrowsWhenCursorUnset(): void

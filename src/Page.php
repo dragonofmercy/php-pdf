@@ -255,7 +255,7 @@ final class Page
         $this->stream->append(Operators::setTextLeading($leading));
         $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $this->toPt($x), $this->toPt($y)));
 
-        $lines = explode("\n", $text);
+        $lines = explode("\n", self::normalizeNewlines($text));
         foreach ($lines as $index => $line) {
             $encoded = WinAnsiEncoder::encode($line);
             if ($index === 0) {
@@ -289,7 +289,7 @@ final class Page
 
         $metrics = $this->metricsRegistry->metricsFor($resolvedFont);
         $maxWidth = 0.0;
-        foreach (explode("\n", $text) as $line) {
+        foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
             $encoded = WinAnsiEncoder::encode($line);
             $width = $metrics->stringWidth($encoded, $resolvedSize);
             if ($width > $maxWidth) {
@@ -386,6 +386,10 @@ final class Page
         if ($padding !== null && $padding < 0) {
             throw new PdfException('Cell padding cannot be negative, got ' . $padding);
         }
+
+        // CRLF/CR line endings would otherwise leave a stray \r after the
+        // explode-on-\n in the renderer, which WinAnsiEncoder maps to '?'.
+        $text = self::normalizeNewlines($text);
 
         // An explicit x defines a new row anchor for NEWLINE; an omitted x
         // falls back to the cursor maintained by previous cell() calls.
@@ -558,5 +562,16 @@ final class Page
     private function fromPt(float $value): float
     {
         return $this->unit->fromPoints($value);
+    }
+
+    /**
+     * Folds CRLF and lone CR to LF so the downstream `explode("\n", ...)`
+     * doesn't leave a stray \r on the previous paragraph -- WinAnsiEncoder
+     * maps unknown control bytes to '?', which would surface as a literal
+     * question mark next to text on Windows-originated input.
+     */
+    private static function normalizeNewlines(string $text): string
+    {
+        return str_replace(["\r\n", "\r"], "\n", $text);
     }
 }
