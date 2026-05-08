@@ -174,6 +174,23 @@ final class Operators
         return '/' . $shortName . " Do\n";
     }
 
+    /**
+     * Emits a hex-encoded string for showing text with composite (Type0) fonts.
+     * The caller provides the hex bytes already formatted (uppercase, padding pair).
+     */
+    public static function showTextHex(string $hexBytes): string
+    {
+        return '<' . $hexBytes . "> Tj\n";
+    }
+
+    /**
+     * Hex variant of `showTextNextLine` (T* + Tj via the apostrophe operator).
+     */
+    public static function showTextHexNextLine(string $hexBytes): string
+    {
+        return '<' . $hexBytes . "> '\n";
+    }
+
     private static function num(float $value): string
     {
         return PdfNumber::ofFloat($value)->toBytes();

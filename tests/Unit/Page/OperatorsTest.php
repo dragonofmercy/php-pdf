@@ -157,4 +157,14 @@ final class OperatorsTest extends TestCase
         self::assertSame("/Im1 Do\n", Operators::invokeXObject('Im1'));
         self::assertSame("/Im42 Do\n", Operators::invokeXObject('Im42'));
     }
+
+    public function testShowTextHexEmitsAngleBracketTj(): void
+    {
+        self::assertSame("<00410042> Tj\n", Operators::showTextHex('00410042'));
+    }
+
+    public function testShowTextHexNextLineEmitsApostrophe(): void
+    {
+        self::assertSame("<0041> '\n", Operators::showTextHexNextLine('0041'));
+    }
 }
