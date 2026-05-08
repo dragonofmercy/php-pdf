@@ -66,4 +66,42 @@ final class FontRegistryTest extends TestCase
         $registry->shortName(Font::helvetica());
         self::assertFalse($registry->isEmpty());
     }
+
+    public function testRegistersStandardAndCustomMixed(): void
+    {
+        $registry = new FontRegistry();
+        $h = Font::helvetica();
+        $i = Font::custom('Inter');
+
+        $shortH = $registry->shortName($h);
+        $shortI = $registry->shortNameForCustom($i, 'Inter-Regular');
+
+        self::assertSame('F1', $shortH);
+        self::assertSame('F2', $shortI);
+        self::assertCount(1, $registry->registeredFonts());
+        self::assertCount(1, $registry->customRegistrations());
+    }
+
+    public function testCustomShortNameStableAcrossLookups(): void
+    {
+        $registry = new FontRegistry();
+        $registry->shortNameForCustom(Font::custom('Inter')->bold(), 'Inter-Bold');
+        self::assertSame('F1', $registry->shortNameForCustom(Font::custom('Inter')->bold(), 'Inter-Bold'));
+    }
+
+    public function testTwoCustomFontsResolvingToSameTtfShareShortName(): void
+    {
+        $registry = new FontRegistry();
+        $first = $registry->shortNameForCustom(Font::custom('Inter')->italic(), 'Inter-Regular');
+        $second = $registry->shortNameForCustom(Font::custom('Inter'), 'Inter-Regular');
+        self::assertSame($first, $second);
+    }
+
+    public function testCustomRegistrationsReturnsResolvedNames(): void
+    {
+        $registry = new FontRegistry();
+        $registry->shortNameForCustom(Font::custom('Inter'), 'Inter-Regular');
+        $registry->shortNameForCustom(Font::custom('Inter')->bold(), 'Inter-Bold');
+        self::assertSame(['Inter-Regular', 'Inter-Bold'], array_values($registry->customRegistrations()));
+    }
 }
