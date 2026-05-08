@@ -536,8 +536,14 @@ final class Page
 
         $fontShortName = '';
         if ($text !== '') {
-            $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
-            $fontShortName = $this->fontRegistry->shortName($this->currentFont);
+            if ($this->currentCustomTtf !== null) {
+                $resolvedId = $this->currentFont->customAlias() . ':' . $this->currentCustomTtf->postScriptName;
+                $fontShortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $resolvedId);
+                $this->fontsUsed[$resolvedId] = $this->currentFont;
+            } else {
+                $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
+                $fontShortName = $this->fontRegistry->shortName($this->currentFont);
+            }
         }
 
         // Border width is supplied in the document unit; CellRenderer works
@@ -564,6 +570,7 @@ final class Page
             fit: $fit,
             padding: $resolvedPaddingPt,
             fontShortName: $fontShortName,
+            customTtf: $this->currentCustomTtf,
         );
 
         if ($ln !== null) {
@@ -665,6 +672,35 @@ final class Page
     public function metricsRegistry(): MetricsRegistry
     {
         return $this->metricsRegistry;
+    }
+
+    /**
+     * @internal
+     *
+     * @return array{ascent: float, descent: float, capHeight: float, xHeight: float}
+     */
+    public function activeFontMetricsAtPt(float $sizePt): array
+    {
+        if ($this->currentFont === null || $this->currentSize === null) {
+            throw new PdfException('No active font on this page');
+        }
+        if ($this->currentCustomTtf !== null) {
+            $ttf = $this->currentCustomTtf;
+            $scale = $sizePt / $ttf->unitsPerEm;
+            return [
+                'ascent' => $ttf->ascent * $scale,
+                'descent' => $ttf->descent * $scale,
+                'capHeight' => $ttf->capHeight * $scale,
+                'xHeight' => $ttf->xHeight * $scale,
+            ];
+        }
+        $m = $this->metricsRegistry->metricsFor($this->currentFont);
+        return [
+            'ascent' => $m->ascentAt($sizePt),
+            'descent' => $m->descentAt($sizePt),
+            'capHeight' => $m->capHeightAt($sizePt),
+            'xHeight' => $m->xHeight * $sizePt / 1000.0,
+        ];
     }
 
     private function toPt(float $value): float

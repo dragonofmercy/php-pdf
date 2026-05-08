@@ -11,6 +11,8 @@ use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
 use DragonOfMercy\PhpPdf\Font\FontMetrics;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
@@ -34,6 +36,10 @@ final class CellRenderer
      * Renders the cell into the bound ContentStream and returns geometry.
      * The fontShortName parameter is the registry-assigned `/F<n>` value
      * already minus the leading slash (e.g. `'F1'`).
+     *
+     * When `$customTtf` is non-null, layout and emission use the parsed TTF
+     * (cmap-driven widths, hex Tj). When null, the original WinAnsi path is
+     * preserved byte-identically for the 12 standard fonts.
      */
     public function render(
         Font $font,
@@ -52,9 +58,10 @@ final class CellRenderer
         Fit $fit,
         CellPadding $padding,
         string $fontShortName,
+        ?ParsedTtf $customTtf = null,
     ): CellResult {
         $innerW = max(0.0, $w - $padding->left - $padding->right);
-        $metrics = $this->metrics->metricsFor($font);
+        $metrics = $customTtf === null ? $this->metrics->metricsFor($font) : null;
 
         // ---- Phase 1: layout ----
         $lines = [];
@@ -69,42 +76,74 @@ final class CellRenderer
             $lineCount = 0;
             $textHeight = 0.0;
         } else {
-            switch ($fit) {
-                case Fit::NONE:
-                    $wrap = $this->wrapText($text, $innerW, $font, $size);
-                    $lines = $wrap->lines;
-                    $widths = $wrap->widths;
-                    $brokenWords = $wrap->brokenWords;
-                    break;
+            if ($customTtf !== null) {
+                switch ($fit) {
+                    case Fit::NONE:
+                        $wrapC = $this->wrapTextCustom($text, $innerW, $customTtf, $size);
+                        $lines = $wrapC->lines;
+                        $widths = $wrapC->widths;
+                        $brokenWords = $wrapC->brokenWords;
+                        break;
 
-                case Fit::CONDENSE:
-                    $cond = $this->condenseText($text, $innerW, $font, $size);
-                    $lines = $cond->lines;
-                    $scales = $cond->scales;
-                    $widths = [];
-                    foreach ($lines as $i => $line) {
-                        $paraWidth = $metrics->stringWidth($line, $size);
-                        $widths[] = $paraWidth * $scales[$i] / 100.0;
-                    }
-                    break;
+                    case Fit::CONDENSE:
+                        $condC = $this->condenseTextCustom($text, $innerW, $customTtf, $size);
+                        $lines = $condC->lines;
+                        $scales = $condC->scales;
+                        $widths = [];
+                        foreach ($lines as $i => $line) {
+                            $paraWidth = self::stringWidthCustom($line, $customTtf, $size);
+                            $widths[] = $paraWidth * $scales[$i] / 100.0;
+                        }
+                        break;
 
-                case Fit::SHRINK:
-                    $shr = $this->shrinkText($text, $innerW, $font, $size, $customLeading);
-                    $lines = $shr->lines;
-                    $widths = $shr->widths;
-                    $effectiveSize = $shr->effectiveSize;
-                    $effectiveLeading = $shr->effectiveLeading;
-                    $textOverflow = $shr->textOverflow;
-                    break;
+                    case Fit::SHRINK:
+                        $shrC = $this->shrinkTextCustom($text, $innerW, $customTtf, $size, $customLeading);
+                        $lines = $shrC->lines;
+                        $widths = $shrC->widths;
+                        $effectiveSize = $shrC->effectiveSize;
+                        $effectiveLeading = $shrC->effectiveLeading;
+                        $textOverflow = $shrC->textOverflow;
+                        break;
+                }
+            } else {
+                /** @var FontMetrics $metrics */
+                switch ($fit) {
+                    case Fit::NONE:
+                        $wrap = $this->wrapText($text, $innerW, $font, $size);
+                        $lines = $wrap->lines;
+                        $widths = $wrap->widths;
+                        $brokenWords = $wrap->brokenWords;
+                        break;
+
+                    case Fit::CONDENSE:
+                        $cond = $this->condenseText($text, $innerW, $font, $size);
+                        $lines = $cond->lines;
+                        $scales = $cond->scales;
+                        $widths = [];
+                        foreach ($lines as $i => $line) {
+                            $paraWidth = $metrics->stringWidth($line, $size);
+                            $widths[] = $paraWidth * $scales[$i] / 100.0;
+                        }
+                        break;
+
+                    case Fit::SHRINK:
+                        $shr = $this->shrinkText($text, $innerW, $font, $size, $customLeading);
+                        $lines = $shr->lines;
+                        $widths = $shr->widths;
+                        $effectiveSize = $shr->effectiveSize;
+                        $effectiveLeading = $shr->effectiveLeading;
+                        $textOverflow = $shr->textOverflow;
+                        break;
+                }
             }
             $lineCount = count($lines);
+
+            $descentAbs = $customTtf !== null
+                ? abs($customTtf->descent * $effectiveSize / $customTtf->unitsPerEm)
+                : abs(($metrics ?? throw new \LogicException('metrics null'))->descentAt($effectiveSize));
             // Vertical extent the text actually needs: em-square above the
             // first baseline + descent below the last + leading between lines.
-            // Mirrors the TOP/BOTTOM baseline policy so cellHeight auto-grows
-            // enough for descenders/diacritics when no $h is given.
-            $textHeight = $effectiveSize
-                + abs($metrics->descentAt($effectiveSize))
-                + ($lineCount - 1) * $effectiveLeading;
+            $textHeight = $effectiveSize + $descentAbs + ($lineCount - 1) * $effectiveLeading;
         }
 
         $cellHeight = max($h ?? 0.0, $textHeight + $padding->top + $padding->bottom);
@@ -125,23 +164,44 @@ final class CellRenderer
         }
 
         if ($text !== '') {
-            $this->emitText(
-                metrics: $metrics,
-                lines: $lines,
-                widths: $widths,
-                scales: $scales,
-                effectiveSize: $effectiveSize,
-                effectiveLeading: $effectiveLeading,
-                cellX: $x,
-                cellY: $y,
-                cellW: $w,
-                cellH: $cellHeight,
-                padding: $padding,
-                align: $align,
-                verticalAlign: $verticalAlign,
-                textColor: $textColor,
-                fontShortName: $fontShortName,
-            );
+            if ($customTtf !== null) {
+                $this->emitTextCustom(
+                    customTtf: $customTtf,
+                    lines: $lines,
+                    widths: $widths,
+                    scales: $scales,
+                    effectiveSize: $effectiveSize,
+                    effectiveLeading: $effectiveLeading,
+                    cellX: $x,
+                    cellY: $y,
+                    cellW: $w,
+                    cellH: $cellHeight,
+                    padding: $padding,
+                    align: $align,
+                    verticalAlign: $verticalAlign,
+                    textColor: $textColor,
+                    fontShortName: $fontShortName,
+                );
+            } else {
+                /** @var FontMetrics $metrics */
+                $this->emitText(
+                    metrics: $metrics,
+                    lines: $lines,
+                    widths: $widths,
+                    scales: $scales,
+                    effectiveSize: $effectiveSize,
+                    effectiveLeading: $effectiveLeading,
+                    cellX: $x,
+                    cellY: $y,
+                    cellW: $w,
+                    cellH: $cellHeight,
+                    padding: $padding,
+                    align: $align,
+                    verticalAlign: $verticalAlign,
+                    textColor: $textColor,
+                    fontShortName: $fontShortName,
+                );
+            }
         }
 
         $this->stream->append(Operators::restoreState());
@@ -459,6 +519,292 @@ final class CellRenderer
                 $currentWidth = $charWidth;
             } else {
                 $current .= $char;
+                $currentWidth += $charWidth;
+            }
+        }
+        $chunks[] = $current;
+        $chunkWidths[] = $currentWidth;
+
+        return [$chunks, $chunkWidths];
+    }
+
+    private function wrapTextCustom(string $rawText, float $innerW, ParsedTtf $ttf, float $size): WrapResult
+    {
+        $paragraphs = explode("\n", $rawText);
+
+        $lines = [];
+        $widths = [];
+        $brokenWords = 0;
+
+        foreach ($paragraphs as $paragraph) {
+            if ($paragraph === '') {
+                $lines[] = '';
+                $widths[] = 0.0;
+                continue;
+            }
+
+            $tokens = preg_split('/(\s+)/u', $paragraph, -1, PREG_SPLIT_DELIM_CAPTURE);
+            $tokens = $tokens === false ? [$paragraph] : array_values(array_filter(
+                $tokens,
+                static fn(string $t): bool => $t !== '',
+            ));
+
+            $currentLine = '';
+            $currentWidth = 0.0;
+
+            foreach ($tokens as $token) {
+                $tokenWidth = self::stringWidthCustom($token, $ttf, $size);
+                $isSpace = ctype_space($token);
+
+                if ($currentWidth + $tokenWidth <= $innerW + 0.0001) {
+                    $currentLine .= $token;
+                    $currentWidth += $tokenWidth;
+                    continue;
+                }
+
+                if ($isSpace) {
+                    $lines[] = $currentLine;
+                    $widths[] = $currentWidth;
+                    $currentLine = '';
+                    $currentWidth = 0.0;
+                    continue;
+                }
+
+                if ($currentLine !== '') {
+                    $lines[] = $currentLine;
+                    $widths[] = $currentWidth;
+                    $currentLine = '';
+                    $currentWidth = 0.0;
+                }
+
+                if ($tokenWidth > $innerW) {
+                    $brokenWords++;
+                    [$chunks, $chunkWidths] = self::forceBreakWordCustom($token, $innerW, $ttf, $size);
+                    $lastIndex = count($chunks) - 1;
+                    for ($i = 0; $i < $lastIndex; $i++) {
+                        $lines[] = $chunks[$i];
+                        $widths[] = $chunkWidths[$i];
+                    }
+                    $currentLine = $chunks[$lastIndex];
+                    $currentWidth = $chunkWidths[$lastIndex];
+                } else {
+                    $currentLine = $token;
+                    $currentWidth = $tokenWidth;
+                }
+            }
+
+            $lines[] = $currentLine;
+            $widths[] = $currentWidth;
+        }
+
+        return new WrapResult(lines: $lines, widths: $widths, brokenWords: $brokenWords, textOverflow: false);
+    }
+
+    private function condenseTextCustom(string $rawText, float $innerW, ParsedTtf $ttf, float $size): CondenseResult
+    {
+        $paragraphs = explode("\n", $rawText);
+
+        $lines = [];
+        $scales = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $paraWidth = self::stringWidthCustom($paragraph, $ttf, $size);
+            if ($paraWidth <= 0.0 + 0.0001 || $paraWidth <= $innerW + 0.0001) {
+                $scale = 100.0;
+            } else {
+                $scale = ($innerW / $paraWidth) * 100.0;
+            }
+            $lines[] = $paragraph;
+            $scales[] = $scale;
+        }
+
+        return new CondenseResult(lines: $lines, scales: $scales);
+    }
+
+    private function shrinkTextCustom(
+        string $rawText,
+        float $innerW,
+        ParsedTtf $ttf,
+        float $originalSize,
+        ?float $customLeading = null,
+    ): ShrinkResult {
+        $paragraphs = explode("\n", $rawText);
+
+        $maxWidth = 0.0;
+        foreach ($paragraphs as $paragraph) {
+            $w = self::stringWidthCustom($paragraph, $ttf, $originalSize);
+            if ($w > $maxWidth) {
+                $maxWidth = $w;
+            }
+        }
+
+        if ($maxWidth <= 0.0 + 0.0001 || $maxWidth <= $innerW + 0.0001) {
+            $effectiveSize = $originalSize;
+            $textOverflow = false;
+        } else {
+            $ratio = $innerW / $maxWidth;
+            $effectiveSize = $originalSize * $ratio;
+            $minSize = $originalSize / 100.0;
+            if ($effectiveSize < $minSize) {
+                $effectiveSize = $minSize;
+                $textOverflow = true;
+            } else {
+                $textOverflow = false;
+            }
+        }
+
+        $effectiveLeading = $customLeading ?? ($effectiveSize * 1.2);
+
+        $widths = [];
+        foreach ($paragraphs as $paragraph) {
+            $widths[] = self::stringWidthCustom($paragraph, $ttf, $effectiveSize);
+        }
+
+        return new ShrinkResult(
+            lines: $paragraphs,
+            widths: $widths,
+            effectiveSize: $effectiveSize,
+            effectiveLeading: $effectiveLeading,
+            textOverflow: $textOverflow,
+        );
+    }
+
+    /**
+     * @param list<string>      $lines raw UTF-8 lines (NOT yet hex-encoded)
+     * @param list<float>       $widths line widths in points
+     * @param list<float>|null  $scales per-line Tz percent (Fit::CONDENSE), null otherwise
+     */
+    private function emitTextCustom(
+        ParsedTtf $customTtf,
+        array $lines,
+        array $widths,
+        ?array $scales,
+        float $effectiveSize,
+        float $effectiveLeading,
+        float $cellX,
+        float $cellY,
+        float $cellW,
+        float $cellH,
+        CellPadding $padding,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        ?Color $textColor,
+        string $fontShortName,
+    ): void {
+        $lineCount = count($lines);
+        $unitsPerEm = $customTtf->unitsPerEm;
+        $capHeight = $customTtf->capHeight * $effectiveSize / $unitsPerEm;
+        $emAbove = $effectiveSize;
+        $descentAbs = abs($customTtf->descent * $effectiveSize / $unitsPerEm);
+        $capBlockHeight = $capHeight + ($lineCount - 1) * $effectiveLeading;
+
+        $firstBaseline = match ($verticalAlign) {
+            VerticalAlign::TOP    => $cellY + $padding->top + $emAbove,
+            VerticalAlign::MIDDLE => $cellY + ($cellH - $capBlockHeight) / 2.0 + $capHeight,
+            VerticalAlign::BOTTOM => $cellY + $cellH - $padding->bottom - $descentAbs
+                - ($lineCount - 1) * $effectiveLeading,
+        };
+
+        if ($textColor !== null) {
+            $this->stream->append($textColor->toPdfOperator(stroke: false));
+        }
+
+        $this->stream->append(Operators::beginText());
+        $this->stream->append(Operators::setFontAndSize($fontShortName, $effectiveSize));
+        $this->stream->append(Operators::setTextLeading($effectiveLeading));
+
+        foreach ($lines as $i => $line) {
+            $lineWidth = $widths[$i];
+            $lineX = match ($align) {
+                TextAlign::LEFT   => $cellX + $padding->left,
+                TextAlign::CENTER => $cellX + ($cellW - $lineWidth) / 2.0,
+                TextAlign::RIGHT  => $cellX + $cellW - $padding->right - $lineWidth,
+            };
+            $lineBaseline = $firstBaseline + $i * $effectiveLeading;
+            $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $lineX, $lineBaseline));
+            if ($scales !== null) {
+                $this->stream->append(Operators::setHorizontalScaling($scales[$i]));
+            }
+            $hex = strtoupper(bin2hex(Utf8ToCidEncoder::encode($line, $customTtf)));
+            $this->stream->append(Operators::showTextHex($hex));
+        }
+
+        $this->stream->append(Operators::endText());
+    }
+
+    private static function stringWidthCustom(string $utf8, ParsedTtf $ttf, float $size): float
+    {
+        $totalEm = 0;
+        $i = 0;
+        $len = strlen($utf8);
+        while ($i < $len) {
+            $b0 = ord($utf8[$i]);
+            if ($b0 < 0x80) {
+                $cp = $b0;
+                $i++;
+            } elseif (($b0 & 0xE0) === 0xC0 && $i + 1 < $len) {
+                $cp = (($b0 & 0x1F) << 6) | (ord($utf8[$i + 1]) & 0x3F);
+                $i += 2;
+            } elseif (($b0 & 0xF0) === 0xE0 && $i + 2 < $len) {
+                $cp = (($b0 & 0x0F) << 12)
+                    | ((ord($utf8[$i + 1]) & 0x3F) << 6)
+                    | (ord($utf8[$i + 2]) & 0x3F);
+                $i += 3;
+            } elseif (($b0 & 0xF8) === 0xF0 && $i + 3 < $len) {
+                $cp = (($b0 & 0x07) << 18)
+                    | ((ord($utf8[$i + 1]) & 0x3F) << 12)
+                    | ((ord($utf8[$i + 2]) & 0x3F) << 6)
+                    | (ord($utf8[$i + 3]) & 0x3F);
+                $i += 4;
+            } else {
+                $cp = -1;
+                $i++;
+            }
+            $gid = $cp >= 0 ? ($ttf->cmap[$cp] ?? 0) : 0;
+            $totalEm += $ttf->advanceWidthsByGid[$gid] ?? 0;
+        }
+        return $totalEm * $size / $ttf->unitsPerEm;
+    }
+
+    /**
+     * @return array{0: list<string>, 1: list<float>}
+     */
+    private static function forceBreakWordCustom(string $token, float $innerW, ParsedTtf $ttf, float $size): array
+    {
+        $chunks = [];
+        $chunkWidths = [];
+        $current = '';
+        $currentWidth = 0.0;
+
+        $offset = 0;
+        $len = strlen($token);
+        while ($offset < $len) {
+            $b0 = ord($token[$offset]);
+            if ($b0 < 0x80) {
+                $cpLen = 1;
+            } elseif (($b0 & 0xE0) === 0xC0) {
+                $cpLen = 2;
+            } elseif (($b0 & 0xF0) === 0xE0) {
+                $cpLen = 3;
+            } elseif (($b0 & 0xF8) === 0xF0) {
+                $cpLen = 4;
+            } else {
+                $cpLen = 1;
+            }
+            if ($offset + $cpLen > $len) {
+                $cpLen = $len - $offset;
+            }
+            $charBytes = substr($token, $offset, $cpLen);
+            $offset += $cpLen;
+
+            $charWidth = self::stringWidthCustom($charBytes, $ttf, $size);
+            if ($currentWidth + $charWidth > $innerW + 0.0001 && $current !== '') {
+                $chunks[] = $current;
+                $chunkWidths[] = $currentWidth;
+                $current = $charBytes;
+                $currentWidth = $charWidth;
+            } else {
+                $current .= $charBytes;
                 $currentWidth += $charWidth;
             }
         }

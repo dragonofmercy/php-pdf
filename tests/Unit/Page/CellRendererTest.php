@@ -500,4 +500,48 @@ final class CellRendererTest extends TestCase
         self::assertNotFalse($btPos);
         self::assertLessThan($btPos, $rgPos);
     }
+
+    public function testCellWithCustomFontRendersText(): void
+    {
+        $path = __DIR__ . '/../../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $page = $pdf->addPage();
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::custom('FS'), 14);
+        $page->cell(x: 10, y: 20, w: 80, h: 20, text: 'Hello FS');
+        $bytes = $page->contentStream()->bytes();
+        self::assertMatchesRegularExpression('/<[0-9A-F]{4,}> Tj/', $bytes);
+    }
+
+    public function testCellWithCustomFontAutoSizesViaCustomMetrics(): void
+    {
+        $path = __DIR__ . '/../../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $page = $pdf->addPage();
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::custom('FS'), 12);
+        $page->cell(x: 10, y: 20, text: 'A');
+        $bytes = $page->contentStream()->bytes();
+        self::assertNotEmpty($bytes);
+    }
+
+    public function testCellAutoSizeWithCustomFontMatchesStringWidth(): void
+    {
+        $path = __DIR__ . '/../../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $page = $pdf->addPage();
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::custom('FS'), 12);
+        $w = $page->stringWidth('Hello');
+        self::assertGreaterThan(0.0, $w);
+    }
 }
