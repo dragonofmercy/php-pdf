@@ -16,6 +16,9 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
@@ -65,6 +68,11 @@ final class Document
     private Font $defaultFont;
     private float $defaultSize = 11.0;
 
+    /** @var array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> */
+    private array $customFontFamilies = [];
+
+    private ?FontResolver $fontResolver = null;
+
     /** Default per-side cells padding (document unit) for new pages, null = page builtin. */
     private ?CellPadding $defaultCellsPadding = null;
 
@@ -89,6 +97,56 @@ final class Document
         $this->defaultFont = $font;
         $this->defaultSize = $size;
         return $this;
+    }
+
+    /**
+     * Registers a custom TTF font family by alias. The regular variant is
+     * required; bold/italic/boldItalic are optional and fall back to regular
+     * (or to the closest match) when missing.
+     *
+     * Files are read and parsed eagerly: missing files, invalid TTFs, OTF/CFF,
+     * and missing required tables raise PdfException at this call.
+     */
+    public function registerFontFamily(
+        string $alias,
+        string $regular,
+        ?string $bold = null,
+        ?string $italic = null,
+        ?string $boldItalic = null,
+    ): self {
+        $regularParsed = $this->parseFontFile($alias, 'regular', $regular);
+        $boldParsed = $bold !== null ? $this->parseFontFile($alias, 'bold', $bold) : null;
+        $italicParsed = $italic !== null ? $this->parseFontFile($alias, 'italic', $italic) : null;
+        $boldItalicParsed = $boldItalic !== null ? $this->parseFontFile($alias, 'boldItalic', $boldItalic) : null;
+
+        $this->customFontFamilies[$alias] = [
+            'regular' => $regularParsed,
+            'bold' => $boldParsed,
+            'italic' => $italicParsed,
+            'boldItalic' => $boldItalicParsed,
+        ];
+        $this->fontResolver = new FontResolver($this->customFontFamilies);
+        return $this;
+    }
+
+    /**
+     * @internal Used by Page to resolve custom Font instances to ParsedTtf.
+     */
+    public function fontResolver(): ?FontResolver
+    {
+        return $this->fontResolver;
+    }
+
+    private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
+    {
+        if (!is_file($path)) {
+            throw new PdfException("Font file not found for alias '{$alias}' ({$variant}): {$path}");
+        }
+        $bytes = @file_get_contents($path);
+        if ($bytes === false) {
+            throw new PdfException("Cannot read font file for alias '{$alias}' ({$variant}): {$path}");
+        }
+        return TtfParser::parse($bytes, "{$alias} ({$variant})");
     }
 
     /**
@@ -192,6 +250,7 @@ final class Document
             defaultFont: $this->defaultFont,
             defaultSize: $this->defaultSize,
             defaultCellsPadding: $this->defaultCellsPadding,
+            fontResolver: $this->fontResolver,
         );
         $this->pages[] = $page;
         return $page;

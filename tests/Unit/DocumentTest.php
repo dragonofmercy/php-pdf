@@ -411,4 +411,37 @@ final class DocumentTest extends TestCase
             );
         }
     }
+
+    public function testRegisterFontFamilyRequiresExistingFile(): void
+    {
+        $pdf = new Document();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Font file not found for alias 'Inter' (regular)");
+        $pdf->registerFontFamily('Inter', regular: __DIR__ . '/does-not-exist.ttf');
+    }
+
+    public function testRegisterFontFamilyRejectsOtfFile(): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'phpdf_otf_') . '.otf';
+        file_put_contents($tmp, "OTTO\x00\x00\x00\x00more bytes here");
+        try {
+            $pdf = new Document();
+            $this->expectException(PdfException::class);
+            $this->expectExceptionMessage('OTF/CFF fonts not supported');
+            $pdf->registerFontFamily('Bad', regular: $tmp);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    public function testRegisterFontFamilyExposesResolverViaInternalAccessor(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        self::assertNotNull($pdf->fontResolver());
+    }
 }

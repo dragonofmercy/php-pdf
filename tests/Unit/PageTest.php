@@ -786,4 +786,53 @@ final class PageTest extends TestCase
             @unlink($path);
         }
     }
+
+    public function testTextWithCustomFontEmitsHexString(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $page = $pdf->addPage();
+        $page->setFont(Font::custom('FS'), 14);
+        $page->text(50, 50, 'AB');
+        $bytes = $page->contentStream()->bytes();
+        self::assertMatchesRegularExpression('/<[0-9A-F]{4,}> Tj/', $bytes);
+    }
+
+    public function testCustomFontWithoutRegistrationThrows(): void
+    {
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $page = $pdf->addPage();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('registerFontFamily');
+        $page->setFont(Font::custom('Unknown'), 14);
+    }
+
+    public function testStandardFontStillEmitsLiteralString(): void
+    {
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $page = $pdf->addPage();
+        $page->setFont(Font::helvetica(), 11);
+        $page->text(50, 50, 'AB');
+        $bytes = $page->contentStream()->bytes();
+        self::assertStringContainsString('(AB) Tj', $bytes);
+        self::assertDoesNotMatchRegularExpression('/<[0-9A-F]{4,}> Tj/', $bytes);
+    }
+
+    public function testStringWidthDispatchesToCustomFont(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new \DragonOfMercy\PhpPdf\Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $page = $pdf->addPage();
+        $page->setFont(Font::custom('FS'), 14);
+        $w = $page->stringWidth('A');
+        self::assertGreaterThan(0.0, $w);
+    }
 }

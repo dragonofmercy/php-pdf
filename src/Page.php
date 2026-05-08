@@ -9,6 +9,9 @@ use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
+use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
@@ -51,6 +54,8 @@ final class Page
     /** @var array<string, true> Short names of images this page references */
     private array $imagesUsed = [];
 
+    private ?ParsedTtf $currentCustomTtf = null;
+
     public function __construct(
         public readonly float $pageWidth,
         public readonly float $pageHeight,
@@ -61,6 +66,7 @@ final class Page
         ?Font $defaultFont = null,
         ?float $defaultSize = null,
         float|CellPadding|null $defaultCellsPadding = null,
+        private readonly ?FontResolver $fontResolver = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
         // The pair must be supplied together; null/null means "no default
@@ -80,6 +86,13 @@ final class Page
         $this->cellsPaddingPt = $defaultCellsPadding !== null
             ? $this->paddingToPt($this->normalizePadding($defaultCellsPadding))
             : CellPadding::all(2.0);
+
+        if ($this->currentFont !== null && $this->currentFont->isCustom()) {
+            if ($this->fontResolver === null) {
+                throw new PdfException('Page received a custom Font as default but no FontResolver from Document');
+            }
+            $this->currentCustomTtf = $this->fontResolver->resolve($this->currentFont);
+        }
     }
 
     /**
@@ -247,6 +260,17 @@ final class Page
         if ($size <= 0) {
             throw new PdfException('Font size must be positive, got ' . $size);
         }
+        if ($font->isCustom()) {
+            if ($this->fontResolver === null) {
+                throw new PdfException(
+                    "Cannot use custom font '" . ($font->customAlias() ?? '') . "': "
+                    . 'Call Document::registerFontFamily() first.',
+                );
+            }
+            $this->currentCustomTtf = $this->fontResolver->resolve($font);
+        } else {
+            $this->currentCustomTtf = null;
+        }
         $this->currentFont = $font;
         $this->currentSize = $size;
         $this->customLeading = null;
@@ -265,8 +289,14 @@ final class Page
             throw new PdfException('setFont() must be called before text()');
         }
 
-        $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
-        $shortName = $this->fontRegistry->shortName($this->currentFont);
+        if ($this->currentCustomTtf !== null) {
+            $resolvedId = $this->currentFont->customAlias() . ':' . $this->currentCustomTtf->postScriptName;
+            $shortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $resolvedId);
+            $this->fontsUsed[$resolvedId] = $this->currentFont;
+        } else {
+            $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
+            $shortName = $this->fontRegistry->shortName($this->currentFont);
+        }
         $size = $this->currentSize;
         $leading = $this->customLeading ?? ($size * 1.2);
 
@@ -277,11 +307,17 @@ final class Page
 
         $lines = explode("\n", self::normalizeNewlines($text));
         foreach ($lines as $index => $line) {
-            $encoded = WinAnsiEncoder::encode($line);
-            if ($index === 0) {
-                $this->stream->append(Operators::showText($encoded));
+            if ($this->currentCustomTtf !== null) {
+                $bytes = Utf8ToCidEncoder::encode($line, $this->currentCustomTtf);
+                $hex = strtoupper(bin2hex($bytes));
+                $this->stream->append($index === 0
+                    ? Operators::showTextHex($hex)
+                    : Operators::showTextHexNextLine($hex));
             } else {
-                $this->stream->append(Operators::showTextNextLine($encoded));
+                $encoded = WinAnsiEncoder::encode($line);
+                $this->stream->append($index === 0
+                    ? Operators::showText($encoded)
+                    : Operators::showTextNextLine($encoded));
             }
         }
 
@@ -307,6 +343,23 @@ final class Page
             return 0.0;
         }
 
+        if ($resolvedFont->isCustom()) {
+            if ($this->fontResolver === null) {
+                throw new PdfException('Cannot measure custom Font without a registered family');
+            }
+            $ttf = $resolvedFont === $this->currentFont
+                ? ($this->currentCustomTtf ?? $this->fontResolver->resolve($resolvedFont))
+                : $this->fontResolver->resolve($resolvedFont);
+            $maxWidthPt = 0.0;
+            foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
+                $width = self::stringWidthFromCmap($line, $ttf, $resolvedSize);
+                if ($width > $maxWidthPt) {
+                    $maxWidthPt = $width;
+                }
+            }
+            return $this->fromPt($maxWidthPt);
+        }
+
         $metrics = $this->metricsRegistry->metricsFor($resolvedFont);
         $maxWidth = 0.0;
         foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
@@ -317,6 +370,40 @@ final class Page
             }
         }
         return $this->fromPt($maxWidth);
+    }
+
+    private static function stringWidthFromCmap(string $utf8, ParsedTtf $ttf, float $size): float
+    {
+        $totalEm = 0;
+        $i = 0;
+        $len = strlen($utf8);
+        while ($i < $len) {
+            $b0 = ord($utf8[$i]);
+            if ($b0 < 0x80) {
+                $cp = $b0;
+                $i++;
+            } elseif (($b0 & 0xE0) === 0xC0 && $i + 1 < $len) {
+                $cp = (($b0 & 0x1F) << 6) | (ord($utf8[$i + 1]) & 0x3F);
+                $i += 2;
+            } elseif (($b0 & 0xF0) === 0xE0 && $i + 2 < $len) {
+                $cp = (($b0 & 0x0F) << 12)
+                    | ((ord($utf8[$i + 1]) & 0x3F) << 6)
+                    | (ord($utf8[$i + 2]) & 0x3F);
+                $i += 3;
+            } elseif (($b0 & 0xF8) === 0xF0 && $i + 3 < $len) {
+                $cp = (($b0 & 0x07) << 18)
+                    | ((ord($utf8[$i + 1]) & 0x3F) << 12)
+                    | ((ord($utf8[$i + 2]) & 0x3F) << 6)
+                    | (ord($utf8[$i + 3]) & 0x3F);
+                $i += 4;
+            } else {
+                $cp = -1;
+                $i++;
+            }
+            $gid = $cp >= 0 ? ($ttf->cmap[$cp] ?? 0) : 0;
+            $totalEm += $ttf->advanceWidthsByGid[$gid] ?? 0;
+        }
+        return $totalEm * $size / $ttf->unitsPerEm;
     }
 
     /**
