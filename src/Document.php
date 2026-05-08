@@ -16,6 +16,7 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
@@ -511,6 +512,22 @@ final class Document
             $fontRefs[$shortName] = PdfReference::to($fontNum, 0);
         }
 
+        /** @var array<string, PdfReference> $customRefs short name => Type0 reference */
+        $customRefs = [];
+        /** @var list<array{ParsedTtf, int, int, int, int, int}> $customEmissions */
+        $customEmissions = [];
+        foreach ($this->fontRegistry->customRegistrations() as $shortName => $resolvedTtfId) {
+            $type0Id = $nextObjectNumber++;
+            $cidFontId = $nextObjectNumber++;
+            $descriptorId = $nextObjectNumber++;
+            $fontFileId = $nextObjectNumber++;
+            $toUnicodeId = $nextObjectNumber++;
+
+            $parsedTtf = $this->resolveTtfById($resolvedTtfId);
+            $customRefs[$shortName] = PdfReference::to($type0Id, 0);
+            $customEmissions[] = [$parsedTtf, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
+        }
+
         /** @var array<string, PdfReference> $imageRefs short name => main image reference */
         $imageRefs = [];
         $imageEmissions = [];
@@ -541,8 +558,18 @@ final class Document
                 if ($pageFonts !== []) {
                     $fontDict = Dictionary::empty();
                     foreach ($pageFonts as $font) {
-                        $shortName = $this->fontRegistry->shortName($font);
-                        $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+                        if ($font->isCustom()) {
+                            if ($this->fontResolver === null) {
+                                throw new PdfException('Custom font used without registered family');
+                            }
+                            $resolvedTtf = $this->fontResolver->resolve($font);
+                            $resolvedId = $font->customAlias() . ':' . $resolvedTtf->postScriptName;
+                            $shortName = $this->fontRegistry->shortNameForCustom($font, $resolvedId);
+                            $fontDict = $fontDict->withEntry(Name::of($shortName), $customRefs[$shortName]);
+                        } else {
+                            $shortName = $this->fontRegistry->shortName($font);
+                            $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+                        }
                     }
                     $resources = $resources->withEntry(Name::of('Font'), $fontDict);
                 }
@@ -593,7 +620,33 @@ final class Document
             }
         }
 
+        if ($customEmissions !== []) {
+            $emitter = new CompositeFontEmitter();
+            foreach ($customEmissions as [$parsed, $t0, $cf, $desc, $ff, $tu]) {
+                $emitted = $emitter->emit($parsed, $t0, $cf, $desc, $ff, $tu);
+                $objects[] = $emitted['type0'];
+                $objects[] = $emitted['cidFont'];
+                $objects[] = $emitted['descriptor'];
+                $objects[] = $emitted['fontFile'];
+                $objects[] = $emitted['toUnicode'];
+            }
+        }
+
         return [$objects, $pageRefs];
+    }
+
+    private function resolveTtfById(string $resolvedTtfId): ParsedTtf
+    {
+        [$alias, $psName] = explode(':', $resolvedTtfId, 2);
+        if (!isset($this->customFontFamilies[$alias])) {
+            throw new PdfException("Internal error: cannot resolve TTF id {$resolvedTtfId}");
+        }
+        foreach ($this->customFontFamilies[$alias] as $variant) {
+            if ($variant !== null && $variant->postScriptName === $psName) {
+                return $variant;
+            }
+        }
+        throw new PdfException("Internal error: cannot resolve TTF id {$resolvedTtfId}");
     }
 
     /**

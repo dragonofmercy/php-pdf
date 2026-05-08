@@ -444,4 +444,38 @@ final class DocumentTest extends TestCase
         $pdf->registerFontFamily('FS', regular: $path);
         self::assertNotNull($pdf->fontResolver());
     }
+
+    public function testOutputEmitsFiveObjectsPerUsedCustomFont(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $page = $pdf->addPage();
+        $page->setFont(Font::custom('FS'), 14);
+        $page->text(50, 50, 'A');
+        $bytes = $pdf->output();
+        self::assertStringContainsString('/Subtype /Type0', $bytes);
+        self::assertStringContainsString('/Subtype /CIDFontType2', $bytes);
+        self::assertStringContainsString('/Type /FontDescriptor', $bytes);
+        self::assertStringContainsString('/FontFile2', $bytes);
+        self::assertStringContainsString('/Encoding /Identity-H', $bytes);
+        self::assertStringContainsString('/ToUnicode', $bytes);
+    }
+
+    public function testRegisteredButUnusedFontsAreNotEmbedded(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new Document();
+        $pdf->registerFontFamily('FS', regular: $path);
+        $pdf->addPage();
+        $bytes = $pdf->output();
+        self::assertStringNotContainsString('/Subtype /Type0', $bytes);
+        self::assertStringNotContainsString('/Subtype /CIDFontType2', $bytes);
+    }
 }
