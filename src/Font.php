@@ -72,22 +72,19 @@ final readonly class Font
     }
 
     /**
-     * Returns the PDF canonical font name (e.g., "Helvetica-BoldOblique").
-     * Only valid for standard fonts. Custom fonts must be resolved via
-     * FontResolver since their PDF name comes from the parsed TTF.
+     * PDF canonical name (e.g. "Helvetica-BoldOblique"). Standard fonts only:
+     * custom fonts must be resolved via FontResolver to get their PostScriptName
+     * from the parsed TTF, not from any string the caller provided.
      *
      * @internal
      */
     public function pdfName(): string
     {
-        if ($this->customAlias !== null) {
-            throw new LogicException('pdfName() is not supported for custom fonts; resolve via FontResolver');
-        }
         return match ($this->family) {
             FontFamily::HELVETICA => $this->composeName('Helvetica', 'Bold', 'Oblique'),
             FontFamily::TIMES => $this->timesName(),
             FontFamily::COURIER => $this->composeName('Courier', 'Bold', 'Oblique'),
-            null => throw new LogicException('Font with no family and no custom alias is invalid'),
+            null => throw new LogicException('pdfName() is not supported for custom fonts; resolve via FontResolver'),
         };
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
 use DragonOfMercy\PhpPdf\Font;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 
 final class FontTest extends TestCase
@@ -107,7 +108,7 @@ final class FontTest extends TestCase
 
     public function testCustomFontPdfNameThrows(): void
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('pdfName() is not supported for custom fonts');
         Font::custom('Inter')->pdfName();
     }
