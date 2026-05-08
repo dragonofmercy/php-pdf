@@ -65,6 +65,9 @@ final class Document
     private Font $defaultFont;
     private float $defaultSize = 11.0;
 
+    /** Default per-side cells padding (document unit) for new pages, null = page builtin. */
+    private ?CellPadding $defaultCellsPadding = null;
+
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
         $this->fontRegistry = new FontRegistry();
@@ -85,6 +88,19 @@ final class Document
         }
         $this->defaultFont = $font;
         $this->defaultSize = $size;
+        return $this;
+    }
+
+    /**
+     * Sets the cells padding that newly created pages start with. Existing
+     * pages are unaffected. A bare float means "same value all four sides";
+     * a {@see CellPadding} instance allows per-side control.
+     */
+    public function setDefaultCellsPadding(float|CellPadding $padding): self
+    {
+        $this->defaultCellsPadding = $padding instanceof CellPadding
+            ? $padding
+            : CellPadding::all((float) $padding);
         return $this;
     }
 
@@ -175,6 +191,7 @@ final class Document
             unit: $this->unit,
             defaultFont: $this->defaultFont,
             defaultSize: $this->defaultSize,
+            defaultCellsPadding: $this->defaultCellsPadding,
         );
         $this->pages[] = $page;
         return $page;

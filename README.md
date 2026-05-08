@@ -199,6 +199,29 @@ $page->cell(x: 20, y: 95, text: 'Auto-sized label', border: Border::all());
 
 When `w` is omitted, the cell auto-sizes its width to fit the longest line of `text` plus horizontal padding (default or per-call). This requires non-empty text -- omitting both `w` and `text` raises an error.
 
+#### Padding (uniform or per-side)
+
+```php
+use DragonOfMercy\PhpPdf\CellPadding;
+
+// Uniform: same value all four sides (in document unit).
+$page->setCellsPadding(2);
+
+// Per-side, via the CellPadding value object. Three named constructors:
+$page->setCellsPadding(CellPadding::all(2));                    // top=right=bottom=left=2
+$page->setCellsPadding(CellPadding::symmetric(1, 4));           // vertical=1, horizontal=4
+$page->setCellsPadding(CellPadding::sides(top: 1, bottom: 3));  // omitted sides default to 0
+
+// One-shot override on a single cell:
+$page->cell(x: 20, y: 20, w: 60, h: 8, text: 'Tight',
+    padding: CellPadding::sides(left: 4, right: 1));
+
+// Document-level default applied to pages created afterwards:
+$doc->setDefaultCellsPadding(CellPadding::symmetric(2, 4));
+```
+
+Default is `2 pt` on all sides when neither the page nor the document configures one.
+
 #### Cursor flow with `ln`
 
 `cell()` can drive an internal cursor so the next call can omit `x` and `y`. The

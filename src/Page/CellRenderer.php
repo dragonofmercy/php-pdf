@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Page;
 
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\BorderStyle;
+use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Fit;
@@ -49,10 +50,10 @@ final class CellRenderer
         TextAlign $align,
         VerticalAlign $verticalAlign,
         Fit $fit,
-        float $padding,
+        CellPadding $padding,
         string $fontShortName,
     ): CellResult {
-        $innerW = max(0.0, $w - 2.0 * $padding);
+        $innerW = max(0.0, $w - $padding->left - $padding->right);
         $metrics = $this->metrics->metricsFor($font);
 
         // ---- Phase 1: layout ----
@@ -100,7 +101,7 @@ final class CellRenderer
             $textHeight = $lineCount * $effectiveLeading;
         }
 
-        $cellHeight = max($h ?? 0.0, $textHeight + 2.0 * $padding);
+        $cellHeight = max($h ?? 0.0, $textHeight + $padding->top + $padding->bottom);
 
         // ---- Phase 2: emit ----
         $this->stream->append(Operators::saveState());
@@ -195,7 +196,7 @@ final class CellRenderer
         float $cellY,
         float $cellW,
         float $cellH,
-        float $padding,
+        CellPadding $padding,
         TextAlign $align,
         VerticalAlign $verticalAlign,
         ?Color $textColor,
@@ -212,9 +213,9 @@ final class CellRenderer
         $capBlockHeight = $capHeight + ($lineCount - 1) * $effectiveLeading;
 
         $firstBaseline = match ($verticalAlign) {
-            VerticalAlign::TOP    => $cellY + $padding + $capHeight,
+            VerticalAlign::TOP    => $cellY + $padding->top + $capHeight,
             VerticalAlign::MIDDLE => $cellY + ($cellH - $capBlockHeight) / 2.0 + $capHeight,
-            VerticalAlign::BOTTOM => $cellY + $cellH - $padding - ($lineCount - 1) * $effectiveLeading,
+            VerticalAlign::BOTTOM => $cellY + $cellH - $padding->bottom - ($lineCount - 1) * $effectiveLeading,
         };
 
         if ($textColor !== null) {
@@ -228,9 +229,9 @@ final class CellRenderer
         foreach ($lines as $i => $line) {
             $lineWidth = $widths[$i];
             $lineX = match ($align) {
-                TextAlign::LEFT   => $cellX + $padding,
+                TextAlign::LEFT   => $cellX + $padding->left,
                 TextAlign::CENTER => $cellX + ($cellW - $lineWidth) / 2.0,
-                TextAlign::RIGHT  => $cellX + $cellW - $padding - $lineWidth,
+                TextAlign::RIGHT  => $cellX + $cellW - $padding->right - $lineWidth,
             };
             $lineBaseline = $firstBaseline + $i * $effectiveLeading;
             // Counter-flip Y to compensate the page-level Y-down CTM.

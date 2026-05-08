@@ -36,8 +36,8 @@ final class Page
     private ?Font $currentFont = null;
     private ?float $currentSize = null;
     private ?float $customLeading = null;
-    /** Padding stored in points (internal canonical unit). */
-    private float $cellsPaddingPt = 2.0;
+    /** Per-side padding stored in points (canonical internal unit). */
+    private CellPadding $cellsPaddingPt;
 
     /** Cell cursor (in pt). Populated by cell() when ln updates the position. */
     private ?float $cursorXPt = null;
@@ -60,6 +60,7 @@ final class Page
         public readonly Unit $unit = Unit::PT,
         ?Font $defaultFont = null,
         ?float $defaultSize = null,
+        float|CellPadding|null $defaultCellsPadding = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
         // The pair must be supplied together; null/null means "no default
@@ -74,6 +75,11 @@ final class Page
             $this->currentFont = $defaultFont;
             $this->currentSize = $defaultSize;
         }
+        // Cells padding stored as a CellPadding-in-pt; the user-facing
+        // values come in document unit (or default 2pt all-sides).
+        $this->cellsPaddingPt = $defaultCellsPadding !== null
+            ? $this->paddingToPt($this->normalizePadding($defaultCellsPadding))
+            : CellPadding::all(2.0);
     }
 
     /**
@@ -313,18 +319,24 @@ final class Page
         return $this->fromPt($maxWidth);
     }
 
-    public function setCellsPadding(float $padding): self
+    /**
+     * Sets the page-level cells padding. Accepts either a single float (same
+     * value all four sides) or a {@see CellPadding} instance for per-side
+     * control. Values are interpreted in the document's unit.
+     */
+    public function setCellsPadding(float|CellPadding $padding): self
     {
-        if ($padding < 0) {
-            throw new PdfException('Padding cannot be negative, got ' . $padding);
-        }
-        $this->cellsPaddingPt = $this->toPt($padding);
+        $this->cellsPaddingPt = $this->paddingToPt($this->normalizePadding($padding));
         return $this;
     }
 
-    public function getCellsPadding(): float
+    /**
+     * Returns the page-level cells padding as a {@see CellPadding} in the
+     * document's unit.
+     */
+    public function getCellsPadding(): CellPadding
     {
-        return $this->fromPt($this->cellsPaddingPt);
+        return $this->paddingFromPt($this->cellsPaddingPt);
     }
 
     /**
@@ -385,7 +397,7 @@ final class Page
         TextAlign $align = TextAlign::LEFT,
         VerticalAlign $verticalAlign = VerticalAlign::TOP,
         Fit $fit = Fit::NONE,
-        ?float $padding = null,
+        float|CellPadding|null $padding = null,
         ?NextPosition $ln = null,
     ): CellResult {
         if ($this->currentFont === null || $this->currentSize === null) {
@@ -396,9 +408,6 @@ final class Page
         }
         if ($h !== null && $h < 0) {
             throw new PdfException('Cell height cannot be negative, got ' . $h);
-        }
-        if ($padding !== null && $padding < 0) {
-            throw new PdfException('Cell padding cannot be negative, got ' . $padding);
         }
 
         // CRLF/CR line endings would otherwise leave a stray \r after the
@@ -424,7 +433,9 @@ final class Page
             $this->lineStartXPt = $this->toPt($x);
         }
 
-        $resolvedPaddingPt = $padding !== null ? $this->toPt($padding) : $this->cellsPaddingPt;
+        $resolvedPaddingPt = $padding !== null
+            ? $this->paddingToPt($this->normalizePadding($padding))
+            : $this->cellsPaddingPt;
 
         // Auto-size width to the longest text line plus horizontal padding when
         // omitted. Mirrors image()'s "derive from intrinsic" convention.
@@ -432,7 +443,8 @@ final class Page
             if ($text === '') {
                 throw new PdfException('Cell width is required when text is empty');
             }
-            $w = $this->stringWidth($text) + 2 * $this->fromPt($resolvedPaddingPt);
+            $w = $this->stringWidth($text)
+                + $this->fromPt($resolvedPaddingPt->left + $resolvedPaddingPt->right);
         }
 
         $fontShortName = '';
@@ -587,5 +599,30 @@ final class Page
     private static function normalizeNewlines(string $text): string
     {
         return str_replace(["\r\n", "\r"], "\n", $text);
+    }
+
+    private function normalizePadding(float|CellPadding $padding): CellPadding
+    {
+        return $padding instanceof CellPadding ? $padding : CellPadding::all((float) $padding);
+    }
+
+    private function paddingToPt(CellPadding $p): CellPadding
+    {
+        return new CellPadding(
+            top: $this->toPt($p->top),
+            right: $this->toPt($p->right),
+            bottom: $this->toPt($p->bottom),
+            left: $this->toPt($p->left),
+        );
+    }
+
+    private function paddingFromPt(CellPadding $p): CellPadding
+    {
+        return new CellPadding(
+            top: $this->fromPt($p->top),
+            right: $this->fromPt($p->right),
+            bottom: $this->fromPt($p->bottom),
+            left: $this->fromPt($p->left),
+        );
     }
 }

@@ -371,14 +371,14 @@ final class PageTest extends TestCase
     public function testGetCellsPaddingDefaultIsTwo(): void
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
-        self::assertSame(2.0, $page->getCellsPadding());
+        self::assertEquals(\DragonOfMercy\PhpPdf\CellPadding::all(2.0), $page->getCellsPadding());
     }
 
     public function testSetCellsPaddingChangesDefault(): void
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setCellsPadding(5.5);
-        self::assertSame(5.5, $page->getCellsPadding());
+        self::assertEquals(\DragonOfMercy\PhpPdf\CellPadding::all(5.5), $page->getCellsPadding());
     }
 
     public function testSetCellsPaddingNegativeThrows(): void
@@ -386,6 +386,45 @@ final class PageTest extends TestCase
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $page->setCellsPadding(-1.0);
+    }
+
+    public function testSetCellsPaddingAcceptsCellPaddingObject(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setCellsPadding(\DragonOfMercy\PhpPdf\CellPadding::sides(top: 1.0, right: 2.0, bottom: 3.0, left: 4.0));
+        $p = $page->getCellsPadding();
+        self::assertSame(1.0, $p->top);
+        self::assertSame(2.0, $p->right);
+        self::assertSame(3.0, $p->bottom);
+        self::assertSame(4.0, $p->left);
+    }
+
+    public function testCellPerSidePaddingAffectsAutoWidth(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::courier(), 10);
+        // Courier monospace 600/1000em -> "Hi" = 1200 -> 12pt at size 10.
+        // Per-side padding left=3, right=5 -> auto width = 12 + 8 = 20.
+        $r = $page->cell(
+            x: 0,
+            y: 0,
+            text: 'Hi',
+            padding: \DragonOfMercy\PhpPdf\CellPadding::sides(top: 0, right: 5, bottom: 0, left: 3),
+        );
+        self::assertEqualsWithDelta(20.0, $r->x, 0.0001); // x_start (0) + cell width (20)
+    }
+
+    public function testCellPaddingObjectAcceptedInline(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        // Smoke: passing CellPadding inline should not throw and should render.
+        $r = $page->cell(
+            x: 10, y: 10, w: 60, h: 30,
+            text: 'X',
+            padding: \DragonOfMercy\PhpPdf\CellPadding::symmetric(2, 4),
+        );
+        self::assertSame(70.0, $r->x);
     }
 
     public function testCellWithoutSetFontThrows(): void

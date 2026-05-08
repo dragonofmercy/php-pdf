@@ -360,6 +360,37 @@ final class DocumentTest extends TestCase
         $doc->setDefaultFont(Font::helvetica(), 0.0);
     }
 
+    public function testSetDefaultCellsPaddingFloatAppliesToNewPages(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultCellsPadding(7.0);
+        $page = $doc->addPage();
+        self::assertEquals(\DragonOfMercy\PhpPdf\CellPadding::all(7.0), $page->getCellsPadding());
+    }
+
+    public function testSetDefaultCellsPaddingObjectAppliesToNewPages(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultCellsPadding(\DragonOfMercy\PhpPdf\CellPadding::symmetric(2, 6));
+        $page = $doc->addPage();
+        $p = $page->getCellsPadding();
+        self::assertSame(2.0, $p->top);
+        self::assertSame(6.0, $p->right);
+        self::assertSame(2.0, $p->bottom);
+        self::assertSame(6.0, $p->left);
+    }
+
+    public function testSetDefaultCellsPaddingDoesNotAffectPagesAlreadyCreated(): void
+    {
+        $doc = new Document(Unit::PT);
+        $first = $doc->addPage();
+        $doc->setDefaultCellsPadding(10.0);
+        $second = $doc->addPage();
+        // First page keeps its 2pt builtin default; second picks up 10.
+        self::assertEquals(\DragonOfMercy\PhpPdf\CellPadding::all(2.0), $first->getCellsPadding());
+        self::assertEquals(\DragonOfMercy\PhpPdf\CellPadding::all(10.0), $second->getCellsPadding());
+    }
+
     public function testDocumentReservesContiguousObjectNumbersForImageAndSmask(): void
     {
         $doc = new Document(Unit::PT);
