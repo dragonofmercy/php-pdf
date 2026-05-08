@@ -72,13 +72,13 @@ final class PageWithTtfTest extends TestCase
         $page->text(50, 110, 'Custom FreeSans bold');
 
         $page->setFont(Font::custom('FS'), 12);
-        $page->text(50, 140, 'Resume cafe naivete oeuvre');
+        $page->text(50, 140, 'Résumé café naïveté œuvre');
 
         $page->setFont(Font::custom('FS'), 12);
-        $page->text(50, 170, 'alpha beta gamma delta');
+        $page->text(50, 170, 'α β γ δ ε ζ η θ');
 
         $page->setFont(Font::custom('FS')->bold(), 12);
-        $page->text(50, 200, 'moskva sankt-peterburg');
+        $page->text(50, 200, 'Москва Санкт-Петербург');
 
         return $doc;
     }
