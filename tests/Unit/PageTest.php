@@ -518,6 +518,36 @@ final class PageTest extends TestCase
         $page->cell(w: 30, h: 10, text: 'A');
     }
 
+    public function testPageConstructorAcceptsDefaultFont(): void
+    {
+        $page = new Page(
+            pageWidth: 595,
+            pageHeight: 842,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
+            defaultFont: Font::courier(),
+            defaultSize: 9.0,
+        );
+        // No setFont() call: the constructor default lets cell() proceed.
+        $page->cell(x: 0, y: 0, w: 50, h: 30, text: 'X', padding: 0);
+        self::assertMatchesRegularExpression('#9(\.\d+)? Tf#', $page->contentStream()->bytes());
+    }
+
+    public function testPageConstructorRejectsHalfSpecifiedDefaultFont(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        new Page(
+            pageWidth: 595,
+            pageHeight: 842,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
+            defaultFont: Font::helvetica(),
+            // defaultSize omitted: must throw rather than silently pick a size.
+        );
+    }
+
     public function testCellNormalizesCrlfInText(): void
     {
         $a = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());

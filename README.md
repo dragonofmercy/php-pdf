@@ -131,6 +131,11 @@ $page->setFillColor(Color::rgb(0, 0, 255))
 ```php
 use DragonOfMercy\PhpPdf\Font;
 
+// Pages created via Document::addPage() start with Helvetica 11 already set,
+// so simple uses can call cell()/text()/stringWidth() right away. To change the
+// document-wide default before any addPage() call:
+//   $doc->setDefaultFont(Font::times(), 11);
+
 // Font size is in points, regardless of the document unit.
 $page->setFont(Font::helvetica()->bold(), 18);
 $page->text(20, 30, 'Hello World');     // (20, 30) mm

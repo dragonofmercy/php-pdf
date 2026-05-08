@@ -58,8 +58,22 @@ final class Page
         private readonly MetricsRegistry $metricsRegistry,
         private readonly ImageRegistry $imageRegistry,
         public readonly Unit $unit = Unit::PT,
+        ?Font $defaultFont = null,
+        ?float $defaultSize = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
+        // The pair must be supplied together; null/null means "no default
+        // font" so the existing setFont()-or-throw contract still applies.
+        if (($defaultFont === null) !== ($defaultSize === null)) {
+            throw new PdfException('Page default font requires both font and size, or neither');
+        }
+        if ($defaultFont !== null && $defaultSize !== null) {
+            if ($defaultSize <= 0) {
+                throw new PdfException('Default font size must be positive, got ' . $defaultSize);
+            }
+            $this->currentFont = $defaultFont;
+            $this->currentSize = $defaultSize;
+        }
     }
 
     /**

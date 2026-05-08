@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Document\Encryption;
 use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
@@ -315,6 +316,48 @@ final class DocumentTest extends TestCase
         // The image XObject itself is present.
         self::assertStringContainsString('/Subtype /Image', $bytes);
         self::assertStringContainsString('/Filter /FlateDecode', $bytes);
+    }
+
+    public function testAddPageHasHelvetica11AsDefaultFont(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        // No setFont() call: the default should let cell()/text() work.
+        $page->cell(x: 20, y: 20, w: 80, h: 30, text: 'Hi', padding: 0);
+        $bytes = $page->contentStream()->bytes();
+        // Helvetica is registered as F1, size 11 emitted in the text object.
+        self::assertMatchesRegularExpression('#/F1 11(\.\d+)? Tf#', $bytes);
+    }
+
+    public function testSetDefaultFontIsAppliedToNewPages(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultFont(Font::courier()->bold(), 14.5);
+        $page = $doc->addPage();
+        $page->cell(x: 20, y: 20, w: 80, h: 30, text: 'Hi', padding: 0);
+        $bytes = $page->contentStream()->bytes();
+        self::assertMatchesRegularExpression('#/F1 14\.5 Tf#', $bytes);
+    }
+
+    public function testSetDefaultFontDoesNotAffectPagesAlreadyCreated(): void
+    {
+        $doc = new Document(Unit::PT);
+        $first = $doc->addPage();           // Helvetica 11
+        $doc->setDefaultFont(Font::times(), 18);
+        $second = $doc->addPage();          // Times 18
+
+        $first->cell(x: 20, y: 20, w: 60, h: 30, text: 'A', padding: 0);
+        $second->cell(x: 20, y: 20, w: 60, h: 30, text: 'B', padding: 0);
+
+        self::assertMatchesRegularExpression('#11(\.\d+)? Tf#', $first->contentStream()->bytes());
+        self::assertMatchesRegularExpression('#18(\.\d+)? Tf#', $second->contentStream()->bytes());
+    }
+
+    public function testSetDefaultFontRejectsNonPositiveSize(): void
+    {
+        $doc = new Document(Unit::PT);
+        $this->expectException(PdfException::class);
+        $doc->setDefaultFont(Font::helvetica(), 0.0);
     }
 
     public function testDocumentReservesContiguousObjectNumbersForImageAndSmask(): void

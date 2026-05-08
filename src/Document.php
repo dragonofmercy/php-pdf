@@ -61,11 +61,31 @@ final class Document
 
     private Orientation $lastOrientation = Orientation::PORTRAIT;
 
+    /** Default font applied to pages created via addPage(). */
+    private Font $defaultFont;
+    private float $defaultSize = 11.0;
+
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
         $this->fontRegistry = new FontRegistry();
         $this->metricsRegistry = new MetricsRegistry();
         $this->imageRegistry = new ImageRegistry();
+        // PHP forbids method calls in property defaults; resolve here.
+        $this->defaultFont = Font::helvetica();
+    }
+
+    /**
+     * Sets the font that newly created pages start with. Existing pages are
+     * unaffected. Defaults to Helvetica 11pt.
+     */
+    public function setDefaultFont(Font $font, float $size): self
+    {
+        if ($size <= 0) {
+            throw new PdfException('Font size must be positive, got ' . $size);
+        }
+        $this->defaultFont = $font;
+        $this->defaultSize = $size;
+        return $this;
     }
 
     public function metadata(): Metadata
@@ -153,6 +173,8 @@ final class Document
             metricsRegistry: $this->metricsRegistry,
             imageRegistry: $this->imageRegistry,
             unit: $this->unit,
+            defaultFont: $this->defaultFont,
+            defaultSize: $this->defaultSize,
         );
         $this->pages[] = $page;
         return $page;
