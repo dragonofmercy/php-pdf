@@ -432,6 +432,22 @@ final class CellRendererTest extends TestCase
         self::assertMatchesRegularExpression('/1 0 0 -1 70\.66[0-9]+ [0-9.]+ Tm/', $bytes);
     }
 
+    public function testRenderVerticalAlignTopPositionsBaselineAtEm(): void
+    {
+        [, $bytes] = $this->renderAndStream(
+            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+                font: Font::helvetica(), size: 12.0, customLeading: null,
+                x: 0.0, y: 0.0, w: 100.0, h: 40.0, text: 'Aubord',
+                border: null, fill: null, textColor: null,
+                align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+            ),
+        );
+        // Bbox-safe TOP: baseline = cellY + paddingTop + effectiveSize.
+        // padding=0, size=12 → baseline = 12.
+        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 12(?:\.0+)? Tm/', $bytes);
+    }
+
     public function testRenderVerticalAlignMiddlePositionsBaseline(): void
     {
         [, $bytes] = $this->renderAndStream(
@@ -459,9 +475,10 @@ final class CellRendererTest extends TestCase
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
             ),
         );
-        // Cap-height centring: BOTTOM aligns the baseline of the last line
-        // with cellY + cellH - padding. cellH = 40, padding = 2 → baseline = 38.
-        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 38(?:\.0+)? Tm/', $bytes);
+        // Bbox-safe BOTTOM: lastBaseline = cellY + cellH - paddingBottom - |descent|
+        // For Helvetica 12pt, |descent| = 207/1000*12 = 2.484. cellH=40, padding=2
+        // → lastBaseline = 40 - 2 - 2.484 = 35.516.
+        self::assertMatchesRegularExpression('/1 0 0 -1 [0-9.]+ 35\.51[0-9]+ Tm/', $bytes);
     }
 
     public function testRenderTextColorEmittedBeforeBeginText(): void

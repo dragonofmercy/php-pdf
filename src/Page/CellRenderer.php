@@ -98,7 +98,13 @@ final class CellRenderer
                     break;
             }
             $lineCount = count($lines);
-            $textHeight = $lineCount * $effectiveLeading;
+            // Vertical extent the text actually needs: em-square above the
+            // first baseline + descent below the last + leading between lines.
+            // Mirrors the TOP/BOTTOM baseline policy so cellHeight auto-grows
+            // enough for descenders/diacritics when no $h is given.
+            $textHeight = $effectiveSize
+                + abs($metrics->descentAt($effectiveSize))
+                + ($lineCount - 1) * $effectiveLeading;
         }
 
         $cellHeight = max($h ?? 0.0, $textHeight + $padding->top + $padding->bottom);
@@ -204,18 +210,21 @@ final class CellRenderer
     ): void {
         $lineCount = count($lines);
         $capHeight = $metrics->capHeightAt($effectiveSize);
-        // Centre on cap-height rather than ascent+descent: the visible mass of
-        // text without descenders (capitals, digits, "Invoice #2026-001") sits
-        // between baseline-capHeight and baseline, so centring that band gives
-        // the result the eye expects. Trade-off: descenders (g, p, q) reach
-        // about descent_abs below the bottom edge -- acceptable for a row of
-        // visible-mass-centred text.
+        // Bbox-safe vertical space: caps cover capHeight, but ascenders and
+        // diacritics can reach up to the em-square (~ effectiveSize), and
+        // descenders go down by |descent|. TOP/BOTTOM use these so that
+        // padding=0 still keeps every glyph strictly inside the cell;
+        // MIDDLE keeps cap-height centring (visible-mass alignment) since
+        // its caller usually has comfortable padding above and below.
+        $emAbove = $effectiveSize;
+        $descentAbs = abs($metrics->descentAt($effectiveSize));
         $capBlockHeight = $capHeight + ($lineCount - 1) * $effectiveLeading;
 
         $firstBaseline = match ($verticalAlign) {
-            VerticalAlign::TOP    => $cellY + $padding->top + $capHeight,
+            VerticalAlign::TOP    => $cellY + $padding->top + $emAbove,
             VerticalAlign::MIDDLE => $cellY + ($cellH - $capBlockHeight) / 2.0 + $capHeight,
-            VerticalAlign::BOTTOM => $cellY + $cellH - $padding->bottom - ($lineCount - 1) * $effectiveLeading,
+            VerticalAlign::BOTTOM => $cellY + $cellH - $padding->bottom - $descentAbs
+                - ($lineCount - 1) * $effectiveLeading,
         };
 
         if ($textColor !== null) {
