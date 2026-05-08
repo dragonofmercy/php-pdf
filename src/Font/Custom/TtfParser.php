@@ -431,21 +431,58 @@ final class TtfParser
         return $result;
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array<int, int>
+    /**
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array<int, int>
      */
-    private static function readHmtxTable(string $bytes, array $dir, int $numberOfHMetrics, int $numGlyphs, string $ctx): array
-    {
-        self::requireTable($dir, 'hmtx', $ctx);
-        throw new \RuntimeException('readHmtxTable not implemented');
+    private static function readHmtxTable(
+        string $bytes,
+        array $dir,
+        int $numberOfHMetrics,
+        int $numGlyphs,
+        string $ctx,
+    ): array {
+        $entry = self::requireTable($dir, 'hmtx', $ctx);
+        $offset = $entry['offset'];
+        $widths = [];
+        $lastAdvance = 0;
+        for ($g = 0; $g < $numberOfHMetrics; $g++) {
+            $w = self::readUint16($bytes, $offset + $g * 4);
+            $widths[$g] = $w;
+            $lastAdvance = $w;
+        }
+        for ($g = $numberOfHMetrics; $g < $numGlyphs; $g++) {
+            $widths[$g] = $lastAdvance;
+        }
+        return $widths;
     }
 
-    /** @param array{macStyle: int} $head
-     *  @param array{fsSelection: int, sFamilyClass: int} $os2
-     *  @param array{isFixedPitch: int} $post
+    /**
+     * Computes the FontDescriptor /Flags bitmask per PDF spec 9.8.2 Table 123.
+     * For Latin TTFs we always set Nonsymbolic; Symbol/dingbat fonts are out of
+     * Phase 3a scope, so we never emit Symbolic.
+     *
+     * @param array{macStyle: int} $head
+     * @param array{fsSelection: int, sFamilyClass: int} $os2
+     * @param array{isFixedPitch: int} $post
      */
     private static function computeFlags(array $head, array $os2, array $post): int
     {
-        return 32;
+        $flags = 0;
+        if ($post['isFixedPitch'] !== 0) {
+            $flags |= 0x01;
+        }
+        $familyClass = ($os2['sFamilyClass'] >> 8) & 0xFF;
+        if ($familyClass >= 1 && $familyClass <= 7) {
+            $flags |= 0x02;
+        }
+        if ($familyClass === 10) {
+            $flags |= 0x08;
+        }
+        $flags |= 0x20;
+        if (($os2['fsSelection'] & 0x01) !== 0 || ($head['macStyle'] & 0x02) !== 0) {
+            $flags |= 0x40;
+        }
+        return $flags;
     }
 }
