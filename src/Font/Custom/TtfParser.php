@@ -315,13 +315,120 @@ final class TtfParser
         return $sanitized;
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array<int, int>
+    /**
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array<int, int>
      */
     private static function readCmapTable(string $bytes, array $dir, string $ctx): array
     {
-        self::requireTable($dir, 'cmap', $ctx);
-        throw new \RuntimeException('readCmapTable not implemented');
+        $entry = self::requireTable($dir, 'cmap', $ctx);
+        $base = $entry['offset'];
+        if ($entry['length'] < 4) {
+            throw new PdfException("Invalid 'cmap' table in {$ctx}: too short");
+        }
+        $numTables = self::readUint16($bytes, $base + 2);
+
+        $best12 = null;
+        $best4 = null;
+        for ($i = 0; $i < $numTables; $i++) {
+            $rec = $base + 4 + $i * 8;
+            $subOffset = self::readUint32($bytes, $rec + 4);
+            $format = self::readUint16($bytes, $base + $subOffset);
+
+            if ($format === 12 && $best12 === null) {
+                $best12 = $base + $subOffset;
+            } elseif ($format === 4 && $best4 === null) {
+                $best4 = $base + $subOffset;
+            }
+        }
+
+        if ($best12 !== null) {
+            return self::parseCmapFormat12($bytes, $best12);
+        }
+        if ($best4 !== null) {
+            return self::parseCmapFormat4($bytes, $best4);
+        }
+
+        throw new PdfException("No supported 'cmap' subtable (need format 4 or 12) in {$ctx}");
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private static function parseCmapFormat4(string $bytes, int $offset): array
+    {
+        $segCountX2 = self::readUint16($bytes, $offset + 6);
+        $segCount = (int) ($segCountX2 / 2);
+
+        $endCodes = [];
+        $startCodes = [];
+        $idDeltas = [];
+        $idRangeOffsets = [];
+
+        $cursor = $offset + 14;
+        for ($i = 0; $i < $segCount; $i++) {
+            $endCodes[] = self::readUint16($bytes, $cursor + $i * 2);
+        }
+        $cursor += $segCountX2 + 2;
+        for ($i = 0; $i < $segCount; $i++) {
+            $startCodes[] = self::readUint16($bytes, $cursor + $i * 2);
+        }
+        $cursor += $segCountX2;
+        for ($i = 0; $i < $segCount; $i++) {
+            $delta = self::readUint16($bytes, $cursor + $i * 2);
+            if ($delta >= 0x8000) {
+                $delta -= 0x10000;
+            }
+            $idDeltas[] = $delta;
+        }
+        $cursor += $segCountX2;
+        $idRangeOffsetsBase = $cursor;
+        for ($i = 0; $i < $segCount; $i++) {
+            $idRangeOffsets[] = self::readUint16($bytes, $cursor + $i * 2);
+        }
+
+        $result = [];
+        for ($i = 0; $i < $segCount; $i++) {
+            $start = $startCodes[$i];
+            $end = $endCodes[$i];
+            if ($start === 0xFFFF && $end === 0xFFFF) {
+                continue;
+            }
+            $delta = $idDeltas[$i];
+            $rangeOffset = $idRangeOffsets[$i];
+            for ($cp = $start; $cp <= $end; $cp++) {
+                if ($rangeOffset === 0) {
+                    $gid = ($cp + $delta) & 0xFFFF;
+                } else {
+                    $glyphAddr = $idRangeOffsetsBase + $i * 2 + ($cp - $start) * 2 + $rangeOffset;
+                    $glyph = self::readUint16($bytes, $glyphAddr);
+                    $gid = $glyph === 0 ? 0 : ($glyph + $delta) & 0xFFFF;
+                }
+                if ($gid !== 0) {
+                    $result[$cp] = $gid;
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private static function parseCmapFormat12(string $bytes, int $offset): array
+    {
+        $numGroups = self::readUint32($bytes, $offset + 12);
+        $result = [];
+        for ($i = 0; $i < $numGroups; $i++) {
+            $g = $offset + 16 + $i * 12;
+            $start = self::readUint32($bytes, $g);
+            $end = self::readUint32($bytes, $g + 4);
+            $gidStart = self::readUint32($bytes, $g + 8);
+            for ($cp = $start; $cp <= $end; $cp++) {
+                $result[$cp] = $gidStart + ($cp - $start);
+            }
+        }
+        return $result;
     }
 
     /** @param array<string, array{offset: int, length: int}> $dir
