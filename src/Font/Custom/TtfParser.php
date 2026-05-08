@@ -111,31 +111,70 @@ final class TtfParser
         return $dir[$tag];
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array{unitsPerEm: int, xMin: int, yMin: int, xMax: int, yMax: int, macStyle: int}
+    /**
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array{unitsPerEm: int, xMin: int, yMin: int, xMax: int, yMax: int, macStyle: int}
      */
     private static function readHeadTable(string $bytes, array $dir, string $ctx): array
     {
-        self::requireTable($dir, 'head', $ctx);
-        throw new \RuntimeException('readHeadTable not implemented');
+        $entry = self::requireTable($dir, 'head', $ctx);
+        if ($entry['length'] < 54) {
+            throw new PdfException("Invalid 'head' table in {$ctx}: too short");
+        }
+        $offset = $entry['offset'];
+        return [
+            'unitsPerEm' => self::readUint16($bytes, $offset + 18),
+            'xMin' => self::readInt16($bytes, $offset + 36),
+            'yMin' => self::readInt16($bytes, $offset + 38),
+            'xMax' => self::readInt16($bytes, $offset + 40),
+            'yMax' => self::readInt16($bytes, $offset + 42),
+            'macStyle' => self::readUint16($bytes, $offset + 44),
+        ];
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array{ascender: int, descender: int, numberOfHMetrics: int}
+    private static function readUint16(string $bytes, int $offset): int
+    {
+        $unpacked = unpack('nv', substr($bytes, $offset, 2));
+        if ($unpacked === false || !is_int($unpacked['v'])) {
+            throw new PdfException("Cannot read uint16 at offset {$offset}");
+        }
+        return $unpacked['v'];
+    }
+
+    private static function readInt16(string $bytes, int $offset): int
+    {
+        $v = self::readUint16($bytes, $offset);
+        return $v >= 0x8000 ? $v - 0x10000 : $v;
+    }
+
+    /**
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array{ascender: int, descender: int, numberOfHMetrics: int}
      */
     private static function readHheaTable(string $bytes, array $dir, string $ctx): array
     {
-        self::requireTable($dir, 'hhea', $ctx);
-        throw new \RuntimeException('readHheaTable not implemented');
+        $entry = self::requireTable($dir, 'hhea', $ctx);
+        if ($entry['length'] < 36) {
+            throw new PdfException("Invalid 'hhea' table in {$ctx}: too short");
+        }
+        return [
+            'ascender' => self::readInt16($bytes, $entry['offset'] + 4),
+            'descender' => self::readInt16($bytes, $entry['offset'] + 6),
+            'numberOfHMetrics' => self::readUint16($bytes, $entry['offset'] + 34),
+        ];
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array{numGlyphs: int}
+    /**
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array{numGlyphs: int}
      */
     private static function readMaxpTable(string $bytes, array $dir, string $ctx): array
     {
-        self::requireTable($dir, 'maxp', $ctx);
-        throw new \RuntimeException('readMaxpTable not implemented');
+        $entry = self::requireTable($dir, 'maxp', $ctx);
+        if ($entry['length'] < 6) {
+            throw new PdfException("Invalid 'maxp' table in {$ctx}: too short");
+        }
+        return ['numGlyphs' => self::readUint16($bytes, $entry['offset'] + 4)];
     }
 
     /** @param array<string, array{offset: int, length: int}> $dir
