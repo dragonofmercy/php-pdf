@@ -247,6 +247,9 @@ final class GoldenTest extends TestCase
         $page->setFont(\DragonOfMercy\PhpPdf\Font::courier(), 10);
         $page->text(50, 150, "Line 1\nLine 2\nLine 3");
 
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
+        $page->text(50, 190, 'Smørrebrød, skål, äpplen, Þórsdagur');
+
         $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 14);
         $page->text(50, 220, 'Prix : 19,99 €');
 

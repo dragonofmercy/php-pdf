@@ -103,6 +103,9 @@ $page->text(50, 100, 'Résumé — café, naïveté, œuvre');
 $page->setFont(Font::courier(), 10);
 $page->text(50, 150, "Line 1\nLine 2\nLine 3");
 
+$page->setFont(Font::helvetica(), 12);
+$page->text(50, 190, 'Smørrebrød, skål, äpplen, Þórsdagur');
+
 $page->setFont(Font::helvetica(), 14);
 $page->text(50, 220, 'Prix : 19,99 €');
 
