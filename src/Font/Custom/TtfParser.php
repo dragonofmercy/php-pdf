@@ -177,22 +177,72 @@ final class TtfParser
         return ['numGlyphs' => self::readUint16($bytes, $entry['offset'] + 4)];
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array{typoAscender: int, typoDescender: int, capHeight: int, xHeight: int, weightClass: int, fsSelection: int, sFamilyClass: int}
+    /**
+     * Reads the OS/2 table. Falls back gracefully on older versions where
+     * sCapHeight and sxHeight are absent (added in v2): approximates them
+     * from the typographic ascender (~70% / ~50%).
+     *
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array{typoAscender: int, typoDescender: int, capHeight: int, xHeight: int, weightClass: int, fsSelection: int, sFamilyClass: int}
      */
     private static function readOs2Table(string $bytes, array $dir, string $ctx): array
     {
-        self::requireTable($dir, 'OS/2', $ctx);
-        throw new \RuntimeException('readOs2Table not implemented');
+        $entry = self::requireTable($dir, 'OS/2', $ctx);
+        if ($entry['length'] < 78) {
+            throw new PdfException("Invalid 'OS/2' table in {$ctx}: too short");
+        }
+        $offset = $entry['offset'];
+        $version = self::readUint16($bytes, $offset);
+        $weightClass = self::readUint16($bytes, $offset + 4);
+        $sFamilyClass = self::readInt16($bytes, $offset + 32);
+        $fsSelection = self::readUint16($bytes, $offset + 62);
+        $typoAscender = self::readInt16($bytes, $offset + 68);
+        $typoDescender = self::readInt16($bytes, $offset + 70);
+
+        if ($version >= 2 && $entry['length'] >= 90) {
+            $xHeight = self::readInt16($bytes, $offset + 86);
+            $capHeight = self::readInt16($bytes, $offset + 88);
+        } else {
+            $capHeight = (int) round($typoAscender * 0.7);
+            $xHeight = (int) round($typoAscender * 0.5);
+        }
+
+        return [
+            'typoAscender' => $typoAscender,
+            'typoDescender' => $typoDescender,
+            'capHeight' => $capHeight,
+            'xHeight' => $xHeight,
+            'weightClass' => $weightClass,
+            'fsSelection' => $fsSelection,
+            'sFamilyClass' => $sFamilyClass,
+        ];
     }
 
-    /** @param array<string, array{offset: int, length: int}> $dir
-     *  @return array{italicAngle: int, isFixedPitch: int}
+    /**
+     * @param array<string, array{offset: int, length: int}> $dir
+     * @return array{italicAngle: int, isFixedPitch: int}
      */
     private static function readPostTable(string $bytes, array $dir, string $ctx): array
     {
-        self::requireTable($dir, 'post', $ctx);
-        throw new \RuntimeException('readPostTable not implemented');
+        $entry = self::requireTable($dir, 'post', $ctx);
+        if ($entry['length'] < 32) {
+            throw new PdfException("Invalid 'post' table in {$ctx}: too short");
+        }
+        $italicAngle = self::readUint32($bytes, $entry['offset'] + 4);
+        if ($italicAngle >= 0x80000000) {
+            $italicAngle -= 0x100000000;
+        }
+        $isFixedPitch = self::readUint32($bytes, $entry['offset'] + 12);
+        return ['italicAngle' => $italicAngle, 'isFixedPitch' => $isFixedPitch];
+    }
+
+    private static function readUint32(string $bytes, int $offset): int
+    {
+        $unpacked = unpack('Nv', substr($bytes, $offset, 4));
+        if ($unpacked === false || !is_int($unpacked['v'])) {
+            throw new PdfException("Cannot read uint32 at offset {$offset}");
+        }
+        return $unpacked['v'];
     }
 
     /** @param array<string, array{offset: int, length: int}> $dir */
