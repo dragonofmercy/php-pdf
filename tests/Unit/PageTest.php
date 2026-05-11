@@ -7,8 +7,10 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\LineCap;
@@ -16,8 +18,10 @@ use DragonOfMercy\PhpPdf\LineJoin;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Path;
 use DragonOfMercy\PhpPdf\PathOperation;
+use DragonOfMercy\PhpPdf\Tests\Support\Fakes\MeasureCountingFontEngine;
 use DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 final class PageTest extends TestCase
 {
@@ -882,102 +886,38 @@ final class PageTest extends TestCase
         self::assertGreaterThan(0.0, $w);
     }
 
-    public function testAutoWidthCellMeasuresOnce(): void
+    public function testAutoWidthAddsOneMeasurementToTheCellPipeline(): void
     {
-        $metricsRegistry = new \DragonOfMercy\PhpPdf\Font\MetricsRegistry();
-        $page = new \DragonOfMercy\PhpPdf\Page(
+        $metricsRegistry = new MetricsRegistry();
+        $page = new Page(
             pageWidth: 595,
             pageHeight: 842,
-            fontRegistry: new \DragonOfMercy\PhpPdf\Font\FontRegistry(),
+            fontRegistry: new FontRegistry(),
             metricsRegistry: $metricsRegistry,
-            imageRegistry: new \DragonOfMercy\PhpPdf\Image\ImageRegistry(),
+            imageRegistry: new ImageRegistry(),
         );
-        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
+        $page->setFont(Font::helvetica(), 12);
 
-        // Inject a counting engine via reflection. Standard fonts without a resolver may
-        // leave $currentFontEngine null; we ensure it's set first so the counter sees calls.
-        $ref = new \ReflectionProperty($page, 'currentFontEngine');
-        /** @var \DragonOfMercy\PhpPdf\Font\FontEngine|null $inner */
+        // Inject a counting engine so we can compare measurement counts between paths.
+        $ref = new ReflectionProperty($page, 'currentFontEngine');
         $inner = $ref->getValue($page);
-        if ($inner === null) {
-            $inner = new \DragonOfMercy\PhpPdf\Font\StandardFontEngine(
-                \DragonOfMercy\PhpPdf\Font::helvetica(),
-                $metricsRegistry->metricsFor(\DragonOfMercy\PhpPdf\Font::helvetica()),
-            );
+        if (!$inner instanceof FontEngine) {
+            $inner = new StandardFontEngine(Font::helvetica(), $metricsRegistry->metricsFor(Font::helvetica()));
         }
         $counter = new MeasureCountingFontEngine($inner);
         $ref->setValue($page, $counter);
 
+        // Explicit width: only the wrap pipeline measures.
+        $page->setXY(10, 10);
+        $page->cell(w: 100.0, text: 'Hello');
+        $explicit = $counter->measureCalls;
+        $counter->measureCalls = 0;
+
+        // Auto-width: adds exactly one measurement for the widest-line scan.
         $page->setXY(10, 10);
         $page->cell(text: 'Hello');
+        $auto = $counter->measureCalls;
 
-        // Auto-width path: 1 call to widestLineWidth (1 line) + 1 call inside wrapText
-        // (single token). Pre-refactor the same case did 2 calls too (stringWidth + wrapText),
-        // but the stringWidth call traversed Page::stringWidth -> resolveEngine round trip
-        // and converted pt<->unit; now it is a direct widestLineWidth on the same engine.
-        self::assertSame(2, $counter->measureCalls);
-    }
-}
-
-final class MeasureCountingFontEngine implements \DragonOfMercy\PhpPdf\Font\FontEngine
-{
-    public int $measureCalls = 0;
-
-    public function __construct(private readonly \DragonOfMercy\PhpPdf\Font\FontEngine $inner) {}
-
-    public function font(): \DragonOfMercy\PhpPdf\Font
-    {
-        return $this->inner->font();
-    }
-
-    public function measure(string $text, float $size): float
-    {
-        $this->measureCalls++;
-        return $this->inner->measure($text, $size);
-    }
-
-    public function emitShowText(\DragonOfMercy\PhpPdf\Page\ContentStream $stream, string $text): void
-    {
-        $this->inner->emitShowText($stream, $text);
-    }
-
-    public function emitShowTextNextLine(\DragonOfMercy\PhpPdf\Page\ContentStream $stream, string $text): void
-    {
-        $this->inner->emitShowTextNextLine($stream, $text);
-    }
-
-    public function splitForceBreak(string $token, float $innerW, float $size): array
-    {
-        return $this->inner->splitForceBreak($token, $innerW, $size);
-    }
-
-    public function ascentAt(float $size): float
-    {
-        return $this->inner->ascentAt($size);
-    }
-
-    public function descentAt(float $size): float
-    {
-        return $this->inner->descentAt($size);
-    }
-
-    public function capHeightAt(float $size): float
-    {
-        return $this->inner->capHeightAt($size);
-    }
-
-    public function xHeightAt(float $size): float
-    {
-        return $this->inner->xHeightAt($size);
-    }
-
-    public function registerOn(\DragonOfMercy\PhpPdf\Font\FontRegistry $registry): string
-    {
-        return $this->inner->registerOn($registry);
-    }
-
-    public function usageKey(): string
-    {
-        return $this->inner->usageKey();
+        self::assertSame($explicit + 1, $auto);
     }
 }
