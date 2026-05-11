@@ -249,6 +249,13 @@ final class Document
      * Appends a new page. Without arguments, reuses the format and orientation
      * from the previous addPage() call (or A4 portrait on the first call).
      *
+     * Side-effects: increments the internal page counter (the new Page receives
+     * the next sequential pageNumber), becomes the value returned by
+     * currentPage(), fires the header callback (if any) eagerly with the new
+     * Page (the inHeaderRender flag is set on the Page during the call), then
+     * positions the cursor at (leftMargin, topMargin) ready for cell() / text()
+     * calls.
+     *
      * @param PageFormat|array{0: int|float, 1: int|float}|null $format A standard
      *     format, a [width, height] pair in the document's unit for custom sizes
      *     (labels, business cards), or null to keep the previous value.
