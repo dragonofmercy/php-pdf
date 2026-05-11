@@ -49,14 +49,17 @@ final readonly class CustomFontEngine implements FontEngine
 
     public function emitShowText(ContentStream $stream, string $text): void
     {
-        $hex = strtoupper(bin2hex(Utf8ToCidEncoder::encode($text, $this->ttf)));
-        $stream->append(Operators::showTextHex($hex));
+        $stream->append(Operators::showTextHex($this->encodeHex($text)));
     }
 
     public function emitShowTextNextLine(ContentStream $stream, string $text): void
     {
-        $hex = strtoupper(bin2hex(Utf8ToCidEncoder::encode($text, $this->ttf)));
-        $stream->append(Operators::showTextHexNextLine($hex));
+        $stream->append(Operators::showTextHexNextLine($this->encodeHex($text)));
+    }
+
+    private function encodeHex(string $text): string
+    {
+        return strtoupper(bin2hex(Utf8ToCidEncoder::encode($text, $this->ttf)));
     }
 
     public function splitForceBreak(string $token, float $innerW, float $size): array

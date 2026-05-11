@@ -86,9 +86,7 @@ final class Page
             if ($this->currentFont->isCustom() && $this->fontResolver === null) {
                 throw new PdfException('Page received a custom Font as default but no FontResolver from Document');
             }
-            if ($this->fontResolver !== null) {
-                $this->currentFontEngine = $this->fontResolver->resolveEngine($this->currentFont);
-            }
+            $this->currentFontEngine = $this->buildEngineFor($this->currentFont);
         }
     }
 
@@ -284,11 +282,7 @@ final class Page
                 . 'Call Document::registerFontFamily() first.',
             );
         }
-        if ($this->fontResolver !== null) {
-            $this->currentFontEngine = $this->fontResolver->resolveEngine($font);
-        } else {
-            $this->currentFontEngine = null;
-        }
+        $this->currentFontEngine = $this->buildEngineFor($font);
         $this->currentFont = $font;
         $this->currentSize = $size;
         $this->customLeading = null;
@@ -356,9 +350,7 @@ final class Page
 
         $engine = $resolvedFont === $this->currentFont && $this->currentFontEngine !== null
             ? $this->currentFontEngine
-            : ($this->fontResolver !== null
-                ? $this->fontResolver->resolveEngine($resolvedFont)
-                : new StandardFontEngine($resolvedFont, $this->metricsRegistry->metricsFor($resolvedFont)));
+            : $this->buildEngineFor($resolvedFont);
 
         $maxWidthPt = 0.0;
         foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
@@ -645,13 +637,17 @@ final class Page
 
     private function activeEngine(): FontEngine
     {
-        if ($this->currentFont === null) {
+        if ($this->currentFontEngine === null) {
             throw new PdfException('No active font on this page');
         }
-        return $this->currentFontEngine ?? new StandardFontEngine(
-            $this->currentFont,
-            $this->metricsRegistry->metricsFor($this->currentFont),
-        );
+        return $this->currentFontEngine;
+    }
+
+    private function buildEngineFor(Font $font): FontEngine
+    {
+        return $this->fontResolver !== null
+            ? $this->fontResolver->resolveEngine($font)
+            : new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
     }
 
     private function toPt(float $value): float
@@ -665,10 +661,9 @@ final class Page
     }
 
     /**
-     * Folds CRLF and lone CR to LF so explode("\n", ...) does not leave a
-     * trailing \r on the previous paragraph -- on the standard-font path
-     * that \r would render as '?' (WinAnsi mapping for unknown control
-     * bytes), and on the custom-TTF path it would render as GID 0 (.notdef).
+     * Folds CRLF and lone CR to LF so callers do not have to split on multiple
+     * line terminators. A stray \r left in a line would render as an unmappable
+     * glyph (substituted to '?' or .notdef depending on the active encoding).
      */
     private static function normalizeNewlines(string $text): string
     {
