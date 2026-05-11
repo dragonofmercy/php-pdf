@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
@@ -886,7 +887,7 @@ final class PageTest extends TestCase
         self::assertGreaterThan(0.0, $w);
     }
 
-    public function testAutoWidthAddsOneMeasurementToTheCellPipeline(): void
+    public function testAutoWidthAddsOneMeasurementToTheCellPipelineWhenFitIsNone(): void
     {
         $metricsRegistry = new MetricsRegistry();
         $page = new Page(
@@ -919,5 +920,74 @@ final class PageTest extends TestCase
         $auto = $counter->measureCalls;
 
         self::assertSame($explicit + 1, $auto);
+    }
+
+    public function testAutoWidthAddsZeroMeasurementsToTheCellPipelineWhenFitIsCondense(): void
+    {
+        $metricsRegistry = new MetricsRegistry();
+        $page = new Page(
+            pageWidth: 595,
+            pageHeight: 842,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: $metricsRegistry,
+            imageRegistry: new ImageRegistry(),
+        );
+        $page->setFont(Font::helvetica(), 12);
+
+        $ref = new ReflectionProperty($page, 'currentFontEngine');
+        $inner = $ref->getValue($page);
+        if (!$inner instanceof FontEngine) {
+            $inner = new StandardFontEngine(Font::helvetica(), $metricsRegistry->metricsFor(Font::helvetica()));
+        }
+        $counter = new MeasureCountingFontEngine($inner);
+        $ref->setValue($page, $counter);
+
+        // Explicit width: condenseText measures each paragraph once.
+        $page->setXY(10, 10);
+        $page->cell(w: 100.0, text: "Hello\nWorld", fit: Fit::CONDENSE);
+        $explicit = $counter->measureCalls;
+        $counter->measureCalls = 0;
+
+        // Auto-width: no extra measurement (no widestLineWidth pass for CONDENSE).
+        $page->setXY(10, 10);
+        $page->cell(text: "Hello\nWorld", fit: Fit::CONDENSE);
+        $auto = $counter->measureCalls;
+
+        self::assertSame($explicit, $auto);
+    }
+
+    public function testAutoWidthAddsZeroMeasurementsToTheCellPipelineWhenFitIsShrink(): void
+    {
+        $metricsRegistry = new MetricsRegistry();
+        $page = new Page(
+            pageWidth: 595,
+            pageHeight: 842,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: $metricsRegistry,
+            imageRegistry: new ImageRegistry(),
+        );
+        $page->setFont(Font::helvetica(), 12);
+
+        $ref = new ReflectionProperty($page, 'currentFontEngine');
+        $inner = $ref->getValue($page);
+        if (!$inner instanceof FontEngine) {
+            $inner = new StandardFontEngine(Font::helvetica(), $metricsRegistry->metricsFor(Font::helvetica()));
+        }
+        $counter = new MeasureCountingFontEngine($inner);
+        $ref->setValue($page, $counter);
+
+        // Explicit width wide enough to avoid shrinking: shrinkText measures
+        // each paragraph once (no second pass since effectiveSize == originalSize).
+        $page->setXY(10, 10);
+        $page->cell(w: 500.0, text: "Hello\nWorld", fit: Fit::SHRINK);
+        $explicit = $counter->measureCalls;
+        $counter->measureCalls = 0;
+
+        // Auto-width: same count (no widestLineWidth pass for SHRINK).
+        $page->setXY(10, 10);
+        $page->cell(text: "Hello\nWorld", fit: Fit::SHRINK);
+        $auto = $counter->measureCalls;
+
+        self::assertSame($explicit, $auto);
     }
 }

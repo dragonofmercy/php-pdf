@@ -45,12 +45,6 @@ final class CellRenderer
         CellPadding $padding,
         string $fontShortName,
     ): CellResult {
-        if ($w === null) {
-            $w = ($text === '' ? 0.0 : $this->widestLineWidth($text, $engine, $size))
-                + $padding->left + $padding->right;
-        }
-        $innerW = max(0.0, $w - $padding->left - $padding->right);
-
         $lines = [];
         $widths = [];
         $brokenWords = 0;
@@ -58,11 +52,25 @@ final class CellRenderer
         $effectiveSize = $size;
         $effectiveLeading = $customLeading ?? ($size * 1.2);
         $scales = null;
+        $autoWidth = $w === null;
 
+        // Auto-width: Fit::NONE still needs a paragraph-level widest scan to
+        // size the cell before tokenized wrapping. CONDENSE and SHRINK measure
+        // each paragraph internally and unconstrain themselves with
+        // PHP_FLOAT_MAX, so the widest paragraph can be derived from their
+        // results without an extra pass.
         if ($text === '') {
+            $w ??= $padding->left + $padding->right;
+            $innerW = max(0.0, $w - $padding->left - $padding->right);
             $lineCount = 0;
             $textHeight = 0.0;
         } else {
+            if ($autoWidth && $fit === Fit::NONE) {
+                $w = $this->widestLineWidth($text, $engine, $size)
+                    + $padding->left + $padding->right;
+            }
+            $innerW = $w === null ? PHP_FLOAT_MAX : max(0.0, $w - $padding->left - $padding->right);
+
             switch ($fit) {
                 case Fit::NONE:
                     $wrap = $this->wrapText($text, $innerW, $engine, $size);
@@ -76,8 +84,7 @@ final class CellRenderer
                     $lines = $cond->lines;
                     $scales = $cond->scales;
                     $widths = [];
-                    foreach ($lines as $i => $line) {
-                        $paraWidth = $engine->measure($line, $size);
+                    foreach ($cond->widths as $i => $paraWidth) {
                         $widths[] = $paraWidth * $scales[$i] / 100.0;
                     }
                     break;
@@ -92,6 +99,16 @@ final class CellRenderer
                     break;
             }
             $lineCount = count($lines);
+
+            if ($w === null) {
+                $maxLineWidth = 0.0;
+                foreach ($widths as $lineWidth) {
+                    if ($lineWidth > $maxLineWidth) {
+                        $maxLineWidth = $lineWidth;
+                    }
+                }
+                $w = $maxLineWidth + $padding->left + $padding->right;
+            }
 
             $descentAbs = abs($engine->descentAt($effectiveSize));
             $textHeight = $effectiveSize + $descentAbs + ($lineCount - 1) * $effectiveLeading;
@@ -332,6 +349,7 @@ final class CellRenderer
 
         $lines = [];
         $scales = [];
+        $widths = [];
 
         foreach ($paragraphs as $paragraph) {
             $paraWidth = $engine->measure($paragraph, $size);
@@ -342,9 +360,10 @@ final class CellRenderer
             }
             $lines[] = $paragraph;
             $scales[] = $scale;
+            $widths[] = $paraWidth;
         }
 
-        return new CondenseResult(lines: $lines, scales: $scales);
+        return new CondenseResult(lines: $lines, scales: $scales, widths: $widths);
     }
 
     public function shrinkText(
@@ -356,9 +375,11 @@ final class CellRenderer
     ): ShrinkResult {
         $paragraphs = explode("\n", $rawText);
 
+        $widthsAtOriginal = [];
         $maxWidth = 0.0;
         foreach ($paragraphs as $paragraph) {
             $w = $engine->measure($paragraph, $originalSize);
+            $widthsAtOriginal[] = $w;
             if ($w > $maxWidth) {
                 $maxWidth = $w;
             }
@@ -381,9 +402,13 @@ final class CellRenderer
 
         $effectiveLeading = $customLeading ?? ($effectiveSize * 1.2);
 
-        $widths = [];
-        foreach ($paragraphs as $paragraph) {
-            $widths[] = $engine->measure($paragraph, $effectiveSize);
+        if ($effectiveSize === $originalSize) {
+            $widths = $widthsAtOriginal;
+        } else {
+            $widths = [];
+            foreach ($paragraphs as $paragraph) {
+                $widths[] = $engine->measure($paragraph, $effectiveSize);
+            }
         }
 
         return new ShrinkResult(
