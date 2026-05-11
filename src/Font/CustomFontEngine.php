@@ -26,7 +26,7 @@ final readonly class CustomFontEngine implements FontEngine
         private Font $font,
         private ParsedTtf $ttf,
     ) {
-        $this->key = new CustomFontKey($font->customAlias() ?? '', $ttf->postScriptName);
+        $this->key = new CustomFontKey($font->requireCustomAlias(), $ttf->postScriptName);
     }
 
     public function font(): Font

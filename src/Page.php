@@ -278,7 +278,7 @@ final class Page
         }
         if ($font->isCustom() && $this->fontResolver === null) {
             throw new PdfException(
-                "Cannot use custom font '" . ($font->customAlias() ?? '') . "': "
+                "Cannot use custom font '" . $font->requireCustomAlias() . "': "
                 . 'Call Document::registerFontFamily() first.',
             );
         }

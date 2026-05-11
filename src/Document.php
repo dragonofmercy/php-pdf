@@ -565,7 +565,7 @@ final class Document
                             }
                             $resolvedTtf = $this->fontResolver->resolve($font);
                             $key = new CustomFontKey(
-                                $font->customAlias() ?? '',
+                                $font->requireCustomAlias(),
                                 $resolvedTtf->postScriptName,
                             );
                             $shortName = $this->fontRegistry->shortNameForCustom($font, $key);

@@ -61,6 +61,19 @@ final readonly class Font
         return $this->customAlias;
     }
 
+    /**
+     * @internal
+     */
+    public function requireCustomAlias(): string
+    {
+        if ($this->customAlias === null) {
+            throw new LogicException(
+                'requireCustomAlias() called on a standard font',
+            );
+        }
+        return $this->customAlias;
+    }
+
     public function isBold(): bool
     {
         return $this->bold;

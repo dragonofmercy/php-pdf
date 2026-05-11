@@ -135,4 +135,16 @@ final class FontTest extends TestCase
         self::assertEquals($a, $b);
         self::assertNotEquals($a, $c);
     }
+
+    public function testRequireCustomAliasReturnsAliasForCustomFont(): void
+    {
+        self::assertSame('Inter', Font::custom('Inter')->requireCustomAlias());
+    }
+
+    public function testRequireCustomAliasThrowsOnStandardFont(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('requireCustomAlias() called on a standard font');
+        Font::helvetica()->requireCustomAlias();
+    }
 }
