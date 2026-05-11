@@ -82,6 +82,7 @@ final class Document
     private PageMargins $margins;
 
     private ?Closure $header = null;
+    private ?Closure $footer = null;
     private ?Page $currentPage = null;
     private int $pageCounter = 0;
 
@@ -194,6 +195,12 @@ final class Document
     public function setHeader(?Closure $header): self
     {
         $this->header = $header;
+        return $this;
+    }
+
+    public function setFooter(?Closure $footer): self
+    {
+        $this->footer = $footer;
         return $this;
     }
 
@@ -347,6 +354,8 @@ final class Document
             throw new PdfException('Document has no pages');
         }
 
+        $this->runFooters();
+
         if ($this->encryption !== null) {
             return $this->outputEncrypted($this->encryption, $this->metadata);
         }
@@ -354,6 +363,20 @@ final class Document
         return $this->metadata === null
             ? $this->outputWithoutMetadata()
             : $this->outputWithMetadata($this->metadata);
+    }
+
+    private function runFooters(): void
+    {
+        if ($this->footer === null) {
+            return;
+        }
+        $totalPages = count($this->pages);
+        $previousCurrent = $this->currentPage;
+        foreach ($this->pages as $i => $page) {
+            $this->currentPage = $page;
+            ($this->footer)($page, $i + 1, $totalPages);
+        }
+        $this->currentPage = $previousCurrent;
     }
 
     public function save(string $path): void

@@ -291,3 +291,25 @@ if (is_file($fontsDir . '/FreeSans.ttf') && is_file($fontsDir . '/FreeSansBold.t
 } else {
     echo "Skipped page-with-ttf.pdf (FreeSans fixtures absent)\n";
 }
+
+// Fixture 13: page with header + footer + numbering (Phase 6)
+$doc = new Document(Unit::PT);
+$doc->setMargins(new \DragonOfMercy\PhpPdf\PageMargins(top: 80.0, right: 50.0, bottom: 60.0, left: 50.0));
+$doc->setHeader(function (\DragonOfMercy\PhpPdf\Page $p): void {
+    $p->setFont(Font::helvetica()->bold(), 14);
+    $p->text(50, 40, 'Phase 6 Sample');
+    $p->setLineWidth(0.5);
+    $p->line(50, 65, 545, 65)->stroke();
+});
+$doc->setFooter(function (\DragonOfMercy\PhpPdf\Page $p, int $n, int $total): void {
+    $p->setFont(Font::helvetica(), 9);
+    $p->text(50, 800, "Page {$n} / {$total}");
+});
+
+$page = $doc->addPage();
+$page->setFont(Font::helvetica(), 11);
+$page->text(50, 100, 'Body content positioned below the header zone.');
+$page->text(50, 120, 'Page numbering appears in the footer band.');
+
+$doc->save($fixturesDir . '/page-with-header-footer.pdf');
+echo "Regenerated page-with-header-footer.pdf\n";
