@@ -17,6 +17,7 @@ use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
+use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
@@ -516,14 +517,14 @@ final class Document
         $customRefs = [];
         /** @var list<array{ParsedTtf, int, int, int, int, int}> $customEmissions */
         $customEmissions = [];
-        foreach ($this->fontRegistry->customRegistrations() as $shortName => $resolvedTtfId) {
+        foreach ($this->fontRegistry->customRegistrations() as $shortName => $key) {
             $type0Id = $nextObjectNumber++;
             $cidFontId = $nextObjectNumber++;
             $descriptorId = $nextObjectNumber++;
             $fontFileId = $nextObjectNumber++;
             $toUnicodeId = $nextObjectNumber++;
 
-            $parsedTtf = $this->resolveTtfById($resolvedTtfId);
+            $parsedTtf = $this->resolveTtfByKey($key);
             $customRefs[$shortName] = PdfReference::to($type0Id, 0);
             $customEmissions[] = [$parsedTtf, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
         }
@@ -563,8 +564,11 @@ final class Document
                                 throw new PdfException('Custom font used without registered family');
                             }
                             $resolvedTtf = $this->fontResolver->resolve($font);
-                            $resolvedId = $font->customAlias() . ':' . $resolvedTtf->postScriptName;
-                            $shortName = $this->fontRegistry->shortNameForCustom($font, $resolvedId);
+                            $key = new CustomFontKey(
+                                $font->customAlias() ?? '',
+                                $resolvedTtf->postScriptName,
+                            );
+                            $shortName = $this->fontRegistry->shortNameForCustom($font, $key);
                             $fontDict = $fontDict->withEntry(Name::of($shortName), $customRefs[$shortName]);
                         } else {
                             $shortName = $this->fontRegistry->shortName($font);
@@ -635,18 +639,17 @@ final class Document
         return [$objects, $pageRefs];
     }
 
-    private function resolveTtfById(string $resolvedTtfId): ParsedTtf
+    private function resolveTtfByKey(CustomFontKey $key): ParsedTtf
     {
-        [$alias, $psName] = explode(':', $resolvedTtfId, 2);
-        if (!isset($this->customFontFamilies[$alias])) {
-            throw new PdfException("Internal error: cannot resolve TTF id {$resolvedTtfId}");
+        if (!isset($this->customFontFamilies[$key->alias])) {
+            throw new PdfException("Internal error: cannot resolve TTF id {$key->toRegistryKey()}");
         }
-        foreach ($this->customFontFamilies[$alias] as $variant) {
-            if ($variant !== null && $variant->postScriptName === $psName) {
+        foreach ($this->customFontFamilies[$key->alias] as $variant) {
+            if ($variant !== null && $variant->postScriptName === $key->psName) {
                 return $variant;
             }
         }
-        throw new PdfException("Internal error: cannot resolve TTF id {$resolvedTtfId}");
+        throw new PdfException("Internal error: cannot resolve TTF id {$key->toRegistryKey()}");
     }
 
     /**

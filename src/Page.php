@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
+use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\Custom\Utf8;
@@ -308,9 +309,12 @@ final class Page
         }
 
         if ($this->currentCustomTtf !== null) {
-            $resolvedId = $this->currentFont->customAlias() . ':' . $this->currentCustomTtf->postScriptName;
-            $shortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $resolvedId);
-            $this->fontsUsed[$resolvedId] = $this->currentFont;
+            $key = new CustomFontKey(
+                $this->currentFont->customAlias() ?? '',
+                $this->currentCustomTtf->postScriptName,
+            );
+            $shortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $key);
+            $this->fontsUsed[$key->toRegistryKey()] = $this->currentFont;
         } else {
             $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
             $shortName = $this->fontRegistry->shortName($this->currentFont);
@@ -529,9 +533,12 @@ final class Page
         $fontShortName = '';
         if ($text !== '') {
             if ($this->currentCustomTtf !== null) {
-                $resolvedId = $this->currentFont->customAlias() . ':' . $this->currentCustomTtf->postScriptName;
-                $fontShortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $resolvedId);
-                $this->fontsUsed[$resolvedId] = $this->currentFont;
+                $key = new CustomFontKey(
+                    $this->currentFont->customAlias() ?? '',
+                    $this->currentCustomTtf->postScriptName,
+                );
+                $fontShortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $key);
+                $this->fontsUsed[$key->toRegistryKey()] = $this->currentFont;
             } else {
                 $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
                 $fontShortName = $this->fontRegistry->shortName($this->currentFont);
