@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf;
 
+use Closure;
 use DateTimeImmutable;
 use DragonOfMercy\PhpPdf\Document\Encryption;
 use DragonOfMercy\PhpPdf\Document\Metadata;
@@ -79,6 +80,10 @@ final class Document
     private ?CellPadding $defaultCellsPadding = null;
 
     private PageMargins $margins;
+
+    private ?Closure $header = null;
+    private ?Page $currentPage = null;
+    private int $pageCounter = 0;
 
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
@@ -186,6 +191,20 @@ final class Document
         return $this->margins;
     }
 
+    public function setHeader(?Closure $header): self
+    {
+        $this->header = $header;
+        return $this;
+    }
+
+    public function currentPage(): Page
+    {
+        if ($this->currentPage === null) {
+            throw new PdfException('No current page: call addPage() first');
+        }
+        return $this->currentPage;
+    }
+
     public function metadata(): Metadata
     {
         return $this->metadata ??= new Metadata();
@@ -277,6 +296,18 @@ final class Document
             fontResolver: $this->fontResolver,
             margins: $this->margins,
         );
+        $page->setPageNumber(++$this->pageCounter);
+        $this->currentPage = $page;
+        if ($this->header !== null) {
+            $page->inHeaderRender = true;
+            try {
+                ($this->header)($page);
+            } finally {
+                $page->inHeaderRender = false;
+            }
+        }
+        // Position cursor at the top-left of the content area (inside margins).
+        $page->setXY($this->margins->left, $this->margins->top);
         $this->pages[] = $page;
         return $page;
     }

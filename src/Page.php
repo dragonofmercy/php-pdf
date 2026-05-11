@@ -55,6 +55,13 @@ final class Page
 
     private ?FontEngine $currentFontEngine = null;
 
+    private readonly PageMargins $margins;
+
+    private ?int $pageNumber = null;
+
+    /** @internal Set by Document while a header callback is running; suppresses auto-break recursion. */
+    public bool $inHeaderRender = false;
+
     public function __construct(
         public readonly float $pageWidth,
         public readonly float $pageHeight,
@@ -66,7 +73,7 @@ final class Page
         ?float $defaultSize = null,
         float|CellPadding|null $defaultCellsPadding = null,
         private readonly ?FontResolver $fontResolver = null,
-        private readonly ?PageMargins $margins = null,
+        ?PageMargins $margins = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
         if (($defaultFont === null) !== ($defaultSize === null)) {
@@ -82,6 +89,7 @@ final class Page
         $this->cellsPaddingPt = $defaultCellsPadding !== null
             ? $this->paddingToPt($this->normalizePadding($defaultCellsPadding))
             : CellPadding::all(2.0);
+        $this->margins = $margins ?? PageMargins::all(0.0);
 
         if ($this->currentFont !== null) {
             if ($this->currentFont->isCustom() && $this->fontResolver === null) {
@@ -100,12 +108,29 @@ final class Page
     }
 
     /**
-     * Page margins inherited from the document, or null when the page was
-     * created without a document-level margin (legacy direct construction).
+     * Page margins inherited from the document, or {@see PageMargins::all(0.0)}
+     * when the page was created without a document-level margin (legacy direct
+     * construction).
      */
-    public function margins(): ?PageMargins
+    public function margins(): PageMargins
     {
         return $this->margins;
+    }
+
+    public function pageNumber(): int
+    {
+        if ($this->pageNumber === null) {
+            throw new PdfException('Page number is not set');
+        }
+        return $this->pageNumber;
+    }
+
+    /**
+     * @internal Called by Document::addPage to assign the page number.
+     */
+    public function setPageNumber(int $n): void
+    {
+        $this->pageNumber = $n;
     }
 
     /**

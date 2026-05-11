@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Document\Encryption;
 use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\PageMargins;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
@@ -514,5 +515,65 @@ final class DocumentTest extends TestCase
     {
         $doc = new Document();
         self::assertSame($doc, $doc->setMargins(5.0));
+    }
+
+    public function testCurrentPageThrowsBeforeAnyAddPage(): void
+    {
+        $doc = new Document();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('No current page: call addPage() first');
+        $doc->currentPage();
+    }
+
+    public function testCurrentPageReturnsLastAddedPage(): void
+    {
+        $doc = new Document();
+        $first = $doc->addPage();
+        $second = $doc->addPage();
+        self::assertSame($second, $doc->currentPage());
+    }
+
+    public function testAddPageAssignsSequentialPageNumbers(): void
+    {
+        $doc = new Document();
+        $p1 = $doc->addPage();
+        $p2 = $doc->addPage();
+        $p3 = $doc->addPage();
+        self::assertSame(1, $p1->pageNumber());
+        self::assertSame(2, $p2->pageNumber());
+        self::assertSame(3, $p3->pageNumber());
+    }
+
+    public function testAddPageFiresHeaderCallback(): void
+    {
+        $doc = new Document(Unit::PT);
+        $fired = [];
+        $doc->setHeader(function (Page $p) use (&$fired): void {
+            $fired[] = $p->pageNumber();
+        });
+        $doc->addPage();
+        $doc->addPage();
+        self::assertSame([1, 2], $fired);
+    }
+
+    public function testAddPagePositionsCursorAtLeftTopMargin(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(new PageMargins(top: 25.0, right: 10.0, bottom: 30.0, left: 15.0));
+        $page = $doc->addPage();
+        self::assertSame(15.0, $page->getX());
+        self::assertSame(25.0, $page->getY());
+    }
+
+    public function testSetHeaderWithNullClearsCallback(): void
+    {
+        $doc = new Document();
+        $fired = false;
+        $doc->setHeader(function (Page $p) use (&$fired): void {
+            $fired = true;
+        });
+        $doc->setHeader(null);
+        $doc->addPage();
+        self::assertFalse($fired);
     }
 }

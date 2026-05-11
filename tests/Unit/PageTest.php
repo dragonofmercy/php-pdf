@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
 use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font;
@@ -989,5 +990,26 @@ final class PageTest extends TestCase
         $auto = $counter->measureCalls;
 
         self::assertSame($explicit, $auto);
+    }
+
+    public function testPageNumberReturnsAssignedValue(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        self::assertSame(1, $page->pageNumber());
+    }
+
+    public function testPageNumberThrowsWhenPageStandalone(): void
+    {
+        $page = new Page(
+            pageWidth: 595,
+            pageHeight: 842,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
+        );
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Page number is not set');
+        $page->pageNumber();
     }
 }
