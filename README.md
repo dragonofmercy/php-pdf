@@ -257,7 +257,7 @@ $page->cell(
 $page->cell(x: 20, y: 95, text: 'Auto-sized label', border: Border::all());
 ```
 
-`cell()` returns a `CellResult` carrying `x`, `y` (the bottom-right anchor for stacking, in the document's unit), `height`, `lineCount`, `brokenWords`, and `textOverflow`.
+`cell()` returns a `CellResult` carrying `x`, `y` (the bottom-right anchor for stacking, in the document's unit), `effectiveWidth` (useful when the cell was auto-sized from text), `height`, `lineCount`, `brokenWords`, and `textOverflow`.
 
 When `w` is omitted, the cell auto-sizes its width to fit the longest line of `text` plus horizontal padding (default or per-call). This requires non-empty text -- omitting both `w` and `text` raises an error.
 
