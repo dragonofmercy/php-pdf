@@ -33,7 +33,7 @@ final class CellRenderer
         ?float $customLeading,
         float $x,
         float $y,
-        float $w,
+        ?float $w,
         ?float $h,
         string $text,
         ?Border $border,
@@ -45,6 +45,10 @@ final class CellRenderer
         CellPadding $padding,
         string $fontShortName,
     ): CellResult {
+        if ($w === null) {
+            $w = ($text === '' ? 0.0 : $this->widestLineWidth($text, $engine, $size))
+                + $padding->left + $padding->right;
+        }
         $innerW = max(0.0, $w - $padding->left - $padding->right);
 
         $lines = [];
@@ -138,7 +142,20 @@ final class CellRenderer
             lineCount: $lineCount,
             brokenWords: $brokenWords,
             textOverflow: $textOverflow,
+            effectiveWidth: $w,
         );
+    }
+
+    private function widestLineWidth(string $text, FontEngine $engine, float $size): float
+    {
+        $maxW = 0.0;
+        foreach (explode("\n", $text) as $line) {
+            $w = $engine->measure($line, $size);
+            if ($w > $maxW) {
+                $maxW = $w;
+            }
+        }
+        return $maxW;
     }
 
     private function emitBorders(Border $border, float $x, float $y, float $w, float $h): void

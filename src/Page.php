@@ -306,10 +306,7 @@ final class Page
         if ($this->currentFont === null || $this->currentSize === null) {
             throw new PdfException('setFont() must be called before text()');
         }
-        $engine = $this->currentFontEngine ?? new StandardFontEngine(
-            $this->currentFont,
-            $this->metricsRegistry->metricsFor($this->currentFont),
-        );
+        $engine = $this->activeEngine();
 
         $shortName = $engine->registerOn($this->fontRegistry);
         $this->fontsUsed[$engine->usageKey()] = $engine->font();
@@ -491,18 +488,11 @@ final class Page
             ? $this->paddingToPt($this->normalizePadding($padding))
             : $this->cellsPaddingPt;
 
-        if ($w === null) {
-            if ($text === '') {
-                throw new PdfException('Cell width is required when text is empty');
-            }
-            $w = $this->stringWidth($text)
-                + $this->fromPt($resolvedPaddingPt->left + $resolvedPaddingPt->right);
+        if ($w === null && $text === '') {
+            throw new PdfException('Cell width is required when text is empty');
         }
 
-        $engine = $this->currentFontEngine ?? new StandardFontEngine(
-            $this->currentFont,
-            $this->metricsRegistry->metricsFor($this->currentFont),
-        );
+        $engine = $this->activeEngine();
         $fontShortName = '';
         if ($text !== '') {
             $fontShortName = $engine->registerOn($this->fontRegistry);
@@ -522,7 +512,7 @@ final class Page
             customLeading: $this->customLeading,
             x: $this->toPt($x),
             y: $this->toPt($y),
-            w: $this->toPt($w),
+            w: $w !== null ? $this->toPt($w) : null,
             h: $h !== null ? $this->toPt($h) : null,
             text: $text,
             border: $borderForRenderer,
@@ -541,7 +531,7 @@ final class Page
             $bottomPt = $yPt + $result->height;
             switch ($ln) {
                 case NextPosition::RIGHT:
-                    $this->cursorXPt = $xPt + $this->toPt($w);
+                    $this->cursorXPt = $xPt + $result->effectiveWidth;
                     $this->cursorYPt = $yPt;
                     break;
                 case NextPosition::NEWLINE:
@@ -562,6 +552,7 @@ final class Page
             lineCount: $result->lineCount,
             brokenWords: $result->brokenWords,
             textOverflow: $result->textOverflow,
+            effectiveWidth: $this->fromPt($result->effectiveWidth),
         );
     }
 
@@ -643,19 +634,24 @@ final class Page
      */
     public function activeFontMetricsAtPt(float $sizePt): array
     {
-        if ($this->currentFont === null || $this->currentSize === null) {
-            throw new PdfException('No active font on this page');
-        }
-        $engine = $this->currentFontEngine ?? new StandardFontEngine(
-            $this->currentFont,
-            $this->metricsRegistry->metricsFor($this->currentFont),
-        );
+        $engine = $this->activeEngine();
         return [
             'ascent' => $engine->ascentAt($sizePt),
             'descent' => $engine->descentAt($sizePt),
             'capHeight' => $engine->capHeightAt($sizePt),
             'xHeight' => $engine->xHeightAt($sizePt),
         ];
+    }
+
+    private function activeEngine(): FontEngine
+    {
+        if ($this->currentFont === null) {
+            throw new PdfException('No active font on this page');
+        }
+        return $this->currentFontEngine ?? new StandardFontEngine(
+            $this->currentFont,
+            $this->metricsRegistry->metricsFor($this->currentFont),
+        );
     }
 
     private function toPt(float $value): float

@@ -18,6 +18,7 @@ final class CellResultTest extends TestCase
             lineCount: 2,
             brokenWords: 1,
             textOverflow: false,
+            effectiveWidth: 120.0,
         );
         self::assertSame(250.0, $r->x);
         self::assertSame(75.0, $r->y);
@@ -25,6 +26,7 @@ final class CellResultTest extends TestCase
         self::assertSame(2, $r->lineCount);
         self::assertSame(1, $r->brokenWords);
         self::assertFalse($r->textOverflow);
+        self::assertSame(120.0, $r->effectiveWidth);
     }
 
     public function testZeroLineCountForEmptyText(): void
@@ -36,13 +38,14 @@ final class CellResultTest extends TestCase
             lineCount: 0,
             brokenWords: 0,
             textOverflow: false,
+            effectiveWidth: 0.0,
         );
         self::assertSame(0, $r->lineCount);
     }
 
     public function testTextOverflowFlag(): void
     {
-        $r = new CellResult(x: 0, y: 0, height: 0, lineCount: 1, brokenWords: 0, textOverflow: true);
+        $r = new CellResult(x: 0, y: 0, height: 0, lineCount: 1, brokenWords: 0, textOverflow: true, effectiveWidth: 0.0);
         self::assertTrue($r->textOverflow);
     }
 }
