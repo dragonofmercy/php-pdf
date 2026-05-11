@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Document\Encryption;
 use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\PageMargins;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
@@ -477,5 +478,41 @@ final class DocumentTest extends TestCase
         $bytes = $pdf->output();
         self::assertStringNotContainsString('/Subtype /Type0', $bytes);
         self::assertStringNotContainsString('/Subtype /CIDFontType2', $bytes);
+    }
+
+    public function testMarginsDefaultsToAllZero(): void
+    {
+        $doc = new Document();
+        $m = $doc->margins();
+        self::assertSame(0.0, $m->top);
+        self::assertSame(0.0, $m->right);
+        self::assertSame(0.0, $m->bottom);
+        self::assertSame(0.0, $m->left);
+    }
+
+    public function testSetMarginsWithPageMarginsObject(): void
+    {
+        $doc = new Document();
+        $doc->setMargins(new PageMargins(top: 10.0, right: 15.0, bottom: 20.0, left: 25.0));
+        $m = $doc->margins();
+        self::assertSame(10.0, $m->top);
+        self::assertSame(25.0, $m->left);
+    }
+
+    public function testSetMarginsWithFloatDistributesAllSides(): void
+    {
+        $doc = new Document();
+        $doc->setMargins(12.5);
+        $m = $doc->margins();
+        self::assertSame(12.5, $m->top);
+        self::assertSame(12.5, $m->right);
+        self::assertSame(12.5, $m->bottom);
+        self::assertSame(12.5, $m->left);
+    }
+
+    public function testSetMarginsReturnsSelfForChaining(): void
+    {
+        $doc = new Document();
+        self::assertSame($doc, $doc->setMargins(5.0));
     }
 }

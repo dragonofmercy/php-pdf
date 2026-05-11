@@ -66,6 +66,7 @@ final class Page
         ?float $defaultSize = null,
         float|CellPadding|null $defaultCellsPadding = null,
         private readonly ?FontResolver $fontResolver = null,
+        private readonly ?PageMargins $margins = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
         if (($defaultFont === null) !== ($defaultSize === null)) {
@@ -96,6 +97,15 @@ final class Page
     public function contentStream(): ContentStream
     {
         return $this->stream;
+    }
+
+    /**
+     * Page margins inherited from the document, or null when the page was
+     * created without a document-level margin (legacy direct construction).
+     */
+    public function margins(): ?PageMargins
+    {
+        return $this->margins;
     }
 
     /**

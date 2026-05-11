@@ -78,6 +78,8 @@ final class Document
     /** Default per-side cells padding (document unit) for new pages, null = page builtin. */
     private ?CellPadding $defaultCellsPadding = null;
 
+    private PageMargins $margins;
+
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
         $this->fontRegistry = new FontRegistry();
@@ -85,6 +87,7 @@ final class Document
         $this->imageRegistry = new ImageRegistry();
         // PHP forbids method calls in property defaults; resolve here.
         $this->defaultFont = Font::helvetica();
+        $this->margins = PageMargins::all(0.0);
     }
 
     /**
@@ -162,6 +165,25 @@ final class Document
             ? $padding
             : CellPadding::all((float) $padding);
         return $this;
+    }
+
+    /**
+     * Sets the document-wide margins. A bare float means "same value all four sides";
+     * a {@see PageMargins} instance allows per-side control. Used as the reserved
+     * zone for header (top) / footer (bottom) callbacks, and as the default anchor
+     * for cell() rows.
+     */
+    public function setMargins(float|PageMargins $margins): self
+    {
+        $this->margins = $margins instanceof PageMargins
+            ? $margins
+            : PageMargins::all($margins);
+        return $this;
+    }
+
+    public function margins(): PageMargins
+    {
+        return $this->margins;
     }
 
     public function metadata(): Metadata
@@ -253,6 +275,7 @@ final class Document
             defaultSize: $this->defaultSize,
             defaultCellsPadding: $this->defaultCellsPadding,
             fontResolver: $this->fontResolver,
+            margins: $this->margins,
         );
         $this->pages[] = $page;
         return $page;
