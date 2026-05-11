@@ -742,6 +742,16 @@ final class Page
             : new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
     }
 
+    /**
+     * Cheap O(1) estimate of a cell's vertical footprint, used by cell() to
+     * decide whether to trigger auto-page-break before any rendering happens.
+     * Counts only explicit newline breaks (no wrap simulation), so for text
+     * that will wrap inside CellRenderer the real height may exceed this
+     * estimate. Accepting that imprecision keeps the auto-break decision
+     * cheap; the worst case is a cell that overflows the bottom margin by
+     * a few lines, consistent with the spec's "cell larger than drawable"
+     * behavior.
+     */
     private function estimateCellHeightPt(string $text, float $sizePt, ?float $customLeading): float
     {
         if ($text === '' || $sizePt <= 0.0) {
