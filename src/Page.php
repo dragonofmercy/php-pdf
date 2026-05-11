@@ -9,15 +9,12 @@ use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
-use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
-use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
-use DragonOfMercy\PhpPdf\Font\Custom\Utf8;
-use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
+use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
-use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
 use DragonOfMercy\PhpPdf\Page\Operators;
@@ -56,7 +53,7 @@ final class Page
     /** @var array<string, true> Short names of images this page references */
     private array $imagesUsed = [];
 
-    private ?ParsedTtf $currentCustomTtf = null;
+    private ?FontEngine $currentFontEngine = null;
 
     public function __construct(
         public readonly float $pageWidth,
@@ -85,11 +82,13 @@ final class Page
             ? $this->paddingToPt($this->normalizePadding($defaultCellsPadding))
             : CellPadding::all(2.0);
 
-        if ($this->currentFont !== null && $this->currentFont->isCustom()) {
-            if ($this->fontResolver === null) {
+        if ($this->currentFont !== null) {
+            if ($this->currentFont->isCustom() && $this->fontResolver === null) {
                 throw new PdfException('Page received a custom Font as default but no FontResolver from Document');
             }
-            $this->currentCustomTtf = $this->fontResolver->resolve($this->currentFont);
+            if ($this->fontResolver !== null) {
+                $this->currentFontEngine = $this->fontResolver->resolveEngine($this->currentFont);
+            }
         }
     }
 
@@ -279,16 +278,16 @@ final class Page
         } elseif ($size <= 0) {
             throw new PdfException('Font size must be positive, got ' . $size);
         }
-        if ($font->isCustom()) {
-            if ($this->fontResolver === null) {
-                throw new PdfException(
-                    "Cannot use custom font '" . ($font->customAlias() ?? '') . "': "
-                    . 'Call Document::registerFontFamily() first.',
-                );
-            }
-            $this->currentCustomTtf = $this->fontResolver->resolve($font);
+        if ($font->isCustom() && $this->fontResolver === null) {
+            throw new PdfException(
+                "Cannot use custom font '" . ($font->customAlias() ?? '') . "': "
+                . 'Call Document::registerFontFamily() first.',
+            );
+        }
+        if ($this->fontResolver !== null) {
+            $this->currentFontEngine = $this->fontResolver->resolveEngine($font);
         } else {
-            $this->currentCustomTtf = null;
+            $this->currentFontEngine = null;
         }
         $this->currentFont = $font;
         $this->currentSize = $size;
@@ -307,18 +306,14 @@ final class Page
         if ($this->currentFont === null || $this->currentSize === null) {
             throw new PdfException('setFont() must be called before text()');
         }
+        $engine = $this->currentFontEngine ?? new StandardFontEngine(
+            $this->currentFont,
+            $this->metricsRegistry->metricsFor($this->currentFont),
+        );
 
-        if ($this->currentCustomTtf !== null) {
-            $key = new CustomFontKey(
-                $this->currentFont->customAlias() ?? '',
-                $this->currentCustomTtf->postScriptName,
-            );
-            $shortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $key);
-            $this->fontsUsed[$key->toRegistryKey()] = $this->currentFont;
-        } else {
-            $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
-            $shortName = $this->fontRegistry->shortName($this->currentFont);
-        }
+        $shortName = $engine->registerOn($this->fontRegistry);
+        $this->fontsUsed[$engine->usageKey()] = $engine->font();
+
         $size = $this->currentSize;
         $leading = $this->customLeading ?? ($size * 1.2);
 
@@ -329,17 +324,10 @@ final class Page
 
         $lines = explode("\n", self::normalizeNewlines($text));
         foreach ($lines as $index => $line) {
-            if ($this->currentCustomTtf !== null) {
-                $bytes = Utf8ToCidEncoder::encode($line, $this->currentCustomTtf);
-                $hex = strtoupper(bin2hex($bytes));
-                $this->stream->append($index === 0
-                    ? Operators::showTextHex($hex)
-                    : Operators::showTextHexNextLine($hex));
+            if ($index === 0) {
+                $engine->emitShowText($this->stream, $line);
             } else {
-                $encoded = WinAnsiEncoder::encode($line);
-                $this->stream->append($index === 0
-                    ? Operators::showText($encoded)
-                    : Operators::showTextNextLine($encoded));
+                $engine->emitShowTextNextLine($this->stream, $line);
             }
         }
 
@@ -365,43 +353,24 @@ final class Page
             return 0.0;
         }
 
-        if ($resolvedFont->isCustom()) {
-            if ($this->fontResolver === null) {
-                throw new PdfException('Cannot measure custom Font without a registered family');
-            }
-            $ttf = $resolvedFont === $this->currentFont
-                ? ($this->currentCustomTtf ?? $this->fontResolver->resolve($resolvedFont))
-                : $this->fontResolver->resolve($resolvedFont);
-            $maxWidthPt = 0.0;
-            foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
-                $width = self::stringWidthFromCmap($line, $ttf, $resolvedSize);
-                if ($width > $maxWidthPt) {
-                    $maxWidthPt = $width;
-                }
-            }
-            return $this->fromPt($maxWidthPt);
+        if ($resolvedFont->isCustom() && $this->fontResolver === null) {
+            throw new PdfException('Cannot measure custom Font without a registered family');
         }
 
-        $metrics = $this->metricsRegistry->metricsFor($resolvedFont);
-        $maxWidth = 0.0;
+        $engine = $resolvedFont === $this->currentFont && $this->currentFontEngine !== null
+            ? $this->currentFontEngine
+            : ($this->fontResolver !== null
+                ? $this->fontResolver->resolveEngine($resolvedFont)
+                : new StandardFontEngine($resolvedFont, $this->metricsRegistry->metricsFor($resolvedFont)));
+
+        $maxWidthPt = 0.0;
         foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
-            $encoded = WinAnsiEncoder::encode($line);
-            $width = $metrics->stringWidth($encoded, $resolvedSize);
-            if ($width > $maxWidth) {
-                $maxWidth = $width;
+            $w = $engine->measure($line, $resolvedSize);
+            if ($w > $maxWidthPt) {
+                $maxWidthPt = $w;
             }
         }
-        return $this->fromPt($maxWidth);
-    }
-
-    private static function stringWidthFromCmap(string $utf8, ParsedTtf $ttf, float $size): float
-    {
-        $totalEm = 0;
-        foreach (Utf8::codepoints($utf8) as [$cp, $_]) {
-            $gid = $cp >= 0 ? ($ttf->cmap[$cp] ?? 0) : 0;
-            $totalEm += $ttf->advanceWidthsByGid[$gid] ?? 0;
-        }
-        return $totalEm * $size / $ttf->unitsPerEm;
+        return $this->fromPt($maxWidthPt);
     }
 
     /**
@@ -530,19 +499,14 @@ final class Page
                 + $this->fromPt($resolvedPaddingPt->left + $resolvedPaddingPt->right);
         }
 
+        $engine = $this->currentFontEngine ?? new StandardFontEngine(
+            $this->currentFont,
+            $this->metricsRegistry->metricsFor($this->currentFont),
+        );
         $fontShortName = '';
         if ($text !== '') {
-            if ($this->currentCustomTtf !== null) {
-                $key = new CustomFontKey(
-                    $this->currentFont->customAlias() ?? '',
-                    $this->currentCustomTtf->postScriptName,
-                );
-                $fontShortName = $this->fontRegistry->shortNameForCustom($this->currentFont, $key);
-                $this->fontsUsed[$key->toRegistryKey()] = $this->currentFont;
-            } else {
-                $this->fontsUsed[$this->currentFont->pdfName()] = $this->currentFont;
-                $fontShortName = $this->fontRegistry->shortName($this->currentFont);
-            }
+            $fontShortName = $engine->registerOn($this->fontRegistry);
+            $this->fontsUsed[$engine->usageKey()] = $engine->font();
         }
 
         // Border width is supplied in the document unit; CellRenderer works
@@ -551,9 +515,9 @@ final class Page
             ? $border->withWidth($this->toPt($border->width))
             : null;
 
-        $renderer = new CellRenderer(stream: $this->stream, metrics: $this->metricsRegistry);
+        $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(
-            font: $this->currentFont,
+            engine: $engine,
             size: $this->currentSize,
             customLeading: $this->customLeading,
             x: $this->toPt($x),
@@ -569,7 +533,6 @@ final class Page
             fit: $fit,
             padding: $resolvedPaddingPt,
             fontShortName: $fontShortName,
-            customTtf: $this->currentCustomTtf,
         );
 
         if ($ln !== null) {
@@ -683,22 +646,15 @@ final class Page
         if ($this->currentFont === null || $this->currentSize === null) {
             throw new PdfException('No active font on this page');
         }
-        if ($this->currentCustomTtf !== null) {
-            $ttf = $this->currentCustomTtf;
-            $scale = $sizePt / $ttf->unitsPerEm;
-            return [
-                'ascent' => $ttf->ascent * $scale,
-                'descent' => $ttf->descent * $scale,
-                'capHeight' => $ttf->capHeight * $scale,
-                'xHeight' => $ttf->xHeight * $scale,
-            ];
-        }
-        $m = $this->metricsRegistry->metricsFor($this->currentFont);
+        $engine = $this->currentFontEngine ?? new StandardFontEngine(
+            $this->currentFont,
+            $this->metricsRegistry->metricsFor($this->currentFont),
+        );
         return [
-            'ascent' => $m->ascentAt($sizePt),
-            'descent' => $m->descentAt($sizePt),
-            'capHeight' => $m->capHeightAt($sizePt),
-            'xHeight' => $m->xHeight * $sizePt / 1000.0,
+            'ascent' => $engine->ascentAt($sizePt),
+            'descent' => $engine->descentAt($sizePt),
+            'capHeight' => $engine->capHeightAt($sizePt),
+            'xHeight' => $engine->xHeightAt($sizePt),
         ];
     }
 
