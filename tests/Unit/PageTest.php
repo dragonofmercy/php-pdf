@@ -18,8 +18,10 @@ use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\LineCap;
 use DragonOfMercy\PhpPdf\LineJoin;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\PageMargins;
 use DragonOfMercy\PhpPdf\Path;
 use DragonOfMercy\PhpPdf\PathOperation;
+use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Tests\Support\Fakes\MeasureCountingFontEngine;
 use DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory;
 use PHPUnit\Framework\TestCase;
@@ -1011,5 +1013,81 @@ final class PageTest extends TestCase
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('Page number is not set');
         $page->pageNumber();
+    }
+
+    public function testCellTriggersAutoBreakOnOverflow(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(PageMargins::all(20.0));
+        $doc->setAutoPageBreak(true);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+
+        // Page A4 portrait = 595 x 842 pt. Bottom limit = 842 - 20 = 822.
+        // Place cursor at y=815: cell h=20 ends at 835 > 822 -> triggers auto-break.
+        $page->setXY(20, 815);
+        $result = $page->cell(w: 100, h: 20, text: 'Late');
+
+        self::assertNotSame($page, $result->page, 'Auto-break should have produced a new page');
+        self::assertSame(2, $result->page->pageNumber());
+    }
+
+    public function testCellDoesNotTriggerAutoBreakWhenDisabled(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(PageMargins::all(20.0));
+        // autoPageBreak left off (default).
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->setXY(20, 815);
+        $result = $page->cell(w: 100, h: 20, text: 'Late');
+
+        self::assertSame($page, $result->page);
+        self::assertSame(1, $result->page->pageNumber());
+    }
+
+    public function testCellResultPageReferencesSamePageWhenNoBreak(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(PageMargins::all(20.0));
+        $doc->setAutoPageBreak(true);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $result = $page->cell(w: 100, h: 10, text: 'Fits');
+        self::assertSame($page, $result->page);
+    }
+
+    public function testCellInsideHeaderDoesNotRecurse(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(PageMargins::all(20.0));
+        $doc->setAutoPageBreak(true);
+        $doc->setHeader(function (Page $p): void {
+            $p->setFont(Font::helvetica(), 12);
+            // Even though this would overflow, the auto-break check must be
+            // suppressed inside the header callback.
+            $p->setXY(20, 815);
+            $p->cell(w: 100, h: 20, text: 'Header content');
+        });
+        $page = $doc->addPage();
+        self::assertSame(1, $page->pageNumber());
+        self::assertSame(1, $doc->pageCount());
+    }
+
+    public function testCellLargerThanDrawableAreaDoesNotInfiniteLoop(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(PageMargins::all(20.0));
+        $doc->setAutoPageBreak(true);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        // Drawable height = 842 - 20 - 20 = 802 pt. A cell with h=900 cannot fit
+        // even on a fresh page. Auto-break must spawn exactly one new page and
+        // emit the cell there (accepting visual overflow). NOT loop.
+        $page->setXY(20, 815);
+        $result = $page->cell(w: 100, h: 900, text: 'Giant');
+
+        self::assertSame(2, $result->page->pageNumber());
+        self::assertSame(2, $doc->pageCount());
     }
 }

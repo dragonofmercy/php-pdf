@@ -624,4 +624,27 @@ final class DocumentTest extends TestCase
         self::assertNotSame('', $bytes);
         self::assertStringStartsWith('%PDF-', $bytes);
     }
+
+    public function testAutoPageBreakOffByDefault(): void
+    {
+        $doc = new Document();
+        self::assertFalse($doc->autoPageBreak());
+    }
+
+    public function testSetAutoPageBreakWithoutMarginsDefaultsToAll20(): void
+    {
+        $doc = new Document();
+        $doc->setAutoPageBreak(true);
+        self::assertTrue($doc->autoPageBreak());
+        self::assertSame(20.0, $doc->margins()->top);
+        self::assertSame(20.0, $doc->margins()->bottom);
+    }
+
+    public function testSetAutoPageBreakPreservesExistingMargins(): void
+    {
+        $doc = new Document();
+        $doc->setMargins(new PageMargins(top: 5.0, right: 5.0, bottom: 5.0, left: 5.0));
+        $doc->setAutoPageBreak(true);
+        self::assertSame(5.0, $doc->margins()->top);
+    }
 }

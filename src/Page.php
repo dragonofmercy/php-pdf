@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf;
 use DragonOfMercy\PhpPdf\Barcode\Barcode;
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
+use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
@@ -74,6 +75,7 @@ final class Page
         float|CellPadding|null $defaultCellsPadding = null,
         private readonly ?FontResolver $fontResolver = null,
         ?PageMargins $margins = null,
+        private readonly ?Document $document = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
         if (($defaultFont === null) !== ($defaultSize === null)) {
@@ -492,6 +494,59 @@ final class Page
         // explode-on-\n in the renderer, which WinAnsiEncoder maps to '?'.
         $text = self::normalizeNewlines($text);
 
+        // Auto-page-break: when active and we are not currently rendering a
+        // header, check whether this cell would overflow the bottom margin
+        // and if so, delegate to a new page.
+        if ($this->document !== null
+            && $this->document->autoPageBreak()
+            && !$this->inHeaderRender
+        ) {
+            $resolvedYPt = $y !== null
+                ? $this->toPt($y)
+                : ($this->cursorYPt ?? null);
+
+            if ($resolvedYPt !== null) {
+                $estimatedHeightPt = $h !== null
+                    ? $this->toPt($h)
+                    : $this->estimateCellHeightPt(
+                        $text,
+                        $this->currentSize ?? 0.0,
+                        $this->customLeading,
+                    );
+
+                $bottomLimitPt = $this->pageHeight - $this->toPt(
+                    $this->document->margins()->bottom,
+                );
+
+                if ($resolvedYPt + $estimatedHeightPt > $bottomLimitPt + 0.0001) {
+                    $newPage = $this->document->addPage();
+                    // Suppress auto-break on the new page for this one emission,
+                    // so that a cell larger than the drawable area does not
+                    // recurse infinitely.
+                    $newPage->inHeaderRender = true;
+                    try {
+                        return $newPage->cell(
+                            x: $x,
+                            y: null,
+                            w: $w,
+                            h: $h,
+                            text: $text,
+                            border: $border,
+                            fill: $fill,
+                            textColor: $textColor,
+                            align: $align,
+                            verticalAlign: $verticalAlign,
+                            fit: $fit,
+                            padding: $padding,
+                            ln: $ln,
+                        );
+                    } finally {
+                        $newPage->inHeaderRender = false;
+                    }
+                }
+            }
+        }
+
         // An explicit x defines a new row anchor for NEWLINE; an omitted x
         // falls back to the cursor maintained by previous cell() calls.
         $xExplicit = $x !== null;
@@ -550,6 +605,7 @@ final class Page
             fit: $fit,
             padding: $resolvedPaddingPt,
             fontShortName: $fontShortName,
+            emittingPage: $this,
         );
 
         if ($ln !== null) {
@@ -580,6 +636,7 @@ final class Page
             brokenWords: $result->brokenWords,
             textOverflow: $result->textOverflow,
             effectiveWidth: $this->fromPt($result->effectiveWidth),
+            page: $this,
         );
     }
 
@@ -683,6 +740,19 @@ final class Page
         return $this->fontResolver !== null
             ? $this->fontResolver->resolveEngine($font)
             : new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
+    }
+
+    private function estimateCellHeightPt(string $text, float $sizePt, ?float $customLeading): float
+    {
+        if ($text === '' || $sizePt <= 0.0) {
+            return 0.0;
+        }
+        $engine = $this->activeEngine();
+        $lineCount = substr_count(self::normalizeNewlines($text), "\n") + 1;
+        $effectiveLeading = $customLeading ?? ($sizePt * 1.2);
+        $descentAbs = abs($engine->descentAt($sizePt));
+        $padTopBottomPt = $this->cellsPaddingPt->top + $this->cellsPaddingPt->bottom;
+        return $sizePt + $descentAbs + ($lineCount - 1) * $effectiveLeading + $padTopBottomPt;
     }
 
     private function toPt(float $value): float

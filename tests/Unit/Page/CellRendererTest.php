@@ -8,8 +8,11 @@ use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
+use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
 use PHPUnit\Framework\TestCase;
@@ -25,6 +28,17 @@ final class CellRendererTest extends TestCase
     {
         $font ??= Font::helvetica();
         return new StandardFontEngine($font, (new MetricsRegistry())->metricsFor($font));
+    }
+
+    private function page(): Page
+    {
+        return new Page(
+            pageWidth: 595,
+            pageHeight: 842,
+            fontRegistry: new FontRegistry(),
+            metricsRegistry: new MetricsRegistry(),
+            imageRegistry: new ImageRegistry(),
+        );
     }
 
     public function testWrapTextSingleLine(): void
@@ -175,7 +189,7 @@ final class CellRendererTest extends TestCase
     }
 
     /**
-     * @param callable(CellRenderer, ContentStream, string): CellResult $configure
+     * @param callable(CellRenderer, ContentStream, string, Page): CellResult $configure
      * @return array{0: CellResult, 1: string}
      */
     private function renderAndStream(
@@ -185,7 +199,8 @@ final class CellRendererTest extends TestCase
     ): array {
         $stream = new ContentStream(842.0);
         $r = new CellRenderer(stream: $stream);
-        $result = $configure($r, $stream, $text);
+        $page = $this->page();
+        $result = $configure($r, $stream, $text, $page);
         if ($expectedLines !== null) {
             self::assertSame($expectedLines, $result->lineCount);
         }
@@ -196,7 +211,7 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [$res, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine,
                 size: 12.0,
                 customLeading: null,
@@ -213,6 +228,7 @@ final class CellRendererTest extends TestCase
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE,
                 padding: CellPadding::all(2.0),
                 fontShortName: 'F1',
+                emittingPage: $p,
             ),
         );
         self::assertStringContainsString("BT\n", $bytes);
@@ -225,12 +241,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 50.0, y: 50.0, w: 100.0, h: null, text: 'Hi',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // q must come before Q; both must be present.
@@ -245,13 +261,13 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 10.0, y: 20.0, w: 100.0, h: 30.0, text: '',
                 border: null, fill: \DragonOfMercy\PhpPdf\Color::rgb(255, 0, 0),
                 textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertStringContainsString('1 0 0 rg', $bytes);
@@ -263,13 +279,13 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
                 border: \DragonOfMercy\PhpPdf\Border::sides(top: true, bottom: true),
                 fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // Two strokes, one for each active side.
@@ -280,12 +296,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertSame(0, substr_count($bytes, "S\n"));
@@ -295,12 +311,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
                 border: \DragonOfMercy\PhpPdf\Border::none(), fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertSame(0, substr_count($bytes, "S\n"));
@@ -310,13 +326,13 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
                 border: \DragonOfMercy\PhpPdf\Border::all()->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DASHED),
                 fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertStringContainsString('[3 3] 0 d', $bytes);
@@ -326,13 +342,13 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
                 border: \DragonOfMercy\PhpPdf\Border::all()->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DOTTED)->withWidth(2.0),
                 fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // DOTTED at width=2 -> [2 4] dash pattern.
@@ -343,12 +359,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 13.67, h: 20.0, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::CONDENSE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::CONDENSE, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertStringContainsString(' Tz', $bytes);
@@ -358,12 +374,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 13.67, h: 20.0, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::SHRINK, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::SHRINK, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // Tf size will be ~6, never the original 12.
@@ -375,13 +391,13 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [$res, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
                 border: \DragonOfMercy\PhpPdf\Border::all(), fill: \DragonOfMercy\PhpPdf\Color::rgb(255, 255, 255),
                 textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertStringNotContainsString("BT\n", $bytes);
@@ -392,12 +408,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [$res] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 50.0, y: 50.0, w: 200.0, h: 25.0, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         self::assertSame(250.0, $res->x);
@@ -409,12 +425,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [$res] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 5.0, text: "Hello\nworld\nhere",
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // 3 lines of leading 14.4 each = 43.2, far exceeds h=5. Cell grows.
@@ -425,12 +441,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 100.0, h: null, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::CENTER, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // 'Hello' at Helvetica 12pt = 27.336pt. cellW = 100, padding = 0.
@@ -442,12 +458,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 100.0, h: null, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::RIGHT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // 'Hello' at Helvetica 12pt = 27.336pt. cellW = 100, padding = 2.
@@ -459,12 +475,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 100.0, h: 40.0, text: 'Aubord',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // Bbox-safe TOP: baseline = cellY + paddingTop + effectiveSize.
@@ -476,12 +492,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 100.0, h: 40.0, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::MIDDLE,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // Centre-on-cap-height: capHeight(8.616) at Helvetica 12pt. cellH = 40.
@@ -493,12 +509,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 100.0, h: 40.0, text: 'Hello',
                 border: null, fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::BOTTOM,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // Bbox-safe BOTTOM: lastBaseline = cellY + cellH - paddingBottom - |descent|
@@ -511,12 +527,12 @@ final class CellRendererTest extends TestCase
     {
         $engine = $this->engine();
         [, $bytes] = $this->renderAndStream(
-            static fn (CellRenderer $r): \DragonOfMercy\PhpPdf\CellResult => $r->render(
+            static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 100.0, h: null, text: 'Hello',
                 border: null, fill: null, textColor: \DragonOfMercy\PhpPdf\Color::rgb(255, 0, 0),
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
-                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1',
+                fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(0.0), fontShortName: 'F1', emittingPage: $p,
             ),
         );
         // textColor red emits "1 0 0 rg" before BT. The color is set inside the q/Q

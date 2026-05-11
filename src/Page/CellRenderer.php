@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
+use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -44,6 +45,7 @@ final class CellRenderer
         Fit $fit,
         CellPadding $padding,
         string $fontShortName,
+        Page $emittingPage,
     ): CellResult {
         $lines = [];
         $widths = [];
@@ -160,6 +162,7 @@ final class CellRenderer
             brokenWords: $brokenWords,
             textOverflow: $textOverflow,
             effectiveWidth: $w,
+            page: $emittingPage,
         );
     }
 

@@ -313,3 +313,31 @@ $page->text(50, 120, 'Page numbering appears in the footer band.');
 
 $doc->save($fixturesDir . '/page-with-header-footer.pdf');
 echo "Regenerated page-with-header-footer.pdf\n";
+
+// Fixture 14: page with auto-page-break (Phase 6)
+$doc = new Document(Unit::PT);
+$doc->setMargins(new \DragonOfMercy\PhpPdf\PageMargins(top: 60.0, right: 50.0, bottom: 60.0, left: 50.0));
+$doc->setHeader(function (\DragonOfMercy\PhpPdf\Page $p): void {
+    $p->setFont(Font::helvetica()->bold(), 11);
+    $p->text(50, 35, 'Auto-break demo');
+});
+$doc->setFooter(function (\DragonOfMercy\PhpPdf\Page $p, int $n, int $total): void {
+    $p->setFont(Font::helvetica(), 9);
+    $p->text(50, 800, "Page {$n} / {$total}");
+});
+$doc->setAutoPageBreak(true);
+
+$doc->addPage();
+$doc->currentPage()->setFont(Font::helvetica(), 11);
+for ($i = 1; $i <= 60; $i++) {
+    $doc->currentPage()->cell(
+        w: 495.0,
+        h: 16.0,
+        text: "Row {$i}",
+        border: \DragonOfMercy\PhpPdf\Border::all(),
+        ln: \DragonOfMercy\PhpPdf\NextPosition::NEWLINE,
+    );
+}
+
+$doc->save($fixturesDir . '/page-auto-break.pdf');
+echo "Regenerated page-auto-break.pdf\n";

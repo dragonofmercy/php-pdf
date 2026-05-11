@@ -83,6 +83,7 @@ final class Document
 
     private ?Closure $header = null;
     private ?Closure $footer = null;
+    private bool $autoPageBreak = false;
     private ?Page $currentPage = null;
     private int $pageCounter = 0;
 
@@ -204,6 +205,26 @@ final class Document
         return $this;
     }
 
+    public function setAutoPageBreak(bool $auto): self
+    {
+        $this->autoPageBreak = $auto;
+        if ($auto && $this->margins->top === 0.0 && $this->margins->right === 0.0
+            && $this->margins->bottom === 0.0 && $this->margins->left === 0.0) {
+            $this->margins = PageMargins::all(20.0);
+        }
+        return $this;
+    }
+
+    public function autoPageBreak(): bool
+    {
+        return $this->autoPageBreak;
+    }
+
+    public function pageCount(): int
+    {
+        return count($this->pages);
+    }
+
     public function currentPage(): Page
     {
         if ($this->currentPage === null) {
@@ -309,6 +330,7 @@ final class Document
             defaultCellsPadding: $this->defaultCellsPadding,
             fontResolver: $this->fontResolver,
             margins: $this->margins,
+            document: $this,
         );
         $page->setPageNumber(++$this->pageCounter);
         $this->currentPage = $page;
