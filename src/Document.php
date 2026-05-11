@@ -127,7 +127,7 @@ final class Document
             'italic' => $italicParsed,
             'boldItalic' => $boldItalicParsed,
         ];
-        $this->fontResolver = new FontResolver($this->customFontFamilies);
+        $this->fontResolver = new FontResolver($this->customFontFamilies, $this->metricsRegistry);
         return $this;
     }
 

@@ -6,13 +6,18 @@ namespace DragonOfMercy\PhpPdf\Font\Custom;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\CustomFontEngine;
+use DragonOfMercy\PhpPdf\Font\FontEngine;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use LogicException;
 
 /**
  * Resolves a custom Font (alias + bold/italic flags) to a concrete ParsedTtf
  * via the fallback chain: exact match > closest weight match > regular.
+ * Also produces FontEngine instances (standard or custom) for any Font.
  *
- * Decision rule:
+ * Decision rule for variant fallback:
  *   bold+italic -> boldItalic | bold | italic | regular
  *   bold        -> bold | regular
  *   italic      -> italic | regular
@@ -25,10 +30,16 @@ use LogicException;
  */
 final class FontResolver
 {
+    /** @var array<int, FontEngine> identity-keyed cache for resolveEngine() */
+    private array $engineCache = [];
+
     /**
      * @param array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> $registrations
      */
-    public function __construct(private readonly array $registrations) {}
+    public function __construct(
+        private readonly array $registrations,
+        private readonly ?MetricsRegistry $metricsRegistry = null,
+    ) {}
 
     public function resolve(Font $font): ParsedTtf
     {
@@ -54,5 +65,26 @@ final class FontResolver
             return $reg['italic'] ?? $reg['regular'];
         }
         return $reg['regular'];
+    }
+
+    public function resolveEngine(Font $font): FontEngine
+    {
+        $cacheKey = spl_object_id($font);
+        if (isset($this->engineCache[$cacheKey])) {
+            return $this->engineCache[$cacheKey];
+        }
+
+        if ($font->isCustom()) {
+            $engine = new CustomFontEngine($font, $this->resolve($font));
+        } else {
+            if ($this->metricsRegistry === null) {
+                throw new LogicException(
+                    'FontResolver::resolveEngine() needs a MetricsRegistry to build a StandardFontEngine',
+                );
+            }
+            $engine = new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
+        }
+        $this->engineCache[$cacheKey] = $engine;
+        return $engine;
     }
 }

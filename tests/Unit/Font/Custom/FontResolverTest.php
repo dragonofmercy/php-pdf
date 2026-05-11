@@ -8,6 +8,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\CustomFontEngine;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use PHPUnit\Framework\TestCase;
 
 final class FontResolverTest extends TestCase
@@ -69,5 +72,39 @@ final class FontResolverTest extends TestCase
         $resolver = new FontResolver([]);
         $this->expectException(\LogicException::class);
         $resolver->resolve(Font::helvetica());
+    }
+
+    public function testResolveEngineReturnsStandardEngineForStandardFont(): void
+    {
+        $resolver = new FontResolver([], new MetricsRegistry());
+        $engine = $resolver->resolveEngine(Font::helvetica());
+        self::assertInstanceOf(StandardFontEngine::class, $engine);
+    }
+
+    public function testResolveEngineReturnsCustomEngineForCustomFont(): void
+    {
+        $reg = ['Inter' => [
+            'regular' => $this->ttf('Inter-Regular'),
+            'bold' => null, 'italic' => null, 'boldItalic' => null,
+        ]];
+        $resolver = new FontResolver($reg, new MetricsRegistry());
+        $engine = $resolver->resolveEngine(Font::custom('Inter'));
+        self::assertInstanceOf(CustomFontEngine::class, $engine);
+    }
+
+    public function testResolveEngineCachesByFontIdentity(): void
+    {
+        $resolver = new FontResolver([], new MetricsRegistry());
+        $f = Font::helvetica();
+        $first = $resolver->resolveEngine($f);
+        $second = $resolver->resolveEngine($f);
+        self::assertSame($first, $second);
+    }
+
+    public function testResolveEngineForUnregisteredCustomFontThrows(): void
+    {
+        $resolver = new FontResolver([], new MetricsRegistry());
+        $this->expectException(PdfException::class);
+        $resolver->resolveEngine(Font::custom('Missing'));
     }
 }
