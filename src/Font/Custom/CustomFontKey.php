@@ -30,18 +30,4 @@ final readonly class CustomFontKey
     {
         return $this->alias . ':' . $this->psName;
     }
-
-    public static function fromRegistryKey(string $key): self
-    {
-        $sep = strpos($key, ':');
-        if ($sep === false) {
-            throw new PdfException("Invalid custom font registry key: '$key'");
-        }
-        return new self(substr($key, 0, $sep), substr($key, $sep + 1));
-    }
-
-    public function equals(self $other): bool
-    {
-        return $this->alias === $other->alias && $this->psName === $other->psName;
-    }
 }
