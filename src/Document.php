@@ -372,11 +372,14 @@ final class Document
         }
         $totalPages = count($this->pages);
         $previousCurrent = $this->currentPage;
-        foreach ($this->pages as $i => $page) {
-            $this->currentPage = $page;
-            ($this->footer)($page, $i + 1, $totalPages);
+        try {
+            foreach ($this->pages as $i => $page) {
+                $this->currentPage = $page;
+                ($this->footer)($page, $i + 1, $totalPages);
+            }
+        } finally {
+            $this->currentPage = $previousCurrent;
         }
-        $this->currentPage = $previousCurrent;
     }
 
     public function save(string $path): void
