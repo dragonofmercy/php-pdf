@@ -45,6 +45,9 @@ final class Document
 
     private const string HEADER = "%PDF-1.7\n%\xE2\xE3\xCF\xD3\n";
 
+    /** Default margin (in the document's unit) applied by setAutoPageBreak(true) when current margins are zero. */
+    private const float DEFAULT_AUTO_BREAK_MARGIN = 20.0;
+
     /** @var list<Page> */
     private array $pages = [];
 
@@ -86,6 +89,7 @@ final class Document
     private bool $autoPageBreak = false;
     private ?Page $currentPage = null;
     private int $pageCounter = 0;
+    private bool $footersRendered = false;
 
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
@@ -208,9 +212,8 @@ final class Document
     public function setAutoPageBreak(bool $auto): self
     {
         $this->autoPageBreak = $auto;
-        if ($auto && $this->margins->top === 0.0 && $this->margins->right === 0.0
-            && $this->margins->bottom === 0.0 && $this->margins->left === 0.0) {
-            $this->margins = PageMargins::all(20.0);
+        if ($auto && $this->margins->isZero()) {
+            $this->margins = PageMargins::all(self::DEFAULT_AUTO_BREAK_MARGIN);
         }
         return $this;
     }
@@ -277,12 +280,9 @@ final class Document
      * Appends a new page. Without arguments, reuses the format and orientation
      * from the previous addPage() call (or A4 portrait on the first call).
      *
-     * Side-effects: increments the internal page counter (the new Page receives
-     * the next sequential pageNumber), becomes the value returned by
-     * currentPage(), fires the header callback (if any) eagerly with the new
-     * Page (the inHeaderRender flag is set on the Page during the call), then
-     * positions the cursor at (leftMargin, topMargin) ready for cell() / text()
-     * calls.
+     * Side-effects: assigns the next sequential pageNumber, becomes the
+     * currentPage(), fires the header callback (if any), then positions the
+     * cursor at (leftMargin, topMargin).
      *
      * @param PageFormat|array{0: int|float, 1: int|float}|null $format A standard
      *     format, a [width, height] pair in the document's unit for custom sizes
@@ -389,9 +389,12 @@ final class Document
 
     private function runFooters(): void
     {
-        if ($this->footer === null) {
+        // Guard against re-entry: footer callbacks emit into page content
+        // streams, so repeated output() calls would otherwise duplicate them.
+        if ($this->footer === null || $this->footersRendered) {
             return;
         }
+        $this->footersRendered = true;
         $totalPages = count($this->pages);
         $previousCurrent = $this->currentPage;
         try {

@@ -647,4 +647,23 @@ final class DocumentTest extends TestCase
         $doc->setAutoPageBreak(true);
         self::assertSame(5.0, $doc->margins()->top);
     }
+
+    public function testRepeatedOutputDoesNotRerunFooters(): void
+    {
+        $doc = new Document(Unit::PT);
+        $fireCount = 0;
+        $doc->setFooter(function (Page $p, int $n, int $total) use (&$fireCount): void {
+            $fireCount++;
+        });
+        $doc->addPage();
+        $doc->addPage();
+        $first = $doc->output();
+        $second = $doc->output();
+        // Three different invariants worth guarding:
+        // (a) footer callback fired exactly once per page across both output() calls
+        // (b) bytes are deterministic between two outputs of the same Document
+        // (c) PDF content stream is not corrupted by double-emission
+        self::assertSame(2, $fireCount);
+        self::assertSame($first, $second);
+    }
 }

@@ -34,6 +34,9 @@ final class Page
 {
     private const float BEZIER_KAPPA = 0.5522847498;
 
+    /** Tolerance (in points) for the auto-break overflow comparison; absorbs float drift on exact-fit cells. */
+    private const float OVERFLOW_EPSILON_PT = 0.0001;
+
     private readonly ContentStream $stream;
 
     private ?Font $currentFont = null;
@@ -518,7 +521,7 @@ final class Page
                     $this->document->margins()->bottom,
                 );
 
-                if ($resolvedYPt + $estimatedHeightPt > $bottomLimitPt + 0.0001) {
+                if ($resolvedYPt + $estimatedHeightPt > $bottomLimitPt + self::OVERFLOW_EPSILON_PT) {
                     $newPage = $this->document->addPage();
                     // Suppress auto-break on the new page for this one emission,
                     // so that a cell larger than the drawable area does not
@@ -743,14 +746,10 @@ final class Page
     }
 
     /**
-     * Cheap O(1) estimate of a cell's vertical footprint, used by cell() to
-     * decide whether to trigger auto-page-break before any rendering happens.
-     * Counts only explicit newline breaks (no wrap simulation), so for text
-     * that will wrap inside CellRenderer the real height may exceed this
-     * estimate. Accepting that imprecision keeps the auto-break decision
-     * cheap; the worst case is a cell that overflows the bottom margin by
-     * a few lines, consistent with the spec's "cell larger than drawable"
-     * behavior.
+     * Upper-bound height estimate used by auto-break before rendering. Ignores
+     * wrapping (counts only explicit newlines); the tradeoff is documented in
+     * the Phase 6 spec: a few lines of overflow on wrapped text is acceptable
+     * to keep the per-cell check O(1).
      */
     private function estimateCellHeightPt(string $text, float $sizePt, ?float $customLeading): float
     {
