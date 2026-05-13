@@ -7,6 +7,8 @@ namespace DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\ImageFormat;
+use DragonOfMercy\PhpPdf\Svg\Renderer;
+use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -35,8 +37,8 @@ final class ImageEmbedder
     {
         return match ($image->format) {
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
-            ImageFormat::PNG => $this->embedPng($image, $firstObjectNumber),
-            ImageFormat::SVG => throw new PdfException('SVG embedding not implemented yet'),
+            ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber),
+            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber),
         };
     }
 
@@ -45,6 +47,9 @@ final class ImageEmbedder
         $meta = $image->metadata;
         if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
             return 2;
+        }
+        if ($meta instanceof SvgMetadata) {
+            return 1;
         }
         return 1;
     }
@@ -121,6 +126,49 @@ final class ImageEmbedder
             $imageObject,
             IndirectObject::of($objectNumber + 1, 0, new ImageStream($smaskDict, $alpha)),
         ];
+    }
+
+    /**
+     * @return list<IndirectObject>
+     */
+    private function embedSvg(Image $image, int $objectNumber): array
+    {
+        $meta = $image->metadata;
+        if (!$meta instanceof SvgMetadata) {
+            throw new PdfException('Embedder received non-SVG metadata for SVG format');
+        }
+
+        $rendered = (new Renderer())->render($meta);
+        $bytes = $rendered['bytes'];
+        $extGStates = $rendered['extGStates'];
+
+        $resources = Dictionary::empty()
+            ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
+
+        if ($extGStates !== []) {
+            $extGStateDict = Dictionary::empty();
+            foreach ($extGStates as $name => $entry) {
+                $gsDict = Dictionary::empty()
+                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
+                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
+                $extGStateDict = $extGStateDict->withEntry(Name::of($name), $gsDict);
+            }
+            $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+        }
+
+        $extra = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('FormType'), PdfNumber::ofInt(1))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofInt(0), PdfNumber::ofInt(0),
+                PdfNumber::ofInt(1), PdfNumber::ofInt(1),
+            ))
+            ->withEntry(Name::of('Resources'), $resources);
+
+        $stream = CompressedStream::ofWithDict($bytes, $extra);
+
+        return [IndirectObject::of($objectNumber, 0, $stream)];
     }
 
     private function pngImageDictionary(PngMetadata $meta, ?PdfReference $smaskRef): Dictionary
