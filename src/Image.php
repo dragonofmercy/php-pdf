@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image\JpegMetadata;
 use DragonOfMercy\PhpPdf\Image\PngMetadata;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
+use DragonOfMercy\PhpPdf\Svg\Parser;
 
 /**
  * Public value object representing an image to be embedded in the PDF.
@@ -96,8 +97,16 @@ final readonly class Image
         }
 
         if (self::looksLikeSvg($data)) {
-            // Stub for Task 1: real parsing arrives in Task 8.
-            throw new PdfException('SVG parsing not implemented yet');
+            $meta = Parser::parse($data);
+            $w = (int) ceil($meta->viewBox->width);
+            $h = (int) ceil($meta->viewBox->height);
+            return new self(
+                width: $w,
+                height: $h,
+                format: ImageFormat::SVG,
+                bytes: $data,
+                metadata: $meta,
+            );
         }
 
         throw new PdfException('Unsupported image format (expected JPEG, PNG, or SVG)');
