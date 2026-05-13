@@ -53,7 +53,7 @@ final class SvgUseDefsTest extends TestCase
             . '<use href="#dot" x="170" y="70"/>'
             . '</svg>';
         $img = Image::fromBytes($svg);
-        $doc->currentPage()->image($img, x: 50.0, y: 50.0, w: 300.0);
+        $doc->getCurrentPage()->image($img, x: 50.0, y: 50.0, w: 300.0);
         return $doc->output();
     }
 }

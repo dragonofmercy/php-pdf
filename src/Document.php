@@ -263,7 +263,7 @@ final class Document
         return count($this->pages);
     }
 
-    public function currentPage(): Page
+    public function getCurrentPage(): Page
     {
         if ($this->currentPage === null) {
             throw new PdfException('No current page: call addPage() first');
@@ -316,7 +316,7 @@ final class Document
      * from the previous addPage() call (or A4 portrait on the first call).
      *
      * Side-effects: assigns the next sequential pageNumber, becomes the
-     * currentPage(), fires the header callback (if any), then positions the
+     * getCurrentPage(), fires the header callback (if any), then positions the
      * cursor at (leftMargin, topMargin).
      *
      * @param PageFormat|array{0: int|float, 1: int|float}|null $format A standard

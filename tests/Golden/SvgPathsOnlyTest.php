@@ -48,7 +48,7 @@ final class SvgPathsOnlyTest extends TestCase
             . '<path d="M 20 20 Q 50 60 80 20" fill="none" stroke="black" stroke-width="2"/>'
             . '</svg>';
         $img = Image::fromBytes($svg);
-        $doc->currentPage()->image($img, x: 50.0, y: 50.0, w: 200.0);
+        $doc->getCurrentPage()->image($img, x: 50.0, y: 50.0, w: 200.0);
         return $doc->output();
     }
 }

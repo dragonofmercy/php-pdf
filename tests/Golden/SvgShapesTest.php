@@ -52,7 +52,7 @@ final class SvgShapesTest extends TestCase
             . '<polyline points="200,80 240,100 220,140 260,140" fill="none" stroke="teal" stroke-width="2"/>'
             . '</svg>';
         $img = Image::fromBytes($svg);
-        $doc->currentPage()->image($img, x: 50.0, y: 50.0, w: 400.0);
+        $doc->getCurrentPage()->image($img, x: 50.0, y: 50.0, w: 400.0);
         return $doc->output();
     }
 }

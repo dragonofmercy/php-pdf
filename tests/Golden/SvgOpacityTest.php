@@ -51,7 +51,7 @@ final class SvgOpacityTest extends TestCase
             . '<rect x="10" y="150" width="80" height="40" fill="none" stroke="purple" stroke-width="4" stroke-opacity="0.3" opacity="0.8"/>'
             . '</svg>';
         $img = Image::fromBytes($svg);
-        $doc->currentPage()->image($img, x: 50.0, y: 50.0, w: 300.0);
+        $doc->getCurrentPage()->image($img, x: 50.0, y: 50.0, w: 300.0);
         return $doc->output();
     }
 }

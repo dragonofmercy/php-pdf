@@ -49,7 +49,7 @@ final class SvgDasharrayTest extends TestCase
             . '<line x1="10" y1="60" x2="190" y2="60" stroke="red" stroke-width="2" stroke-dasharray="8" stroke-dashoffset="2"/>'
             . '</svg>';
         $img = Image::fromBytes($svg);
-        $doc->currentPage()->image($img, x: 50.0, y: 50.0, w: 400.0);
+        $doc->getCurrentPage()->image($img, x: 50.0, y: 50.0, w: 400.0);
         return $doc->output();
     }
 }

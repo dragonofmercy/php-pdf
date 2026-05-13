@@ -514,20 +514,20 @@ final class DocumentTest extends TestCase
         self::assertSame($doc, $doc->setMargins(5.0));
     }
 
-    public function testCurrentPageThrowsBeforeAnyAddPage(): void
+    public function testGetCurrentPageThrowsBeforeAnyAddPage(): void
     {
         $doc = new Document();
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('No current page: call addPage() first');
-        $doc->currentPage();
+        $doc->getCurrentPage();
     }
 
-    public function testCurrentPageReturnsLastAddedPage(): void
+    public function testGetCurrentPageReturnsLastAddedPage(): void
     {
         $doc = new Document();
         $first = $doc->addPage();
         $second = $doc->addPage();
-        self::assertSame($second, $doc->currentPage());
+        self::assertSame($second, $doc->getCurrentPage());
     }
 
     public function testAddPageAssignsSequentialPageNumbers(): void
@@ -589,9 +589,9 @@ final class DocumentTest extends TestCase
             $doc->addPage();
             self::fail('Expected the header callback to propagate.');
         } catch (RuntimeException) {
-            // Expected. The page is still reachable via currentPage().
+            // Expected. The page is still reachable via getCurrentPage().
         }
-        $page = $doc->currentPage();
+        $page = $doc->getCurrentPage();
         self::assertEquals(Font::helvetica(), $page->getFont());
         self::assertSame(11.0, $page->getFontSize());
     }
@@ -609,7 +609,7 @@ final class DocumentTest extends TestCase
         $page->setFont(Font::helvetica(), 11);
         // Emit enough rows to force an auto-break onto a second page.
         for ($i = 1; $i <= 60; $i++) {
-            $doc->currentPage()->cell(
+            $doc->getCurrentPage()->cell(
                 w: 495.0,
                 h: 16.0,
                 text: "Row {$i}",
@@ -617,10 +617,10 @@ final class DocumentTest extends TestCase
             );
         }
         self::assertGreaterThan(1, $doc->pageCount());
-        // The page Reached via currentPage() is the auto-created second page;
+        // The page Reached via getCurrentPage() is the auto-created second page;
         // after rows have rendered, it must still report the body font, not bold.
-        self::assertEquals(Font::helvetica(), $doc->currentPage()->getFont());
-        self::assertSame(11.0, $doc->currentPage()->getFontSize());
+        self::assertEquals(Font::helvetica(), $doc->getCurrentPage()->getFont());
+        self::assertSame(11.0, $doc->getCurrentPage()->getFontSize());
     }
 
     public function testFooterDoesNotLeakFontStateAfterOutput(): void

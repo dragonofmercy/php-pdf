@@ -63,9 +63,9 @@ final class PageAutoBreakTest extends TestCase
         $doc->setAutoPageBreak(true);
 
         $doc->addPage();
-        $doc->currentPage()->setFont(Font::helvetica(), 11);
+        $doc->getCurrentPage()->setFont(Font::helvetica(), 11);
         for ($i = 1; $i <= 60; $i++) {
-            $doc->currentPage()->cell(
+            $doc->getCurrentPage()->cell(
                 w: 495.0,
                 h: 16.0,
                 text: "Row {$i}",

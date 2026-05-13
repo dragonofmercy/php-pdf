@@ -328,9 +328,9 @@ $doc->setFooter(function (\DragonOfMercy\PhpPdf\Page $p, int $n, int $total): vo
 $doc->setAutoPageBreak(true);
 
 $doc->addPage();
-$doc->currentPage()->setFont(Font::helvetica(), 11);
+$doc->getCurrentPage()->setFont(Font::helvetica(), 11);
 for ($i = 1; $i <= 60; $i++) {
-    $doc->currentPage()->cell(
+    $doc->getCurrentPage()->cell(
         w: 495.0,
         h: 16.0,
         text: "Row {$i}",
