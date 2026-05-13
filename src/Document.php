@@ -48,6 +48,9 @@ final class Document
     /** Default margin (in the document's unit) applied by setAutoPageBreak(true) when current margins are zero. */
     private const float DEFAULT_AUTO_BREAK_MARGIN = 20.0;
 
+    /** Initial default border line width (in the document's unit) applied to Border factories without an explicit withWidth() call. */
+    private const float INITIAL_DEFAULT_BORDER_WIDTH = 0.25;
+
     /** @var list<Page> */
     private array $pages = [];
 
@@ -101,7 +104,7 @@ final class Document
         // PHP forbids method calls in property defaults; resolve here.
         $this->defaultFont = Font::helvetica();
         $this->margins = PageMargins::all(0.0);
-        $this->defaultBorderWidthPt = $this->unit->toPoints(0.25);
+        $this->defaultBorderWidthPt = $this->unit->toPoints(self::INITIAL_DEFAULT_BORDER_WIDTH);
     }
 
     /**
