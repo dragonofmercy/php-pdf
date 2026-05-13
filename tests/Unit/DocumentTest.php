@@ -9,10 +9,12 @@ use DragonOfMercy\PhpPdf\Document\Encryption;
 use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\PageMargins;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class DocumentTest extends TestCase
 {
@@ -262,23 +264,18 @@ final class DocumentTest extends TestCase
         self::assertSame(1, substr_count($bytes, '/BaseFont /Helvetica '));
     }
 
-    public function testPageWithoutTextHasNoResources(): void
-    {
-        $doc = new Document(Unit::PT);
-        $doc->addPage();  // no drawing, no text
-        $bytes = $doc->output();
-        self::assertStringNotContainsString('/Resources', $bytes);
-    }
-
     public function testSetFontWithoutTextEmitsNoFontResources(): void
     {
+        // Registering a font without ever rendering text must not pull in the
+        // font's Type1/BaseFont indirect object. The page itself still carries
+        // a /Resources entry (required by spec, see
+        // testEmptyPageStillEmitsResourcesDictionary), but it stays empty.
         $doc = new Document(Unit::PT);
         $page = $doc->addPage();
-        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 12);
+        $page->setFont(Font::helvetica(), 12);
         // No text() call
         $bytes = $doc->output();
 
-        self::assertStringNotContainsString('/Resources', $bytes);
         self::assertStringNotContainsString('/BaseFont', $bytes);
         self::assertStringNotContainsString('/Type /Font', $bytes);
     }
@@ -565,6 +562,83 @@ final class DocumentTest extends TestCase
         self::assertSame(25.0, $page->getY());
     }
 
+    public function testHeaderDoesNotLeakFontStateToBody(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultFont(Font::helvetica(), 11);
+        $doc->setHeader(function (Page $p): void {
+            $p->setFont(Font::helvetica()->bold(), 14);
+            $p->text(50, 35, 'Title');
+        });
+        $page = $doc->addPage();
+        // Body must see the page defaults (regular 11), not the bold 14 the
+        // header callback left behind.
+        self::assertEquals(Font::helvetica(), $page->getFont());
+        self::assertSame(11.0, $page->getFontSize());
+    }
+
+    public function testHeaderFontStateRestoredEvenWhenCallbackThrows(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultFont(Font::helvetica(), 11);
+        $doc->setHeader(function (Page $p): void {
+            $p->setFont(Font::helvetica()->bold(), 14);
+            throw new RuntimeException('boom');
+        });
+        try {
+            $doc->addPage();
+            self::fail('Expected the header callback to propagate.');
+        } catch (RuntimeException) {
+            // Expected. The page is still reachable via currentPage().
+        }
+        $page = $doc->currentPage();
+        self::assertEquals(Font::helvetica(), $page->getFont());
+        self::assertSame(11.0, $page->getFontSize());
+    }
+
+    public function testAutoBreakDoesNotInheritHeaderFontOnNextPage(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setMargins(new PageMargins(top: 60.0, right: 50.0, bottom: 60.0, left: 50.0));
+        $doc->setHeader(function (Page $p): void {
+            $p->setFont(Font::helvetica()->bold(), 14);
+            $p->text(50, 35, 'Title');
+        });
+        $doc->setAutoPageBreak(true);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11);
+        // Emit enough rows to force an auto-break onto a second page.
+        for ($i = 1; $i <= 60; $i++) {
+            $doc->currentPage()->cell(
+                w: 495.0,
+                h: 16.0,
+                text: "Row {$i}",
+                ln: NextPosition::NEWLINE,
+            );
+        }
+        self::assertGreaterThan(1, $doc->pageCount());
+        // The page Reached via currentPage() is the auto-created second page;
+        // after rows have rendered, it must still report the body font, not bold.
+        self::assertEquals(Font::helvetica(), $doc->currentPage()->getFont());
+        self::assertSame(11.0, $doc->currentPage()->getFontSize());
+    }
+
+    public function testFooterDoesNotLeakFontStateAfterOutput(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setFooter(function (Page $p, int $n, int $total): void {
+            $p->setFont(Font::helvetica()->bold(), 9);
+            $p->text(50, 800, "Page {$n} / {$total}");
+        });
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->text(50, 50, 'Body');
+        $doc->output();
+        // After output(), the page must report the body font, not the footer's bold.
+        self::assertEquals(Font::helvetica(), $page->getFont());
+        self::assertSame(12.0, $page->getFontSize());
+    }
+
     public function testSetHeaderWithNullClearsCallback(): void
     {
         $doc = new Document();
@@ -623,6 +697,28 @@ final class DocumentTest extends TestCase
         // and is non-empty. The more rigorous test is the golden fixture.
         self::assertNotSame('', $bytes);
         self::assertStringStartsWith('%PDF-', $bytes);
+    }
+
+    public function testEmptyPageStillEmitsResourcesDictionary(): void
+    {
+        // PDF 1.7 spec 7.7.3.3 requires /Resources on every /Page (empty dict OK,
+        // or inherited from /Pages ancestor). qpdf --check warns when missing.
+        // assertStringContainsString cannot be used: PDF bytes carry a binary
+        // marker that trips PHPUnit's encoding detection.
+        $doc = new Document(Unit::PT);
+        $doc->addPage();
+        $bytes = $doc->output();
+        self::assertTrue(str_contains($bytes, '/Resources'), 'Page bytes should include /Resources');
+    }
+
+    public function testPageWithOnlyGraphicsStillEmitsResourcesDictionary(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->setLineWidth(1.0);
+        $page->line(10.0, 10.0, 100.0, 100.0)->stroke();
+        $bytes = $doc->output();
+        self::assertTrue(str_contains($bytes, '/Resources'), 'Page bytes should include /Resources');
     }
 
     public function testAutoPageBreakOffByDefault(): void

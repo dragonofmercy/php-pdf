@@ -113,6 +113,39 @@ final class Page
     }
 
     /**
+     * @internal Snapshot the font-related state so a caller (Document) can
+     * bracket a header/footer callback and restore the page exactly as it was
+     * before the callback ran. Without this, header callbacks would leak their
+     * setFont() into the body that follows (most visibly after an auto-break:
+     * the new page is created in regular, the header switches to bold, then
+     * the user's cell() inherits bold).
+     *
+     * @return array{font: ?Font, size: ?float, leading: ?float, engine: ?FontEngine}
+     */
+    public function captureFontState(): array
+    {
+        return [
+            'font' => $this->currentFont,
+            'size' => $this->currentSize,
+            'leading' => $this->customLeading,
+            'engine' => $this->currentFontEngine,
+        ];
+    }
+
+    /**
+     * @internal Mirror of {@see captureFontState()}.
+     *
+     * @param array{font: ?Font, size: ?float, leading: ?float, engine: ?FontEngine} $state
+     */
+    public function restoreFontState(array $state): void
+    {
+        $this->currentFont = $state['font'];
+        $this->currentSize = $state['size'];
+        $this->customLeading = $state['leading'];
+        $this->currentFontEngine = $state['engine'];
+    }
+
+    /**
      * Page margins inherited from the document, or {@see PageMargins::all(0.0)}
      * when the page was created without a document-level margin (legacy direct
      * construction).

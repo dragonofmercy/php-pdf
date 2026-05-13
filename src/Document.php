@@ -335,11 +335,17 @@ final class Document
         $page->setPageNumber(++$this->pageCounter);
         $this->currentPage = $page;
         if ($this->header !== null) {
+            // Restore the font state after the header runs so the body picks up
+            // the page defaults (or whatever the caller set previously), not the
+            // font the header callback left behind. Without this, an auto-break
+            // produces a new page whose first cell inherits the header's font.
+            $savedFontState = $page->captureFontState();
             $page->inHeaderRender = true;
             try {
                 ($this->header)($page);
             } finally {
                 $page->inHeaderRender = false;
+                $page->restoreFontState($savedFontState);
             }
         }
         // Position cursor at the top-left of the content area (inside margins).
@@ -400,7 +406,12 @@ final class Document
         try {
             foreach ($this->pages as $i => $page) {
                 $this->currentPage = $page;
-                ($this->footer)($page, $i + 1, $totalPages);
+                $savedFontState = $page->captureFontState();
+                try {
+                    ($this->footer)($page, $i + 1, $totalPages);
+                } finally {
+                    $page->restoreFontState($savedFontState);
+                }
             }
         } finally {
             $this->currentPage = $previousCurrent;
@@ -666,41 +677,44 @@ final class Document
             $pageFonts = $page->fontsUsed();
             $pageImages = $page->imagesUsed();
 
-            if ($pageFonts !== [] || $pageImages !== []) {
-                $resources = Dictionary::empty();
-                if ($pageFonts !== []) {
-                    $fontDict = Dictionary::empty();
-                    foreach ($pageFonts as $font) {
-                        if ($font->isCustom()) {
-                            if ($this->fontResolver === null) {
-                                throw new PdfException('Custom font used without registered family');
-                            }
-                            $resolvedTtf = $this->fontResolver->resolve($font);
-                            $key = new CustomFontKey(
-                                $font->requireCustomAlias(),
-                                $resolvedTtf->postScriptName,
-                            );
-                            $shortName = $this->fontRegistry->shortNameForCustom($font, $key);
-                            $fontDict = $fontDict->withEntry(Name::of($shortName), $customRefs[$shortName]);
-                        } else {
-                            $shortName = $this->fontRegistry->shortName($font);
-                            $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+            // /Resources is REQUIRED on /Page per PDF 1.7 spec 7.7.3.3 (an
+            // empty dictionary is valid; omitting it means "inherit from a
+            // /Pages ancestor", which we do not emit). qpdf --check warns
+            // ("Resources is missing or invalid; repairing") when this is
+            // absent, even though Adobe and browsers silently tolerate it.
+            $resources = Dictionary::empty();
+            if ($pageFonts !== []) {
+                $fontDict = Dictionary::empty();
+                foreach ($pageFonts as $font) {
+                    if ($font->isCustom()) {
+                        if ($this->fontResolver === null) {
+                            throw new PdfException('Custom font used without registered family');
                         }
-                    }
-                    $resources = $resources->withEntry(Name::of('Font'), $fontDict);
-                }
-                if ($pageImages !== []) {
-                    $xObjectDict = Dictionary::empty();
-                    foreach ($pageImages as $imageShort) {
-                        $xObjectDict = $xObjectDict->withEntry(
-                            Name::of($imageShort),
-                            $imageRefs[$imageShort],
+                        $resolvedTtf = $this->fontResolver->resolve($font);
+                        $key = new CustomFontKey(
+                            $font->requireCustomAlias(),
+                            $resolvedTtf->postScriptName,
                         );
+                        $shortName = $this->fontRegistry->shortNameForCustom($font, $key);
+                        $fontDict = $fontDict->withEntry(Name::of($shortName), $customRefs[$shortName]);
+                    } else {
+                        $shortName = $this->fontRegistry->shortName($font);
+                        $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
                     }
-                    $resources = $resources->withEntry(Name::of('XObject'), $xObjectDict);
                 }
-                $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
+                $resources = $resources->withEntry(Name::of('Font'), $fontDict);
             }
+            if ($pageImages !== []) {
+                $xObjectDict = Dictionary::empty();
+                foreach ($pageImages as $imageShort) {
+                    $xObjectDict = $xObjectDict->withEntry(
+                        Name::of($imageShort),
+                        $imageRefs[$imageShort],
+                    );
+                }
+                $resources = $resources->withEntry(Name::of('XObject'), $xObjectDict);
+            }
+            $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
 
             if ($contentNum !== null) {
                 $pageDict = $pageDict->withEntry(
