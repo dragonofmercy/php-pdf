@@ -736,8 +736,8 @@ final class Page
 
     public function image(
         string|Image $image,
-        float $x,
-        float $y,
+        ?float $x = null,
+        ?float $y = null,
         ?float $w = null,
         ?float $h = null,
     ): self {
@@ -746,6 +746,19 @@ final class Page
         }
         if ($h !== null && $h <= 0.0) {
             throw new PdfException("Image height must be positive, got {$h}");
+        }
+
+        if ($x === null) {
+            if ($this->cursorXPt === null) {
+                throw new PdfException('Image x is required: no cursor set yet');
+            }
+            $x = $this->fromPt($this->cursorXPt);
+        }
+        if ($y === null) {
+            if ($this->cursorYPt === null) {
+                throw new PdfException('Image y is required: no cursor set yet');
+            }
+            $y = $this->fromPt($this->cursorYPt);
         }
 
         [$shortName, $resolved] = $this->imageRegistry->register($image);
@@ -779,6 +792,11 @@ final class Page
         $this->stream->append(Operators::restoreState());
 
         $this->imagesUsed[$shortName] = true;
+        // Mirror cell()'s RIGHT semantics on the x axis only: advance the
+        // cursor to the right edge of what we just drew so a chained image()
+        // or barcode() without explicit x can flow next to it. y is left
+        // untouched -- callers needing a new line use setY/setXY.
+        $this->cursorXPt = $xPt + $effWPt;
         return $this;
     }
 
@@ -791,9 +809,33 @@ final class Page
      * For 1D barcodes (EAN-13, EAN-8, Code 128) `h` is required; for QR it is
      * optional (defaults to `w`, since QR is square).
      */
-    public function barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null): self
-    {
+    public function barcode(
+        Barcode $code,
+        ?float $x = null,
+        ?float $y = null,
+        ?float $w = null,
+        ?float $h = null,
+    ): self {
+        if ($w === null) {
+            throw new PdfException('Barcode width is required');
+        }
+        if ($x === null) {
+            if ($this->cursorXPt === null) {
+                throw new PdfException('Barcode x is required: no cursor set yet');
+            }
+            $x = $this->fromPt($this->cursorXPt);
+        }
+        if ($y === null) {
+            if ($this->cursorYPt === null) {
+                throw new PdfException('Barcode y is required: no cursor set yet');
+            }
+            $y = $this->fromPt($this->cursorYPt);
+        }
         $code->draw($this, $x, $y, $w, $h);
+        // Mirror cell()'s RIGHT semantics on the x axis only: advance the
+        // cursor to the right edge of the barcode bounding box. y is left
+        // untouched.
+        $this->cursorXPt = $this->toPt($x) + $this->toPt($w);
         return $this;
     }
 

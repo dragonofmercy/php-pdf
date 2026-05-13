@@ -877,6 +877,73 @@ final class PageTest extends TestCase
         }
     }
 
+    public function testImageWithoutCursorAndOmittedXThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('no cursor set');
+        $page->image($img, y: 10, w: 20, h: 20);
+    }
+
+    public function testImageWithoutCursorAndOmittedYThrows(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('no cursor set');
+        $page->image($img, x: 10, w: 20, h: 20);
+    }
+
+    public function testImageFallsBackToCursorWhenXOmitted(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->setXY(40, 70);
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $page->image($img, w: 100, h: 50);
+        // CTM uses cursor (x=40, y=70): "100 0 0 -50 40 120 cm" (70 + 50).
+        self::assertStringContainsString('100 0 0 -50 40 120 cm', $page->contentStream()->bytes());
+    }
+
+    public function testImageAdvancesCursorXToRightEdge(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->setXY(10, 20);
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $page->image($img, w: 100, h: 50);
+        // x advances by effW (100), y is left alone.
+        self::assertSame(110.0, $page->getX());
+        self::assertSame(20.0, $page->getY());
+    }
+
+    public function testImageCursorAdvanceUsesAspectRatioWhenOnlyOneDimGiven(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->setXY(0, 0);
+        // 10x5 -> aspect 2:1. Pass h=50 -> effW = 100.
+        $img = Image::fromBytes(TestImageFactory::pngRgb(width: 10, height: 5));
+        $page->image($img, h: 50);
+        self::assertSame(100.0, $page->getX());
+    }
+
+    public function testImageChainsWithCellViaSharedCursor(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->cell(x: 10, y: 20, w: 30, h: 30, text: '', padding: 0);
+        // After cell with ln=RIGHT, cursor is at (40, 20).
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $page->image($img, w: 25, h: 25);
+        // CTM should anchor at (40, 20): "25 0 0 -25 40 45 cm".
+        self::assertStringContainsString('25 0 0 -25 40 45 cm', $page->contentStream()->bytes());
+        // Then cursor advances by 25 to x=65.
+        self::assertSame(65.0, $page->getX());
+    }
+
     public function testTextWithCustomFontEmitsHexString(): void
     {
         $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
