@@ -565,7 +565,7 @@ final class Page
         VerticalAlign $verticalAlign = VerticalAlign::TOP,
         Fit $fit = Fit::NONE,
         float|CellPadding|null $padding = null,
-        ?NextPosition $ln = null,
+        NextPosition $ln = NextPosition::RIGHT,
     ): CellResult {
         if ($this->currentFont === null || $this->currentSize === null) {
             throw new PdfException('setFont() must be called before cell()');
@@ -702,24 +702,24 @@ final class Page
             emittingPage: $this,
         );
 
-        if ($ln !== null) {
-            $xPt = $this->toPt($x);
-            $yPt = $this->toPt($y);
-            $bottomPt = $yPt + $result->height;
-            switch ($ln) {
-                case NextPosition::RIGHT:
-                    $this->cursorXPt = $xPt + $result->effectiveWidth;
-                    $this->cursorYPt = $yPt;
-                    break;
-                case NextPosition::NEWLINE:
-                    $this->cursorXPt = $this->lineStartXPt ?? $xPt;
-                    $this->cursorYPt = $bottomPt;
-                    break;
-                case NextPosition::BELOW:
-                    $this->cursorXPt = $xPt;
-                    $this->cursorYPt = $bottomPt;
-                    break;
-            }
+        $xPt = $this->toPt($x);
+        $yPt = $this->toPt($y);
+        $bottomPt = $yPt + $result->height;
+        switch ($ln) {
+            case NextPosition::RIGHT:
+                $this->cursorXPt = $xPt + $result->effectiveWidth;
+                $this->cursorYPt = $yPt;
+                break;
+            case NextPosition::NEWLINE:
+                $this->cursorXPt = $this->lineStartXPt ?? $xPt;
+                $this->cursorYPt = $bottomPt;
+                break;
+            case NextPosition::BELOW:
+                $this->cursorXPt = $xPt;
+                $this->cursorYPt = $bottomPt;
+                break;
+            case NextPosition::NONE:
+                break;
         }
 
         return new CellResult(

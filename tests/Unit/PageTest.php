@@ -744,17 +744,32 @@ final class PageTest extends TestCase
         self::assertSame(90.0, $r->y);  // 30 + 30 from NEWLINE
     }
 
-    public function testCellWithoutLnDoesNotMoveCursor(): void
+    public function testCellWithLnNoneDoesNotMoveCursor(): void
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
         $page->cell(x: 20, y: 30, w: 40, h: 30, text: 'A', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::RIGHT);
-        // Second cell does NOT pass ln => cursor stays at (60, 30); third call still
-        // resolves from that same cursor (no drift).
-        $page->cell(w: 25, h: 30, text: 'B', padding: 0);
-        $r = $page->cell(w: 25, h: 30, text: 'C', padding: 0);
+        // ln: NONE preserves the cursor at (60, 30); the third call still
+        // resolves from that same anchor (no drift).
+        $page->cell(w: 25, h: 30, text: 'B', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::NONE);
+        $r = $page->cell(w: 25, h: 30, text: 'C', padding: 0, ln: \DragonOfMercy\PhpPdf\NextPosition::NONE);
         self::assertSame(85.0, $r->x);   // 20 + 40 + 25, same as previous call
         self::assertSame(60.0, $r->y);
+    }
+
+    public function testCellDefaultLnRightAdvancesCursor(): void
+    {
+        $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());
+        $page->setFont(Font::helvetica(), 12);
+        // First cell pins x and y; ln defaults to RIGHT so the cursor is now at
+        // the right edge of the cell (60, 30).
+        $page->cell(x: 20, y: 30, w: 40, h: 30, text: 'A', padding: 0);
+        self::assertSame(60.0, $page->getX());
+        self::assertSame(30.0, $page->getY());
+        // Second cell uses the moved cursor as its anchor; default RIGHT again.
+        $page->cell(w: 25, h: 30, text: 'B', padding: 0);
+        self::assertSame(85.0, $page->getX());
+        self::assertSame(30.0, $page->getY());
     }
 
     public function testImageReturnsSelfForChaining(): void
