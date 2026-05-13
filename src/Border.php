@@ -29,7 +29,7 @@ final readonly class Border
             right: true,
             bottom: true,
             left: true,
-            width: 0.5,
+            width: null,
             color: Color::rgb(0, 0, 0),
             style: BorderStyle::SOLID,
         );
@@ -42,7 +42,7 @@ final readonly class Border
             right: false,
             bottom: false,
             left: false,
-            width: 0.5,
+            width: null,
             color: Color::rgb(0, 0, 0),
             style: BorderStyle::SOLID,
         );
@@ -59,7 +59,7 @@ final readonly class Border
             right: $right,
             bottom: $bottom,
             left: $left,
-            width: 0.5,
+            width: null,
             color: Color::rgb(0, 0, 0),
             style: BorderStyle::SOLID,
         );

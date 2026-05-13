@@ -537,7 +537,7 @@ final class PageTest extends TestCase
         $registry = new FontRegistry();
         $page = new Page(595, 842, $registry, new MetricsRegistry(), new ImageRegistry());
         $page->setFont(Font::helvetica(), 12);
-        $page->cell(x: 0, y: 0, w: 100, text: '', border: \DragonOfMercy\PhpPdf\Border::all());
+        $page->cell(x: 0, y: 0, w: 100, text: '', border: \DragonOfMercy\PhpPdf\Border::all()->withWidth(0.5));
         self::assertTrue($registry->isEmpty());
     }
 

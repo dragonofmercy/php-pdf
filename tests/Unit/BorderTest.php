@@ -23,7 +23,7 @@ final class BorderTest extends TestCase
     public function testAllDefaults(): void
     {
         $b = Border::all();
-        self::assertSame(0.5, $b->width);
+        self::assertNull($b->width);
         self::assertSame(BorderStyle::SOLID, $b->style);
         self::assertSame("0 0 0 rg\n", $b->color->toPdfOperator(stroke: false));
     }
@@ -60,7 +60,7 @@ final class BorderTest extends TestCase
         $a = Border::all();
         $b = $a->withWidth(2.5);
         self::assertNotSame($a, $b);
-        self::assertSame(0.5, $a->width);
+        self::assertNull($a->width);
         self::assertSame(2.5, $b->width);
     }
 
@@ -103,5 +103,38 @@ final class BorderTest extends TestCase
         self::assertTrue($b->top);
         self::assertFalse($b->right);
         self::assertSame(3.0, $b->width);
+    }
+
+    public function testFactoriesProduceNullWidth(): void
+    {
+        self::assertNull(Border::all()->width);
+        self::assertNull(Border::none()->width);
+        self::assertNull(Border::sides(top: true)->width);
+    }
+
+    public function testWithColorPreservesNullWidth(): void
+    {
+        $b = Border::all()->withColor(Color::rgb(1, 2, 3));
+        self::assertNull($b->width);
+    }
+
+    public function testWithStylePreservesNullWidth(): void
+    {
+        $b = Border::all()->withStyle(BorderStyle::DASHED);
+        self::assertNull($b->width);
+    }
+
+    public function testDirectConstructionWithNullWidth(): void
+    {
+        $b = new Border(
+            top: true,
+            right: false,
+            bottom: false,
+            left: false,
+            width: null,
+            color: Color::rgb(0, 0, 0),
+            style: BorderStyle::SOLID,
+        );
+        self::assertNull($b->width);
     }
 }

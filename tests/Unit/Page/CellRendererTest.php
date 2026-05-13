@@ -287,7 +287,7 @@ final class CellRendererTest extends TestCase
             static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
-                border: \DragonOfMercy\PhpPdf\Border::sides(top: true, bottom: true),
+                border: \DragonOfMercy\PhpPdf\Border::sides(top: true, bottom: true)->withWidth(0.5),
                 fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
@@ -334,7 +334,7 @@ final class CellRendererTest extends TestCase
             static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
-                border: \DragonOfMercy\PhpPdf\Border::all()->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DASHED),
+                border: \DragonOfMercy\PhpPdf\Border::all()->withStyle(\DragonOfMercy\PhpPdf\BorderStyle::DASHED)->withWidth(0.5),
                 fill: null, textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
@@ -399,7 +399,7 @@ final class CellRendererTest extends TestCase
             static fn (CellRenderer $r, ContentStream $s, string $t, Page $p): \DragonOfMercy\PhpPdf\CellResult => $r->render(
                 engine: $engine, size: 12.0, customLeading: null,
                 x: 0.0, y: 0.0, w: 50.0, h: 20.0, text: '',
-                border: \DragonOfMercy\PhpPdf\Border::all(), fill: \DragonOfMercy\PhpPdf\Color::rgb(255, 255, 255),
+                border: \DragonOfMercy\PhpPdf\Border::all()->withWidth(0.5), fill: \DragonOfMercy\PhpPdf\Color::rgb(255, 255, 255),
                 textColor: null,
                 align: \DragonOfMercy\PhpPdf\TextAlign::LEFT, verticalAlign: \DragonOfMercy\PhpPdf\VerticalAlign::TOP,
                 fit: \DragonOfMercy\PhpPdf\Fit::NONE, padding: CellPadding::all(2.0), fontShortName: 'F1', emittingPage: $p,
