@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DragonOfMercy\PhpPdf\Svg;
+
+final readonly class SvgEllipse implements SvgShape
+{
+    public function __construct(
+        private ?SvgMatrix $transform,
+        private SvgPaint $paint,
+        public float $cx,
+        public float $cy,
+        public float $rx,
+        public float $ry,
+    ) {}
+
+    public function transform(): ?SvgMatrix { return $this->transform; }
+    public function paint(): SvgPaint { return $this->paint; }
+}

@@ -4,17 +4,25 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Image;
 
-/**
- * Container for parsed SVG content. Populated by {@see \DragonOfMercy\PhpPdf\Svg\Parser}.
- *
- * Stub for Task 1: only the constructor signature is locked in. ViewBox,
- * PreserveAspectRatio, and the root AST node are added in later tasks. Until
- * then this class is intentionally tiny so the Image::$metadata union compiles.
- */
+use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
+use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\ViewBox;
+
 final readonly class SvgMetadata
 {
     public function __construct(
-        public float $intrinsicWidth,
-        public float $intrinsicHeight,
+        public ViewBox $viewBox,
+        public PreserveAspectRatio $aspectRatio,
+        public SvgGroup $root,
     ) {}
+
+    public function intrinsicWidth(): float
+    {
+        return $this->viewBox->width;
+    }
+
+    public function intrinsicHeight(): float
+    {
+        return $this->viewBox->height;
+    }
 }
