@@ -8,6 +8,9 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\ClosePath;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\Arc;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
 
 /**
  * Translates an SvgMetadata tree into a PDF content-stream byte string.
@@ -134,11 +137,45 @@ final class Renderer
 
     private function emitRect(SvgRect $r): string
     {
-        if ($r->hasRoundedCorners()) {
-            // Task 10 expands rx/ry rects into a path with corner arcs.
-            return '';
+        if (!$r->hasRoundedCorners()) {
+            return sprintf("%s %s %s %s re\n", self::fmt($r->x), self::fmt($r->y), self::fmt($r->width), self::fmt($r->height));
         }
-        return sprintf("%s %s %s %s re\n", self::fmt($r->x), self::fmt($r->y), self::fmt($r->width), self::fmt($r->height));
+        // Clamp radii per SVG spec: rx <= width/2, ry <= height/2.
+        $rx = min($r->rx > 0.0 ? $r->rx : $r->ry, $r->width / 2.0);
+        $ry = min($r->ry > 0.0 ? $r->ry : $r->rx, $r->height / 2.0);
+        $x = $r->x;
+        $y = $r->y;
+        $w = $r->width;
+        $h = $r->height;
+        $out = '';
+        // Start at the top of the right edge, just above the top-right corner.
+        $out .= sprintf("%s %s m\n", self::fmt($x + $w - $rx), self::fmt($y));
+        // Top edge
+        $out .= sprintf("%s %s l\n", self::fmt($x + $w - $rx), self::fmt($y));
+        // Top-right corner arc (quarter circle from (x+w-rx, y) to (x+w, y+ry))
+        foreach (ArcToBezier::approximate($x + $w - $rx, $y, $rx, $ry, 0.0, false, true, $x + $w, $y + $ry) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+        }
+        // Right edge
+        $out .= sprintf("%s %s l\n", self::fmt($x + $w), self::fmt($y + $h - $ry));
+        // Bottom-right corner arc
+        foreach (ArcToBezier::approximate($x + $w, $y + $h - $ry, $rx, $ry, 0.0, false, true, $x + $w - $rx, $y + $h) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+        }
+        // Bottom edge
+        $out .= sprintf("%s %s l\n", self::fmt($x + $rx), self::fmt($y + $h));
+        // Bottom-left corner arc
+        foreach (ArcToBezier::approximate($x + $rx, $y + $h, $rx, $ry, 0.0, false, true, $x, $y + $h - $ry) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+        }
+        // Left edge
+        $out .= sprintf("%s %s l\n", self::fmt($x), self::fmt($y + $ry));
+        // Top-left corner arc
+        foreach (ArcToBezier::approximate($x, $y + $ry, $rx, $ry, 0.0, false, true, $x + $rx, $y) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+        }
+        $out .= "h\n";
+        return $out;
     }
 
     private function emitCircle(SvgCircle $c): string
@@ -204,15 +241,52 @@ final class Renderer
     private function emitPath(SvgPath $p): string
     {
         $out = '';
+        $cx = 0.0;
+        $cy = 0.0;
         foreach ($p->commands as $cmd) {
             if ($cmd instanceof MoveTo) {
                 $out .= sprintf("%s %s m\n", self::fmt($cmd->x), self::fmt($cmd->y));
+                $cx = $cmd->x;
+                $cy = $cmd->y;
             } elseif ($cmd instanceof LineTo) {
                 $out .= sprintf("%s %s l\n", self::fmt($cmd->x), self::fmt($cmd->y));
+                $cx = $cmd->x;
+                $cy = $cmd->y;
+            } elseif ($cmd instanceof CubicBezier) {
+                $out .= sprintf("%s %s %s %s %s %s c\n",
+                    self::fmt($cmd->c1x), self::fmt($cmd->c1y),
+                    self::fmt($cmd->c2x), self::fmt($cmd->c2y),
+                    self::fmt($cmd->x), self::fmt($cmd->y));
+                $cx = $cmd->x;
+                $cy = $cmd->y;
+            } elseif ($cmd instanceof QuadraticBezier) {
+                // Elevate Q to cubic: C1 = current + 2/3*(Q - current), C2 = end + 2/3*(Q - end)
+                $c1x = $cx + (2.0 / 3.0) * ($cmd->cx - $cx);
+                $c1y = $cy + (2.0 / 3.0) * ($cmd->cy - $cy);
+                $c2x = $cmd->x + (2.0 / 3.0) * ($cmd->cx - $cmd->x);
+                $c2y = $cmd->y + (2.0 / 3.0) * ($cmd->cy - $cmd->y);
+                $out .= sprintf("%s %s %s %s %s %s c\n",
+                    self::fmt($c1x), self::fmt($c1y),
+                    self::fmt($c2x), self::fmt($c2y),
+                    self::fmt($cmd->x), self::fmt($cmd->y));
+                $cx = $cmd->x;
+                $cy = $cmd->y;
+            } elseif ($cmd instanceof Arc) {
+                $beziers = ArcToBezier::approximate(
+                    $cx, $cy, $cmd->rx, $cmd->ry, $cmd->xAxisRotationDeg,
+                    $cmd->largeArc, $cmd->sweep, $cmd->x, $cmd->y,
+                );
+                foreach ($beziers as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
+                    $out .= sprintf("%s %s %s %s %s %s c\n",
+                        self::fmt($c1x), self::fmt($c1y),
+                        self::fmt($c2x), self::fmt($c2y),
+                        self::fmt($ex), self::fmt($ey));
+                }
+                $cx = $cmd->x;
+                $cy = $cmd->y;
             } elseif ($cmd instanceof ClosePath) {
                 $out .= "h\n";
             }
-            // CubicBezier / QuadraticBezier / Arc handled in Task 10.
         }
         return $out;
     }

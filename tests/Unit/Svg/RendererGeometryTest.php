@@ -7,9 +7,12 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Svg\Align;
 use DragonOfMercy\PhpPdf\Svg\MeetOrSlice;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\Arc;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\ClosePath;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
@@ -138,6 +141,52 @@ final class RendererGeometryTest extends TestCase
         self::assertStringContainsString('10 0 l', $bytes);
         self::assertStringContainsString('10 10 l', $bytes);
         self::assertStringContainsString('h', $bytes);
+    }
+
+    public function testRenderCubicBezier(): void
+    {
+        $path = new SvgPath(null, SvgPaint::default(), [
+            new MoveTo(0.0, 0.0),
+            new CubicBezier(1.0, 0.0, 2.0, 1.0, 3.0, 1.0),
+        ]);
+        $svg = $this->makeSvg([$path]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString('1 0 2 1 3 1 c', $bytes);
+    }
+
+    public function testRenderQuadraticBezierIsDegreeElevated(): void
+    {
+        // Q with current=(0,0), control=(3,3), end=(6,0) elevates to cubic with
+        // C1 = (2/3)*(3,3) + (1/3)*(0,0) = (2, 2)
+        // C2 = (2/3)*(3,3) + (1/3)*(6,0) = (4, 2)
+        $path = new SvgPath(null, SvgPaint::default(), [
+            new MoveTo(0.0, 0.0),
+            new QuadraticBezier(3.0, 3.0, 6.0, 0.0),
+        ]);
+        $svg = $this->makeSvg([$path]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString('2 2 4 2 6 0 c', $bytes);
+    }
+
+    public function testRenderArc(): void
+    {
+        $path = new SvgPath(null, SvgPaint::default(), [
+            new MoveTo(1.0, 0.0),
+            new Arc(1.0, 1.0, 0.0, false, true, 0.0, 1.0),
+        ]);
+        $svg = $this->makeSvg([$path]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        // At least one c operator emitted by arc approximation.
+        self::assertStringContainsString(' c', $bytes);
+    }
+
+    public function testRenderRoundedRectExpandsToPath(): void
+    {
+        $rect = new SvgRect(null, SvgPaint::default(), 0.0, 0.0, 10.0, 10.0, 2.0, 2.0);
+        $svg = $this->makeSvg([$rect]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringNotContainsString(' re', $bytes); // not the rect shortcut
+        self::assertStringContainsString(' c', $bytes); // at least one corner arc cubic
     }
 
     /**
