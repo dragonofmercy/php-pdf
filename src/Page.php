@@ -66,6 +66,8 @@ final class Page
     /** @internal Set by Document while a header callback is running; suppresses auto-break recursion. */
     public bool $inHeaderRender = false;
 
+    private ?float $defaultBorderWidthPt = null;
+
     public function __construct(
         public readonly float $pageWidth,
         public readonly float $pageHeight,
@@ -153,6 +155,37 @@ final class Page
     public function margins(): PageMargins
     {
         return $this->margins;
+    }
+
+    /**
+     * Sets the per-page default border line width. Overrides the value
+     * configured on the {@see Document}. `null` reverts to the document
+     * default for subsequent cell() calls. Initial value is null (delegate
+     * to document).
+     */
+    public function setDefaultBorderWidth(?float $width): self
+    {
+        if ($width !== null && $width <= 0) {
+            throw new PdfException('Default border width must be positive, got ' . $width);
+        }
+        $this->defaultBorderWidthPt = $width !== null ? $this->toPt($width) : null;
+        return $this;
+    }
+
+    /**
+     * @internal Resolves the effective default border width in points by
+     * consulting the page-level override first, then falling back to the
+     * document-level default.
+     */
+    public function resolveDefaultBorderWidthPt(): float
+    {
+        if ($this->defaultBorderWidthPt !== null) {
+            return $this->defaultBorderWidthPt;
+        }
+        if ($this->document === null) {
+            throw new PdfException('Page has no Document and no per-page default border width was set');
+        }
+        return $this->document->defaultBorderWidthPt();
     }
 
     public function pageNumber(): int

@@ -1090,4 +1090,67 @@ final class PageTest extends TestCase
         self::assertSame(2, $result->page->pageNumber());
         self::assertSame(2, $doc->pageCount());
     }
+
+    public function testResolveDefaultBorderWidthPtFallsBackToDocumentMm(): void
+    {
+        $doc = new Document(Unit::MM);
+        $page = $doc->addPage();
+        // Document init = 0.25 mm = 0.708661417... pt
+        self::assertEqualsWithDelta(
+            Unit::MM->toPoints(0.25),
+            $page->resolveDefaultBorderWidthPt(),
+            1e-10,
+        );
+    }
+
+    public function testResolveDefaultBorderWidthPtFallsBackToDocumentPt(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        self::assertSame(0.25, $page->resolveDefaultBorderWidthPt());
+    }
+
+    public function testPageOverrideTakesPrecedenceOverDocument(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultBorderWidth(1.0);
+        $page = $doc->addPage();
+        $page->setDefaultBorderWidth(2.0);
+        self::assertSame(2.0, $page->resolveDefaultBorderWidthPt());
+    }
+
+    public function testPageNullResetsToDocumentFallback(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultBorderWidth(1.0);
+        $page = $doc->addPage();
+        $page->setDefaultBorderWidth(2.0);
+        $page->setDefaultBorderWidth(null);
+        self::assertSame(1.0, $page->resolveDefaultBorderWidthPt());
+    }
+
+    public function testPageSetDefaultBorderWidthRejectsZero(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Default border width must be positive, got 0');
+        $page->setDefaultBorderWidth(0.0);
+    }
+
+    public function testPageSetDefaultBorderWidthRejectsNegative(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Default border width must be positive, got -1');
+        $page->setDefaultBorderWidth(-1.0);
+    }
+
+    public function testPageSetDefaultBorderWidthFluent(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        self::assertSame($page, $page->setDefaultBorderWidth(0.5));
+    }
 }
