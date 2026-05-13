@@ -1153,4 +1153,20 @@ final class PageTest extends TestCase
         $page = $doc->addPage();
         self::assertSame($page, $page->setDefaultBorderWidth(0.5));
     }
+
+    public function testResolveDefaultBorderWidthPtThrowsWhenPageHasNoDocumentAndNoOverride(): void
+    {
+        $page = $this->page();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Page has no Document and no per-page default border width was set');
+        $page->resolveDefaultBorderWidthPt();
+    }
+
+    public function testPageOverrideWorksWithoutDocument(): void
+    {
+        $page = $this->page();
+        $page->setDefaultBorderWidth(1.5);
+        // page() uses pt by default (Page constructor unit default is Unit::PT)
+        self::assertSame(1.5, $page->resolveDefaultBorderWidthPt());
+    }
 }
