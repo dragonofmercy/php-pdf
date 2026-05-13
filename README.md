@@ -14,13 +14,13 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Cells** - rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
 - **Text measurement** - `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
 - **Images** - JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
+- **SVG vector images** - inline `<svg>` documents embedded as PDF Form XObjects (vector, infinite zoom). Shapes (rect / circle / ellipse / line / polygon / polyline / path), all path commands (M / L / H / V / C / S / Q / T / A / Z) including arcs (cubic Bezier approximation), transforms (matrix / translate / rotate / scale / skewX / skewY), groups, `<use>` / `<defs>` references with cycle detection, `viewBox` + `preserveAspectRatio` (all 9 alignments x meet/slice), solid fill / stroke with full per-channel and global opacity (via ExtGState), fill rules (nonzero / evenodd), stroke dash patterns. 147 W3C named colors, hex, `rgb()`, `rgba()`. Unsupported features (`<text>`, gradients, filters, masks, patterns) are skipped silently per the SVG fallback spec.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), QR Code (V1-V10, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
 
 ## Not yet implemented
 
 - Custom OTF/CFF fonts (`.otf`), TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping -- out of Phase 3a scope.
 - TTF subsetting -- whole-font embedding only in Phase 3a, subsetting planned for Phase 3b.
-- SVG vector images -- later phase.
 - QR Code versions V11-V40 -- capped at V10 in this release (covers URLs, vCards, payment payloads). Add on demand.
 - Other barcode formats (UPC-A, Code 39 / 93, ITF, DataMatrix, PDF417, Aztec) -- add on demand.
 - Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
@@ -359,6 +359,53 @@ Dimension rules:
 - Neither -> intrinsic pixel size at 72 DPI (1 pixel = 1 point ~= 0.353 mm).
 
 `(x, y)` is the **top-left** corner in the page user space (Y-down origin, consistent with the rest of phppdf since Phase 2a).
+
+SVG inputs are auto-detected by magic bytes (`<svg>` or `<?xml ... <svg`). They flow through the same `Image::fromXxx()` factories and the same `$page->image(...)` call as PNG/JPEG. Same dimension rules (`w`+`h` forced, `w` alone preserves aspect, etc.). Same caching: one SVG used N times = one Form XObject embedded, N placements.
+
+```php
+$logo = Image::fromFile('logo.svg');
+$page->image($logo, x: 20, y: 20, w: 40);
+
+// Inline SVG string
+$icon = Image::fromBytes(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+    . '<path d="M12 2L2 22h20z" fill="currentColor"/>'
+    . '</svg>',
+);
+$page->image($icon, x: 80, y: 20, w: 20);
+
+// data URI (e.g. from a JS export)
+$brand = Image::fromBase64('data:image/svg+xml;base64,...');
+$page->image($brand, x: 20, y: 80, w: 60);
+```
+
+Supported in Phase 7:
+
+- All path commands: M, L, H, V, C, S, Q, T, A, Z and their lowercase relative variants.
+- Basic shapes: rect (with optional rx/ry rounded corners), circle, ellipse, line, polyline, polygon.
+- Transforms: matrix(), translate(), scale(), rotate() with optional center, skewX(), skewY(); composition left-to-right.
+- viewBox + preserveAspectRatio (xMinYMin to xMaxYMax x meet | slice; `none` stretches).
+- Groups (`<g>`), `<defs>` + `<use>` references with cycle detection.
+- Paint state: solid fill / stroke (147 named CSS colors, `#abc` / `#aabbcc`, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative, emitted via ExtGState).
+- Presentation attributes AND inline `style="..."` (inline > direct > inherited precedence).
+
+Not supported (skipped silently per SVG spec fallback):
+
+- `<text>`, `<tspan>`, `<textPath>`. Workaround for logos: convert text to paths in your authoring tool ("outline text" in Figma / Illustrator / Inkscape).
+- `<linearGradient>`, `<radialGradient>`, `<pattern>`. `fill="url(#x)"` falls back to black per spec.
+- `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
+- `<mask>`, `<clipPath>`, embedded `<image>`, `<symbol>`, `<marker>`.
+- External CSS via `<style>` blocks or external sheets.
+- Scripts, animations, foreignObject.
+
+Hard limits (raise `PdfException`):
+
+- SVG document larger than 5 MiB raw.
+- Nesting depth > 32 levels.
+- More than 50 000 elements.
+- Cycle in `<use>` references.
+- viewBox absent AND (width OR height) absent.
+- Malformed XML (root must be `<svg>` in the SVG namespace).
 
 ### Barcodes & QR codes
 
