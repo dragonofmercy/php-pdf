@@ -13,8 +13,10 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
+use DragonOfMercy\PhpPdf\Svg\FillRule;
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
+use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgLine;
 use DragonOfMercy\PhpPdf\Svg\SvgPaint;
@@ -187,6 +189,70 @@ final class RendererGeometryTest extends TestCase
         $bytes = (new Renderer())->render($svg)['bytes'];
         self::assertStringNotContainsString(' re', $bytes); // not the rect shortcut
         self::assertStringContainsString(' c', $bytes); // at least one corner arc cubic
+    }
+
+    public function testRenderFillEmitsRgAndF(): void
+    {
+        $rect = new SvgRect(null, SvgPaint::default()->withFill(new SvgColor(1.0, 0.0, 0.0)), 0.0, 0.0, 10.0, 10.0, 0.0, 0.0);
+        $svg = $this->makeSvg([$rect]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString('1 0 0 rg', $bytes);
+        self::assertStringContainsString("re\nf", $bytes);
+    }
+
+    public function testRenderStrokeEmitsRgWAndS(): void
+    {
+        $line = new SvgLine(null, SvgPaint::default()->withFillNone()->withStroke(new SvgColor(0.0, 0.0, 1.0))->withStrokeWidth(2.0), 0.0, 0.0, 10.0, 10.0);
+        $svg = $this->makeSvg([$line]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString('0 0 1 RG', $bytes);
+        self::assertStringContainsString('2 w', $bytes);
+        self::assertStringContainsString("l\nS", $bytes);
+    }
+
+    public function testRenderFillAndStrokeEmitsB(): void
+    {
+        $rect = new SvgRect(null, SvgPaint::default()->withFill(new SvgColor(1.0, 1.0, 0.0))->withStroke(new SvgColor(0.0, 0.0, 0.0)), 0.0, 0.0, 10.0, 10.0, 0.0, 0.0);
+        $svg = $this->makeSvg([$rect]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString("re\nB", $bytes);
+    }
+
+    public function testRenderEvenoddUsesStarVariant(): void
+    {
+        $path = new SvgPath(null, SvgPaint::default()->withFillRule(FillRule::EVENODD), [new MoveTo(0.0, 0.0), new LineTo(10.0, 0.0), new ClosePath()]);
+        $svg = $this->makeSvg([$path]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString("f*", $bytes);
+    }
+
+    public function testRenderDashArrayEmitsDashOperator(): void
+    {
+        $line = new SvgLine(null, SvgPaint::default()->withFillNone()->withStroke(new SvgColor(0.0, 0.0, 0.0))->withStrokeDashArray([4.0, 2.0]), 0.0, 0.0, 10.0, 0.0);
+        $svg = $this->makeSvg([$line]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertStringContainsString('[4 2] 0 d', $bytes);
+    }
+
+    public function testRenderOpacityEmitsGsAndRegistersExtGState(): void
+    {
+        $rect = new SvgRect(null, SvgPaint::default()->withFillOpacity(0.5), 0.0, 0.0, 10.0, 10.0, 0.0, 0.0);
+        $svg = $this->makeSvg([$rect]);
+        $result = (new Renderer())->render($svg);
+        self::assertStringContainsString('/Gs0 gs', $result['bytes']);
+        self::assertArrayHasKey('Gs0', $result['extGStates']);
+        self::assertSame(0.5, $result['extGStates']['Gs0']['ca']);
+    }
+
+    public function testRenderDedupsIdenticalOpacityPairs(): void
+    {
+        $r1 = new SvgRect(null, SvgPaint::default()->withFillOpacity(0.5), 0.0, 0.0, 1.0, 1.0, 0.0, 0.0);
+        $r2 = new SvgRect(null, SvgPaint::default()->withFillOpacity(0.5), 0.5, 0.5, 1.0, 1.0, 0.0, 0.0);
+        $svg = $this->makeSvg([$r1, $r2]);
+        $result = (new Renderer())->render($svg);
+        // Only one ExtGState declared, both shapes reference Gs0.
+        self::assertCount(1, $result['extGStates']);
+        self::assertSame(2, substr_count($result['bytes'], '/Gs0 gs'));
     }
 
     /**

@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\Arc;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
+use DragonOfMercy\PhpPdf\Svg\FillRule;
 
 /**
  * Translates an SvgMetadata tree into a PDF content-stream byte string.
@@ -27,21 +28,21 @@ final class Renderer
     public function render(SvgMetadata $svg): array
     {
         $out = '';
+        $registry = new ExtGStateRegistry();
         $prologue = self::viewBoxToUnitMatrix($svg->viewBox, $svg->aspectRatio);
         if (!$prologue->isIdentity()) {
             $out .= "q\n" . self::cmFromMatrix($prologue) . "\n";
         }
 
-        $extGStates = [];
         foreach ($svg->root->children as $child) {
-            $out .= $this->renderNode($child, $extGStates);
+            $out .= $this->renderNode($child, $registry);
         }
 
         if (!$prologue->isIdentity()) {
             $out .= "Q\n";
         }
 
-        return ['bytes' => $out, 'extGStates' => $extGStates];
+        return ['bytes' => $out, 'extGStates' => $registry->entries()];
     }
 
     public static function viewBoxToUnitMatrix(ViewBox $vb, PreserveAspectRatio $ar): SvgMatrix
@@ -68,31 +69,25 @@ final class Renderer
             ->compose(SvgMatrix::scale($s, $s));
     }
 
-    /**
-     * @param array<string, array{ca: float, CA: float}> $extGStates
-     */
-    private function renderNode(SvgNode $node, array &$extGStates): string
+    private function renderNode(SvgNode $node, ExtGStateRegistry $registry): string
     {
         if ($node instanceof SvgGroup) {
-            return $this->renderGroup($node, $extGStates);
+            return $this->renderGroup($node, $registry);
         }
         if ($node instanceof SvgShape) {
-            return $this->renderShape($node, $extGStates);
+            return $this->renderShape($node, $registry);
         }
         return '';
     }
 
-    /**
-     * @param array<string, array{ca: float, CA: float}> $extGStates
-     */
-    private function renderGroup(SvgGroup $group, array &$extGStates): string
+    private function renderGroup(SvgGroup $group, ExtGStateRegistry $registry): string
     {
         if ($group->children === []) {
             return '';
         }
         $body = '';
         foreach ($group->children as $child) {
-            $body .= $this->renderNode($child, $extGStates);
+            $body .= $this->renderNode($child, $registry);
         }
         if ($body === '') {
             return '';
@@ -103,22 +98,64 @@ final class Renderer
         return "q\n" . $cm . $body . "Q\n";
     }
 
-    /**
-     * @param array<string, array{ca: float, CA: float}> $extGStates
-     */
-    private function renderShape(SvgShape $shape, array &$extGStates): string
+    private function renderShape(SvgShape $shape, ExtGStateRegistry $registry): string
     {
         $geom = $this->emitGeometry($shape);
         if ($geom === '') {
             return '';
         }
-        // Paint state operators + paint terminator land here in Task 11.
-        // For Task 9 we just emit the geometry inside q/Q with no paint.
-        $transform = $shape->transform();
-        $cm = ($transform !== null && !$transform->isIdentity())
-            ? self::cmFromMatrix($transform) . "\n"
-            : '';
-        return "q\n" . $cm . $geom . "n\n" . "Q\n"; // 'n' = end-path-without-paint, placeholder
+        $paint = $shape->paint();
+        $stateOps = $this->emitPaintState($paint, $registry);
+        $terminator = $this->paintTerminator($paint);
+        $cmLine = '';
+        $tf = $shape->transform();
+        if ($tf !== null && !$tf->isIdentity()) {
+            $cmLine = self::cmFromMatrix($tf) . "\n";
+        }
+        return "q\n" . $cmLine . $stateOps . $geom . $terminator . "\nQ\n";
+    }
+
+    private function emitPaintState(SvgPaint $paint, ExtGStateRegistry $registry): string
+    {
+        $out = '';
+        if ($paint->fill !== null) {
+            $out .= sprintf("%s %s %s rg\n", self::fmt($paint->fill->r), self::fmt($paint->fill->g), self::fmt($paint->fill->b));
+        }
+        if ($paint->stroke !== null) {
+            $out .= sprintf("%s %s %s RG\n", self::fmt($paint->stroke->r), self::fmt($paint->stroke->g), self::fmt($paint->stroke->b));
+            $out .= sprintf("%s w\n", self::fmt($paint->strokeWidth));
+            $out .= sprintf("%d J\n", $paint->strokeLineCap->toPdfCode());
+            $out .= sprintf("%d j\n", $paint->strokeLineJoin->toPdfCode());
+            if ($paint->strokeMiterLimit !== 4.0) {
+                $out .= sprintf("%s M\n", self::fmt($paint->strokeMiterLimit));
+            }
+            if ($paint->strokeDashArray !== []) {
+                $parts = array_map(static fn (float $v): string => self::fmt($v), $paint->strokeDashArray);
+                $out .= sprintf("[%s] %s d\n", implode(' ', $parts), self::fmt($paint->strokeDashOffset));
+            }
+        }
+        $name = $registry->nameFor($paint->effectiveFillOpacity(), $paint->effectiveStrokeOpacity());
+        if ($name !== '') {
+            $out .= '/' . $name . " gs\n";
+        }
+        return $out;
+    }
+
+    private function paintTerminator(SvgPaint $paint): string
+    {
+        $hasFill = $paint->fill !== null;
+        $hasStroke = $paint->stroke !== null;
+        $evenodd = $paint->fillRule === FillRule::EVENODD;
+        if ($hasFill && $hasStroke) {
+            return $evenodd ? 'B*' : 'B';
+        }
+        if ($hasFill) {
+            return $evenodd ? 'f*' : 'f';
+        }
+        if ($hasStroke) {
+            return 'S';
+        }
+        return 'n';
     }
 
     private function emitGeometry(SvgShape $shape): string
