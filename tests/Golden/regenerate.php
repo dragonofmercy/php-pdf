@@ -341,3 +341,23 @@ for ($i = 1; $i <= 60; $i++) {
 
 $doc->save($fixturesDir . '/page-auto-break.pdf');
 echo "Regenerated page-auto-break.pdf\n";
+
+// SVG golden fixtures (Phase 7)
+$svgGoldens = [
+    'svg-paths-only.pdf'        => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPathsOnlyTest::class, 'buildPdfBytes'],
+    'svg-shapes.pdf'            => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgShapesTest::class, 'buildPdfBytes'],
+    'svg-transforms.pdf'        => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTransformsTest::class, 'buildPdfBytes'],
+    'svg-opacity.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgOpacityTest::class, 'buildPdfBytes'],
+    'svg-fill-rule-evenodd.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFillRuleEvenoddTest::class, 'buildPdfBytes'],
+    'svg-dasharray.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgDasharrayTest::class, 'buildPdfBytes'],
+    'svg-use-defs.pdf'          => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgUseDefsTest::class, 'buildPdfBytes'],
+    'svg-skip-unsupported.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgSkipUnsupportedTest::class, 'buildPdfBytes'],
+    'svg-real-world-icon.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgRealWorldIconTest::class, 'buildPdfBytes'],
+    'svg-multi-placement.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMultiPlacementTest::class, 'buildPdfBytes'],
+];
+
+foreach ($svgGoldens as $name => [$class, $method]) {
+    $bytes = $class::$method();
+    file_put_contents($fixturesDir . '/' . $name, $bytes);
+    echo "Regenerated {$name}\n";
+}
