@@ -284,6 +284,18 @@ $doc->setDefaultCellsPadding(CellPadding::symmetric(2, 4));
 
 Default is `2 pt` on all sides when neither the page nor the document configures one.
 
+#### Border width default
+
+`Border::all()`, `Border::none()`, and `Border::sides(...)` leave the line width unset, deferring to a configurable default. The initial value is `0.25` in the document's unit; `Border::withWidth(x)` always wins over the default.
+
+```php
+$doc->setDefaultBorderWidth(0.5);          // document-wide default (mm by default)
+$page->setDefaultBorderWidth(1.0);         // per-page override (pass null to revert to document)
+
+$page->cell(x: 20, y: 20, w: 50, h: 8, text: 'Default 1.0', border: Border::all());
+$page->cell(x: 20, y: 30, w: 50, h: 8, text: 'Explicit',    border: Border::all()->withWidth(0.3));
+```
+
 #### Cursor flow with `ln`
 
 `cell()` can drive an internal cursor so the next call can omit `x` and `y`. The
