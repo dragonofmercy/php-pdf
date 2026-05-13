@@ -12,8 +12,12 @@ namespace DragonOfMercy\PhpPdf\Svg;
  *     | e  f  1 |
  *
  * Apply to a point (x, y): (a*x + c*y + e, b*x + d*y + f).
- * Compose: self followed by $other = self * $other when read as transform
- * application, which translates to the matrix product implemented below.
+ *
+ * Compose semantics: `$t->compose($u)` returns a matrix that applies `$u`
+ * first, then `$t`. This matches the SVG transform list convention where
+ * `transform="A B C"` applies C first, then B, then A to the inner geometry,
+ * and the renderer's viewBox-to-unit composition where the scale lives
+ * inside the translate.
  */
 final readonly class SvgMatrix
 {
@@ -66,8 +70,10 @@ final readonly class SvgMatrix
     }
 
     /**
-     * Returns self followed by $other (read left-to-right as transforms).
-     * In matrix form: result = other * self (so $other is applied after self).
+     * Returns a matrix that, when applied to a point, is equivalent to
+     * applying `$other` first and then `$this`. I.e. `t.compose(u).apply(p)
+     * == t.apply(u.apply(p))`. Useful for chaining transforms in the order
+     * "innermost to outermost" (children-first).
      */
     public function compose(self $other): self
     {
