@@ -701,6 +701,27 @@ final class PageTest extends TestCase
         self::assertSame(20.25, $page->getY());
     }
 
+    public function testGetPageWidthAndHeightReturnMmForDefaultA4Document(): void
+    {
+        $page = (new Document())->addPage();
+        self::assertEqualsWithDelta(210.0, $page->getPageWidth(), 1e-9);
+        self::assertEqualsWithDelta(297.0, $page->getPageHeight(), 1e-9);
+    }
+
+    public function testGetPageWidthAndHeightReturnRawPointsWhenUnitIsPt(): void
+    {
+        $page = (new Document(Unit::PT))->addPage([200.0, 100.0]);
+        self::assertSame(200.0, $page->getPageWidth());
+        self::assertSame(100.0, $page->getPageHeight());
+    }
+
+    public function testGetPageWidthIsConsistentWithPageWidthPropertyAcrossUnit(): void
+    {
+        $page = (new Document())->addPage();
+        self::assertEqualsWithDelta($page->pageWidth, Unit::MM->toPoints($page->getPageWidth()), 1e-9);
+        self::assertEqualsWithDelta($page->pageHeight, Unit::MM->toPoints($page->getPageHeight()), 1e-9);
+    }
+
     public function testCellAfterSetXYUsesCursor(): void
     {
         $page = new Page(595, 842, new FontRegistry(), new MetricsRegistry(), new ImageRegistry());

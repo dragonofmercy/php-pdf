@@ -510,6 +510,24 @@ final class Page
     }
 
     /**
+     * Returns the page width in the document's unit. The {@see $pageWidth}
+     * property exposes the same dimension in points for internal serialization.
+     */
+    public function getPageWidth(): float
+    {
+        return $this->fromPt($this->pageWidth);
+    }
+
+    /**
+     * Returns the page height in the document's unit. The {@see $pageHeight}
+     * property exposes the same dimension in points for internal serialization.
+     */
+    public function getPageHeight(): float
+    {
+        return $this->fromPt($this->pageHeight);
+    }
+
+    /**
      * Sets the cell cursor x. Also redefines the row-start anchor used by
      * NextPosition::NEWLINE -- analogous to passing an explicit x to cell().
      */
