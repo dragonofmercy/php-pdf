@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Svg;
 
-use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\ClosePath;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
