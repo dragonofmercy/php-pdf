@@ -180,6 +180,10 @@ final class CellRenderer
 
     private function emitBorders(Border $border, float $x, float $y, float $w, float $h): void
     {
+        assert(
+            $border->width !== null,
+            'Border width must be resolved by Page::cell() before reaching CellRenderer::emitBorders()',
+        );
         $sides = [
             ['active' => $border->top,    'x1' => $x,       'y1' => $y,      'x2' => $x + $w, 'y2' => $y],
             ['active' => $border->right,  'x1' => $x + $w,  'y1' => $y,      'x2' => $x + $w, 'y2' => $y + $h],

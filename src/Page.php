@@ -651,10 +651,17 @@ final class Page
         }
 
         // Border width is supplied in the document unit; CellRenderer works
-        // entirely in points, so convert before handing the border off.
-        $borderForRenderer = $border !== null
-            ? $border->withWidth($this->toPt($border->width))
-            : null;
+        // entirely in points, so convert before handing the border off. A null
+        // width means "use the active default", resolved against the Page
+        // override or the owning Document's default.
+        if ($border === null || $border->isEmpty()) {
+            $borderForRenderer = $border;
+        } else {
+            $widthPt = $border->width !== null
+                ? $this->toPt($border->width)
+                : $this->resolveDefaultBorderWidthPt();
+            $borderForRenderer = $border->withWidth($widthPt);
+        }
 
         $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(

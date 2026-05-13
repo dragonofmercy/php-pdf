@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Page;
 
+use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\BorderStyle;
 use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\CellResult;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
@@ -15,6 +19,7 @@ use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
+use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
 final class CellRendererTest extends TestCase
@@ -586,5 +591,63 @@ final class CellRendererTest extends TestCase
         $page->setFont(\DragonOfMercy\PhpPdf\Font::custom('FS'), 12);
         $w = $page->stringWidth('Hello');
         self::assertGreaterThan(0.0, $w);
+    }
+
+    public function testBorderWithNullWidthResolvesToDocumentDefaultPt(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultBorderWidth(0.75);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12.0);
+        $border = new Border(
+            top: true,
+            right: false,
+            bottom: false,
+            left: false,
+            width: null,
+            color: Color::rgb(0, 0, 0),
+            style: BorderStyle::SOLID,
+        );
+        $page->cell(x: 10.0, y: 10.0, w: 50.0, h: 10.0, text: '', border: $border);
+        self::assertStringContainsString('0.75 w', $page->contentStream()->bytes());
+    }
+
+    public function testBorderWithNullWidthHonoursPageOverridePt(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultBorderWidth(0.75);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12.0);
+        $page->setDefaultBorderWidth(1.5);
+        $border = new Border(
+            top: true,
+            right: false,
+            bottom: false,
+            left: false,
+            width: null,
+            color: Color::rgb(0, 0, 0),
+            style: BorderStyle::SOLID,
+        );
+        $page->cell(x: 10.0, y: 10.0, w: 50.0, h: 10.0, text: '', border: $border);
+        self::assertStringContainsString('1.5 w', $page->contentStream()->bytes());
+    }
+
+    public function testBorderWithExplicitWidthIgnoresDefaultPt(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultBorderWidth(0.75);
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12.0);
+        $border = new Border(
+            top: true,
+            right: false,
+            bottom: false,
+            left: false,
+            width: 2.0,
+            color: Color::rgb(0, 0, 0),
+            style: BorderStyle::SOLID,
+        );
+        $page->cell(x: 10.0, y: 10.0, w: 50.0, h: 10.0, text: '', border: $border);
+        self::assertStringContainsString('2 w', $page->contentStream()->bytes());
     }
 }

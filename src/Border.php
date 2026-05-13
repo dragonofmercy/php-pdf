@@ -17,7 +17,7 @@ final readonly class Border
         public bool $right,
         public bool $bottom,
         public bool $left,
-        public float $width,
+        public ?float $width,
         public Color $color,
         public BorderStyle $style,
     ) {}
