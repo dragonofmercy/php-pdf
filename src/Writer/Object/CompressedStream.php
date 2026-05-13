@@ -15,21 +15,13 @@ final readonly class CompressedStream implements PdfObject
 {
     private function __construct(private string $content, private ?Dictionary $extraDict = null) {}
 
-    public static function of(string $content): self
-    {
-        return new self($content);
-    }
-
     /**
-     * Variant of {@see self::of()} that merges additional Dictionary entries
-     * into the stream dict alongside /Length and /Filter. Used by Form XObjects
-     * to declare /Type /Subtype /BBox /Resources etc.
-     *
-     * @internal
+     * @param ?Dictionary $extra Additional dictionary entries to merge alongside /Length and /Filter.
+     *   Used by Form XObjects to declare /Type /Subtype /BBox /Resources etc.
      */
-    public static function ofWithDict(string $rawBytes, Dictionary $extra): self
+    public static function of(string $content, ?Dictionary $extra = null): self
     {
-        return new self($rawBytes, $extra);
+        return new self($content, $extra);
     }
 
     /**
@@ -41,27 +33,28 @@ final readonly class CompressedStream implements PdfObject
     {
         $compressed = gzcompress($this->content, 9);
         if ($compressed === false) {
-            throw new \DragonOfMercy\PhpPdf\Exception\PdfException('FlateDecode compression failed');
+            throw new PdfException('FlateDecode compression failed');
         }
         return $compressed;
     }
 
     /**
+     * Returns the stream dict carrying extraDict + /Filter (without /Length).
+     * The encryption path needs this to preserve extra entries while substituting
+     * /Length to match the encrypted byte length.
+     *
      * @internal
      */
-    public function filterDict(): Dictionary
+    public function streamDict(): Dictionary
     {
-        return Dictionary::empty()->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
+        $dict = $this->extraDict ?? Dictionary::empty();
+        return $dict->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
     }
 
     public function toBytes(): string
     {
-        $compressed = gzcompress($this->content, 9);
-        if ($compressed === false) {
-            throw new PdfException('FlateDecode compression failed');
-        }
-        $dict = $this->extraDict ?? Dictionary::empty();
-        $dict = $dict
+        $compressed = $this->compressedContent();
+        $dict = ($this->extraDict ?? Dictionary::empty())
             ->withEntry(Name::of('Length'), PdfNumber::ofInt(strlen($compressed)))
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
         return $dict->toBytes() . "\nstream\n" . $compressed . "\nendstream";

@@ -15,9 +15,9 @@ use DragonOfMercy\PhpPdf\Svg\Parser;
  * Construct via {@see self::fromFile()}, {@see self::fromBytes()}, or
  * {@see self::fromBase64()}; format is auto-detected from magic bytes.
  *
- * Once parsed, an Image instance is immutable and can be passed to
- * {@see Page::image()} any number of times -- the document-level
- * registry deduplicates identical instances into a single XObject.
+ * The document-level registry deduplicates by content hash, so the same
+ * bytes loaded via separate fromBytes() / fromFile() / fromBase64() calls
+ * collapse to a single Form XObject in the output.
  */
 final readonly class Image
 {
@@ -35,6 +35,7 @@ final readonly class Image
         public ImageFormat $format,
         public string $bytes,
         public JpegMetadata|PngMetadata|SvgMetadata $metadata,
+        public string $contentHash,
     ) {}
 
     public static function fromFile(string $path): self
@@ -74,6 +75,8 @@ final readonly class Image
             throw new PdfException('Image data is too short to identify format');
         }
 
+        $hash = hash('xxh128', $data);
+
         if (str_starts_with($data, self::JPEG_MAGIC)) {
             $meta = JpegMetadata::parse($data);
             return new self(
@@ -82,6 +85,7 @@ final readonly class Image
                 format: ImageFormat::JPEG,
                 bytes: $data,
                 metadata: $meta,
+                contentHash: $hash,
             );
         }
 
@@ -93,6 +97,7 @@ final readonly class Image
                 format: ImageFormat::PNG,
                 bytes: $data,
                 metadata: $meta,
+                contentHash: $hash,
             );
         }
 
@@ -106,6 +111,7 @@ final readonly class Image
                 format: ImageFormat::SVG,
                 bytes: $data,
                 metadata: $meta,
+                contentHash: $hash,
             );
         }
 

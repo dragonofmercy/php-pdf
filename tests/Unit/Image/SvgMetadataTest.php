@@ -23,15 +23,4 @@ final class SvgMetadataTest extends TestCase
         self::assertSame($ar, $m->aspectRatio);
         self::assertSame($root, $m->root);
     }
-
-    public function testIntrinsicWidthDelegatesToViewBox(): void
-    {
-        $m = new SvgMetadata(
-            new ViewBox(0.0, 0.0, 100.5, 50.25),
-            PreserveAspectRatio::default(),
-            new SvgGroup(null, []),
-        );
-        self::assertSame(100.5, $m->intrinsicWidth());
-        self::assertSame(50.25, $m->intrinsicHeight());
-    }
 }

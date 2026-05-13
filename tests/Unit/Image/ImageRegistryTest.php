@@ -57,12 +57,12 @@ final class ImageRegistryTest extends TestCase
         self::assertCount(1, $r->registeredImages());
     }
 
-    public function testDifferentPathsGetSequentialShortNames(): void
+    public function testDifferentContentGetsSequentialShortNames(): void
     {
         $r = new ImageRegistry();
-        self::assertSame('Im1', $r->shortName($this->tempPng()));
-        self::assertSame('Im2', $r->shortName($this->tempPng()));
-        self::assertSame('Im3', $r->shortName($this->tempPng()));
+        self::assertSame('Im1', $r->shortName($this->tempPng(4, 4)));
+        self::assertSame('Im2', $r->shortName($this->tempPng(4, 5)));
+        self::assertSame('Im3', $r->shortName($this->tempPng(4, 6)));
         self::assertCount(3, $r->registeredImages());
     }
 
@@ -75,24 +75,37 @@ final class ImageRegistryTest extends TestCase
         self::assertCount(1, $r->registeredImages());
     }
 
-    public function testTwoIdenticalInstancesGetDistinctShortNames(): void
+    public function testIdenticalContentAcrossInstancesDedups(): void
     {
         $r = new ImageRegistry();
         $bytes = TestImageFactory::pngRgb(4, 4);
         $a = Image::fromBytes($bytes);
-        $b = Image::fromBytes($bytes);   // Different instance, same bytes.
+        $b = Image::fromBytes($bytes);
         self::assertSame('Im1', $r->shortName($a));
-        self::assertSame('Im2', $r->shortName($b));
-        self::assertCount(2, $r->registeredImages());
+        self::assertSame('Im1', $r->shortName($b));
+        self::assertCount(1, $r->registeredImages());
     }
 
-    public function testStringAndInstanceLiveInDifferentKeyspaces(): void
+    public function testIdenticalContentAcrossPathsDedups(): void
     {
         $r = new ImageRegistry();
-        $path = $this->tempPng();
-        $img = Image::fromBytes(TestImageFactory::pngRgb(4, 4));
+        self::assertSame('Im1', $r->shortName($this->tempPng(4, 4)));
+        self::assertSame('Im1', $r->shortName($this->tempPng(4, 4)));
+        self::assertCount(1, $r->registeredImages());
+    }
+
+    public function testPathAndInstanceWithSameContentDedup(): void
+    {
+        $r = new ImageRegistry();
+        $bytes = TestImageFactory::pngRgb(4, 4);
+        $path = sys_get_temp_dir() . '/phppdf-reg-mixed-' . uniqid('', true) . '.png';
+        file_put_contents($path, $bytes);
+        $this->tempFiles[] = $path;
+        $img = Image::fromBytes($bytes);
+
         self::assertSame('Im1', $r->shortName($path));
-        self::assertSame('Im2', $r->shortName($img));
+        self::assertSame('Im1', $r->shortName($img));
+        self::assertCount(1, $r->registeredImages());
     }
 
     public function testNonexistentPathThrows(): void

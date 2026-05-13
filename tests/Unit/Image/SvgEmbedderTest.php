@@ -65,4 +65,40 @@ final class SvgEmbedderTest extends TestCase
         self::assertStringStartsWith('%PDF-', $bytes);
         self::assertGreaterThan(500, strlen($bytes));
     }
+
+    public function testTwoFromBytesWithSameContentProduceOneXObject(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="blue"/></svg>';
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $page->image(Image::fromBytes($svg), x: 10.0, y: 10.0, w: 50.0, h: 50.0);
+        $page->image(Image::fromBytes($svg), x: 80.0, y: 10.0, w: 50.0, h: 50.0);
+        $bytes = $doc->output();
+
+        // Exactly one Form XObject created, page's /Resources references only /Im1
+        // (proves both image() calls converged to the same registry entry).
+        self::assertSame(1, substr_count($bytes, '/Subtype /Form'));
+        self::assertMatchesRegularExpression('#/XObject << /Im1 \d+ 0 R >>#', $bytes);
+        self::assertStringNotContainsString('/Im2', $bytes);
+    }
+
+    public function testEncryptedSvgPreservesFormXObjectKeys(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->metadata()->documentId('abcdef0123456789abcdef0123456789');
+        $doc->encryption()
+            ->userPassword('user')
+            ->ownerPassword('owner')
+            ->withRandomSource(fn (int $n) => str_repeat("\x00", $n));
+        $page = $doc->addPage();
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="blue"/></svg>';
+        $page->image(Image::fromBytes($svg), x: 10.0, y: 10.0, w: 50.0, h: 50.0);
+        $bytes = $doc->output();
+
+        self::assertStringContainsString('/Type /XObject', $bytes);
+        self::assertStringContainsString('/Subtype /Form', $bytes);
+        self::assertStringContainsString('/FormType 1', $bytes);
+        self::assertStringContainsString('/BBox [0 0 1 1]', $bytes);
+        self::assertStringContainsString('/Resources', $bytes);
+    }
 }

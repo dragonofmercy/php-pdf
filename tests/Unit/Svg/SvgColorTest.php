@@ -54,13 +54,4 @@ final class SvgColorTest extends TestCase
         $this->expectExceptionMessage('SvgColor component must be in [0, 1], got 1.5');
         new SvgColor(0.0, 1.5, 0.0);
     }
-
-    public function testEqualsMatchesByValue(): void
-    {
-        $a = new SvgColor(0.1, 0.2, 0.3);
-        $b = new SvgColor(0.1, 0.2, 0.3);
-        $c = new SvgColor(0.1, 0.2, 0.31);
-        self::assertTrue($a->equals($b));
-        self::assertFalse($a->equals($c));
-    }
 }

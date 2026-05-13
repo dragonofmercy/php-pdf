@@ -70,7 +70,7 @@ final class Parser
             ? PreserveAspectRatio::parse($root->getAttribute('preserveAspectRatio'))
             : PreserveAspectRatio::default();
 
-        $this->collectDefs($root);
+        $this->collectDefs($doc);
 
         $rootCurrentColor = SvgColor::black();
         $rootPaint = SvgPaint::default();
@@ -101,11 +101,14 @@ final class Parser
         throw new PdfException('Cannot determine SVG intrinsic dimensions: no viewBox and no width/height');
     }
 
-    private function collectDefs(DOMElement $root): void
+    private function collectDefs(DOMDocument $doc): void
     {
+        if ($doc->getElementsByTagNameNS(self::SVG_NS, 'use')->length === 0) {
+            return;
+        }
         // Any element with an id (anywhere in the tree, not only inside <defs>)
         // can be the target of <use>. Scan the whole document.
-        $xpath = new \DOMXPath($root->ownerDocument ?? new DOMDocument());
+        $xpath = new \DOMXPath($doc);
         $xpath->registerNamespace('svg', self::SVG_NS);
         $nodes = $xpath->query('//*[@id]') ?: new \DOMNodeList();
         foreach ($nodes as $node) {
@@ -312,13 +315,12 @@ final class Parser
      */
     private function parsePoints(string $value): array
     {
-        $parts = preg_split('/[\s,]+/', trim($value)) ?: [];
-        $parts = array_values(array_filter($parts, static fn (string $p): bool => $p !== ''));
+        $parts = preg_split('/[\s,]+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         if (count($parts) % 2 !== 0) {
             array_pop($parts);
         }
         $points = [];
-        for ($i = 0; $i < count($parts); $i += 2) {
+        for ($i = 0, $n = count($parts); $i < $n; $i += 2) {
             $points[] = [(float) $parts[$i], (float) $parts[$i + 1]];
         }
         return $points;

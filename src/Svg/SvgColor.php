@@ -8,9 +8,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
  * RGB color in 0..1 unit range (matches PDF's `rg` / `RG` operands).
- * Alpha is NOT carried here -- it lives in SvgPaint::$fillOpacity /
- * $strokeOpacity / $opacity. Use `ColorParser::parse()` (Task 7) for the
- * CSS-named / hex / rgb()/rgba() inputs; this VO is the resolved leaf.
+ * Alpha is NOT carried here; it lives on SvgPaint as fillOpacity / strokeOpacity / opacity.
  */
 final readonly class SvgColor
 {
@@ -39,11 +37,6 @@ final readonly class SvgColor
     public static function black(): self
     {
         return new self(0.0, 0.0, 0.0);
-    }
-
-    public function equals(self $other): bool
-    {
-        return $this->r === $other->r && $this->g === $other->g && $this->b === $other->b;
     }
 
     private static function fmt(float $v): string

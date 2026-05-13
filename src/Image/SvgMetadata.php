@@ -15,14 +15,4 @@ final readonly class SvgMetadata
         public PreserveAspectRatio $aspectRatio,
         public SvgGroup $root,
     ) {}
-
-    public function intrinsicWidth(): float
-    {
-        return $this->viewBox->width;
-    }
-
-    public function intrinsicHeight(): float
-    {
-        return $this->viewBox->height;
-    }
 }

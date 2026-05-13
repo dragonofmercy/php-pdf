@@ -191,6 +191,14 @@ final class RendererGeometryTest extends TestCase
         self::assertStringContainsString(' c', $bytes); // at least one corner arc cubic
     }
 
+    public function testRenderRoundedRectStartsWithSingleMoveTo(): void
+    {
+        $rect = new SvgRect(null, SvgPaint::default(), 0.0, 0.0, 10.0, 10.0, 2.0, 2.0);
+        $svg = $this->makeSvg([$rect]);
+        $bytes = (new Renderer())->render($svg)['bytes'];
+        self::assertSame(1, substr_count($bytes, " m\n"));
+    }
+
     public function testRenderFillEmitsRgAndF(): void
     {
         $rect = new SvgRect(null, SvgPaint::default()->withFill(new SvgColor(1.0, 0.0, 0.0)), 0.0, 0.0, 10.0, 10.0, 0.0, 0.0);

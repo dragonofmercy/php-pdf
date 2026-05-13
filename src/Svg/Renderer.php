@@ -15,10 +15,8 @@ use DragonOfMercy\PhpPdf\Svg\FillRule;
 
 /**
  * Translates an SvgMetadata tree into a PDF content-stream byte string.
- * Geometry only in Task 9; paint state (rg / RG / w / ...), fill / stroke /
- * fill-and-stroke operator selection, and ExtGState (opacity) come in Tasks
- * 10-11. Arc and Bezier commands are scaffolded here but defer real geometry
- * to Task 10's ArcToBezier helper.
+ *
+ * @internal
  */
 final class Renderer
 {
@@ -185,10 +183,7 @@ final class Renderer
         $w = $r->width;
         $h = $r->height;
         $out = '';
-        // Start at the top of the right edge, just above the top-right corner.
         $out .= sprintf("%s %s m\n", self::fmt($x + $w - $rx), self::fmt($y));
-        // Top edge
-        $out .= sprintf("%s %s l\n", self::fmt($x + $w - $rx), self::fmt($y));
         // Top-right corner arc (quarter circle from (x+w-rx, y) to (x+w, y+ry))
         foreach (ArcToBezier::approximate($x + $w - $rx, $y, $rx, $ry, 0.0, false, true, $x + $w, $y + $ry) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
             $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));

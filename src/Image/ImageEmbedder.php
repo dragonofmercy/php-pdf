@@ -48,9 +48,6 @@ final class ImageEmbedder
         if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
             return 2;
         }
-        if ($meta instanceof SvgMetadata) {
-            return 1;
-        }
         return 1;
     }
 
@@ -166,7 +163,7 @@ final class ImageEmbedder
             ))
             ->withEntry(Name::of('Resources'), $resources);
 
-        $stream = CompressedStream::ofWithDict($bytes, $extra);
+        $stream = CompressedStream::of($bytes, $extra);
 
         return [IndirectObject::of($objectNumber, 0, $stream)];
     }

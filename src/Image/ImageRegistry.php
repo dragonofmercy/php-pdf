@@ -9,15 +9,20 @@ use DragonOfMercy\PhpPdf\Image;
 
 /**
  * Per-Document registry of images. Allocates short PDF names ("Im1", "Im2", ...)
- * on first use and caches by realpath (for string paths) or spl_object_id
- * (for Image instances). String and instance keys live in disjoint namespaces.
+ * on first use and caches by content hash. Identical bytes loaded through
+ * different paths or distinct Image instances collapse to a single XObject.
+ * Path-based registration also keeps a path -> hash alias to avoid re-reading
+ * the same file on repeat calls.
  *
  * @internal
  */
 final class ImageRegistry
 {
-    /** @var array<string, array{Image, string}> internal key => [image, shortName] */
+    /** @var array<string, array{Image, string}> contentHash => [image, shortName] */
     private array $entries = [];
+
+    /** @var array<string, string> realpath => contentHash */
+    private array $pathToHash = [];
 
     /**
      * Registers the image if not already present and returns
@@ -27,20 +32,21 @@ final class ImageRegistry
      */
     public function register(string|Image $image): array
     {
-        if ($image instanceof Image) {
-            $key = 'obj:' . spl_object_id($image);
-            if (isset($this->entries[$key])) {
-                return [$this->entries[$key][1], $this->entries[$key][0]];
+        if (is_string($image)) {
+            $path = self::resolvePath($image);
+            if (isset($this->pathToHash[$path])) {
+                $entry = $this->entries[$this->pathToHash[$path]];
+                return [$entry[1], $entry[0]];
             }
-            return $this->store($key, $image);
+            $image = Image::fromFile($path);
+            $this->pathToHash[$path] = $image->contentHash;
         }
 
-        $resolvedPath = self::resolvePath($image);
-        $key = 'path:' . $resolvedPath;
+        $key = $image->contentHash;
         if (isset($this->entries[$key])) {
             return [$this->entries[$key][1], $this->entries[$key][0]];
         }
-        return $this->store($key, Image::fromFile($resolvedPath));
+        return $this->store($key, $image);
     }
 
     public function shortName(string|Image $image): string

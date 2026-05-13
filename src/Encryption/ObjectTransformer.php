@@ -117,7 +117,7 @@ final class ObjectTransformer
     private function encryptCompressedStream(CompressedStream $stream): EncryptedStreamBytes
     {
         $encrypted = $this->cipher->encrypt($stream->compressedContent(), $this->fileKey, $this->randomSource);
-        return new EncryptedStreamBytes($stream->filterDict(), $encrypted);
+        return new EncryptedStreamBytes($stream->streamDict(), $encrypted);
     }
 
     private function encryptImageStream(ImageStream $stream): EncryptedStreamBytes
