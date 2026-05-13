@@ -762,4 +762,52 @@ final class DocumentTest extends TestCase
         self::assertSame(2, $fireCount);
         self::assertSame($first, $second);
     }
+
+    public function testDefaultBorderWidthInitialPt(): void
+    {
+        $doc = new Document(Unit::PT);
+        self::assertSame(0.25, $doc->defaultBorderWidth());
+    }
+
+    public function testDefaultBorderWidthInitialMm(): void
+    {
+        $doc = new Document(Unit::MM);
+        self::assertEqualsWithDelta(0.25, $doc->defaultBorderWidth(), 1e-10);
+    }
+
+    public function testSetDefaultBorderWidthRoundtripPt(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->setDefaultBorderWidth(1.0);
+        self::assertSame(1.0, $doc->defaultBorderWidth());
+    }
+
+    public function testSetDefaultBorderWidthRoundtripMm(): void
+    {
+        $doc = new Document(Unit::MM);
+        $doc->setDefaultBorderWidth(1.0);
+        self::assertEqualsWithDelta(1.0, $doc->defaultBorderWidth(), 1e-10);
+    }
+
+    public function testSetDefaultBorderWidthRejectsZero(): void
+    {
+        $doc = new Document();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Default border width must be positive, got 0');
+        $doc->setDefaultBorderWidth(0.0);
+    }
+
+    public function testSetDefaultBorderWidthRejectsNegative(): void
+    {
+        $doc = new Document();
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Default border width must be positive, got -1.5');
+        $doc->setDefaultBorderWidth(-1.5);
+    }
+
+    public function testSetDefaultBorderWidthFluent(): void
+    {
+        $doc = new Document();
+        self::assertSame($doc, $doc->setDefaultBorderWidth(0.5));
+    }
 }

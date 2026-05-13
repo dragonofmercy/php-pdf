@@ -84,6 +84,8 @@ final class Document
 
     private PageMargins $margins;
 
+    private float $defaultBorderWidthPt;
+
     private ?Closure $header = null;
     private ?Closure $footer = null;
     private bool $autoPageBreak = false;
@@ -99,6 +101,7 @@ final class Document
         // PHP forbids method calls in property defaults; resolve here.
         $this->defaultFont = Font::helvetica();
         $this->margins = PageMargins::all(0.0);
+        $this->defaultBorderWidthPt = $this->unit->toPoints(0.25);
     }
 
     /**
@@ -195,6 +198,35 @@ final class Document
     public function margins(): PageMargins
     {
         return $this->margins;
+    }
+
+    /**
+     * Sets the document-wide default border line width. Used by {@see Border}
+     * instances whose width has not been set explicitly via
+     * {@see Border::withWidth()}. Per-page override available via
+     * {@see Page::setDefaultBorderWidth()}. Initial value is 0.25 in the
+     * document unit.
+     */
+    public function setDefaultBorderWidth(float $width): self
+    {
+        if ($width <= 0) {
+            throw new PdfException('Default border width must be positive, got ' . $width);
+        }
+        $this->defaultBorderWidthPt = $this->unit->toPoints($width);
+        return $this;
+    }
+
+    public function defaultBorderWidth(): float
+    {
+        return $this->unit->fromPoints($this->defaultBorderWidthPt);
+    }
+
+    /**
+     * @internal Used by {@see Page::resolveDefaultBorderWidthPt()}.
+     */
+    public function defaultBorderWidthPt(): float
+    {
+        return $this->defaultBorderWidthPt;
     }
 
     public function setHeader(?Closure $header): self
