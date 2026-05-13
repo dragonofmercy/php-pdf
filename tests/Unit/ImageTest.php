@@ -103,4 +103,28 @@ final class ImageTest extends TestCase
         $img = Image::fromBytes($original);
         self::assertSame($original, $img->bytes);
     }
+
+    public function testFromBytesDetectsSvgAndRoutesToParser(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect x="0" y="0" width="24" height="24" fill="red"/></svg>';
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('SVG parsing not implemented yet');
+        Image::fromBytes($svg);
+    }
+
+    public function testFromBytesDetectsSvgWithXmlDeclaration(): void
+    {
+        $svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>';
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('SVG parsing not implemented yet');
+        Image::fromBytes($svg);
+    }
+
+    public function testFromBytesDetectsSvgWithBomAndLeadingWhitespace(): void
+    {
+        $svg = "\xEF\xBB\xBF  \n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1 1\"><rect width=\"1\" height=\"1\"/></svg>";
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('SVG parsing not implemented yet');
+        Image::fromBytes($svg);
+    }
 }

@@ -36,6 +36,7 @@ final class ImageEmbedder
         return match ($image->format) {
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
             ImageFormat::PNG => $this->embedPng($image, $firstObjectNumber),
+            ImageFormat::SVG => throw new PdfException('SVG embedding not implemented yet'),
         };
     }
 

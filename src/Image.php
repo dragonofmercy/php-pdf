@@ -94,6 +94,36 @@ final readonly class Image
             );
         }
 
-        throw new PdfException('Unsupported image format (expected JPEG or PNG)');
+        if (self::looksLikeSvg($data)) {
+            // Stub for Task 1: real parsing arrives in Task 8.
+            throw new PdfException('SVG parsing not implemented yet');
+        }
+
+        throw new PdfException('Unsupported image format (expected JPEG, PNG, or SVG)');
+    }
+
+    private const string UTF8_BOM = "\xEF\xBB\xBF";
+
+    /**
+     * Cheap, non-allocating prefix scan. Skips an optional UTF-8 BOM and ASCII
+     * whitespace, then matches either '<?xml' (with a later '<svg') or '<svg'.
+     * Returns true for any input whose initial useful character sequence looks
+     * like SVG; the parser then performs full XML validation.
+     */
+    private static function looksLikeSvg(string $data): bool
+    {
+        $offset = 0;
+        if (str_starts_with($data, self::UTF8_BOM)) {
+            $offset = 3;
+        }
+        $offset += strspn($data, " \t\r\n", $offset);
+
+        if (substr($data, $offset, 5) === '<?xml') {
+            // Scan ahead (capped) for the first '<svg' tag start.
+            $svgPos = strpos($data, '<svg', $offset);
+            return $svgPos !== false && $svgPos - $offset < 4096;
+        }
+
+        return substr($data, $offset, 4) === '<svg';
     }
 }
