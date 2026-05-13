@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image\JpegMetadata;
 use DragonOfMercy\PhpPdf\Image\PngMetadata;
+use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 
 /**
  * Public value object representing an image to be embedded in the PDF.
@@ -32,7 +33,7 @@ final readonly class Image
         public int $height,
         public ImageFormat $format,
         public string $bytes,
-        public JpegMetadata|PngMetadata $metadata,
+        public JpegMetadata|PngMetadata|SvgMetadata $metadata,
     ) {}
 
     public static function fromFile(string $path): self
