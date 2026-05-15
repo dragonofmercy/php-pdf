@@ -792,11 +792,12 @@ final class Page
         $this->stream->append(Operators::restoreState());
 
         $this->imagesUsed[$shortName] = true;
-        // Mirror cell()'s RIGHT semantics on the x axis only: advance the
-        // cursor to the right edge of what we just drew so a chained image()
-        // or barcode() without explicit x can flow next to it. y is left
-        // untouched -- callers needing a new line use setY/setXY.
+        // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
+        // the right edge of what we just drew so a chained image() or barcode()
+        // without explicit x can flow next to it. y is synced to the top edge
+        // used (not y + h) so a subsequent call without explicit y aligns.
         $this->cursorXPt = $xPt + $effWPt;
+        $this->cursorYPt = $yPt;
         return $this;
     }
 
@@ -832,10 +833,11 @@ final class Page
             $y = $this->fromPt($this->cursorYPt);
         }
         $code->draw($this, $x, $y, $w, $h);
-        // Mirror cell()'s RIGHT semantics on the x axis only: advance the
-        // cursor to the right edge of the barcode bounding box. y is left
-        // untouched.
+        // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
+        // the right edge of the barcode bounding box. y is synced to the top
+        // edge used (not y + h) so a subsequent call without explicit y aligns.
         $this->cursorXPt = $this->toPt($x) + $this->toPt($w);
+        $this->cursorYPt = $this->toPt($y);
         return $this;
     }
 
