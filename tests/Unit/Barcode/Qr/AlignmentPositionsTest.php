@@ -93,4 +93,52 @@ final class AlignmentPositionsTest extends TestCase
             }
         }
     }
+
+    public function testAllPositionsAreEven(): void
+    {
+        // ISO 18004 Annex E: every alignment coordinate is even (the fixed
+        // first coordinate is 6).
+        $positions = $this->positions();
+        for ($v = 2; $v <= 40; $v++) {
+            foreach ($positions[$v] as $p) {
+                self::assertSame(
+                    0,
+                    $p % 2,
+                    "V{$v}: alignment coordinate {$p} must be even",
+                );
+            }
+        }
+    }
+
+    public function testIntermediateSpacingIsConstantAndEven(): void
+    {
+        // ISO 18004 Annex E: for versions with 3+ alignment coordinates, every
+        // gap from the second coordinate onward is identical and even. Only the
+        // first gap (from the fixed coordinate 6 to the second) may differ.
+        // A single transcription typo in any intermediate coordinate breaks
+        // this constant-step invariant, which the count/first/last/monotonic
+        // checks cannot detect.
+        $positions = $this->positions();
+        for ($v = 2; $v <= 40; $v++) {
+            $row = $positions[$v];
+            $n = count($row);
+            if ($n < 3) {
+                continue; // 2-coordinate rows have no intermediate step
+            }
+            $step = $row[2] - $row[1];
+            self::assertSame(
+                0,
+                $step % 2,
+                "V{$v}: alignment step {$step} must be even",
+            );
+            for ($i = 3; $i < $n; $i++) {
+                self::assertSame(
+                    $step,
+                    $row[$i] - $row[$i - 1],
+                    "V{$v}: gap between positions {$i} and " . ($i - 1)
+                        . " ({$row[$i]} - {$row[$i - 1]}) must equal the constant step {$step}",
+                );
+            }
+        }
+    }
 }
