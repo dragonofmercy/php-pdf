@@ -256,6 +256,42 @@ $page->barcode(
 $doc->save($fixturesDir . '/barcode-qr.pdf');
 echo "Regenerated barcode-qr.pdf\n";
 
+// Fixture: QR V15-M with URL payload (Phase 5 follow-up)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$urlPattern = 'https://example.com/orders/2026-05-15?session=abc123&token=';
+$v15Payload = substr(str_repeat($urlPattern, 10), 0, 400);
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\QrCode::of($v15Payload),
+    x: 20.0, y: 20.0, w: 60.0,
+);
+$doc->save($fixturesDir . '/barcode-qr-v15.pdf');
+echo "Regenerated barcode-qr-v15.pdf\n";
+
+// Fixture: QR V25-M with JSON payload (Phase 5 follow-up; exercises remainderBits=4 band)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$itemRow = '{"sku":"PROD-12345","qty":3,"price":29.95},';
+$v25Payload = '{"order":"ORD-2026-05-15-0001","items":[' . substr(str_repeat($itemRow, 22), 0, -1) . ']}';
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\QrCode::of($v25Payload),
+    x: 20.0, y: 20.0, w: 80.0,
+);
+$doc->save($fixturesDir . '/barcode-qr-v25.pdf');
+echo "Regenerated barcode-qr-v25.pdf\n";
+
+// Fixture: QR V40-L at near-capacity (Phase 5 follow-up; stress test the upper bound)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$lorem = 'Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat ';
+$v40Payload = substr(str_repeat($lorem, 13), 0, 2950);
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\QrCode::of($v40Payload, \DragonOfMercy\PhpPdf\Barcode\ErrorCorrection::L),
+    x: 20.0, y: 20.0, w: 120.0,
+);
+$doc->save($fixturesDir . '/barcode-qr-v40.pdf');
+echo "Regenerated barcode-qr-v40.pdf\n";
+
 // Fixture 12: page with custom TTF (Phase 3a)
 $fontsDir = $fixturesDir . '/fonts';
 if (is_file($fontsDir . '/FreeSans.ttf') && is_file($fontsDir . '/FreeSansBold.ttf')) {
