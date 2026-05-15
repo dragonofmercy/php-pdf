@@ -15,13 +15,12 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Text measurement** - `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
 - **Images** - JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
 - **SVG vector images** - inline `<svg>` documents embedded as PDF Form XObjects (vector, infinite zoom). Shapes (rect / circle / ellipse / line / polygon / polyline / path), all path commands (M / L / H / V / C / S / Q / T / A / Z) including arcs (cubic Bezier approximation), transforms (matrix / translate / rotate / scale / skewX / skewY), groups, `<use>` / `<defs>` references with cycle detection, `viewBox` + `preserveAspectRatio` (all 9 alignments x meet/slice), solid fill / stroke with full per-channel and global opacity (via ExtGState), fill rules (nonzero / evenodd), stroke dash patterns. 147 W3C named colors, hex, `rgb()`, `rgba()`. Unsupported features (`<text>`, gradients, filters, masks, patterns) are skipped silently per the SVG fallback spec.
-- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), QR Code (V1-V10, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
+- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
 
 ## Not yet implemented
 
 - Custom OTF/CFF fonts (`.otf`), TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping -- out of Phase 3a scope.
 - TTF subsetting -- whole-font embedding only in Phase 3a, subsetting planned for Phase 3b.
-- QR Code versions V11-V40 -- capped at V10 in this release (covers URLs, vCards, payment payloads). Add on demand.
 - Other barcode formats (UPC-A, Code 39 / 93, ITF, DataMatrix, PDF417, Aztec) -- add on demand.
 - Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
 
