@@ -37,10 +37,28 @@ final class EncoderTest extends TestCase
 
     public function testCapacityExceededThrows(): void
     {
-        // V10-H byte capacity is 119 bytes -- send well above it to force an overflow.
+        // V40-H byte capacity is 1273 bytes (1276 codewords minus mode + char count overhead).
+        // Send well above it to force an overflow.
         $this->expectException(PdfException::class);
-        $this->expectExceptionMessageMatches('/exceeds capacity of V10-H/');
-        Encoder::encode(str_repeat('x', 500), ErrorCorrection::H);
+        $this->expectExceptionMessageMatches('/exceeds capacity of V40-H/');
+        Encoder::encode(str_repeat('x', 1500), ErrorCorrection::H);
+    }
+
+    public function testCapacityExceededMessageDoesNotMentionRemovedReleaseRestriction(): void
+    {
+        try {
+            Encoder::encode(str_repeat('x', 1500), ErrorCorrection::H);
+            self::fail('Expected PdfException');
+        } catch (PdfException $e) {
+            self::assertStringNotContainsString(
+                'are not supported in this release',
+                $e->getMessage(),
+            );
+            self::assertStringNotContainsString(
+                'V11-V40',
+                $e->getMessage(),
+            );
+        }
     }
 
     public function testV11EncodesAtV11Numeric(): void

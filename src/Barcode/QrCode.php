@@ -9,10 +9,10 @@ use DragonOfMercy\PhpPdf\Barcode\Qr\{Encoder, Mask, Matrix};
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
- * QR Code (ISO/IEC 18004), versions V1-V10 in this release.
+ * QR Code (ISO/IEC 18004), versions V1-V40 (full ISO range).
  *
  * Use {@see self::of()} to construct. The encoder picks the smallest version
- * (V1-V10) that fits the data + the chosen error-correction overhead. Default
+ * (V1-V40) that fits the data + the chosen error-correction overhead. Default
  * error correction is M (~15% recovery).
  *
  * Coordinates use the document's unit and a top-down Y axis. The QR is square
@@ -85,7 +85,7 @@ final readonly class QrCode implements Barcode
                 $bestModules = $candidate;
             }
         }
-        // Version info bits required for V7+ (V7-V10 in this release).
+        // Version info bits required for V7+.
         if ($encoded->version >= 7) {
             Mask::placeVersionBits($bestModules, $encoded->version);
         }
@@ -110,9 +110,27 @@ final readonly class QrCode implements Barcode
         $page->contentStream()->append(Renderer::wrap($body, $this->color));
     }
 
-    /** Remainder bits per ISO 18004 Table 1. V1 + V7-V10 = 0; V2-V6 = 7. */
+    /** Remainder bits per ISO 18004 Table 1. */
     private static function remainderBits(int $version): int
     {
-        return ($version >= 2 && $version <= 6) ? 7 : 0;
+        if ($version === 1) {
+            return 0;
+        }
+        if ($version <= 6) {
+            return 7;
+        }
+        if ($version <= 13) {
+            return 0;
+        }
+        if ($version <= 20) {
+            return 3;
+        }
+        if ($version <= 27) {
+            return 4;
+        }
+        if ($version <= 34) {
+            return 3;
+        }
+        return 0; // V35-V40
     }
 }

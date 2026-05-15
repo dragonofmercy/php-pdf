@@ -363,7 +363,7 @@ final class Encoder
         $maxAtCap = self::CAPACITY_TABLE[self::MAX_VERSION][$ec->ordinal()][0];
         $maxL = self::CAPACITY_TABLE[self::MAX_VERSION][ErrorCorrection::L->ordinal()][0];
         throw new PdfException(sprintf(
-            'QR code data (%d bytes) exceeds capacity of V%d-%s (%d bytes). Try a lower error correction level (L=%d bytes). Versions V11-V40 are not supported in this release.',
+            'QR code data (%d bytes) exceeds capacity of V%d-%s (%d bytes). Try a lower error correction level (L=%d bytes).',
             strlen($data), self::MAX_VERSION, $ec->value, $maxAtCap, $maxL,
         ));
     }
