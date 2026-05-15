@@ -42,4 +42,21 @@ final class EncoderTest extends TestCase
         $this->expectExceptionMessageMatches('/exceeds capacity of V10-H/');
         Encoder::encode(str_repeat('x', 500), ErrorCorrection::H);
     }
+
+    public function testV11EncodesAtV11Numeric(): void
+    {
+        // ISO 18004 V10-M numeric capacity = 513 digits, V11-M numeric capacity = 604 digits.
+        // 520 digits overflows V10-M and should land on V11-M.
+        $payload = str_repeat('0123456789', 52); // 520 digits
+        $result = Encoder::encode($payload, ErrorCorrection::M);
+        self::assertSame(11, $result->version);
+    }
+
+    public function testV40EncodesAtV40Byte(): void
+    {
+        // V40-L byte capacity is 2953 bytes. Send 2950 bytes -> picks V40-L.
+        $payload = str_repeat('x', 2950);
+        $result = Encoder::encode($payload, ErrorCorrection::L);
+        self::assertSame(40, $result->version);
+    }
 }
