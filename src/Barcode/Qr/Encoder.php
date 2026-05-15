@@ -395,7 +395,7 @@ final class Encoder
 
     private static function charCountBits(QrMode $mode, int $version): int
     {
-        // ISO 18004 Table 3. V1-V9 use the first group, V10 uses the V10-V26 row.
+        // ISO 18004 Table 3.
         if ($version <= 9) {
             return match ($mode) {
                 QrMode::Numeric => 10,
@@ -403,10 +403,17 @@ final class Encoder
                 QrMode::Byte => 8,
             };
         }
-        // V10+ (here only V10):
+        if ($version <= 26) {
+            return match ($mode) {
+                QrMode::Numeric => 12,
+                QrMode::Alphanumeric => 11,
+                QrMode::Byte => 16,
+            };
+        }
+        // V27-V40:
         return match ($mode) {
-            QrMode::Numeric => 12,
-            QrMode::Alphanumeric => 11,
+            QrMode::Numeric => 14,
+            QrMode::Alphanumeric => 13,
             QrMode::Byte => 16,
         };
     }

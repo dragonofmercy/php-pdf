@@ -59,4 +59,39 @@ final class EncoderTest extends TestCase
         $result = Encoder::encode($payload, ErrorCorrection::L);
         self::assertSame(40, $result->version);
     }
+
+    public function testV27AlphanumericUses13CharCountBits(): void
+    {
+        // 1600 alphanumeric chars land on V27-M (V26-M tops out at 1542 chars for
+        // ErrorCorrection::M with our CAPACITY_TABLE; V27-M covers 1543-1638). Per ISO
+        // 18004 Table 3, V27 alphanumeric MUST use a 13-bit char count. Without the
+        // V27+ branch, charCountBits() falls back to 11 and the bitstream is malformed.
+        //
+        // The first interleaved codeword carries the mode indicator (4 bits) + the
+        // most significant bits of the char count. 1600 in binary = "11001000000".
+        //
+        // Correct (13-bit char count):
+        //   mode 0010 + count 0011001000000 -> first byte = 0b00100011 = 35
+        // Buggy (11-bit char count):
+        //   mode 0010 + count 11001000000   -> first byte = 0b00101100 = 44
+        $payload = str_repeat('A', 1600);
+        $result = Encoder::encode($payload, ErrorCorrection::M);
+        self::assertSame(27, $result->version);
+        self::assertSame(
+            35,
+            $result->finalCodewords[0],
+            'V27 alphanumeric must use 13 char-count bits per ISO 18004 Table 3',
+        );
+    }
+
+    public function testV40HasExpectedFinalCodewordCount(): void
+    {
+        // V40 total codewords (data + EC) = 3706 per ISO 18004 Table 1. This catches
+        // ALIGNMENT/CAPACITY transcription that yields a wrong block layout (it would
+        // produce a stream of different length).
+        $payload = str_repeat('x', 2950);
+        $result = Encoder::encode($payload, ErrorCorrection::L);
+        self::assertSame(40, $result->version);
+        self::assertCount(3706, $result->finalCodewords);
+    }
 }
