@@ -254,10 +254,13 @@ final class Mask
         $bits = self::formatBits($ec, $maskId);
         $size = count($modules);
 
+        // ISO 18004 6.9: bit 0 (MSB of the 15-bit format string) maps to (8,0),
+        // descending to bit 14 at (0,8). This L-shaped copy must be in canonical
+        // order so a compliant reader recovers (EC level, mask). Copy 2 below is
+        // already canonical.
         $coords = [
-            [0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8],
-            [7, 8], [8, 8], [8, 7],
-            [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0],
+            [8, 0], [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [8, 7], [8, 8],
+            [7, 8], [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8],
         ];
         $coords2 = [
             [$size - 1, 8], [$size - 2, 8], [$size - 3, 8], [$size - 4, 8],

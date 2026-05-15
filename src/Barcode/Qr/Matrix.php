@@ -147,10 +147,23 @@ final class Matrix
     private function placeAlignmentPatterns(): void
     {
         $positions = self::ALIGNMENT_POSITIONS[$this->version] ?? [];
+        if ($positions === []) {
+            return;
+        }
+        // ISO 18004 6.5.2: place an alignment pattern at every coordinate pair
+        // EXCEPT the three that collide with the finder patterns: (first,first)
+        // top-left, (first,last) top-right, (last,first) bottom-left. Patterns
+        // that fall on the timing line ARE placed -- the timing pattern is
+        // interrupted there. Testing the centre against the reserved map would
+        // wrongly drop those, leaving large symbols undecodable.
+        $first = $positions[0];
+        $last = $positions[count($positions) - 1];
         foreach ($positions as $r) {
             foreach ($positions as $c) {
-                if ($this->reserved[$r][$c]) {
-                    continue; // overlaps a finder
+                if (($r === $first && $c === $first)
+                    || ($r === $first && $c === $last)
+                    || ($r === $last && $c === $first)) {
+                    continue;
                 }
                 $this->placeAlignmentAt($r, $c);
             }

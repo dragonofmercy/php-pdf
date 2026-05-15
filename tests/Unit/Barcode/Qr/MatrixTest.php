@@ -107,4 +107,31 @@ final class MatrixTest extends TestCase
         self::assertTrue($m->modules[170][170], 'V40 alignment center (170,170) should be dark');
         self::assertTrue($m->reserved[170][170], 'V40 alignment center (170,170) should be reserved');
     }
+
+    public function testAlignmentPatternsOnTimingLineArePlaced(): void
+    {
+        // ISO 18004 6.5.2 + Annex E: alignment patterns are placed at every
+        // coordinate combination EXCEPT the three that collide with the finder
+        // patterns. V7 positions are [6, 22, 38]; the only exclusions are the
+        // finder corners (6,6), (6,38), (38,6). The patterns centred at (6,22)
+        // and (22,6) lie ON the timing line and MUST still be placed -- the
+        // timing pattern is interrupted there. (Regression guard: the old code
+        // skipped any centre whose module was already reserved, wrongly
+        // dropping every alignment pattern on row/col 6, which made V7+ symbols
+        // impossible for a scanner to lock onto.)
+        $m = Matrix::buildEmpty(7);
+
+        foreach ([[6, 22], [22, 6]] as [$cr, $cc]) {
+            self::assertTrue($m->modules[$cr][$cc], "V7 alignment centre ({$cr},{$cc}) must be dark");
+            self::assertTrue($m->reserved[$cr][$cc], "V7 alignment centre ({$cr},{$cc}) must be reserved");
+            // Outer ring (radius 2) is dark on all four sides.
+            self::assertTrue($m->modules[$cr - 2][$cc], "V7 alignment ({$cr},{$cc}) ring -2 row must be dark");
+            self::assertTrue($m->modules[$cr + 2][$cc], "V7 alignment ({$cr},{$cc}) ring +2 row must be dark");
+            self::assertTrue($m->modules[$cr][$cc - 2], "V7 alignment ({$cr},{$cc}) ring -2 col must be dark");
+            self::assertTrue($m->modules[$cr][$cc + 2], "V7 alignment ({$cr},{$cc}) ring +2 col must be dark");
+            // Inner ring (radius 1) is light.
+            self::assertFalse($m->modules[$cr - 1][$cc], "V7 alignment ({$cr},{$cc}) ring -1 row must be light");
+            self::assertFalse($m->modules[$cr][$cc + 1], "V7 alignment ({$cr},{$cc}) ring +1 col must be light");
+        }
+    }
 }
