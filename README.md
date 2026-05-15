@@ -447,7 +447,7 @@ Standards supported:
 - **EAN-13** (ISO/IEC 15420) -- 12 or 13 digits, auto checksum.
 - **EAN-8** -- 7 or 8 digits, auto checksum.
 - **Code 128** (ISO/IEC 15417) -- ASCII 0-127, auto-switching between sets A/B/C to minimise width.
-- **QR Code** (ISO/IEC 18004) -- versions 1-10 (covers ~395 alphanumeric or ~271 byte chars at L), error correction L/M/Q/H, modes numeric / alphanumeric / byte.
+- **QR Code** (ISO/IEC 18004) -- full version range V1-V40 (up to ~4296 alphanumeric or ~2953 byte chars at L), error correction L/M/Q/H, modes numeric / alphanumeric / byte. Output validated against the zxing-cpp decoder across the full range.
 
 API shape:
 
