@@ -20,10 +20,10 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
-use DragonOfMercy\PhpPdf\Font\Custom\OpenTypeFontEmitter;
-use DragonOfMercy\PhpPdf\Font\Custom\OutlineFormat;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphClosure;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
+use DragonOfMercy\PhpPdf\Font\Custom\OpenTypeFontEmitter;
+use DragonOfMercy\PhpPdf\Font\Custom\OutlineFormat;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\Custom\SubsetTag;
 use DragonOfMercy\PhpPdf\Font\Custom\SubsettedFont;
@@ -803,10 +803,12 @@ final class Document
             $ttfEmitter = new CompositeFontEmitter();
             $otfEmitter = new OpenTypeFontEmitter();
             foreach ($customEmissions as [$parsed, $key, $t0, $cf, $desc, $ff, $tu]) {
-                $context = $parsed->postScriptName;
                 if ($parsed->outlineFormat === OutlineFormat::Cff) {
+                    // CFF outlines: whole-font embed, no subsetting (Identity-H, no subset tag).
                     $emitted = $otfEmitter->emit($parsed, $t0, $cf, $desc, $ff, $tu);
                 } else {
+                    // TrueType outlines: GID-preserving subset + derived tag (Phase 3b path).
+                    $context = $parsed->postScriptName;
                     $used = $this->glyphUsage->usedGids($key->toRegistryKey());
                     $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
                     $sortedGids = array_keys($closure);
