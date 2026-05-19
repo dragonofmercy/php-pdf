@@ -38,6 +38,10 @@ final class Linear1d
             throw new PdfException("{$formatName} requires explicit h (height)");
         }
 
+        if ($humanText === '') {
+            $humanText = null;
+        }
+
         $unit = $page->unit;
         $xPt = $unit->toPoints($x);
         $yPt = $unit->toPoints($y);
@@ -64,8 +68,8 @@ final class Linear1d
         $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
         $page->contentStream()->append(Renderer::wrap($body, $color));
 
-        if ($humanText !== null && $humanText !== '') {
-            self::drawCenteredText($page, $xPt, $yPt, $wPt, $totalModules, $moduleW, $barsHeight, $textHeight, $color, $humanText);
+        if ($humanText !== null) {
+            self::drawCenteredText($page, $xPt, $yPt, $wPt, $barsHeight, $textHeight, $color, $humanText);
         }
     }
 
@@ -74,14 +78,12 @@ final class Linear1d
         float $xPt,
         float $yPt,
         float $wPt,
-        int $totalModules,
-        float $moduleW,
         float $barsHeight,
         float $textHeight,
         Color $color,
         string $text,
     ): void {
-        $fontSize = min(12.0, ($totalModules * $moduleW) / 10.0);
+        $fontSize = min(12.0, $wPt / 10.0);
         $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
         $textYUnit = $page->unit->fromPoints($textY);
 

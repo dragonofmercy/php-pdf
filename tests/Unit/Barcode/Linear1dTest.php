@@ -42,4 +42,14 @@ final class Linear1dTest extends TestCase
         $bytes = $page->contentStream()->bytes();
         self::assertStringContainsString('(ABC)', $bytes);
     }
+
+    public function testEmptyHumanTextBehavesLikeNoText(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        Linear1d::draw($page, 10.0, 10.0, 60.0, 20.0, [true, false, true], 10, Color::rgb(0, 0, 0), '', 'TestFmt');
+        $bytes = $page->contentStream()->bytes();
+        self::assertStringContainsString(' re', $bytes);
+        self::assertStringNotContainsString('BT', $bytes);
+    }
 }
