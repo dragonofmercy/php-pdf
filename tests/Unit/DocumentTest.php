@@ -426,7 +426,7 @@ final class DocumentTest extends TestCase
         try {
             $pdf = new Document();
             $this->expectException(PdfException::class);
-            $this->expectExceptionMessage('OTF/CFF fonts not supported');
+            $this->expectExceptionMessage("Invalid OpenType font (OTTO without 'CFF ' table)");
             $pdf->registerFontFamily('Bad', regular: $tmp);
         } finally {
             @unlink($tmp);

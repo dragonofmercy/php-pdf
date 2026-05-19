@@ -32,5 +32,6 @@ final readonly class ParsedTtf
         public int $flags,
         public array $cmap,
         public array $advanceWidthsByGid,
+        public OutlineFormat $outlineFormat = OutlineFormat::TrueType,
     ) {}
 }
