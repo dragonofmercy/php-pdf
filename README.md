@@ -199,7 +199,6 @@ Currently supported in Phase 3a:
 
 Not supported in Phase 3a (out of scope):
 
-- OpenType / CFF outlines (`.otf`).
 - TrueType Collection (`.ttc`).
 - Variable fonts (fvar / gvar).
 - Kerning (GPOS / `kern` table).
