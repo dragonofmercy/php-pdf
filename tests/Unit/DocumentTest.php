@@ -419,7 +419,7 @@ final class DocumentTest extends TestCase
         $pdf->registerFontFamily('Inter', regular: __DIR__ . '/does-not-exist.ttf');
     }
 
-    public function testRegisterFontFamilyRejectsOtfFile(): void
+    public function testRegisterFontFamilyRejectsOttoWithoutCffTable(): void
     {
         $tmp = tempnam(sys_get_temp_dir(), 'phpdf_otf_') . '.otf';
         file_put_contents($tmp, "OTTO\x00\x00\x00\x00more bytes here");

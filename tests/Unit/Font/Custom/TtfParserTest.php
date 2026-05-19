@@ -40,6 +40,7 @@ final class TtfParserTest extends TestCase
         $entrySelector = pack('n', 0);
         $rangeShift = pack('n', 0);
         $offsetTable = $sfnt . $numTables . $searchRange . $entrySelector . $rangeShift;
+        // 'glyf' makes detectOutlineFormat return TrueType so parse() proceeds to requireTable('head'), the path under test.
         $tableRecord = 'glyf' . pack('NNN', 0, 28, 4);
         $body = 'DATA';
         $bytes = $offsetTable . $tableRecord . $body;
