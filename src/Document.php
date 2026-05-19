@@ -789,7 +789,7 @@ final class Document
         if ($customEmissions !== []) {
             $emitter = new CompositeFontEmitter();
             foreach ($customEmissions as [$parsed, $t0, $cf, $desc, $ff, $tu]) {
-                // TODO(Task 8): replace this placeholder with real TtfSubsetter output
+                // TODO(Task 8): replace with real TtfSubsetter output (subsetted bytes + "XXXXXX+Name" prefix)
                 $subset = new SubsettedFont($parsed->bytes, $parsed->postScriptName);
                 $emitted = $emitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
                 $objects[] = $emitted['type0'];

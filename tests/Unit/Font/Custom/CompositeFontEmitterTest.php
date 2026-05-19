@@ -48,6 +48,9 @@ final class CompositeFontEmitterTest extends TestCase
         );
         self::assertSame(['type0', 'cidFont', 'descriptor', 'fontFile', 'toUnicode'], array_keys($result));
         self::assertSame(10, $result['type0']->objectNumber);
+        self::assertSame(11, $result['cidFont']->objectNumber);
+        self::assertSame(12, $result['descriptor']->objectNumber);
+        self::assertSame(13, $result['fontFile']->objectNumber);
         self::assertSame(14, $result['toUnicode']->objectNumber);
     }
 
