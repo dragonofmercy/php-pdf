@@ -90,7 +90,8 @@ final readonly class Itf implements Barcode
         $sum = 0;
         for ($i = 12; $i >= 0; $i--) {
             $d = (int) $thirteenDigits[$i];
-            $sum += (($i - 12) % 2 === 0) ? $d * 3 : $d;
+            // (12 - $i) is the 0-based position from the right; even position -> weight 3.
+            $sum += ((12 - $i) % 2 === 0) ? $d * 3 : $d;
         }
         return (10 - ($sum % 10)) % 10;
     }
@@ -109,7 +110,7 @@ final readonly class Itf implements Barcode
      */
     private function encodeModules(): array
     {
-        $modules = [true, false, true, false];
+        $modules = [true, false, true, false]; // start: nnnn (narrow bar, space, bar, space)
 
         $len = strlen($this->digits);
         for ($p = 0; $p < $len; $p += 2) {
@@ -127,7 +128,7 @@ final readonly class Itf implements Barcode
             }
         }
 
-        array_push($modules, true, true, true, false, true);
+        array_push($modules, true, true, true, false, true); // stop: wnn (wide bar, narrow space, narrow bar)
         return $modules;
     }
 
