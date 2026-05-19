@@ -73,6 +73,13 @@ final class UpcaTest extends TestCase
         $page->barcode(Upca::of('036000291452'), x: 10.0, y: 10.0, w: 80.0);
     }
 
+    public function testOfUncheckedSkipsValidation(): void
+    {
+        // ofUnchecked stores the literal input without digit/length/checksum checks
+        $code = Upca::ofUnchecked('not-12-digits');
+        self::assertSame('not-12-digits', $code->digits);
+    }
+
     public function testDrawIncludesHumanTextDigits(): void
     {
         $doc = new Document(Unit::PT);

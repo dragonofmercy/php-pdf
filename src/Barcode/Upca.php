@@ -98,6 +98,9 @@ final readonly class Upca implements Barcode
     }
 
     /**
+     * Returns the 95-element module sequence for this UPC-A.
+     *
+     * @internal
      * @return list<bool>
      */
     private function encodeModules(): array
@@ -150,6 +153,13 @@ final readonly class Upca implements Barcode
         }
     }
 
+    /**
+     * Draws the UPC-A human-readable digits in the official layout:
+     *   - number-system digit detached to the left (inside quiet zone)
+     *   - 5 digits centred under the left half
+     *   - 5 digits centred under the right half
+     *   - check digit detached to the right (inside quiet zone)
+     */
     private function drawHumanText(
         Page $page,
         float $xPt,
