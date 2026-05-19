@@ -397,3 +397,43 @@ foreach ($svgGoldens as $name => [$class, $method]) {
     file_put_contents($fixturesDir . '/' . $name, $bytes);
     echo "Regenerated {$name}\n";
 }
+
+// Fixture: UPC-A barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Upca::of('03600029145'),
+    x: 20.0, y: 20.0, w: 45.0, h: 22.0,
+);
+$doc->save($fixturesDir . '/barcode-upca.pdf');
+echo "Regenerated barcode-upca.pdf\n";
+
+// Fixture: Code 39 barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Code39::of('CODE 39'),
+    x: 20.0, y: 20.0, w: 90.0, h: 20.0,
+);
+$doc->save($fixturesDir . '/barcode-code39.pdf');
+echo "Regenerated barcode-code39.pdf\n";
+
+// Fixture: Code 93 barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Code93::of('TEST93'),
+    x: 20.0, y: 20.0, w: 80.0, h: 20.0,
+);
+$doc->save($fixturesDir . '/barcode-code93.pdf');
+echo "Regenerated barcode-code93.pdf\n";
+
+// Fixture: ITF barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Itf::of('12345670'),
+    x: 20.0, y: 20.0, w: 60.0, h: 20.0,
+);
+$doc->save($fixturesDir . '/barcode-itf.pdf');
+echo "Regenerated barcode-itf.pdf\n";
