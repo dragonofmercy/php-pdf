@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
+use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\CustomFontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
@@ -33,11 +34,12 @@ final class CustomFontEngineTest extends TestCase
         );
     }
 
-    private function engine(?Font $font = null, ?ParsedTtf $ttf = null): CustomFontEngine
+    private function engine(?Font $font = null, ?ParsedTtf $ttf = null, ?GlyphUsage $usage = null): CustomFontEngine
     {
         $font ??= Font::custom('Synthetic');
         $ttf ??= $this->parsedTtf();
-        return new CustomFontEngine($font, $ttf);
+        $usage ??= new GlyphUsage();
+        return new CustomFontEngine($font, $ttf, $usage);
     }
 
     public function testFontReturnsBoundFont(): void
@@ -161,5 +163,61 @@ final class CustomFontEngineTest extends TestCase
             (new CustomFontKey('Synthetic', 'Synthetic-Regular'))->toRegistryKey(),
             $engine->usageKey(),
         );
+    }
+
+    public function testEncodingRecordsUsedGidsIntoGlyphUsage(): void
+    {
+        $ttf = new \DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf(
+            bytes: str_repeat("\x00", 16),
+            postScriptName: 'FreeSans',
+            unitsPerEm: 1000,
+            ascent: 900,
+            descent: -200,
+            capHeight: 700,
+            xHeight: 500,
+            bbox: [0, 0, 1000, 1000],
+            italicAngle: 0,
+            weight: 400,
+            flags: 32,
+            cmap: [0x41 => 36, 0x42 => 37],
+            advanceWidthsByGid: [0 => 500, 36 => 600, 37 => 580],
+        );
+        $usage = new GlyphUsage();
+        $font = \DragonOfMercy\PhpPdf\Font::custom('FS');
+        $engine = new \DragonOfMercy\PhpPdf\Font\CustomFontEngine($font, $ttf, $usage);
+
+        $stream = new \DragonOfMercy\PhpPdf\Page\ContentStream(842.0);
+        $engine->emitShowText($stream, 'AB');
+
+        $key = (new CustomFontKey('FS', 'FreeSans'))->toRegistryKey();
+        self::assertSame([36 => true, 37 => true], $usage->usedGids($key));
+    }
+
+    public function testMeasureDoesNotRecordUsage(): void
+    {
+        $ttf = new \DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf(
+            bytes: str_repeat("\x00", 16),
+            postScriptName: 'FreeSans',
+            unitsPerEm: 1000,
+            ascent: 900,
+            descent: -200,
+            capHeight: 700,
+            xHeight: 500,
+            bbox: [0, 0, 1000, 1000],
+            italicAngle: 0,
+            weight: 400,
+            flags: 32,
+            cmap: [0x41 => 36],
+            advanceWidthsByGid: [0 => 500, 36 => 600],
+        );
+        $usage = new GlyphUsage();
+        $engine = new \DragonOfMercy\PhpPdf\Font\CustomFontEngine(
+            \DragonOfMercy\PhpPdf\Font::custom('FS'),
+            $ttf,
+            $usage,
+        );
+        $engine->measure('A', 12.0);
+        $key = (new CustomFontKey('FS', 'FreeSans'))->toRegistryKey();
+        self::assertSame([], $usage->usedGids($key));
     }
 }

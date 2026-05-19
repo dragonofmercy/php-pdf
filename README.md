@@ -10,7 +10,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Pages** - standard formats (A3, A4, A5, A6, Letter, Legal) with portrait / landscape orientation, plus arbitrary custom dimensions for labels and similar. Coordinates and sizes default to millimetres; switch to PDF points with `Unit::PT`.
 - **Graphics** - lines, rectangles, circles, paths (move/line/curve), fill/stroke, dash patterns, line caps/joins, save/restore, transforms (translate/rotate/scale).
 - **Text** - 12 standard PDF fonts (Helvetica / Times / Courier x Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `EUR -- oe Oe %.` etc.). Multi-line via `\n`, custom leading.
-- **Custom TTF fonts** - register your own TrueType fonts via `Document::registerFontFamily('alias', regular: ..., bold: ..., italic: ..., boldItalic: ...)`. Composite CIDFont/Type0 with Identity-H encoding and embedded ToUnicode CMap (copy-paste works). Full Unicode reach beyond WinAnsi: Latin Extended, Greek, Cyrillic, etc. cmap subtable formats 4 and 12 supported. Fonts are embedded whole (subsetting comes in Phase 3b).
+- **Custom TTF fonts** - register your own TrueType fonts via `Document::registerFontFamily('alias', regular: ..., bold: ..., italic: ..., boldItalic: ...)`. Composite CIDFont/Type0 with Identity-H encoding and embedded ToUnicode CMap (copy-paste works). Full Unicode reach beyond WinAnsi: Latin Extended, Greek, Cyrillic, etc. cmap subtable formats 4 and 12 supported. Fonts are automatically subsetted to the glyphs used (GID-preserving), so embedded size stays small.
 - **Cells** - rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
 - **Text measurement** - `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
 - **Images** - JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
@@ -20,7 +20,6 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 ## Not yet implemented
 
 - Custom OTF/CFF fonts (`.otf`), TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping -- out of Phase 3a scope.
-- TTF subsetting -- whole-font embedding only in Phase 3a, subsetting planned for Phase 3b.
 - Other barcode formats (UPC-A, Code 39 / 93, ITF, DataMatrix, PDF417, Aztec) -- add on demand.
 - Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
 
@@ -196,7 +195,7 @@ Currently supported in Phase 3a:
 - TrueType outlines (`.ttf`) only.
 - `cmap` subtable formats 4 (BMP, U+0000 to U+FFFF) and 12 (full Unicode, including supplementary planes).
 - Identity-H encoding, left-to-right scripts (Latin, Greek, Cyrillic, etc.). Copy-paste from the rendered PDF works correctly thanks to the embedded ToUnicode CMap.
-- The entire TTF is embedded as-is (no subsetting). Subsetting is planned for Phase 3b.
+- The font is automatically subsetted to the glyphs actually used (GID-preserving subsetting, Phase 3b).
 
 Not supported in Phase 3a (out of scope):
 

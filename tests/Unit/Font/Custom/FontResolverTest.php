@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Font\Custom;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\CustomFontEngine;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
@@ -87,7 +88,7 @@ final class FontResolverTest extends TestCase
             'regular' => $this->ttf('Inter-Regular'),
             'bold' => null, 'italic' => null, 'boldItalic' => null,
         ]];
-        $resolver = new FontResolver($reg, new MetricsRegistry());
+        $resolver = new FontResolver($reg, new MetricsRegistry(), new GlyphUsage());
         $engine = $resolver->resolveEngine(Font::custom('Inter'));
         self::assertInstanceOf(CustomFontEngine::class, $engine);
     }
@@ -103,7 +104,7 @@ final class FontResolverTest extends TestCase
 
     public function testResolveEngineForUnregisteredCustomFontThrows(): void
     {
-        $resolver = new FontResolver([], new MetricsRegistry());
+        $resolver = new FontResolver([], new MetricsRegistry(), new GlyphUsage());
         $this->expectException(PdfException::class);
         $resolver->resolveEngine(Font::custom('Missing'));
     }

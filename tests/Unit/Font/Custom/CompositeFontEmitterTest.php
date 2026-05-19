@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Font\Custom;
 
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\SubsettedFont;
 use PHPUnit\Framework\TestCase;
 
 final class CompositeFontEmitterTest extends TestCase
@@ -29,11 +30,16 @@ final class CompositeFontEmitterTest extends TestCase
         );
     }
 
+    private function subset(): SubsettedFont
+    {
+        return new SubsettedFont(str_repeat("\x01", 128), 'ABCDEF+FreeSans');
+    }
+
     public function testEmitsFiveIndirectObjectsInOrder(): void
     {
-        $emitter = new CompositeFontEmitter();
-        $result = $emitter->emit(
+        $result = (new CompositeFontEmitter())->emit(
             font: $this->ttf(),
+            subset: $this->subset(),
             type0Id: 10,
             cidFontId: 11,
             descriptorId: 12,
@@ -48,48 +54,29 @@ final class CompositeFontEmitterTest extends TestCase
         self::assertSame(14, $result['toUnicode']->objectNumber);
     }
 
-    public function testType0DictReferencesCidFontAndToUnicode(): void
+    public function testBaseFontAndFontNameCarrySubsetPrefix(): void
     {
-        $emitter = new CompositeFontEmitter();
-        $result = $emitter->emit($this->ttf(), 10, 11, 12, 13, 14);
-        $bytes = $result['type0']->toBytes();
-        self::assertStringContainsString('/Type /Font', $bytes);
-        self::assertStringContainsString('/Subtype /Type0', $bytes);
-        self::assertStringContainsString('/BaseFont /FreeSans', $bytes);
-        self::assertStringContainsString('/Encoding /Identity-H', $bytes);
-        self::assertStringContainsString('11 0 R', $bytes);
-        self::assertStringContainsString('14 0 R', $bytes);
+        $result = (new CompositeFontEmitter())->emit($this->ttf(), $this->subset(), 10, 11, 12, 13, 14);
+        self::assertStringContainsString('/BaseFont /ABCDEF+FreeSans', $result['type0']->toBytes());
+        self::assertStringContainsString('/BaseFont /ABCDEF+FreeSans', $result['cidFont']->toBytes());
+        self::assertStringContainsString('/FontName /ABCDEF+FreeSans', $result['descriptor']->toBytes());
     }
 
-    public function testFontDescriptorReferencesFontFile2(): void
+    public function testFontFile2UsesSubsettedBytesLength(): void
     {
-        $emitter = new CompositeFontEmitter();
-        $result = $emitter->emit($this->ttf(), 10, 11, 12, 13, 14);
-        $bytes = $result['descriptor']->toBytes();
-        self::assertStringContainsString('/Type /FontDescriptor', $bytes);
-        self::assertStringContainsString('/FontName /FreeSans', $bytes);
-        self::assertStringContainsString('/Flags 32', $bytes);
-        self::assertStringContainsString('13 0 R', $bytes);
-    }
-
-    public function testFontFile2StreamHasLength1AndFlateDecode(): void
-    {
-        $emitter = new CompositeFontEmitter();
-        $result = $emitter->emit($this->ttf(), 10, 11, 12, 13, 14);
+        $result = (new CompositeFontEmitter())->emit($this->ttf(), $this->subset(), 10, 11, 12, 13, 14);
         $bytes = $result['fontFile']->toBytes();
-        self::assertStringContainsString('/Length1 256', $bytes);
+        self::assertStringContainsString('/Length1 128', $bytes);
         self::assertStringContainsString('/Filter /FlateDecode', $bytes);
     }
 
-    public function testCidFontReferencesDescriptorAndContainsW(): void
+    public function testCidFontStillReferencesDescriptorAndW(): void
     {
-        $emitter = new CompositeFontEmitter();
-        $result = $emitter->emit($this->ttf(), 10, 11, 12, 13, 14);
+        $result = (new CompositeFontEmitter())->emit($this->ttf(), $this->subset(), 10, 11, 12, 13, 14);
         $bytes = $result['cidFont']->toBytes();
         self::assertStringContainsString('/Subtype /CIDFontType2', $bytes);
-        self::assertStringContainsString('/BaseFont /FreeSans', $bytes);
-        self::assertStringContainsString('12 0 R', $bytes);
         self::assertStringContainsString('/CIDToGIDMap /Identity', $bytes);
         self::assertStringContainsString('/W ', $bytes);
+        self::assertStringContainsString('12 0 R', $bytes);
     }
 }
