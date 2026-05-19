@@ -195,7 +195,7 @@ Currently supported in Phase 3a:
 - TrueType outlines (`.ttf`) only.
 - `cmap` subtable formats 4 (BMP, U+0000 to U+FFFF) and 12 (full Unicode, including supplementary planes).
 - Identity-H encoding, left-to-right scripts (Latin, Greek, Cyrillic, etc.). Copy-paste from the rendered PDF works correctly thanks to the embedded ToUnicode CMap.
-- The entire TTF is embedded as-is (no subsetting). Subsetting is planned for Phase 3b.
+- The font is automatically subsetted to the glyphs actually used (GID-preserving subsetting, Phase 3b).
 
 Not supported in Phase 3a (out of scope):
 
