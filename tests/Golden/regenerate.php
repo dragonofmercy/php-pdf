@@ -417,3 +417,13 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-code39.pdf');
 echo "Regenerated barcode-code39.pdf\n";
+
+// Fixture: Code 93 barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Code93::of('TEST93'),
+    x: 20.0, y: 20.0, w: 80.0, h: 20.0,
+);
+$doc->save($fixturesDir . '/barcode-code93.pdf');
+echo "Regenerated barcode-code93.pdf\n";
