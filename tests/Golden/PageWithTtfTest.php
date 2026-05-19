@@ -31,6 +31,20 @@ final class PageWithTtfTest extends TestCase
         );
     }
 
+    public function testFixtureIsSubsettedNotWholeFont(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $size = filesize(self::FIXTURE);
+        self::assertIsInt($size);
+        self::assertLessThan(
+            200_000,
+            $size,
+            'page-with-ttf.pdf is not subsetted - did regenerate.php run after the subsetting change?',
+        );
+    }
+
     public function testPageWithTtfPassesQpdfCheck(): void
     {
         if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
