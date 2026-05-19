@@ -20,6 +20,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\Custom\OpenTypeFontEmitter;
+use DragonOfMercy\PhpPdf\Font\Custom\OutlineFormat;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphClosure;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
@@ -798,18 +800,22 @@ final class Document
         }
 
         if ($customEmissions !== []) {
-            $emitter = new CompositeFontEmitter();
+            $ttfEmitter = new CompositeFontEmitter();
+            $otfEmitter = new OpenTypeFontEmitter();
             foreach ($customEmissions as [$parsed, $key, $t0, $cf, $desc, $ff, $tu]) {
                 $context = $parsed->postScriptName;
-                $used = $this->glyphUsage->usedGids($key->toRegistryKey());
-                $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
-                $sortedGids = array_keys($closure);
-                sort($sortedGids); // makes tag derivation independent of GlyphClosure's internal insertion order
-                $subsetBytes = TtfSubsetter::subset($parsed->bytes, $closure, $context);
-                $tag = SubsetTag::derive($context, $sortedGids);
-                $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
-
-                $emitted = $emitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
+                if ($parsed->outlineFormat === OutlineFormat::Cff) {
+                    $emitted = $otfEmitter->emit($parsed, $t0, $cf, $desc, $ff, $tu);
+                } else {
+                    $used = $this->glyphUsage->usedGids($key->toRegistryKey());
+                    $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
+                    $sortedGids = array_keys($closure);
+                    sort($sortedGids); // makes tag derivation independent of GlyphClosure's internal insertion order
+                    $subsetBytes = TtfSubsetter::subset($parsed->bytes, $closure, $context);
+                    $tag = SubsetTag::derive($context, $sortedGids);
+                    $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
+                    $emitted = $ttfEmitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
+                }
                 $objects[] = $emitted['type0'];
                 $objects[] = $emitted['cidFont'];
                 $objects[] = $emitted['descriptor'];
