@@ -397,3 +397,13 @@ foreach ($svgGoldens as $name => [$class, $method]) {
     file_put_contents($fixturesDir . '/' . $name, $bytes);
     echo "Regenerated {$name}\n";
 }
+
+// Fixture: UPC-A barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Upca::of('03600029145'),
+    x: 20.0, y: 20.0, w: 45.0, h: 22.0,
+);
+$doc->save($fixturesDir . '/barcode-upca.pdf');
+echo "Regenerated barcode-upca.pdf\n";
