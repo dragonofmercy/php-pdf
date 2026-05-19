@@ -109,7 +109,8 @@ final readonly class Font
         if ($this->bold && !$this->italic) {
             return $base . '-' . $boldSuffix;
         }
-        if (!$this->bold && $this->italic) {
+        if (!$this->bold) {
+            // italic-only: the bold+!italic and !bold+!italic cases returned above.
             return $base . '-' . $italicSuffix;
         }
         return $base . '-' . $boldSuffix . $italicSuffix;
@@ -123,7 +124,8 @@ final readonly class Font
         if ($this->bold && !$this->italic) {
             return 'Times-Bold';
         }
-        if (!$this->bold && $this->italic) {
+        if (!$this->bold) {
+            // italic-only: the bold+!italic and !bold+!italic cases returned above.
             return 'Times-Italic';
         }
         return 'Times-BoldItalic';
