@@ -810,4 +810,40 @@ final class DocumentTest extends TestCase
         $doc = new Document();
         self::assertSame($doc, $doc->setDefaultBorderWidth(0.5));
     }
+
+    private const string FS_DIR = __DIR__ . '/../Golden/fixtures/fonts';
+
+    public function testCustomFontIsSubsettedAndDeterministic(): void
+    {
+        if (!is_file(self::FS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixture absent');
+        }
+        $build = static function (): string {
+            $doc = new Document(Unit::PT);
+            $doc->registerFontFamily('FS', regular: self::FS_DIR . '/FreeSans.ttf');
+            $page = $doc->addPage();
+            $page->setFont(Font::custom('FS'), 14);
+            $page->text(50, 50, 'Hello');
+            return $doc->output();
+        };
+
+        $pdf = $build();
+        self::assertLessThan(300_000, strlen($pdf));
+        self::assertSame($pdf, $build());
+        self::assertMatchesRegularExpression('#/BaseFont /[A-Z]{6}\+#', $pdf);
+    }
+
+    public function testRegisteredFontSetButNoTextStillProducesValidPdf(): void
+    {
+        if (!is_file(self::FS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixture absent');
+        }
+        $doc = new Document(Unit::PT);
+        $doc->registerFontFamily('FS', regular: self::FS_DIR . '/FreeSans.ttf');
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('FS'), 14);
+        $page->text(50, 50, '');
+        $pdf = $doc->output();
+        self::assertStringStartsWith('%PDF-', $pdf);
+    }
 }

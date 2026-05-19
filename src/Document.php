@@ -20,9 +20,13 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\Custom\GlyphClosure;
+use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\SubsetTag;
 use DragonOfMercy\PhpPdf\Font\Custom\SubsettedFont;
 use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
+use DragonOfMercy\PhpPdf\Font\Custom\TtfSubsetter;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
@@ -83,6 +87,8 @@ final class Document
 
     private ?FontResolver $fontResolver = null;
 
+    private readonly GlyphUsage $glyphUsage;
+
     /** Default per-side cells padding (document unit) for new pages, null = page builtin. */
     private ?CellPadding $defaultCellsPadding = null;
 
@@ -99,6 +105,7 @@ final class Document
 
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
+        $this->glyphUsage = new GlyphUsage();
         $this->fontRegistry = new FontRegistry();
         $this->metricsRegistry = new MetricsRegistry();
         $this->imageRegistry = new ImageRegistry();
@@ -148,7 +155,11 @@ final class Document
             'italic' => $italicParsed,
             'boldItalic' => $boldItalicParsed,
         ];
-        $this->fontResolver = new FontResolver($this->customFontFamilies, $this->metricsRegistry, new \DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage()); // TODO(Task 8): use the Document-owned GlyphUsage instance
+        $this->fontResolver = new FontResolver(
+            $this->customFontFamilies,
+            $this->metricsRegistry,
+            $this->glyphUsage,
+        );
         return $this;
     }
 
@@ -674,7 +685,7 @@ final class Document
 
         /** @var array<string, PdfReference> $customRefs short name => Type0 reference */
         $customRefs = [];
-        /** @var list<array{ParsedTtf, int, int, int, int, int}> $customEmissions */
+        /** @var list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}> $customEmissions */
         $customEmissions = [];
         foreach ($this->fontRegistry->customRegistrations() as $shortName => $key) {
             $type0Id = $nextObjectNumber++;
@@ -685,7 +696,7 @@ final class Document
 
             $parsedTtf = $this->resolveTtfByKey($key);
             $customRefs[$shortName] = PdfReference::to($type0Id, 0);
-            $customEmissions[] = [$parsedTtf, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
+            $customEmissions[] = [$parsedTtf, $key, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
         }
 
         /** @var array<string, PdfReference> $imageRefs short name => main image reference */
@@ -788,9 +799,16 @@ final class Document
 
         if ($customEmissions !== []) {
             $emitter = new CompositeFontEmitter();
-            foreach ($customEmissions as [$parsed, $t0, $cf, $desc, $ff, $tu]) {
-                // TODO(Task 8): replace with real TtfSubsetter output (subsetted bytes + "XXXXXX+Name" prefix)
-                $subset = new SubsettedFont($parsed->bytes, $parsed->postScriptName);
+            foreach ($customEmissions as [$parsed, $key, $t0, $cf, $desc, $ff, $tu]) {
+                $context = $parsed->postScriptName;
+                $used = $this->glyphUsage->usedGids($key->toRegistryKey());
+                $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
+                $sortedGids = array_keys($closure);
+                sort($sortedGids);
+                $subsetBytes = TtfSubsetter::subset($parsed->bytes, $closure, $context);
+                $tag = SubsetTag::derive($context, $sortedGids);
+                $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
+
                 $emitted = $emitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
                 $objects[] = $emitted['type0'];
                 $objects[] = $emitted['cidFont'];
