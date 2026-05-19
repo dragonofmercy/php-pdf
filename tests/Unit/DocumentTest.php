@@ -828,9 +828,9 @@ final class DocumentTest extends TestCase
         };
 
         $pdf = $build();
-        self::assertLessThan(300_000, strlen($pdf));
+        self::assertLessThan(150_000, strlen($pdf)); // subsetted FreeSans+Hello ~95 KB; full font ~1.5 MB
         self::assertSame($pdf, $build());
-        self::assertMatchesRegularExpression('#/BaseFont /[A-Z]{6}\+#', $pdf);
+        self::assertMatchesRegularExpression('#/BaseFont /[A-Z]{6}\+FreeSans\b#', $pdf);
     }
 
     public function testRegisteredFontSetButNoTextStillProducesValidPdf(): void
@@ -845,5 +845,6 @@ final class DocumentTest extends TestCase
         $page->text(50, 50, '');
         $pdf = $doc->output();
         self::assertStringStartsWith('%PDF-', $pdf);
+        self::assertStringContainsString('/BaseFont', $pdf); // font object still emitted even with no glyphs used
     }
 }

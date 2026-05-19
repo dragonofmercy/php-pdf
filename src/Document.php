@@ -804,7 +804,7 @@ final class Document
                 $used = $this->glyphUsage->usedGids($key->toRegistryKey());
                 $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
                 $sortedGids = array_keys($closure);
-                sort($sortedGids);
+                sort($sortedGids); // makes tag derivation independent of GlyphClosure's internal insertion order
                 $subsetBytes = TtfSubsetter::subset($parsed->bytes, $closure, $context);
                 $tag = SubsetTag::derive($context, $sortedGids);
                 $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
