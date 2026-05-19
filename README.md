@@ -190,14 +190,14 @@ Variant fallback chain when a requested style is not registered:
 
 `registerFontFamily()` parses each TTF eagerly: missing files, unsupported flavours, malformed tables, and missing required tables raise `PdfException` immediately at registration time, not later during page rendering.
 
-Currently supported in Phase 3a:
+Currently supported:
 
-- TrueType outlines (`.ttf`) only.
+- TrueType outlines (`.ttf`) and OpenType/CFF outlines (`.otf`, `OTTO`).
 - `cmap` subtable formats 4 (BMP, U+0000 to U+FFFF) and 12 (full Unicode, including supplementary planes).
 - Identity-H encoding, left-to-right scripts (Latin, Greek, Cyrillic, etc.). Copy-paste from the rendered PDF works correctly thanks to the embedded ToUnicode CMap.
-- The font is automatically subsetted to the glyphs actually used (GID-preserving subsetting, Phase 3b).
+- TrueType fonts are automatically subsetted to the glyphs actually used (GID-preserving). OpenType/CFF fonts are embedded whole as `CIDFontType0` (CFF subsetting is a later phase).
 
-Not supported in Phase 3a (out of scope):
+Not supported (out of scope):
 
 - TrueType Collection (`.ttc`).
 - Variable fonts (fvar / gvar).
@@ -469,11 +469,11 @@ composer install
 composer check   # PHPStan max + PHPUnit (unit + golden)
 ```
 
-`composer test` runs the full suite (621 tests at Phase 3a). `composer analyse` runs PHPStan at level max.
+`composer test` runs the full suite (1,000+ tests across unit + golden). `composer analyse` runs PHPStan at level max.
 
 ### Golden tests
 
-Twelve binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
+Binary fixtures under `tests/Golden/fixtures/` are byte-compared against fresh renders. Each fixture has an associated `qpdf --check` validation that skips cleanly if qpdf is absent. To install qpdf:
 
 - Linux: `sudo apt-get install qpdf`
 - macOS: `brew install qpdf`
