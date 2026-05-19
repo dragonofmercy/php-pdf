@@ -43,7 +43,7 @@ final class GlyphClosure
 
         $result = [];
         $stack = array_keys($usedGids);
-        array_unshift($stack, 0);
+        array_unshift($stack, 0); // GID 0 at front => popped last; ordering does not affect the result set
 
         while ($stack !== []) {
             $gid = array_pop($stack);
