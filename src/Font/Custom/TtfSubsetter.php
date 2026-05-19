@@ -33,6 +33,7 @@ final class TtfSubsetter
     public static function subset(string $ttf, array $closure, string $context): string
     {
         $dir = SfntReader::directory($ttf, $context);
+        // head (indexToLocFormat patch) and maxp (numGlyphs) are required to rebuild loca, not just glyf/loca themselves.
         foreach (['glyf', 'loca', 'head', 'maxp'] as $req) {
             if (!isset($dir[$req])) {
                 throw new PdfException("Cannot subset font '{$context}': missing required '{$req}' table");

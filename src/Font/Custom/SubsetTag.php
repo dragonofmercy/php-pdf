@@ -11,6 +11,7 @@ namespace DragonOfMercy\PhpPdf\Font\Custom;
  * renders of the same document produce byte-identical fonts (golden tests).
  * The tag is purely an informative label for readers; collisions across
  * fonts have no functional effect.
+ * Assumes a 64-bit PHP int (crc32b max 0xFFFFFFFF fits); the tag is an informative reader label only, so cross-platform variance would be harmless anyway.
  *
  * @internal
  */
