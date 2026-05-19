@@ -42,6 +42,7 @@ final class Code39Test extends TestCase
     public function testStartStopFramingPresentInModules(): void
     {
         $m = Code39::of('A')->encodeModulesForTest();
+        self::assertCount(47, $m); // * + gap + A + gap + * : 3 symbols * 15 modules + 2 one-module gaps
         self::assertTrue($m[0]);
         self::assertTrue($m[count($m) - 1]);
     }

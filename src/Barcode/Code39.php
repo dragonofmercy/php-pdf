@@ -112,7 +112,9 @@ final readonly class Code39 implements Barcode
             }
             $checkValue = $sum % 43;
             $checkChar = array_search($checkValue, self::VALUES, true);
-            $sequence .= (string) $checkChar;
+            // VALUES is a bijection over 0..42 and $checkValue = $sum % 43, so this is always a string.
+            assert(is_string($checkChar));
+            $sequence .= $checkChar;
         }
         $sequence .= '*';
 
