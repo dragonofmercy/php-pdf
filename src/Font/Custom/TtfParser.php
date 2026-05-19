@@ -24,6 +24,12 @@ final class TtfParser
 
         $tableDir = self::readTableDirectory($bytes, $contextLabel);
 
+        $outlineFormat = self::detectOutlineFormat(
+            $tableDir,
+            substr($bytes, 0, 4),
+            $contextLabel,
+        );
+
         $head = self::readHeadTable($bytes, $tableDir, $contextLabel);
         $hhea = self::readHheaTable($bytes, $tableDir, $contextLabel);
         $maxp = self::readMaxpTable($bytes, $tableDir, $contextLabel);
@@ -49,6 +55,7 @@ final class TtfParser
             flags: $flags,
             cmap: $cmap,
             advanceWidthsByGid: $widths,
+            outlineFormat: $outlineFormat,
         );
     }
 
@@ -58,13 +65,14 @@ final class TtfParser
             throw new PdfException("Invalid TTF file for {$ctx}: file too short");
         }
         $magic = substr($bytes, 0, 4);
-        if ($magic === 'OTTO') {
-            throw new PdfException("OTF/CFF fonts not supported in this version, use TTF: {$ctx}");
-        }
         if ($magic === 'ttcf') {
             throw new PdfException("TrueType collection (.ttc) not supported, provide individual .ttf files: {$ctx}");
         }
-        if ($magic !== self::SFNT_VERSION_TRUETYPE && $magic !== self::SFNT_VERSION_TRUE) {
+        if (
+            $magic !== self::SFNT_VERSION_TRUETYPE
+            && $magic !== self::SFNT_VERSION_TRUE
+            && $magic !== 'OTTO'
+        ) {
             $hex = strtoupper(bin2hex($magic));
             throw new PdfException("Invalid TTF file for {$ctx}: unknown sfnt version 0x{$hex}");
         }
@@ -97,6 +105,31 @@ final class TtfParser
             ];
         }
         return $directory;
+    }
+
+    /**
+     * Determines the outline format from the table directory, independently
+     * of the sfnt magic. glyf wins (a font carrying both is treated as
+     * TrueType); CFF2 (variable) is rejected; 'CFF ' yields Cff; OTTO without
+     * 'CFF ' and any font with neither outline table are rejected.
+     *
+     * @param array<string, array{offset: int, length: int}> $dir
+     */
+    private static function detectOutlineFormat(array $dir, string $magic, string $ctx): OutlineFormat
+    {
+        if (isset($dir['glyf'])) {
+            return OutlineFormat::TrueType;
+        }
+        if (isset($dir['CFF2'])) {
+            throw new PdfException("OpenType CFF2 (variable) fonts not supported for {$ctx}");
+        }
+        if (isset($dir['CFF '])) {
+            return OutlineFormat::Cff;
+        }
+        if ($magic === 'OTTO') {
+            throw new PdfException("Invalid OpenType font (OTTO without 'CFF ' table) for {$ctx}");
+        }
+        throw new PdfException("Unsupported font: no 'glyf' or 'CFF ' outline table for {$ctx}");
     }
 
     /**

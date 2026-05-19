@@ -419,14 +419,14 @@ final class DocumentTest extends TestCase
         $pdf->registerFontFamily('Inter', regular: __DIR__ . '/does-not-exist.ttf');
     }
 
-    public function testRegisterFontFamilyRejectsOtfFile(): void
+    public function testRegisterFontFamilyRejectsOttoWithoutCffTable(): void
     {
         $tmp = tempnam(sys_get_temp_dir(), 'phpdf_otf_') . '.otf';
         file_put_contents($tmp, "OTTO\x00\x00\x00\x00more bytes here");
         try {
             $pdf = new Document();
             $this->expectException(PdfException::class);
-            $this->expectExceptionMessage('OTF/CFF fonts not supported');
+            $this->expectExceptionMessage("Invalid OpenType font (OTTO without 'CFF ' table)");
             $pdf->registerFontFamily('Bad', regular: $tmp);
         } finally {
             @unlink($tmp);
@@ -846,5 +846,53 @@ final class DocumentTest extends TestCase
         $pdf = $doc->output();
         self::assertStringStartsWith('%PDF-', $pdf);
         self::assertStringContainsString('/BaseFont', $pdf); // font object still emitted even with no glyphs used
+    }
+
+    public function testOtfFontEmbeddedAsCidFontType0AndDeterministic(): void
+    {
+        if (!is_file(self::FS_DIR . '/IBMPlexSans-Regular.otf')) {
+            self::markTestSkipped('IBM Plex Sans OTF fixture absent');
+        }
+        $build = static function (): string {
+            $doc = new Document(Unit::PT);
+            $doc->registerFontFamily('Plex', regular: self::FS_DIR . '/IBMPlexSans-Regular.otf');
+            $page = $doc->addPage();
+            $page->setFont(Font::custom('Plex'), 14);
+            $page->text(50, 50, 'Hello');
+            return $doc->output();
+        };
+
+        $pdf = $build();
+        self::assertStringContainsString('/Subtype /CIDFontType0', $pdf);
+        self::assertStringContainsString('/Subtype /OpenType', $pdf);
+        self::assertStringContainsString('/FontFile3', $pdf);
+        self::assertStringNotContainsString('/CIDFontType2', $pdf);
+        self::assertDoesNotMatchRegularExpression('#/BaseFont /[A-Z]{6}\+#', $pdf);
+        self::assertSame($pdf, $build());
+    }
+
+    public function testMixedTtfAndOtfDocumentUsesBothPaths(): void
+    {
+        if (
+            !is_file(self::FS_DIR . '/IBMPlexSans-Regular.otf')
+            || !is_file(self::FS_DIR . '/FreeSans.ttf')
+        ) {
+            self::markTestSkipped('TTF or OTF fixture absent');
+        }
+        $doc = new Document(Unit::PT);
+        $doc->registerFontFamily('FS', regular: self::FS_DIR . '/FreeSans.ttf');
+        $doc->registerFontFamily('Plex', regular: self::FS_DIR . '/IBMPlexSans-Regular.otf');
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('FS'), 12);
+        $page->text(50, 50, 'TTF');
+        $page->setFont(Font::custom('Plex'), 12);
+        $page->text(50, 70, 'OTF');
+        $pdf = $doc->output();
+
+        self::assertStringContainsString('/CIDFontType2', $pdf);
+        self::assertStringContainsString('/FontFile2', $pdf);
+        self::assertMatchesRegularExpression('#/BaseFont /[A-Z]{6}\+#', $pdf);
+        self::assertStringContainsString('/CIDFontType0', $pdf);
+        self::assertStringContainsString('/Subtype /OpenType', $pdf);
     }
 }

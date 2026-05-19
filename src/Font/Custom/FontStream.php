@@ -12,8 +12,8 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 /**
  * PDF stream object carrying a custom dictionary plus a verbatim body.
  * /Length is appended at toBytes() time so the dict cannot drift from the
- * actual body size. Used for FontFile2 (compressed TTF bytes with /Length1
- * holding the uncompressed size) and ToUnicode CMap streams.
+ * actual body size. Used for FontFile2 (TTF, /Length1 = raw size), FontFile3 (OpenType/CFF,
+ * no /Length1), and ToUnicode CMap streams.
  *
  * @internal
  */

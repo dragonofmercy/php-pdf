@@ -328,6 +328,35 @@ if (is_file($fontsDir . '/FreeSans.ttf') && is_file($fontsDir . '/FreeSansBold.t
     echo "Skipped page-with-ttf.pdf (FreeSans fixtures absent)\n";
 }
 
+// Fixture: page with custom OTF/CFF (Phase 3c)
+if (is_file($fontsDir . '/IBMPlexSans-Regular.otf') && is_file($fontsDir . '/IBMPlexSans-Bold.otf')) {
+    $doc = new Document(Unit::PT);
+    $doc->registerFontFamily(
+        'Plex',
+        regular: $fontsDir . '/IBMPlexSans-Regular.otf',
+        bold: $fontsDir . '/IBMPlexSans-Bold.otf',
+    );
+
+    $page = $doc->addPage();
+
+    $page->setFont(Font::helvetica(), 11);
+    $page->text(50, 50, 'Standard Helvetica baseline');
+
+    $page->setFont(Font::custom('Plex'), 14);
+    $page->text(50, 80, 'Custom IBM Plex Sans regular');
+
+    $page->setFont(Font::custom('Plex')->bold(), 14);
+    $page->text(50, 110, 'Custom IBM Plex Sans bold');
+
+    $page->setFont(Font::custom('Plex'), 12);
+    $page->text(50, 140, 'Resume cafe naivete oeuvre');
+
+    $doc->save($fixturesDir . '/page-with-otf.pdf');
+    echo "Regenerated page-with-otf.pdf\n";
+} else {
+    echo "Skipped page-with-otf.pdf (IBM Plex Sans OTF fixtures absent)\n";
+}
+
 // Fixture 13: page with header + footer + numbering (Phase 6)
 $doc = new Document(Unit::PT);
 $doc->setMargins(new \DragonOfMercy\PhpPdf\PageMargins(top: 80.0, right: 50.0, bottom: 60.0, left: 50.0));
