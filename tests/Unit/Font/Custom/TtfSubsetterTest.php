@@ -64,7 +64,7 @@ final class TtfSubsetterTest extends TestCase
         $raw = $this->freeSansBytes();
         $sub = TtfSubsetter::subset($raw, $this->smallClosure($raw), 'FreeSans');
         $dir = SfntReader::directory($sub, 'sub');
-        self::assertSame(1, SfntReader::u16($sub, $dir['head']['offset'] + 50));
+        self::assertSame(1, SfntReader::u16($sub, $dir['head']['offset'] + 50)); // head.indexToLocFormat
     }
 
     public function testHeadCheckSumAdjustmentIsValid(): void

@@ -22,6 +22,7 @@ final class TtfSubsetter
 {
     private const int HEAD_CHECKSUM_ADJUSTMENT_OFFSET = 8;
     private const int HEAD_INDEX_TO_LOC_FORMAT_OFFSET = 50;
+    private const int MAXP_NUM_GLYPHS_OFFSET = 4;
 
     /** @var list<string> */
     private const array KEEP = ['OS/2', 'cmap', 'hhea', 'hmtx', 'maxp', 'name', 'post'];
@@ -39,7 +40,7 @@ final class TtfSubsetter
         }
 
         $indexToLocFormat = SfntReader::u16($ttf, $dir['head']['offset'] + self::HEAD_INDEX_TO_LOC_FORMAT_OFFSET);
-        $numGlyphs = SfntReader::u16($ttf, $dir['maxp']['offset'] + 4);
+        $numGlyphs = SfntReader::u16($ttf, $dir['maxp']['offset'] + self::MAXP_NUM_GLYPHS_OFFSET);
         $origLoca = SfntReader::loca($ttf, $dir['loca']['offset'], $indexToLocFormat, $numGlyphs);
         $glyfBase = $dir['glyf']['offset'];
 
@@ -93,6 +94,7 @@ final class TtfSubsetter
 
         $headerSize = 12 + $numTables * 16;
         $running = $headerSize;
+        $headOffset = 0;
         $directory = '';
         $body = '';
         foreach ($tables as $tag => $data) {
@@ -102,26 +104,20 @@ final class TtfSubsetter
                 . pack('N', self::checksum($padded))
                 . pack('N', $running)
                 . pack('N', strlen($data));
+            if ($tag === 'head') {
+                $headOffset = $running;
+            }
             $body .= $padded;
             $running += strlen($padded);
         }
 
         $file = $offsetTable . $directory . $body;
 
-        $tagIndex = 0;
-        foreach (array_keys($tables) as $tag) {
-            if ($tag === 'head') {
-                break;
-            }
-            $tagIndex++;
-        }
-        $headOffsetInFile = SfntReader::u32($file, 12 + $tagIndex * 16 + 8);
-
         $adjustment = (0xB1B0AFBA - self::checksum($file)) & 0xFFFFFFFF;
         return substr_replace(
             $file,
             pack('N', $adjustment),
-            $headOffsetInFile + self::HEAD_CHECKSUM_ADJUSTMENT_OFFSET,
+            $headOffset + self::HEAD_CHECKSUM_ADJUSTMENT_OFFSET,
             4,
         );
     }
