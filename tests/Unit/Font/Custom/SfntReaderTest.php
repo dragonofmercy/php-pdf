@@ -33,4 +33,12 @@ final class SfntReaderTest extends TestCase
         $locaLong = pack('N4', 0, 12, 40, 40);
         self::assertSame([0, 12, 40, 40], SfntReader::loca($locaLong, 0, 1, 3));
     }
+
+    public function testTruncatedDirectoryThrows(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('sfnt table directory truncated in ctx');
+        // numTables = 5 but no directory bytes follow
+        SfntReader::directory("\x00\x01\x00\x00" . "\x00\x05" . "\x00\x00\x00\x00", 'ctx');
+    }
 }

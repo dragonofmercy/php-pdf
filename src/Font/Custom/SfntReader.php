@@ -45,6 +45,9 @@ final class SfntReader
     public static function directory(string $bytes, string $ctx): array
     {
         $numTables = self::u16($bytes, 4);
+        if (strlen($bytes) < 12 + $numTables * 16) {
+            throw new PdfException("sfnt table directory truncated in {$ctx}");
+        }
         $dir = [];
         for ($i = 0; $i < $numTables; $i++) {
             $rec = 12 + $i * 16;
