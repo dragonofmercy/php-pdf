@@ -33,18 +33,19 @@ final class CompositeFontEmitter
      */
     public function emit(
         ParsedTtf $font,
+        SubsettedFont $subset,
         int $type0Id,
         int $cidFontId,
         int $descriptorId,
         int $fontFileId,
         int $toUnicodeId,
     ): array {
-        $baseFont = Name::of($font->postScriptName);
+        $baseFont = Name::of($subset->prefixedPostScriptName);
 
         $type0 = $this->buildType0($baseFont, $cidFontId, $toUnicodeId);
         $cidFont = $this->buildCidFont($font, $baseFont, $descriptorId);
         $descriptor = $this->buildDescriptor($font, $baseFont, $fontFileId);
-        $fontFile = $this->buildFontFile($font);
+        $fontFile = $this->buildFontFile($subset);
         $toUnicode = $this->buildToUnicode($font);
 
         return [
@@ -114,14 +115,14 @@ final class CompositeFontEmitter
             ->withEntry(Name::of('FontFile2'), PdfReference::to($fontFileId, 0));
     }
 
-    private function buildFontFile(ParsedTtf $font): FontStream
+    private function buildFontFile(SubsettedFont $subset): FontStream
     {
-        $compressed = gzcompress($font->bytes, 9);
+        $compressed = gzcompress($subset->subsettedBytes, 9);
         if ($compressed === false) {
             throw new PdfException('FlateDecode compression failed for FontFile2');
         }
         $dict = Dictionary::empty()
-            ->withEntry(Name::of('Length1'), PdfNumber::ofInt(strlen($font->bytes)))
+            ->withEntry(Name::of('Length1'), PdfNumber::ofInt(strlen($subset->subsettedBytes)))
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
         return new FontStream($dict, $compressed);
     }

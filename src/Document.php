@@ -21,6 +21,7 @@ use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\SubsettedFont;
 use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
@@ -788,7 +789,9 @@ final class Document
         if ($customEmissions !== []) {
             $emitter = new CompositeFontEmitter();
             foreach ($customEmissions as [$parsed, $t0, $cf, $desc, $ff, $tu]) {
-                $emitted = $emitter->emit($parsed, $t0, $cf, $desc, $ff, $tu);
+                // TODO(Task 8): replace this placeholder with real TtfSubsetter output
+                $subset = new SubsettedFont($parsed->bytes, $parsed->postScriptName);
+                $emitted = $emitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
                 $objects[] = $emitted['type0'];
                 $objects[] = $emitted['cidFont'];
                 $objects[] = $emitted['descriptor'];
