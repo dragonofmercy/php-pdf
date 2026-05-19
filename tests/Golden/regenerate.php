@@ -427,3 +427,13 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-code93.pdf');
 echo "Regenerated barcode-code93.pdf\n";
+
+// Fixture: ITF barcode (extra 1D pack)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Itf::of('12345670'),
+    x: 20.0, y: 20.0, w: 60.0, h: 20.0,
+);
+$doc->save($fixturesDir . '/barcode-itf.pdf');
+echo "Regenerated barcode-itf.pdf\n";
