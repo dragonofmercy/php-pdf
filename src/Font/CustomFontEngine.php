@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Font;
 
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
+use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\Custom\Utf8;
 use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
@@ -25,6 +26,7 @@ final readonly class CustomFontEngine implements FontEngine
     public function __construct(
         private Font $font,
         private ParsedTtf $ttf,
+        private GlyphUsage $glyphUsage,
     ) {
         $this->key = new CustomFontKey($font->requireCustomAlias(), $ttf->postScriptName);
     }
@@ -59,6 +61,10 @@ final readonly class CustomFontEngine implements FontEngine
 
     private function encodeHex(string $text): string
     {
+        foreach (Utf8::codepoints($text) as [$cp, $_]) {
+            $gid = $cp >= 0 ? ($this->ttf->cmap[$cp] ?? 0) : 0;
+            $this->glyphUsage->record($this->usageKey(), $gid);
+        }
         return strtoupper(bin2hex(Utf8ToCidEncoder::encode($text, $this->ttf)));
     }
 

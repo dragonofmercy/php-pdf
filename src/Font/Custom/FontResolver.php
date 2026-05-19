@@ -39,6 +39,7 @@ final class FontResolver
     public function __construct(
         private readonly array $registrations,
         private readonly ?MetricsRegistry $metricsRegistry = null,
+        private readonly ?GlyphUsage $glyphUsage = null,
     ) {}
 
     public function resolve(Font $font): ParsedTtf
@@ -75,7 +76,12 @@ final class FontResolver
         }
 
         if ($font->isCustom()) {
-            $engine = new CustomFontEngine($font, $this->resolve($font));
+            if ($this->glyphUsage === null) {
+                throw new LogicException(
+                    'FontResolver::resolveEngine() needs a GlyphUsage to build a CustomFontEngine',
+                );
+            }
+            $engine = new CustomFontEngine($font, $this->resolve($font), $this->glyphUsage);
         } else {
             if ($this->metricsRegistry === null) {
                 throw new LogicException(

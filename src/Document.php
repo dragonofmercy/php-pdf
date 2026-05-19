@@ -148,7 +148,7 @@ final class Document
             'italic' => $italicParsed,
             'boldItalic' => $boldItalicParsed,
         ];
-        $this->fontResolver = new FontResolver($this->customFontFamilies, $this->metricsRegistry);
+        $this->fontResolver = new FontResolver($this->customFontFamilies, $this->metricsRegistry, new \DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage()); // TODO(Task 8): use the Document-owned GlyphUsage instance
         return $this;
     }
 
