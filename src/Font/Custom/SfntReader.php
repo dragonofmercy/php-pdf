@@ -15,6 +15,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  */
 final class SfntReader
 {
+    public const int HEAD_INDEX_TO_LOC_FORMAT_OFFSET = 50;
+    public const int MAXP_NUM_GLYPHS_OFFSET = 4;
+
     public static function u16(string $bytes, int $offset): int
     {
         $u = unpack('nv', substr($bytes, $offset, 2));
@@ -61,6 +64,41 @@ final class SfntReader
             throw new PdfException("Empty sfnt table directory in {$ctx}");
         }
         return $dir;
+    }
+
+    /**
+     * Validates the tables required to walk/rebuild glyf, then resolves the
+     * directory, loca offsets, numGlyphs and glyf base in one pass. Shared by
+     * GlyphClosure (closure walk) and TtfSubsetter (subset rebuild) so the
+     * required-table contract and the head/maxp field offsets live in one place.
+     *
+     * @return array{
+     *     dir: array<string, array{offset: int, length: int}>,
+     *     indexToLocFormat: int,
+     *     numGlyphs: int,
+     *     loca: list<int>,
+     *     glyfBase: int,
+     * }
+     */
+    public static function glyfTables(string $ttf, string $context): array
+    {
+        $dir = self::directory($ttf, $context);
+        foreach (['glyf', 'loca', 'head', 'maxp'] as $req) {
+            if (!isset($dir[$req])) {
+                throw new PdfException("Cannot subset font '{$context}': missing required '{$req}' table");
+            }
+        }
+
+        $indexToLocFormat = self::u16($ttf, $dir['head']['offset'] + self::HEAD_INDEX_TO_LOC_FORMAT_OFFSET);
+        $numGlyphs = self::u16($ttf, $dir['maxp']['offset'] + self::MAXP_NUM_GLYPHS_OFFSET);
+
+        return [
+            'dir' => $dir,
+            'indexToLocFormat' => $indexToLocFormat,
+            'numGlyphs' => $numGlyphs,
+            'loca' => self::loca($ttf, $dir['loca']['offset'], $indexToLocFormat, $numGlyphs),
+            'glyfBase' => $dir['glyf']['offset'],
+        ];
     }
 
     /**

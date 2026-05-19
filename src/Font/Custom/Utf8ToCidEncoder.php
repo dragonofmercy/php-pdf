@@ -18,11 +18,27 @@ final class Utf8ToCidEncoder
 {
     public static function encode(string $utf8, ParsedTtf $font): string
     {
+        [$bytes] = self::encodeWithGids($utf8, $font);
+        return $bytes;
+    }
+
+    /**
+     * Single authoritative pass: returns the Identity-H byte string together
+     * with the GID sequence that produced it, so a caller needing both (subset
+     * glyph recording) does not decode the UTF-8 a second time and cannot drift
+     * from the cmap-lookup policy used here.
+     *
+     * @return array{string, list<int>}
+     */
+    public static function encodeWithGids(string $utf8, ParsedTtf $font): array
+    {
         $output = '';
+        $gids = [];
         foreach (Utf8::codepoints($utf8) as [$cp, $_]) {
             $gid = $cp >= 0 ? ($font->cmap[$cp] ?? 0) : 0;
+            $gids[] = $gid;
             $output .= chr(($gid >> 8) & 0xFF) . chr($gid & 0xFF);
         }
-        return $output;
+        return [$output, $gids];
     }
 }

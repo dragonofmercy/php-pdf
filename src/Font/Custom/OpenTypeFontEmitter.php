@@ -4,14 +4,9 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Font\Custom;
 
-use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 
 /**
  * Assembles the five PDF objects to embed one whole OpenType/CFF font as a
@@ -25,13 +20,27 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
  *   - ToUnicode CMap stream (FlateDecode-compressed)
  *
  * The whole sfnt is embedded verbatim (no subsetting); BaseFont carries no
- * subset prefix. Em-space metrics are scaled to PDF's 1000-unit em via
- * round(v * 1000 / unitsPerEm), identical to the TrueType emitter.
+ * subset prefix.
  *
  * @internal
  */
-final class OpenTypeFontEmitter
+final class OpenTypeFontEmitter extends AbstractCompositeFontEmitter
 {
+    protected function cidFontSubtype(): string
+    {
+        return 'CIDFontType0';
+    }
+
+    protected function hasCidToGidMap(): bool
+    {
+        return false;
+    }
+
+    protected function fontFileKey(): string
+    {
+        return 'FontFile3';
+    }
+
     /**
      * @return array{type0: IndirectObject, cidFont: IndirectObject, descriptor: IndirectObject, fontFile: IndirectObject, toUnicode: IndirectObject}
      */
@@ -45,99 +54,20 @@ final class OpenTypeFontEmitter
     ): array {
         $baseFont = Name::of($font->postScriptName);
 
-        $type0 = $this->buildType0($baseFont, $cidFontId, $toUnicodeId);
-        $cidFont = $this->buildCidFont($font, $baseFont, $descriptorId);
-        $descriptor = $this->buildDescriptor($font, $baseFont, $fontFileId);
-        $fontFile = $this->buildFontFile($font);
-        $toUnicode = $this->buildToUnicode($font);
-
         return [
-            'type0' => IndirectObject::of($type0Id, 0, $type0),
-            'cidFont' => IndirectObject::of($cidFontId, 0, $cidFont),
-            'descriptor' => IndirectObject::of($descriptorId, 0, $descriptor),
-            'fontFile' => IndirectObject::of($fontFileId, 0, $fontFile),
-            'toUnicode' => IndirectObject::of($toUnicodeId, 0, $toUnicode),
+            'type0' => IndirectObject::of($type0Id, 0, $this->buildType0($baseFont, $cidFontId, $toUnicodeId)),
+            'cidFont' => IndirectObject::of($cidFontId, 0, $this->buildCidFont($font, $baseFont, $descriptorId)),
+            'descriptor' => IndirectObject::of($descriptorId, 0, $this->buildDescriptor($font, $baseFont, $fontFileId)),
+            'fontFile' => IndirectObject::of($fontFileId, 0, $this->buildFontFile($font)),
+            'toUnicode' => IndirectObject::of($toUnicodeId, 0, $this->buildToUnicode($font)),
         ];
-    }
-
-    private function buildType0(Name $baseFont, int $cidFontId, int $toUnicodeId): Dictionary
-    {
-        return Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('Font'))
-            ->withEntry(Name::of('Subtype'), Name::of('Type0'))
-            ->withEntry(Name::of('BaseFont'), $baseFont)
-            ->withEntry(Name::of('Encoding'), Name::of('Identity-H'))
-            ->withEntry(
-                Name::of('DescendantFonts'),
-                PdfArray::of(PdfReference::to($cidFontId, 0)),
-            )
-            ->withEntry(Name::of('ToUnicode'), PdfReference::to($toUnicodeId, 0));
-    }
-
-    private function buildCidFont(ParsedTtf $font, Name $baseFont, int $descriptorId): Dictionary
-    {
-        $cidSystemInfo = Dictionary::empty()
-            ->withEntry(Name::of('Registry'), PdfString::of('Adobe'))
-            ->withEntry(Name::of('Ordering'), PdfString::of('Identity'))
-            ->withEntry(Name::of('Supplement'), PdfNumber::ofInt(0));
-
-        return Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('Font'))
-            ->withEntry(Name::of('Subtype'), Name::of('CIDFontType0'))
-            ->withEntry(Name::of('BaseFont'), $baseFont)
-            ->withEntry(Name::of('CIDSystemInfo'), $cidSystemInfo)
-            ->withEntry(Name::of('FontDescriptor'), PdfReference::to($descriptorId, 0))
-            ->withEntry(Name::of('W'), new WidthsLiteral(CidWidthsArray::generate($font)));
-    }
-
-    private function buildDescriptor(ParsedTtf $font, Name $baseFont, int $fontFileId): Dictionary
-    {
-        $scale = static fn (int $v): int => (int) round($v * 1000.0 / $font->unitsPerEm);
-
-        $bbox = PdfArray::of(
-            PdfNumber::ofInt($scale($font->bbox[0])),
-            PdfNumber::ofInt($scale($font->bbox[1])),
-            PdfNumber::ofInt($scale($font->bbox[2])),
-            PdfNumber::ofInt($scale($font->bbox[3])),
-        );
-
-        $stemV = 50 + (int) round((($font->weight - 400) ** 2) / 1000.0);
-        $italicAngle = $font->italicAngle >> 16;
-
-        return Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('FontDescriptor'))
-            ->withEntry(Name::of('FontName'), $baseFont)
-            ->withEntry(Name::of('Flags'), PdfNumber::ofInt($font->flags))
-            ->withEntry(Name::of('FontBBox'), $bbox)
-            ->withEntry(Name::of('ItalicAngle'), PdfNumber::ofInt($italicAngle))
-            ->withEntry(Name::of('Ascent'), PdfNumber::ofInt($scale($font->ascent)))
-            ->withEntry(Name::of('Descent'), PdfNumber::ofInt($scale($font->descent)))
-            ->withEntry(Name::of('CapHeight'), PdfNumber::ofInt($scale($font->capHeight)))
-            ->withEntry(Name::of('StemV'), PdfNumber::ofInt($stemV))
-            ->withEntry(Name::of('FontFile3'), PdfReference::to($fontFileId, 0));
     }
 
     private function buildFontFile(ParsedTtf $font): FontStream
     {
-        $compressed = gzcompress($font->bytes, 9);
-        if ($compressed === false) {
-            throw new PdfException('FlateDecode compression failed for FontFile3');
-        }
         $dict = Dictionary::empty()
             ->withEntry(Name::of('Subtype'), Name::of('OpenType'))
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
-        return new FontStream($dict, $compressed);
-    }
-
-    private function buildToUnicode(ParsedTtf $font): FontStream
-    {
-        $cmap = ToUnicodeCMap::generate($font);
-        $compressed = gzcompress($cmap, 9);
-        if ($compressed === false) {
-            throw new PdfException('FlateDecode compression failed for ToUnicode CMap');
-        }
-        $dict = Dictionary::empty()
-            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
-        return new FontStream($dict, $compressed);
+        return new FontStream($dict, $this->deflate($font->bytes, 'FontFile3'));
     }
 }

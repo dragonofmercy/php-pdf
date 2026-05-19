@@ -103,31 +103,21 @@ final readonly class Font
 
     private function composeName(string $base, string $boldSuffix, string $italicSuffix): string
     {
-        if (!$this->bold && !$this->italic) {
-            return $base;
-        }
-        if ($this->bold && !$this->italic) {
-            return $base . '-' . $boldSuffix;
-        }
-        if (!$this->bold) {
-            // italic-only: the bold+!italic and !bold+!italic cases returned above.
-            return $base . '-' . $italicSuffix;
-        }
-        return $base . '-' . $boldSuffix . $italicSuffix;
+        return match (true) {
+            $this->bold && $this->italic => $base . '-' . $boldSuffix . $italicSuffix,
+            $this->bold => $base . '-' . $boldSuffix,
+            $this->italic => $base . '-' . $italicSuffix,
+            default => $base,
+        };
     }
 
     private function timesName(): string
     {
-        if (!$this->bold && !$this->italic) {
-            return 'Times-Roman';
-        }
-        if ($this->bold && !$this->italic) {
-            return 'Times-Bold';
-        }
-        if (!$this->bold) {
-            // italic-only: the bold+!italic and !bold+!italic cases returned above.
-            return 'Times-Italic';
-        }
-        return 'Times-BoldItalic';
+        return match (true) {
+            $this->bold && $this->italic => 'Times-BoldItalic',
+            $this->bold => 'Times-Bold',
+            $this->italic => 'Times-Italic',
+            default => 'Times-Roman',
+        };
     }
 }

@@ -29,17 +29,7 @@ final class GlyphClosure
      */
     public static function expand(string $ttf, array $usedGids, string $context): array
     {
-        $dir = SfntReader::directory($ttf, $context);
-        foreach (['glyf', 'loca', 'head', 'maxp'] as $req) {
-            if (!isset($dir[$req])) {
-                throw new PdfException("Cannot subset font '{$context}': missing required '{$req}' table");
-            }
-        }
-
-        $indexToLocFormat = SfntReader::u16($ttf, $dir['head']['offset'] + 50);
-        $numGlyphs = SfntReader::u16($ttf, $dir['maxp']['offset'] + 4);
-        $loca = SfntReader::loca($ttf, $dir['loca']['offset'], $indexToLocFormat, $numGlyphs);
-        $glyfBase = $dir['glyf']['offset'];
+        ['numGlyphs' => $numGlyphs, 'loca' => $loca, 'glyfBase' => $glyfBase] = SfntReader::glyfTables($ttf, $context);
 
         $result = [];
         $stack = array_keys($usedGids);

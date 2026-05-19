@@ -61,14 +61,12 @@ final readonly class CustomFontEngine implements FontEngine
 
     private function encodeHex(string $text): string
     {
-        // GID derivation must mirror Utf8ToCidEncoder::encode() exactly so the recorded
-        // GID set matches the bytes emitted. Update both sites together if the cmap
-        // lookup policy changes.
-        foreach (Utf8::codepoints($text) as [$cp, $_]) {
-            $gid = $cp >= 0 ? ($this->ttf->cmap[$cp] ?? 0) : 0;
-            $this->glyphUsage->record($this->usageKey(), $gid);
+        [$bytes, $gids] = Utf8ToCidEncoder::encodeWithGids($text, $this->ttf);
+        $usageKey = $this->usageKey();
+        foreach ($gids as $gid) {
+            $this->glyphUsage->record($usageKey, $gid);
         }
-        return strtoupper(bin2hex(Utf8ToCidEncoder::encode($text, $this->ttf)));
+        return strtoupper(bin2hex($bytes));
     }
 
     public function splitForceBreak(string $token, float $innerW, float $size): array

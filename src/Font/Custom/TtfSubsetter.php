@@ -21,8 +21,6 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 final class TtfSubsetter
 {
     private const int HEAD_CHECKSUM_ADJUSTMENT_OFFSET = 8;
-    private const int HEAD_INDEX_TO_LOC_FORMAT_OFFSET = 50;
-    private const int MAXP_NUM_GLYPHS_OFFSET = 4;
 
     /** @var list<string> */
     private const array KEEP = ['OS/2', 'cmap', 'hhea', 'hmtx', 'maxp', 'name', 'post'];
@@ -32,18 +30,8 @@ final class TtfSubsetter
      */
     public static function subset(string $ttf, array $closure, string $context): string
     {
-        $dir = SfntReader::directory($ttf, $context);
-        // head (indexToLocFormat patch) and maxp (numGlyphs) are required to rebuild loca, not just glyf/loca themselves.
-        foreach (['glyf', 'loca', 'head', 'maxp'] as $req) {
-            if (!isset($dir[$req])) {
-                throw new PdfException("Cannot subset font '{$context}': missing required '{$req}' table");
-            }
-        }
-
-        $indexToLocFormat = SfntReader::u16($ttf, $dir['head']['offset'] + self::HEAD_INDEX_TO_LOC_FORMAT_OFFSET);
-        $numGlyphs = SfntReader::u16($ttf, $dir['maxp']['offset'] + self::MAXP_NUM_GLYPHS_OFFSET);
-        $origLoca = SfntReader::loca($ttf, $dir['loca']['offset'], $indexToLocFormat, $numGlyphs);
-        $glyfBase = $dir['glyf']['offset'];
+        ['dir' => $dir, 'numGlyphs' => $numGlyphs, 'loca' => $origLoca, 'glyfBase' => $glyfBase]
+            = SfntReader::glyfTables($ttf, $context);
 
         $newGlyf = '';
         $newLoca = [];
@@ -69,7 +57,7 @@ final class TtfSubsetter
         }
 
         $head = substr($ttf, $dir['head']['offset'], $dir['head']['length']);
-        $head = substr_replace($head, pack('n', 1), self::HEAD_INDEX_TO_LOC_FORMAT_OFFSET, 2);
+        $head = substr_replace($head, pack('n', 1), SfntReader::HEAD_INDEX_TO_LOC_FORMAT_OFFSET, 2);
         $head = substr_replace($head, "\x00\x00\x00\x00", self::HEAD_CHECKSUM_ADJUSTMENT_OFFSET, 4);
 
         $tables = ['head' => $head, 'glyf' => $newGlyf, 'loca' => $locaBytes];
