@@ -104,8 +104,8 @@ final readonly class Code93 implements Barcode
             $values[] = self::VALUES[$this->data[$i]];
         }
 
-        $values[] = self::weightedCheck($values, 20);
-        $values[] = self::weightedCheck($values, 15);
+        $values[] = self::weightedCheck($values, 20); // C check character (spec max weight 20)
+        $values[] = self::weightedCheck($values, 15); // K check character, weighted over values incl. C (spec max weight 15)
 
         $modules = [];
         self::appendPattern($modules, self::START_STOP);
@@ -113,13 +113,14 @@ final readonly class Code93 implements Barcode
             self::appendPattern($modules, self::PATTERNS[$value]);
         }
         self::appendPattern($modules, self::START_STOP);
-        $modules[] = true;
+        $modules[] = true; // termination bar: single dark module after the stop symbol
         return $modules;
     }
 
     /**
      * Weighted mod-47 checksum: weights cycle 1..$maxWeight from the
-     * right-most value leftward.
+     * right-most value leftward. The modulus 47 is the Code 93 alphabet
+     * size; C uses maxWeight 20 and K uses maxWeight 15 (spec requirement).
      *
      * @param list<int> $values
      */
