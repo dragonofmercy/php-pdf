@@ -535,3 +535,8 @@ $root->add('Chapter 3', \DragonOfMercy\PhpPdf\Outline\Destination::page(2));
 
 $doc->save($fixturesDir . '/page-with-outlines-and-links.pdf');
 echo "Regenerated page-with-outlines-and-links.pdf\n";
+
+// Fixture: page with all 5 AcroForm field types (Phase 8)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\PageWithFormsTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/page-with-forms.pdf');
+echo "Regenerated page-with-forms.pdf\n";
