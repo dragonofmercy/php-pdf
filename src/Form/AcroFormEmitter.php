@@ -36,7 +36,7 @@ final readonly class AcroFormEmitter
      * @param list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $widgets
      * @return array{acroFormRef: PdfReference, objects: list<IndirectObject>}
      */
-    public function emit(array $widgets, int &$nextId, string $context): array
+    public function emit(array $widgets, PdfReference $helveticaRef, int &$nextId, string $context): array
     {
         $this->validateUniqueNames($widgets, $context);
 
@@ -106,9 +106,13 @@ final readonly class AcroFormEmitter
         }
 
         $acroFormId = $nextId++;
+        $drFontDict = Dictionary::empty()->withEntry(Name::of('Helv'), $helveticaRef);
+        $drDict = Dictionary::empty()->withEntry(Name::of('Font'), $drFontDict);
         $acroFormDict = Dictionary::empty()
             ->withEntry(Name::of('Fields'), PdfArray::of(...$topLevelRefs))
-            ->withEntry(Name::of('NeedAppearances'), PdfBoolean::true());
+            ->withEntry(Name::of('NeedAppearances'), PdfBoolean::true())
+            ->withEntry(Name::of('DA'), PdfString::of('0 g /Helv 10 Tf'))
+            ->withEntry(Name::of('DR'), $drDict);
         $objects[] = IndirectObject::of($acroFormId, 0, $acroFormDict);
 
         return [

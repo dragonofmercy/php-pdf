@@ -21,7 +21,7 @@ final class AcroFormEmitterTest extends TestCase
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => $pageRef, 'pageHeightPt' => 841.89]];
 
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         self::assertNotEmpty($emit['objects']);
         $serialized = '';
@@ -39,7 +39,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 50.0, name: 'a', multiline: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -57,7 +57,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 8.0, name: 'a', required: true, readOnly: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -76,7 +76,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 8.0, name: 'a', maxLength: 50);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -90,7 +90,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 8.0, name: 'a', tooltip: 'My tooltip');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -104,7 +104,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(50.0, 100.0, 80.0, 8.0, name: 'a');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 841.89]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -125,7 +125,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 12;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Duplicate field name 'dup'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
     }
 
     public function testEmitCheckboxUnchecked(): void
@@ -133,7 +133,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new Checkbox(50.0, 100.0, 5.0, 5.0, name: 'agree');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 841.89]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -151,7 +151,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new Checkbox(0.0, 0.0, 5.0, 5.0, name: 'a', checked: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -172,7 +172,7 @@ final class AcroFormEmitterTest extends TestCase
             ['field' => $r3, 'widgetRef' => PdfReference::to(12, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
         ];
         $nextId = 13;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -209,7 +209,7 @@ final class AcroFormEmitterTest extends TestCase
             ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
         ];
         $nextId = 12;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -224,7 +224,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['A', 'B', 'C']);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -244,7 +244,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['fr' => 'France', 'ch' => 'Suisse'], value: 'ch');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -259,7 +259,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['x'], editable: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -279,7 +279,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 11;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Combobox value 'zz' not found in options for field 'c'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
     }
 
     public function testEmitListboxSingleValue(): void
@@ -287,7 +287,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b'], value: 'a');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -308,7 +308,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b', 'c'], value: ['a', 'c'], multiSelect: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -329,7 +329,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 11;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Listbox value 'z' not found in options for field 'l'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
     }
 
     public function testEmitListboxRejectsMultipleValuesWhenSingleSelect(): void
@@ -339,6 +339,45 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 11;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Listbox value must be a single string or null when multiSelect is false, got 2 entries for field 'l'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+    }
+
+    public function testAcroFormDictContainsDAAndDRFontHelv(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/DA (0 g /Helv 10 Tf)', $serialized);
+        self::assertStringContainsString('/DR', $serialized);
+        self::assertStringContainsString('/Font', $serialized);
+        self::assertStringContainsString('/Helv', $serialized);
+        self::assertStringContainsString('/NeedAppearances true', $serialized);
+    }
+
+    public function testTwoEmissionsAreDeterministic(): void
+    {
+        $field = new TextField(50.0, 100.0, 80.0, 8.0, name: 'a', value: 'Bob');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+
+        $n1 = 11;
+        $emit1 = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $n1, 'a');
+        $n2 = 11;
+        $emit2 = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $n2, 'a');
+
+        $s1 = '';
+        foreach ($emit1['objects'] as $obj) {
+            $s1 .= $obj->toBytes();
+        }
+        $s2 = '';
+        foreach ($emit2['objects'] as $obj) {
+            $s2 .= $obj->toBytes();
+        }
+        self::assertSame($s1, $s2, 'two emissions of the same input must produce identical bytes');
     }
 }
