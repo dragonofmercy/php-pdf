@@ -134,15 +134,7 @@ final class CffReader
         } else {
             $privOps = $topDict['Private'] ?? null;
             if ($privOps !== null) {
-                if (!is_array($privOps) || count($privOps) !== 2) {
-                    throw new PdfException("CFF Private operator must be [size, offset] for {$context}");
-                }
-                $size = $privOps[0];
-                $offset = $privOps[1];
-                if (!is_int($size) || !is_int($offset)) {
-                    throw new PdfException("CFF Private size/offset must be int for {$context}");
-                }
-                $namePrivate = $this->readPrivateAndSubrs($cffBytes, $offset, $size, $context);
+                $namePrivate = $this->readPrivateAndSubrsFromOperand($cffBytes, $privOps, 'Top DICT', $context);
             }
         }
 
@@ -198,6 +190,29 @@ final class CffReader
         return new CffEncoding(substr($bytes, $offset, $len));
     }
 
+    /**
+     * Validates a Top DICT / Font DICT 'Private' operand (must be [size, offset], both int)
+     * and parses the referenced Private DICT + local Subrs INDEX.
+     *
+     * @param int|float|array<int, int|float> $privOps  raw Private operator value
+     */
+    private function readPrivateAndSubrsFromOperand(
+        string $bytes,
+        int|float|array $privOps,
+        string $label,
+        string $context,
+    ): CffNameKeyedPrivate {
+        if (!is_array($privOps) || count($privOps) !== 2) {
+            throw new PdfException("CFF {$label} Private must be [size, offset] for {$context}");
+        }
+        $size = $privOps[0];
+        $offset = $privOps[1];
+        if (!is_int($size) || !is_int($offset)) {
+            throw new PdfException("CFF {$label} Private size/offset must be int for {$context}");
+        }
+        return $this->readPrivateAndSubrs($bytes, $offset, $size, $context);
+    }
+
     private function readPrivateAndSubrs(string $bytes, int $offset, int $size, string $context): CffNameKeyedPrivate
     {
         if ($offset + $size > strlen($bytes)) {
@@ -233,23 +248,14 @@ final class CffReader
                 throw new PdfException("CFF CID Font DICT #{$i} missing Private operator for {$context}");
             }
             $privOps = $fontDict['Private'];
-            if (!is_array($privOps) || count($privOps) !== 2) {
-                throw new PdfException("CFF Font DICT Private must be [size, offset] for {$context}");
-            }
-            $size = $privOps[0];
-            $offset = $privOps[1];
-            if (!is_int($size) || !is_int($offset)) {
-                throw new PdfException("CFF Font DICT Private size/offset must be int for {$context}");
-            }
-            $fdPrivates[] = $this->readPrivateAndSubrs($bytes, $offset, $size, $context);
+            $fdPrivates[] = $this->readPrivateAndSubrsFromOperand($bytes, $privOps, "Font DICT #{$i}", $context);
         }
-        [$fdSelect, $fdSelectRawBytes] = $this->readFdSelect($bytes, $fdsOffset, $numGlyphs, $context);
-        $format = ord($bytes[$fdsOffset]);
-        return new CffCidKeyed($fontDicts, $fdPrivates, $fdSelect, $format, $fdSelectRawBytes);
+        [$fdSelect, $fdSelectRawBytes, $fdSelectFormat] = $this->readFdSelect($bytes, $fdsOffset, $numGlyphs, $context);
+        return new CffCidKeyed($fontDicts, $fdPrivates, $fdSelect, $fdSelectFormat, $fdSelectRawBytes);
     }
 
     /**
-     * @return array{0: array<int, int>, 1: string} GID -> FD index map plus raw FDSelect bytes
+     * @return array{0: array<int, int>, 1: string, 2: int} GID -> FD index map, raw FDSelect bytes, format
      */
     private function readFdSelect(string $bytes, int $offset, int $numGlyphs, string $context): array
     {
@@ -268,7 +274,7 @@ final class CffReader
                 $map[$g] = ord($bytes[$cursor + $g]);
             }
             $cursor += $numGlyphs;
-            return [$map, substr($bytes, $offset, $cursor - $offset)];
+            return [$map, substr($bytes, $offset, $cursor - $offset), $format];
         }
         if ($format === 3) {
             if ($cursor + 2 > $totalLen) {
@@ -298,7 +304,7 @@ final class CffReader
                     $map[$g] = $fd;
                 }
             }
-            return [$map, substr($bytes, $offset, $cursor - $offset)];
+            return [$map, substr($bytes, $offset, $cursor - $offset), $format];
         }
         throw new PdfException("Unsupported CFF FDSelect format {$format} for {$context}");
     }

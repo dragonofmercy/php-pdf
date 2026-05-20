@@ -459,8 +459,11 @@ final class CffReaderTest extends TestCase
         // FDSelect data
         if ($fdSelectFormat === 0) {
             $fdSelect = "\x00" . str_repeat("\x00", $numGlyphs);
-        } else {
+        } elseif ($fdSelectFormat === 3) {
             $fdSelect = "\x03" . pack('n', 1) . pack('n', 0) . "\x00" . pack('n', $numGlyphs);
+        } else {
+            // Used to build malformed CFFs for negative tests.
+            $fdSelect = chr($fdSelectFormat & 0xFF) . str_repeat("\x00", $numGlyphs);
         }
         // Use placeholder fontDict, derive fda length once.
         $fdaPlaceholder = self::buildIndex([$fontDictBuild(0, 0)]);
@@ -505,13 +508,9 @@ final class CffReaderTest extends TestCase
 
     public function testRejectsUnknownFdSelectFormat(): void
     {
-        $bytes = $this->buildMinimalCidKeyedCff(numGlyphs: 4, fdSelectFormat: 0);
-        // Locate the FDSelect format byte 0x00 (5 bytes from the end: "\x00\x00\x00\x00\x00" = format 0 + 4 GID bytes; no trailing Private)
-        // Patch the format byte to 99 (0x63):
-        $patched = preg_replace('/\x00\x00\x00\x00\x00$/', "\x63\x00\x00\x00\x00", $bytes, 1);
-        self::assertIsString($patched);
+        $bytes = $this->buildMinimalCidKeyedCff(numGlyphs: 4, fdSelectFormat: 99);
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('Unsupported CFF FDSelect format 99');
-        (new CffReader())->read($patched, 'CidFont');
+        (new CffReader())->read($bytes, 'CidFont');
     }
 }
