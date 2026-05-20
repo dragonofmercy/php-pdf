@@ -15,6 +15,7 @@ use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
+use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
@@ -61,6 +62,9 @@ final class Page
 
     /** @var list<LinkAnnotation> Link annotations declared via {@see link()}, emitted by Document. */
     private array $linkAnnotations = [];
+
+    /** @var list<FormField> Form fields declared via {@see field()}, emitted by Document. */
+    private array $formFields = [];
 
     private ?FontEngine $currentFontEngine = null;
 
@@ -900,6 +904,31 @@ final class Page
     public function getLinkAnnotations(): array
     {
         return $this->linkAnnotations;
+    }
+
+    /**
+     * Attaches a form field VO ({@see \DragonOfMercy\PhpPdf\Form\TextField},
+     * {@see \DragonOfMercy\PhpPdf\Form\Checkbox}, {@see \DragonOfMercy\PhpPdf\Form\Radio},
+     * {@see \DragonOfMercy\PhpPdf\Form\Combobox}, {@see \DragonOfMercy\PhpPdf\Form\Listbox})
+     * to this page. Field coordinates and dimensions are already validated
+     * by the VO constructor. The field will be emitted as a PDF widget
+     * annotation and registered in the document's /AcroForm at
+     * Document::output() time.
+     */
+    public function field(FormField $field): self
+    {
+        $this->formFields[] = $field;
+        return $this;
+    }
+
+    /**
+     * @return list<FormField>
+     * @internal Consumed by Document::buildPagesFontsImages() to emit /Annots
+     *           and the /AcroForm dictionary.
+     */
+    public function getFormFields(): array
+    {
+        return $this->formFields;
     }
 
     private static function formatNumber(float $v): string

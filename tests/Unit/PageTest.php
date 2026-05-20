@@ -1307,4 +1307,27 @@ final class PageTest extends TestCase
         $page = $this->page();
         self::assertSame([], $page->getLinkAnnotations());
     }
+
+    public function testFieldStoresFormFieldAndReturnsSelf(): void
+    {
+        $page = (new \DragonOfMercy\PhpPdf\Document())->addPage();
+        $field = new \DragonOfMercy\PhpPdf\Form\TextField(50.0, 100.0, 80.0, 8.0, name: 'a');
+        $result = $page->field($field);
+        self::assertSame($page, $result);
+        self::assertSame([$field], $page->getFormFields());
+    }
+
+    public function testFieldChainsMultipleTypes(): void
+    {
+        $page = (new \DragonOfMercy\PhpPdf\Document())->addPage();
+        $page->field(new \DragonOfMercy\PhpPdf\Form\TextField(50.0, 100.0, 80.0, 8.0, name: 't'))
+            ->field(new \DragonOfMercy\PhpPdf\Form\Checkbox(50.0, 120.0, 5.0, 5.0, name: 'c'));
+        self::assertCount(2, $page->getFormFields());
+    }
+
+    public function testPageWithoutFieldsReturnsEmptyList(): void
+    {
+        $page = (new \DragonOfMercy\PhpPdf\Document())->addPage();
+        self::assertSame([], $page->getFormFields());
+    }
 }
