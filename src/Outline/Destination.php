@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Outline;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Unit;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 
 /**
  * Internal PDF destination (page + position). Used both by outline nodes and
@@ -65,5 +70,54 @@ final readonly class Destination
     public static function fitWidth(int $pageIndex, ?float $top = null): self
     {
         return new self($pageIndex, DestinationFit::FitH, top: $top);
+    }
+
+    /**
+     * Serialises this destination to its PDF on-disk representation
+     * `[pageRef /Variant args...]`. Shared between `OutlineEmitter::emit()`
+     * (outline `/Dest` entry) and `LinkAnnotationEmitter::emit()` (GoTo
+     * action `/D` entry). Resolves `$pageIndex` against `$pageRefs` /
+     * `$pageHeightsPt` (matched 1:1) and applies the Y-flip from top-down
+     * user coords to bottom-up PDF native coords using the target page's
+     * height.
+     *
+     * @param list<PdfReference> $pageRefs
+     * @param list<float>        $pageHeightsPt
+     *
+     * @throws PdfException when `$pageIndex` is outside `[0, count($pageRefs))`
+     */
+    public function toPdfArray(array $pageRefs, array $pageHeightsPt, Unit $unit, string $context): PdfArray
+    {
+        $pageCount = count($pageRefs);
+        if ($this->pageIndex < 0 || $this->pageIndex >= $pageCount) {
+            throw new PdfException(sprintf(
+                'Destination references out-of-bounds page index %d (document has %d page(s)) for %s',
+                $this->pageIndex,
+                $pageCount,
+                $context,
+            ));
+        }
+        $pageRef = $pageRefs[$this->pageIndex];
+        $targetHeightPt = $pageHeightsPt[$this->pageIndex];
+
+        return match ($this->fit) {
+            DestinationFit::Fit => PdfArray::of($pageRef, Name::of('Fit')),
+            DestinationFit::FitH => PdfArray::of(
+                $pageRef,
+                Name::of('FitH'),
+                PdfNumber::ofFloat(
+                    $this->top === null ? $targetHeightPt : $targetHeightPt - $unit->toPoints($this->top),
+                ),
+            ),
+            DestinationFit::Xyz => PdfArray::of(
+                $pageRef,
+                Name::of('XYZ'),
+                PdfNumber::ofFloat($this->left === null ? 0.0 : $unit->toPoints($this->left)),
+                PdfNumber::ofFloat(
+                    $this->top === null ? $targetHeightPt : $targetHeightPt - $unit->toPoints($this->top),
+                ),
+                PdfNumber::ofFloat($this->zoom ?? 0.0),
+            ),
+        };
     }
 }

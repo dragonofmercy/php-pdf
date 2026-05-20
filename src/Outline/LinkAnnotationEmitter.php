@@ -81,9 +81,6 @@ final readonly class LinkAnnotationEmitter
     private function buildAction(Link $link, array $pageRefs, array $pageHeightsPt, string $context): Dictionary
     {
         if ($link->url !== null) {
-            if ($link->url === '') {
-                throw new PdfException("Link URL cannot be empty for {$context}");
-            }
             return Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Action'))
                 ->withEntry(Name::of('S'), Name::of('URI'))
@@ -94,63 +91,9 @@ final readonly class LinkAnnotationEmitter
             throw new PdfException("Link payload has neither URL nor destination for {$context}");
         }
 
-        $dest = $this->buildDestinationArray($link->destination, $pageRefs, $pageHeightsPt, $context);
-
         return Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Action'))
             ->withEntry(Name::of('S'), Name::of('GoTo'))
-            ->withEntry(Name::of('D'), $dest);
-    }
-
-    /**
-     * Builds `[pageRef /Variant args...]`. Shared shape with OutlineEmitter so
-     * the two emitters stay in sync; if drift becomes an issue, extract to a
-     * dedicated `DestinationArrayBuilder`.
-     *
-     * @param list<PdfReference> $pageRefs
-     * @param list<float>        $pageHeightsPt
-     */
-    private function buildDestinationArray(
-        Destination $dest,
-        array $pageRefs,
-        array $pageHeightsPt,
-        string $context,
-    ): PdfArray {
-        $idx = $dest->pageIndex;
-        $pageCount = count($pageRefs);
-        if ($idx < 0 || $idx >= $pageCount) {
-            throw new PdfException(sprintf(
-                'Destination references out-of-bounds page index %d (document has %d page(s)) for %s',
-                $idx,
-                $pageCount,
-                $context,
-            ));
-        }
-        $pageRef = $pageRefs[$idx];
-        $targetHeightPt = $pageHeightsPt[$idx];
-
-        return match ($dest->fit) {
-            DestinationFit::Fit => PdfArray::of($pageRef, Name::of('Fit')),
-            DestinationFit::FitH => PdfArray::of(
-                $pageRef,
-                Name::of('FitH'),
-                PdfNumber::ofFloat(
-                    $dest->top === null
-                        ? $targetHeightPt
-                        : $targetHeightPt - $this->unit->toPoints($dest->top),
-                ),
-            ),
-            DestinationFit::Xyz => PdfArray::of(
-                $pageRef,
-                Name::of('XYZ'),
-                PdfNumber::ofFloat($dest->left === null ? 0.0 : $this->unit->toPoints($dest->left)),
-                PdfNumber::ofFloat(
-                    $dest->top === null
-                        ? $targetHeightPt
-                        : $targetHeightPt - $this->unit->toPoints($dest->top),
-                ),
-                PdfNumber::ofFloat($dest->zoom ?? 0.0),
-            ),
-        };
+            ->withEntry(Name::of('D'), $link->destination->toPdfArray($pageRefs, $pageHeightsPt, $this->unit, $context));
     }
 }

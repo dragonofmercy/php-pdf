@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Outline;
 
-use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
@@ -58,7 +56,7 @@ final readonly class OutlineEmitter
 
         /** @var list<IndirectObject> $objects */
         $objects = [];
-        $this->emitNode($root, $idMap, $countMap, $pageRefs, $pageHeightsPt, $context, $objects);
+        $this->emitNode($root, [], 0, $idMap, $countMap, $pageRefs, $pageHeightsPt, $context, $objects);
 
         $outlinesRef = PdfReference::to($idMap[spl_object_id($root)], 0);
         return ['outlinesRef' => $outlinesRef, 'objects' => $objects];
@@ -89,14 +87,22 @@ final readonly class OutlineEmitter
     }
 
     /**
+     * Emits one IndirectObject for `$node`. Siblings + index are threaded as
+     * parameters so we avoid an O(siblings) `array_search` per node; the
+     * recursive call iterates each parent's children and passes their index
+     * naturally.
+     *
+     * @param list<OutlineNode>    $siblings  parent's children (empty list for the root call)
      * @param array<int, int>      $idMap
      * @param array<int, int>      $countMap
      * @param list<PdfReference>   $pageRefs
      * @param list<float>          $pageHeightsPt
-     * @param list<IndirectObject> $objects (by-ref accumulator)
+     * @param list<IndirectObject> $objects   by-ref accumulator
      */
     private function emitNode(
         OutlineNode $node,
+        array $siblings,
+        int $siblingIndex,
         array $idMap,
         array $countMap,
         array $pageRefs,
@@ -112,43 +118,34 @@ final readonly class OutlineEmitter
         if ($node->isRoot()) {
             $dict = $dict->withEntry(Name::of('Type'), Name::of('Outlines'));
         } else {
+            // OutlineNode::add() guarantees title + destination + parent are all
+            // non-null for non-root nodes; the next three lines narrow the types
+            // for PHPStan and fail loudly if those invariants are ever broken.
             $title = $node->title();
-            if ($title === null) {
-                throw new PdfException("Non-root outline node has null title for {$context}");
-            }
             $destination = $node->destination();
-            if ($destination === null) {
-                throw new PdfException("Non-root outline node has null destination for {$context}");
-            }
             $parent = $node->parent();
-            if ($parent === null) {
-                throw new PdfException("Non-root outline node has null parent for {$context}");
-            }
+            assert($title !== null && $destination !== null && $parent !== null);
+
             $dict = $dict
                 ->withEntry(Name::of('Title'), PdfString::of($title))
                 ->withEntry(Name::of('Parent'), PdfReference::to($idMap[spl_object_id($parent)], 0));
 
-            $siblings = $parent->children();
-            $position = array_search($node, $siblings, true);
-            if ($position === false) {
-                throw new PdfException("Outline node not found in parent's children list for {$context}");
-            }
-            if ($position > 0) {
+            if ($siblingIndex > 0) {
                 $dict = $dict->withEntry(
                     Name::of('Prev'),
-                    PdfReference::to($idMap[spl_object_id($siblings[$position - 1])], 0),
+                    PdfReference::to($idMap[spl_object_id($siblings[$siblingIndex - 1])], 0),
                 );
             }
-            if ($position < count($siblings) - 1) {
+            if ($siblingIndex < count($siblings) - 1) {
                 $dict = $dict->withEntry(
                     Name::of('Next'),
-                    PdfReference::to($idMap[spl_object_id($siblings[$position + 1])], 0),
+                    PdfReference::to($idMap[spl_object_id($siblings[$siblingIndex + 1])], 0),
                 );
             }
 
             $dict = $dict->withEntry(
                 Name::of('Dest'),
-                $this->buildDestinationArray($destination, $pageRefs, $pageHeightsPt, $context),
+                $destination->toPdfArray($pageRefs, $pageHeightsPt, $this->unit, $context),
             );
         }
 
@@ -163,56 +160,8 @@ final readonly class OutlineEmitter
 
         $objects[] = IndirectObject::of($nodeId, 0, $dict);
 
-        foreach ($children as $child) {
-            $this->emitNode($child, $idMap, $countMap, $pageRefs, $pageHeightsPt, $context, $objects);
+        foreach ($children as $i => $child) {
+            $this->emitNode($child, $children, $i, $idMap, $countMap, $pageRefs, $pageHeightsPt, $context, $objects);
         }
-    }
-
-    /**
-     * Mirror of `LinkAnnotationEmitter::buildDestinationArray()`. Kept here as
-     * a private duplicate intentionally - extraction can happen later if the
-     * two diverge in scope. Tests in both emitters lock the expected output.
-     *
-     * @param list<PdfReference> $pageRefs
-     * @param list<float>        $pageHeightsPt
-     */
-    private function buildDestinationArray(
-        Destination $dest,
-        array $pageRefs,
-        array $pageHeightsPt,
-        string $context,
-    ): PdfArray {
-        $idx = $dest->pageIndex;
-        $pageCount = count($pageRefs);
-        if ($idx < 0 || $idx >= $pageCount) {
-            throw new PdfException(sprintf(
-                'Destination references out-of-bounds page index %d (document has %d page(s)) for %s',
-                $idx,
-                $pageCount,
-                $context,
-            ));
-        }
-        $pageRef = $pageRefs[$idx];
-        $targetHeightPt = $pageHeightsPt[$idx];
-
-        return match ($dest->fit) {
-            DestinationFit::Fit => PdfArray::of($pageRef, Name::of('Fit')),
-            DestinationFit::FitH => PdfArray::of(
-                $pageRef,
-                Name::of('FitH'),
-                PdfNumber::ofFloat(
-                    $dest->top === null ? $targetHeightPt : $targetHeightPt - $this->unit->toPoints($dest->top),
-                ),
-            ),
-            DestinationFit::Xyz => PdfArray::of(
-                $pageRef,
-                Name::of('XYZ'),
-                PdfNumber::ofFloat($dest->left === null ? 0.0 : $this->unit->toPoints($dest->left)),
-                PdfNumber::ofFloat(
-                    $dest->top === null ? $targetHeightPt : $targetHeightPt - $this->unit->toPoints($dest->top),
-                ),
-                PdfNumber::ofFloat($dest->zoom ?? 0.0),
-            ),
-        };
     }
 }

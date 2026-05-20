@@ -498,7 +498,7 @@ final class Document
     {
         $pagesRef = PdfReference::to(2, 0);
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
@@ -506,7 +506,7 @@ final class Document
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
 
         $nextObjectNumber = 3 + count($pageAndContentObjects);
-        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $nextObjectNumber);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -534,7 +534,7 @@ final class Document
         $pagesRef = PdfReference::to(2, 0);
         $metadataStreamRef = PdfReference::to(4, 0);
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
@@ -543,7 +543,7 @@ final class Document
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
 
         $nextObjectNumber = 5 + count($pageAndContentObjects);
-        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $nextObjectNumber);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -606,7 +606,7 @@ final class Document
         $metadataObjectNumber = $hasMetadata ? 4 : null;
         $firstPageObjectNumber = $hasMetadata ? 6 : 4;
 
-        [$pageAndContentObjects, $pageRefs] = $this->buildPagesFontsImages(
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt] = $this->buildPagesFontsImages(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
@@ -620,7 +620,7 @@ final class Document
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
 
         $nextObjectNumber = $firstPageObjectNumber + count($pageAndContentObjects);
-        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $nextObjectNumber);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
@@ -694,7 +694,7 @@ final class Document
      *
      * Returns [allObjects, pageRefs].
      *
-     * @return array{list<IndirectObject>, list<PdfReference>}
+     * @return array{list<IndirectObject>, list<PdfReference>, list<float>}
      */
     private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
@@ -711,7 +711,15 @@ final class Document
             $pageRefs[] = PdfReference::to($pageNum, 0);
         }
 
-        $pageHeightsPt = $this->collectPageHeightsPt();
+        /** @var list<float> $pageHeightsPt page heights in points, matched 1:1 with $pageRefs. */
+        $pageHeightsPt = [];
+        $linkAnnotationEmitter = null;
+        foreach ($this->pages as $page) {
+            $pageHeightsPt[] = $page->pageHeight;
+            if ($linkAnnotationEmitter === null && $page->getLinkAnnotations() !== []) {
+                $linkAnnotationEmitter = new LinkAnnotationEmitter($this->unit);
+            }
+        }
 
         $fontRefs = [];
         foreach ($this->fontRegistry->registeredFonts() as $font) {
@@ -801,13 +809,12 @@ final class Document
             $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
 
             $linkAnnotations = $page->getLinkAnnotations();
-            if ($linkAnnotations !== []) {
+            if ($linkAnnotations !== [] && $linkAnnotationEmitter !== null) {
                 $pageContext = sprintf('page object #%d', $pageNum);
-                $emitter = new LinkAnnotationEmitter($this->unit);
                 $annotRefs = [];
                 foreach ($linkAnnotations as $annot) {
                     $annotId = $nextObjectNumber++;
-                    $objects[] = $emitter->emit(
+                    $objects[] = $linkAnnotationEmitter->emit(
                         $annot,
                         $page->pageHeight,
                         $pageRefs,
@@ -891,7 +898,7 @@ final class Document
             }
         }
 
-        return [$objects, $pageRefs];
+        return [$objects, $pageRefs, $pageHeightsPt];
     }
 
     private function resolveTtfByKey(CustomFontKey $key): ParsedTtf
@@ -957,9 +964,10 @@ final class Document
      * nothing for an absent feature.
      *
      * @param  list<PdfReference> $pageRefs
+     * @param  list<float>        $pageHeightsPt
      * @return array{0: Dictionary, 1: list<IndirectObject>}
      */
-    private function withOutlines(Dictionary $catalogDict, array $pageRefs, int &$nextObjectNumber): array
+    private function withOutlines(Dictionary $catalogDict, array $pageRefs, array $pageHeightsPt, int &$nextObjectNumber): array
     {
         if ($this->outlineRoot === null || !$this->outlineRoot->hasChildren()) {
             return [$catalogDict, []];
@@ -968,24 +976,12 @@ final class Document
         $emit = $emitter->emit(
             $this->outlineRoot,
             $pageRefs,
-            $this->collectPageHeightsPt(),
+            $pageHeightsPt,
             $nextObjectNumber,
             'document outline',
         );
         $catalogDict = $catalogDict->withEntry(Name::of('Outlines'), $emit['outlinesRef']);
         return [$catalogDict, $emit['objects']];
-    }
-
-    /**
-     * @return list<float>
-     */
-    private function collectPageHeightsPt(): array
-    {
-        $heights = [];
-        foreach ($this->pages as $page) {
-            $heights[] = $page->pageHeight;
-        }
-        return $heights;
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
