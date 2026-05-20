@@ -128,7 +128,9 @@ final class CffReader
         $namePrivate = null;
         $cidKeyed = null;
         if ($isCidKeyed) {
-            // Filled in Task 5.
+            $fdaOff = $this->requireIntOperator($topDict, 'FDArray', $context);
+            $fdsOff = $this->requireIntOperator($topDict, 'FDSelect', $context);
+            $cidKeyed = $this->readCidKeyedPayload($cffBytes, $fdaOff, $fdsOff, $numGlyphs, $context);
         } else {
             $privOps = $topDict['Private'] ?? null;
             if ($privOps !== null) {
@@ -212,6 +214,93 @@ final class CffReader
             [$localSubrs, ] = $this->readIndex($bytes, $offset + $subrsRel, 'local Subrs', $context);
         }
         return new CffNameKeyedPrivate($privateDict, $localSubrs);
+    }
+
+    private function readCidKeyedPayload(
+        string $bytes,
+        int $fdaOffset,
+        int $fdsOffset,
+        int $numGlyphs,
+        string $context,
+    ): CffCidKeyed {
+        [$fdEntries, ] = $this->readIndex($bytes, $fdaOffset, 'FDArray', $context);
+        $fontDicts = [];
+        $fdPrivates = [];
+        foreach ($fdEntries as $i => $fdBody) {
+            $fontDict = $this->parseDict($fdBody, self::TOP_DICT_OPS, "Font DICT #{$i}", $context);
+            $fontDicts[] = $fontDict;
+            if (!isset($fontDict['Private'])) {
+                throw new PdfException("CFF CID Font DICT #{$i} missing Private operator for {$context}");
+            }
+            $privOps = $fontDict['Private'];
+            if (!is_array($privOps) || count($privOps) !== 2) {
+                throw new PdfException("CFF Font DICT Private must be [size, offset] for {$context}");
+            }
+            $size = $privOps[0];
+            $offset = $privOps[1];
+            if (!is_int($size) || !is_int($offset)) {
+                throw new PdfException("CFF Font DICT Private size/offset must be int for {$context}");
+            }
+            $fdPrivates[] = $this->readPrivateAndSubrs($bytes, $offset, $size, $context);
+        }
+        [$fdSelect, $fdSelectRawBytes] = $this->readFdSelect($bytes, $fdsOffset, $numGlyphs, $context);
+        $format = ord($bytes[$fdsOffset]);
+        return new CffCidKeyed($fontDicts, $fdPrivates, $fdSelect, $format, $fdSelectRawBytes);
+    }
+
+    /**
+     * @return array{0: array<int, int>, 1: string} GID -> FD index map plus raw FDSelect bytes
+     */
+    private function readFdSelect(string $bytes, int $offset, int $numGlyphs, string $context): array
+    {
+        $totalLen = strlen($bytes);
+        if ($offset >= $totalLen) {
+            throw new PdfException("CFF FDSelect offset {$offset} out of bounds for {$context}");
+        }
+        $format = ord($bytes[$offset]);
+        $cursor = $offset + 1;
+        $map = [];
+        if ($format === 0) {
+            if ($cursor + $numGlyphs > $totalLen) {
+                throw new PdfException("CFF FDSelect format 0 truncated for {$context}");
+            }
+            for ($g = 0; $g < $numGlyphs; $g++) {
+                $map[$g] = ord($bytes[$cursor + $g]);
+            }
+            $cursor += $numGlyphs;
+            return [$map, substr($bytes, $offset, $cursor - $offset)];
+        }
+        if ($format === 3) {
+            if ($cursor + 2 > $totalLen) {
+                throw new PdfException("CFF FDSelect format 3 truncated nRanges for {$context}");
+            }
+            $nRanges = (ord($bytes[$cursor]) << 8) | ord($bytes[$cursor + 1]);
+            $cursor += 2;
+            // Need nRanges * 3 bytes for ranges + 2 bytes sentinel
+            if ($cursor + $nRanges * 3 + 2 > $totalLen) {
+                throw new PdfException("CFF FDSelect format 3 truncated ranges for {$context}");
+            }
+            $ranges = [];
+            for ($r = 0; $r < $nRanges; $r++) {
+                $first = (ord($bytes[$cursor]) << 8) | ord($bytes[$cursor + 1]);
+                $fd = ord($bytes[$cursor + 2]);
+                $cursor += 3;
+                $ranges[] = [$first, $fd];
+            }
+            $sentinel = (ord($bytes[$cursor]) << 8) | ord($bytes[$cursor + 1]);
+            $cursor += 2;
+            // Now expand ranges
+            for ($r = 0; $r < $nRanges; $r++) {
+                $first = $ranges[$r][0];
+                $fd = $ranges[$r][1];
+                $nextFirst = ($r + 1 < $nRanges) ? $ranges[$r + 1][0] : $sentinel;
+                for ($g = $first; $g < $nextFirst && $g < $numGlyphs; $g++) {
+                    $map[$g] = $fd;
+                }
+            }
+            return [$map, substr($bytes, $offset, $cursor - $offset)];
+        }
+        throw new PdfException("Unsupported CFF FDSelect format {$format} for {$context}");
     }
 
     /**

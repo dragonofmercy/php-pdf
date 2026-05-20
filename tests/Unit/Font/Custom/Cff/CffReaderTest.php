@@ -424,36 +424,94 @@ final class CffReaderTest extends TestCase
 
     public function testCidKeyedDiscriminationByRosOperator(): void
     {
-        // Build a CID-keyed minimal CFF: same as name-keyed but Top DICT carries
-        // operator ROS (0x0c 0x1e) with operands [registry SID=1, ordering SID=1, supplement=0].
-        // For this read-only test we only need ROS to be present; FDArray/FDSelect
-        // come in Task 5 (the reader populates cidKeyed there). Here we expect
-        // the reader to recognise ROS and defer the cidKeyed payload to Task 5
-        // by leaving cidKeyed null until Task 5 lands - so this test asserts:
-        //   - operator ROS is in topDicts[0]
-        //   - topDictData[0]->namePrivate is null
-        // The cidKeyed assertion lives in Task 5.
+        // Build a CID-keyed minimal CFF (ROS + FDArray + FDSelect). The reader
+        // must recognise ROS, populate cidKeyed, and leave namePrivate null.
+        $bytes = $this->buildMinimalCidKeyedCff(numGlyphs: 4, fdSelectFormat: 0);
+        $cff = (new CffReader())->read($bytes, 'CidFont');
+        self::assertArrayHasKey('ROS', $cff->topDicts[0]);
+        self::assertNull($cff->topDictData[0]->namePrivate);
+        self::assertNotNull($cff->topDictData[0]->cidKeyed);
+    }
+
+    /** Build a minimal CID-keyed CFF with $numGlyphs glyphs, one FD, FDSelect $format (0 or 3). */
+    private function buildMinimalCidKeyedCff(int $numGlyphs, int $fdSelectFormat): string
+    {
         $header = "\x01\x00\x04\x01";
         $nameIndex = self::buildIndex(['CidFont']);
         $stringIndex = "\x00\x00";
         $gsubrsIndex = "\x00\x00";
-        $cs = self::buildIndex(array_fill(0, 4, "\x0e"));
-        $build = static fn (int $charsetOff, int $csOff): string =>
-            "\x8C\x8C\x8B"            // operands 1, 1, 0
-            . "\x0c\x1e"               // operator ROS
-            . "\x1d" . pack('N', $charsetOff) . "\x0f"
-            . "\x1d" . pack('N', $csOff) . "\x11";
-        $topDictIndex = self::buildIndex([$build(0, 0)]);
+        $cs = self::buildIndex(array_fill(0, $numGlyphs, "\x0e"));
+        $charset = "\x00";
+        for ($g = 1; $g < $numGlyphs; $g++) {
+            $charset .= pack('n', $g);
+        }
+        $fdPrivBody = '';
+        $fdPrivSize = 0;
+        $build = static function (int $cset, int $csOff, int $fda, int $fds): string {
+            return "\x8C\x8C\x8B" . "\x0c\x1e"
+                . "\x1d" . pack('N', $cset) . "\x0f"
+                . "\x1d" . pack('N', $csOff) . "\x11"
+                . "\x1d" . pack('N', $fda) . "\x0c\x24"
+                . "\x1d" . pack('N', $fds) . "\x0c\x25";
+        };
+        $fontDictBuild = static fn (int $pSize, int $pOff): string =>
+            self::encodeInt($pSize) . "\x1d" . pack('N', $pOff) . "\x12";
+        // FDSelect data
+        if ($fdSelectFormat === 0) {
+            $fdSelect = "\x00" . str_repeat("\x00", $numGlyphs);
+        } else {
+            $fdSelect = "\x03" . pack('n', 1) . pack('n', 0) . "\x00" . pack('n', $numGlyphs);
+        }
+        // Use placeholder fontDict, derive fda length once.
+        $fdaPlaceholder = self::buildIndex([$fontDictBuild(0, 0)]);
+        $fdaLen = strlen($fdaPlaceholder);
+        // Build with placeholder offsets to fix preamble length
+        $topDictIndexP = self::buildIndex([$build(0, 0, 0, 0)]);
+        $preambleLen = strlen($header . $nameIndex . $topDictIndexP . $stringIndex . $gsubrsIndex);
+        $csetOff = $preambleLen;
+        $csOff = $csetOff + strlen($charset);
+        $fdaOff = $csOff + strlen($cs);
+        $fdsOff = $fdaOff + $fdaLen;
+        $fdPrivOff = $fdsOff + strlen($fdSelect);
+        // final builds (long-form offsets are size-stable -> preamble length identical)
+        $fda = self::buildIndex([$fontDictBuild($fdPrivSize, $fdPrivOff)]);
+        $topDictIndex = self::buildIndex([$build($csetOff, $csOff, $fdaOff, $fdsOff)]);
         $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
-        $charsetOff = strlen($preamble);
-        $charset = "\x00" . pack('n', 1) . pack('n', 2) . pack('n', 3); // format 0
-        $csOff = $charsetOff + strlen($charset);
-        $topDictIndex = self::buildIndex([$build($charsetOff, $csOff)]);
-        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
-        $bytes = $preamble . $charset . $cs;
+        return $preamble . $charset . $cs . $fda . $fdSelect . $fdPrivBody;
+    }
 
+    public function testCidKeyedFdArrayAndFdSelectFormat0Decoded(): void
+    {
+        $bytes = $this->buildMinimalCidKeyedCff(numGlyphs: 4, fdSelectFormat: 0);
         $cff = (new CffReader())->read($bytes, 'CidFont');
-        self::assertArrayHasKey('ROS', $cff->topDicts[0]);
-        self::assertNull($cff->topDictData[0]->namePrivate);
+        $td = $cff->topDictData[0];
+        self::assertNotNull($td->cidKeyed);
+        self::assertNull($td->namePrivate);
+        self::assertCount(1, $td->cidKeyed->fontDicts);
+        self::assertCount(1, $td->cidKeyed->fdPrivates);
+        self::assertSame(0, $td->cidKeyed->fdSelectFormat);
+        self::assertSame([0 => 0, 1 => 0, 2 => 0, 3 => 0], $td->cidKeyed->fdSelect);
+    }
+
+    public function testCidKeyedFdSelectFormat3Decoded(): void
+    {
+        $bytes = $this->buildMinimalCidKeyedCff(numGlyphs: 4, fdSelectFormat: 3);
+        $cff = (new CffReader())->read($bytes, 'CidFont');
+        $td = $cff->topDictData[0];
+        self::assertNotNull($td->cidKeyed);
+        self::assertSame(3, $td->cidKeyed->fdSelectFormat);
+        self::assertSame([0 => 0, 1 => 0, 2 => 0, 3 => 0], $td->cidKeyed->fdSelect);
+    }
+
+    public function testRejectsUnknownFdSelectFormat(): void
+    {
+        $bytes = $this->buildMinimalCidKeyedCff(numGlyphs: 4, fdSelectFormat: 0);
+        // Locate the FDSelect format byte 0x00 (5 bytes from the end: "\x00\x00\x00\x00\x00" = format 0 + 4 GID bytes; no trailing Private)
+        // Patch the format byte to 99 (0x63):
+        $patched = preg_replace('/\x00\x00\x00\x00\x00$/', "\x63\x00\x00\x00\x00", $bytes, 1);
+        self::assertIsString($patched);
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Unsupported CFF FDSelect format 99');
+        (new CffReader())->read($patched, 'CidFont');
     }
 }
