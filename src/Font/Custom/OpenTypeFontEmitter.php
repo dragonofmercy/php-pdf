@@ -46,8 +46,8 @@ final class OpenTypeFontEmitter extends AbstractCompositeFontEmitter
      * @return array{type0: IndirectObject, cidFont: IndirectObject, descriptor: IndirectObject, fontFile: IndirectObject, toUnicode: IndirectObject}
      */
     public function emit(
-        SubsettedFont $subset,
         ParsedTtf $font,
+        SubsettedFont $subset,
         int $type0Id,
         int $cidFontId,
         int $descriptorId,

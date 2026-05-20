@@ -818,7 +818,7 @@ final class Document
                     $subsetBytes = $cffSubsetter->subset($parsed->bytes, $closure, $context);
                     $tag = SubsetTag::derive($context, $sortedGids);
                     $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
-                    $emitted = $otfEmitter->emit($subset, $parsed, $t0, $cf, $desc, $ff, $tu);
+                    $emitted = $otfEmitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
                 } else {
                     // TrueType outlines: GID-preserving subset + derived tag (Phase 3b path).
                     $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
