@@ -17,6 +17,7 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Font\Custom\Cff\CffOpenTypeSubsetter;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
@@ -498,7 +499,8 @@ final class Document
     {
         $pagesRef = PdfReference::to(2, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
+        unset($allWidgets); // consumed in Task 18
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
@@ -534,7 +536,8 @@ final class Document
         $pagesRef = PdfReference::to(2, 0);
         $metadataStreamRef = PdfReference::to(4, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
+        unset($allWidgets); // consumed in Task 18
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
@@ -606,10 +609,11 @@ final class Document
         $metadataObjectNumber = $hasMetadata ? 4 : null;
         $firstPageObjectNumber = $hasMetadata ? 6 : 4;
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt] = $this->buildPagesFontsImages(
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets] = $this->buildPagesFontsImages(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
+        unset($allWidgets); // consumed in Task 18
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
@@ -692,15 +696,18 @@ final class Document
      *
      * All objects share a single numbering starting at $firstObjectNumber.
      *
-     * Returns [allObjects, pageRefs].
+     * Returns [allObjects, pageRefs, pageHeightsPt, allWidgets].
      *
-     * @return array{list<IndirectObject>, list<PdfReference>, list<float>}
+     * @return array{0: list<IndirectObject>, 1: list<PdfReference>, 2: list<float>, 3: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>}
      */
     private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
         $objects = [];
         $pageRefs = [];
         $nextObjectNumber = $firstObjectNumber;
+
+        /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
+        $allWidgets = [];
 
         /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
         $pending = [];
@@ -809,9 +816,11 @@ final class Document
             $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
 
             $linkAnnotations = $page->getLinkAnnotations();
+            $formFields = $page->getFormFields();
+            $annotRefs = [];
+
             if ($linkAnnotations !== [] && $linkAnnotationEmitter !== null) {
                 $pageContext = sprintf('page object #%d', $pageNum);
-                $annotRefs = [];
                 foreach ($linkAnnotations as $annot) {
                     $annotId = $nextObjectNumber++;
                     $objects[] = $linkAnnotationEmitter->emit(
@@ -824,6 +833,34 @@ final class Document
                     );
                     $annotRefs[] = PdfReference::to($annotId, 0);
                 }
+            }
+
+            if ($formFields !== []) {
+                // Resolve THIS page's index in $pageRefs (matches $pending entries by pageNum).
+                $thisPageRefIndex = null;
+                foreach ($pending as $idx => $entry) {
+                    if ($entry[1] === $pageNum) {
+                        $thisPageRefIndex = $idx;
+                        break;
+                    }
+                }
+                if ($thisPageRefIndex === null) {
+                    throw new PdfException('Internal: cannot resolve page index for form fields');
+                }
+                foreach ($formFields as $field) {
+                    $widgetId = $nextObjectNumber++;
+                    $widgetRef = PdfReference::to($widgetId, 0);
+                    $annotRefs[] = $widgetRef;
+                    $allWidgets[] = [
+                        'field' => $field,
+                        'widgetRef' => $widgetRef,
+                        'pageRef' => $pageRefs[$thisPageRefIndex],
+                        'pageHeightPt' => $page->pageHeight,
+                    ];
+                }
+            }
+
+            if ($annotRefs !== []) {
                 $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...$annotRefs));
             }
 
@@ -898,7 +935,7 @@ final class Document
             }
         }
 
-        return [$objects, $pageRefs, $pageHeightsPt];
+        return [$objects, $pageRefs, $pageHeightsPt, $allWidgets];
     }
 
     private function resolveTtfByKey(CustomFontKey $key): ParsedTtf
