@@ -867,7 +867,12 @@ final class DocumentTest extends TestCase
         self::assertStringContainsString('/Subtype /OpenType', $pdf);
         self::assertStringContainsString('/FontFile3', $pdf);
         self::assertStringNotContainsString('/CIDFontType2', $pdf);
-        self::assertDoesNotMatchRegularExpression('#/BaseFont /[A-Z]{6}\+#', $pdf);
+        self::assertMatchesRegularExpression('#/BaseFont /[A-Z]{6}\+IBMPlexSans#', $pdf);
+        self::assertLessThan(
+            filesize(self::FS_DIR . '/IBMPlexSans-Regular.otf'),
+            strlen($pdf),
+            'Subsetted OTF embed should be smaller than the original font file',
+        );
         self::assertSame($pdf, $build());
     }
 

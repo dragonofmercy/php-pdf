@@ -58,6 +58,31 @@ final class PageWithOtfTest extends TestCase
         self::assertStringContainsString('/Subtype /OpenType', $bytes);
     }
 
+    public function testFixtureBaseFontHasSubsetPrefix(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/IBMPlexSans-Regular.otf')) {
+            self::markTestSkipped('IBM Plex Sans OTF fixture absent');
+        }
+        $bytes = $this->buildDocument()->output();
+        self::assertMatchesRegularExpression('#/BaseFont /[A-Z]{6}\+IBMPlexSans#', $bytes);
+    }
+
+    public function testFontFile3StreamIsMuchSmallerThanWholeOtf(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/IBMPlexSans-Regular.otf')) {
+            self::markTestSkipped('IBM Plex Sans OTF fixture absent');
+        }
+        $bytes = $this->buildDocument()->output();
+        $regularSize = filesize(self::FONTS_DIR . '/IBMPlexSans-Regular.otf');
+        $boldSize = filesize(self::FONTS_DIR . '/IBMPlexSans-Bold.otf');
+        self::assertIsInt($regularSize);
+        self::assertIsInt($boldSize);
+        // The PDF embeds both Regular + Bold subsetted. With 30-60 latin glyphs in
+        // each subset plus PDF structure the resulting bytes must be well under
+        // the combined raw OTF size (sanity check that subsetting actually fires).
+        self::assertLessThan((int) (($regularSize + $boldSize) * 0.5), strlen($bytes));
+    }
+
     public function buildDocument(): Document
     {
         $doc = new Document(Unit::PT);

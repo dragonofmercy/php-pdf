@@ -43,6 +43,19 @@ final class SfntReader
     }
 
     /**
+     * Returns the bytes of the requested table (raw, before any padding).
+     * Fail-fast if the table is absent.
+     */
+    public static function extractTable(string $sfnt, string $tag, string $context): string
+    {
+        $dir = self::directory($sfnt, $context);
+        if (!isset($dir[$tag])) {
+            throw new PdfException("Missing '{$tag}' table in sfnt for {$context}");
+        }
+        return substr($sfnt, $dir[$tag]['offset'], $dir[$tag]['length']);
+    }
+
+    /**
      * @return array<string, array{offset: int, length: int}>
      */
     public static function directory(string $bytes, string $ctx): array
