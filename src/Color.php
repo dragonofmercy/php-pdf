@@ -55,9 +55,19 @@ final readonly class Color
     }
 
     /**
+     * Returns the normalized RGB components in 0..1 range.
+     *
+     * @return array{float, float, float}
+     */
+    public function rgbComponents(): array
+    {
+        return [$this->r, $this->g, $this->b];
+    }
+
+    /**
      * Emits a PDF color-setting operator:
-     *   - stroke=false → "r g b rg" or "l g" (fill)
-     *   - stroke=true  → "r g b RG" or "l G" (stroke)
+     *   - stroke=false -> "r g b rg" or "l g" (fill)
+     *   - stroke=true  -> "r g b RG" or "l G" (stroke)
      *
      * @internal
      */
