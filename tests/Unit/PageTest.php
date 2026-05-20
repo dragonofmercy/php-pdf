@@ -1272,4 +1272,39 @@ final class PageTest extends TestCase
         // page() uses pt by default (Page constructor unit default is Unit::PT)
         self::assertSame(1.5, $page->resolveDefaultBorderWidthPt());
     }
+
+    public function testLinkAddsToInternalListAndReturnsSelfForChaining(): void
+    {
+        $page = $this->page();
+        $link1 = \DragonOfMercy\PhpPdf\Outline\Link::url('https://a.example');
+        $link2 = \DragonOfMercy\PhpPdf\Outline\Link::url('https://b.example');
+        $ret = $page->link(10, 20, 30, 12, $link1)->link(10, 40, 30, 12, $link2);
+        self::assertSame($page, $ret);
+        $annots = $page->getLinkAnnotations();
+        self::assertCount(2, $annots);
+        self::assertSame('https://a.example', $annots[0]->link->url);
+        self::assertSame('https://b.example', $annots[1]->link->url);
+    }
+
+    public function testLinkRejectsNonPositiveWidth(): void
+    {
+        $page = $this->page();
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Link annotation width and height must be positive, got w=0 h=12');
+        $page->link(10, 20, 0, 12, \DragonOfMercy\PhpPdf\Outline\Link::url('https://x'));
+    }
+
+    public function testLinkRejectsNonPositiveHeight(): void
+    {
+        $page = $this->page();
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Link annotation width and height must be positive, got w=30 h=-1');
+        $page->link(10, 20, 30, -1, \DragonOfMercy\PhpPdf\Outline\Link::url('https://x'));
+    }
+
+    public function testPageWithoutLinkHasEmptyAnnotationList(): void
+    {
+        $page = $this->page();
+        self::assertSame([], $page->getLinkAnnotations());
+    }
 }

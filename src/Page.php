@@ -16,6 +16,8 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Outline\Link;
+use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
 use DragonOfMercy\PhpPdf\Page\Operators;
@@ -56,6 +58,9 @@ final class Page
 
     /** @var array<string, true> Short names of images this page references */
     private array $imagesUsed = [];
+
+    /** @var list<LinkAnnotation> Link annotations declared via {@see link()}, emitted by Document. */
+    private array $linkAnnotations = [];
 
     private ?FontEngine $currentFontEngine = null;
 
@@ -863,6 +868,46 @@ final class Page
             'capHeight' => $engine->capHeightAt($sizePt),
             'xHeight' => $engine->xHeightAt($sizePt),
         ];
+    }
+
+    /**
+     * Declares a clickable link annotation covering the rectangle `(x, y,
+     * width, height)` in the document's user unit (top-down Y, same as
+     * `cell()` / `text()`). The `Link` payload picks the action:
+     * - `Link::url('https://...')` opens the URL in the user's browser.
+     * - `Link::destination(Destination::page($n))` jumps to another page.
+     *
+     * Coordinates outside the page's MediaBox are accepted as-is (a link can
+     * legally extend beyond the visible area; PDF readers clip silently).
+     */
+    public function link(float $x, float $y, float $width, float $height, Link $link): self
+    {
+        if ($width <= 0 || $height <= 0) {
+            throw new PdfException(sprintf(
+                'Link annotation width and height must be positive, got w=%s h=%s',
+                self::formatNumber($width),
+                self::formatNumber($height),
+            ));
+        }
+        $this->linkAnnotations[] = new LinkAnnotation(x: $x, y: $y, width: $width, height: $height, link: $link);
+        return $this;
+    }
+
+    /**
+     * @return list<LinkAnnotation>
+     * @internal Consumed by Document::buildPagesFontsImages() to emit /Annots.
+     */
+    public function getLinkAnnotations(): array
+    {
+        return $this->linkAnnotations;
+    }
+
+    private static function formatNumber(float $v): string
+    {
+        if ((float) (int) $v === $v) {
+            return (string) (int) $v;
+        }
+        return (string) $v;
     }
 
     private function activeEngine(): FontEngine
