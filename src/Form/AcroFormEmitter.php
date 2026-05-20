@@ -76,6 +76,11 @@ final readonly class AcroFormEmitter
                 $topLevelRefs[] = $w['widgetRef'];
                 continue;
             }
+            if ($field instanceof Combobox) {
+                $objects[] = $this->emitCombobox($field, $w['widgetRef'], $w['pageHeightPt']);
+                $topLevelRefs[] = $w['widgetRef'];
+                continue;
+            }
             throw new PdfException(sprintf(
                 'AcroFormEmitter: unsupported field type %s for %s',
                 $field::class,
@@ -315,6 +320,104 @@ final readonly class AcroFormEmitter
 
         $widgetObj = IndirectObject::of($widgetRef->objectNumber, 0, $dict);
         return [$widgetObj, [$onObj, $offObj]];
+    }
+
+    private function emitCombobox(Combobox $f, PdfReference $widgetRef, float $pageHeightPt): IndirectObject
+    {
+        $flags = 1 << 17; // bit 18 Combo
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+        if ($f->editable) {
+            $flags |= 1 << 18;
+        }
+
+        $normalized = self::normalizeOptions($f->options);
+
+        if ($f->value !== null && !self::optionsContainExport($normalized, $f->value)) {
+            throw new PdfException(sprintf(
+                "Combobox value '%s' not found in options for field '%s'",
+                $f->value,
+                $f->name,
+            ));
+        }
+
+        $dict = $this->baseWidgetDict($f, 'Ch', $widgetRef, $pageHeightPt, $flags)
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('Opt'), self::buildOptArray($normalized));
+
+        if ($f->value !== null) {
+            $dict = $dict->withEntry(Name::of('V'), PdfString::of($f->value));
+            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($f->value));
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    /**
+     * @param list<string>|array<string, string> $options
+     * @return list<array{export: string, label: string, hasDistinctLabel: bool}>
+     */
+    private static function normalizeOptions(array $options): array
+    {
+        $isAssoc = false;
+        foreach ($options as $k => $_) {
+            if (is_string($k)) {
+                $isAssoc = true;
+                break;
+            }
+        }
+        $out = [];
+        foreach ($options as $k => $v) {
+            if ($isAssoc) {
+                $out[] = ['export' => (string) $k, 'label' => $v, 'hasDistinctLabel' => true];
+            } else {
+                $out[] = ['export' => $v, 'label' => $v, 'hasDistinctLabel' => false];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @param list<array{export: string, label: string, hasDistinctLabel: bool}> $normalized
+     */
+    private static function optionsContainExport(array $normalized, string $value): bool
+    {
+        foreach ($normalized as $opt) {
+            if ($opt['export'] === $value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param list<array{export: string, label: string, hasDistinctLabel: bool}> $normalized
+     */
+    private static function buildOptArray(array $normalized): PdfArray
+    {
+        $anyDistinct = false;
+        foreach ($normalized as $opt) {
+            if ($opt['hasDistinctLabel']) {
+                $anyDistinct = true;
+                break;
+            }
+        }
+        $items = [];
+        foreach ($normalized as $opt) {
+            if ($anyDistinct) {
+                $items[] = PdfArray::of(PdfString::of($opt['export']), PdfString::of($opt['label']));
+            } else {
+                $items[] = PdfString::of($opt['label']);
+            }
+        }
+        return PdfArray::of(...$items);
     }
 
     /**

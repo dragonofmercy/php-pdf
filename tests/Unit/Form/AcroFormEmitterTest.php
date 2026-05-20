@@ -218,4 +218,67 @@ final class AcroFormEmitterTest extends TestCase
         self::assertStringContainsString('/T (g1)', $serialized);
         self::assertStringContainsString('/T (g2)', $serialized);
     }
+
+    public function testEmitComboboxListOfStrings(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['A', 'B', 'C']);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/FT /Ch', $serialized);
+        self::assertStringContainsString('/Opt [(A) (B) (C)]', $serialized);
+        // bit 18 Combo (1 << 17 = 131072)
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present');
+        }
+        self::assertSame(131072, ((int) $m[1]) & 131072);
+    }
+
+    public function testEmitComboboxExportMap(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['fr' => 'France', 'ch' => 'Suisse'], value: 'ch');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/Opt [[(fr) (France)] [(ch) (Suisse)]]', $serialized);
+        self::assertStringContainsString('/V (ch)', $serialized);
+    }
+
+    public function testEmitComboboxEditableSetsFlag(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['x'], editable: true);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        // bit 19 Edit (1 << 18 = 262144)
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present');
+        }
+        self::assertSame(262144, ((int) $m[1]) & 262144);
+    }
+
+    public function testEmitComboboxRejectsValueNotInOptions(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['fr' => 'France'], value: 'zz');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Combobox value 'zz' not found in options for field 'c'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+    }
 }
