@@ -496,3 +496,42 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-itf.pdf');
 echo "Regenerated barcode-itf.pdf\n";
+
+// Fixture: page with outlines + hyperlinks (Phase 7)
+$doc = new Document(Unit::PT);
+
+$page1 = $doc->addPage();
+$page1->setFont(Font::helvetica()->bold(), 18);
+$page1->text(50, 60, 'Chapter 1');
+$page1->setFont(Font::helvetica(), 11);
+$page1->text(50, 100, 'Visit https://example.com for the project home page.');
+$page1->link(50, 90, 200, 14, \DragonOfMercy\PhpPdf\Outline\Link::url('https://example.com'));
+$page1->text(50, 140, 'Jump to Chapter 3.');
+$page1->link(50, 130, 200, 14, \DragonOfMercy\PhpPdf\Outline\Link::destination(\DragonOfMercy\PhpPdf\Outline\Destination::page(2)));
+
+$page2 = $doc->addPage();
+$page2->setFont(Font::helvetica()->bold(), 18);
+$page2->text(50, 60, 'Chapter 2');
+$page2->setFont(Font::helvetica(), 11);
+$page2->text(50, 100, 'See Wikipedia for the PDF spec.');
+$page2->link(50, 90, 200, 14, \DragonOfMercy\PhpPdf\Outline\Link::url('https://en.wikipedia.org/wiki/PDF'));
+$page2->text(50, 140, 'Back to Chapter 1.');
+$page2->link(50, 130, 200, 14, \DragonOfMercy\PhpPdf\Outline\Link::destination(\DragonOfMercy\PhpPdf\Outline\Destination::page(0)));
+
+$page3 = $doc->addPage();
+$page3->setFont(Font::helvetica()->bold(), 18);
+$page3->text(50, 60, 'Chapter 3');
+$page3->setFont(Font::helvetica(), 11);
+$page3->text(50, 100, 'Email the maintainer.');
+$page3->link(50, 90, 200, 14, \DragonOfMercy\PhpPdf\Outline\Link::url('mailto:test@example.com'));
+
+$root = $doc->outline();
+$chap1 = $root->add('Chapter 1', \DragonOfMercy\PhpPdf\Outline\Destination::page(0));
+$chap1->add('Section 1.1', \DragonOfMercy\PhpPdf\Outline\Destination::page(0));
+$chap1->add('Section 1.2', \DragonOfMercy\PhpPdf\Outline\Destination::page(0));
+$chap2 = $root->add('Chapter 2', \DragonOfMercy\PhpPdf\Outline\Destination::page(1));
+$chap2->add('Section 2.1', \DragonOfMercy\PhpPdf\Outline\Destination::page(1));
+$root->add('Chapter 3', \DragonOfMercy\PhpPdf\Outline\Destination::page(2));
+
+$doc->save($fixturesDir . '/page-with-outlines-and-links.pdf');
+echo "Regenerated page-with-outlines-and-links.pdf\n";

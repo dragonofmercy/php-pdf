@@ -34,6 +34,7 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
@@ -710,6 +711,8 @@ final class Document
             $pageRefs[] = PdfReference::to($pageNum, 0);
         }
 
+        $pageHeightsPt = $this->collectPageHeightsPt();
+
         $fontRefs = [];
         foreach ($this->fontRegistry->registeredFonts() as $font) {
             $fontNum = $nextObjectNumber++;
@@ -796,6 +799,26 @@ final class Document
                 $resources = $resources->withEntry(Name::of('XObject'), $xObjectDict);
             }
             $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
+
+            $linkAnnotations = $page->getLinkAnnotations();
+            if ($linkAnnotations !== []) {
+                $pageContext = sprintf('page object #%d', $pageNum);
+                $emitter = new LinkAnnotationEmitter($this->unit);
+                $annotRefs = [];
+                foreach ($linkAnnotations as $annot) {
+                    $annotId = $nextObjectNumber++;
+                    $objects[] = $emitter->emit(
+                        $annot,
+                        $page->pageHeight,
+                        $pageRefs,
+                        $pageHeightsPt,
+                        $annotId,
+                        $pageContext,
+                    );
+                    $annotRefs[] = PdfReference::to($annotId, 0);
+                }
+                $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...$annotRefs));
+            }
 
             if ($contentNum !== null) {
                 $pageDict = $pageDict->withEntry(

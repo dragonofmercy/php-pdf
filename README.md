@@ -16,12 +16,13 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Images** - JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
 - **SVG vector images** - inline `<svg>` documents embedded as PDF Form XObjects (vector, infinite zoom). Shapes (rect / circle / ellipse / line / polygon / polyline / path), all path commands (M / L / H / V / C / S / Q / T / A / Z) including arcs (cubic Bezier approximation), transforms (matrix / translate / rotate / scale / skewX / skewY), groups, `<use>` / `<defs>` references with cycle detection, `viewBox` + `preserveAspectRatio` (all 9 alignments x meet/slice), solid fill / stroke with full per-channel and global opacity (via ExtGState), fill rules (nonzero / evenodd), stroke dash patterns. 147 W3C named colors, hex, `rgb()`, `rgba()`. Unsupported features (`<text>`, gradients, filters, masks, patterns) are skipped silently per the SVG fallback spec.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
+- **Outlines & hyperlinks** - hierarchical bookmarks tree (Acrobat Bookmarks panel) and clickable link annotations (URLs + internal GoTo). Declarative API: `$doc->outline()->add('Chapter 1', Destination::page(0))` builds the tree; `$page->link($x, $y, $w, $h, Link::url('https://...'))` declares one clickable rectangle. Internal destinations support XYZ / Fit / FitH variants. Borders are invisible (`/Border [0 0 0]`), pages without `link()` get no `/Annots` (golden byte-identity preserved).
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping -- out of scope.
 - Other 2D barcode formats (DataMatrix, PDF417, Aztec) -- add on demand.
-- Outlines / hyperlinks, form fields, digital signatures, HTML/CSS rendering -- later phases.
+- Form fields, digital signatures, HTML/CSS rendering -- later phases.
 
 ## Installation
 
@@ -107,6 +108,32 @@ OpenAction::actualSize($page);                            // 100% zoom anchored 
 Coordinates use the document's unit and a top-down Y axis (consistent with the rest of the API). They are converted to PDF native (bottom-up, points) at serialisation. Out-of-range page indices throw `PdfException` at output time.
 
 Pass `null` to any setter to clear it. These are hints: Acrobat respects them faithfully, browser viewers (Chrome, Firefox PDF.js) honour some and ignore others, notably full-screen mode.
+
+### Outlines and hyperlinks
+
+A document can declare a navigable bookmarks tree and clickable link annotations.
+
+```php
+use DragonOfMercy\PhpPdf\Outline\{Destination, Link};
+
+$pdf = new Document(Unit::PT);
+$page1 = $pdf->addPage();
+$page1->text(50, 60, 'Chapter 1');
+$page2 = $pdf->addPage();
+$page2->text(50, 60, 'Chapter 2');
+
+// Outline tree (Acrobat Bookmarks panel)
+$root = $pdf->outline();
+$chap1 = $root->add('Chapter 1', Destination::page(0));
+$chap1->add('Section 1.1', Destination::page(0));
+$root->add('Chapter 2', Destination::page(1));
+
+// Clickable links
+$page1->link(50, 100, 200, 14, Link::url('https://example.com'));
+$page1->link(50, 120, 200, 14, Link::destination(Destination::page(1)));
+```
+
+Destinations are 0-indexed pages. `Destination::page($i)` is XYZ at the top-left of the page (the safe default); `Destination::xyz()`, `Destination::fit()` and `Destination::fitWidth()` cover the other supported variants. Coordinates use the document's unit and the top-down Y axis (same as `text()`/`cell()`); the Y-flip to PDF native happens at serialisation. Out-of-range page indices throw `PdfException` at output time.
 
 ### Graphics
 
