@@ -164,24 +164,34 @@ final class CffReader
 
     private function readEncoding(string $bytes, int $offset, string $context): CffEncoding
     {
-        if ($offset >= strlen($bytes)) {
+        $totalLen = strlen($bytes);
+        if ($offset >= $totalLen) {
             throw new PdfException("CFF encoding offset {$offset} out of bounds for {$context}");
         }
         $formatByte = ord($bytes[$offset]);
         $format = $formatByte & 0x7f;
         $hasSup = ($formatByte & 0x80) !== 0;
+        // Read the count byte that follows the format byte (used by format 0 = nCodes and format 1 = nRanges).
+        if ($offset + 1 >= $totalLen) {
+            throw new PdfException("CFF encoding truncated count byte at {$offset} for {$context}");
+        }
+        $countByte = ord($bytes[$offset + 1]);
         if ($format === 0) {
-            $nCodes = ord($bytes[$offset + 1]);
-            $len = 2 + $nCodes;
+            $len = 2 + $countByte;
         } elseif ($format === 1) {
-            $nRanges = ord($bytes[$offset + 1]);
-            $len = 2 + $nRanges * 2;
+            $len = 2 + $countByte * 2;
         } else {
             throw new PdfException("Unsupported CFF encoding format {$format} for {$context}");
         }
         if ($hasSup) {
+            if ($offset + $len >= $totalLen) {
+                throw new PdfException("CFF encoding supplemental count out of bounds for {$context}");
+            }
             $nSups = ord($bytes[$offset + $len]);
             $len += 1 + $nSups * 3;
+        }
+        if ($offset + $len > $totalLen) {
+            throw new PdfException("CFF encoding payload out of bounds for {$context}");
         }
         return new CffEncoding(substr($bytes, $offset, $len));
     }

@@ -297,6 +297,44 @@ final class CffReaderTest extends TestCase
         self::assertSame("\x0e", $cs->glyphs[3]);
     }
 
+    public function testRejectsEncodingTruncatedCountByte(): void
+    {
+        // Build a CFF where the Top DICT carries an Encoding operator (0x10) whose
+        // offset points at the very last byte of the stream. The format byte is
+        // therefore readable but the count byte that immediately follows is past
+        // strlen($bytes), so readEncoding must raise rather than silently treat
+        // the missing byte as a zero count (PHP's ord() on an OOB index returns 0).
+        $header = "\x01\x00\x04\x01";
+        $nameIndex = self::buildIndex(['Plex']);
+        $stringIndex = "\x00\x00";
+        $gsubrsIndex = "\x00\x00";
+        $cs = self::buildIndex(["\x0e"]);
+        $charset = "\x00"; // format 0, 1-glyph (no SID entries needed)
+
+        // The Encoding payload is a single byte 0x00 (format 0, no supplemental, but the
+        // count byte that should follow is absent). The Encoding operand is the absolute
+        // offset where that lone byte sits, which is the last byte of the stream.
+        $encodingPayload = "\x00";
+
+        $buildTopDict = static fn (int $charsetOff, int $csOff, int $encOff): string =>
+            "\x1d" . pack('N', $charsetOff) . "\x0f"
+            . "\x1d" . pack('N', $csOff) . "\x11"
+            . "\x1d" . pack('N', $encOff) . "\x10";
+
+        $topDictIndex = self::buildIndex([$buildTopDict(0, 0, 0)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $charsetOff = strlen($preamble);
+        $csOff = $charsetOff + strlen($charset);
+        $encOff = $csOff + strlen($cs);
+        $topDictIndex = self::buildIndex([$buildTopDict($charsetOff, $csOff, $encOff)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $bytes = $preamble . $charset . $cs . $encodingPayload;
+
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('CFF encoding truncated count byte');
+        (new CffReader())->read($bytes, 'Plex');
+    }
+
     public function testNameKeyedPrivateDictAndSubrsAreDecoded(): void
     {
         // Build a CFF that adds a Private DICT (with one operator BlueValues + Subrs offset)
