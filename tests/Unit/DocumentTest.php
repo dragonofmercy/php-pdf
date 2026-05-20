@@ -952,4 +952,36 @@ final class DocumentTest extends TestCase
         self::assertStringContainsString('/Metadata', $bytes);
         self::assertStringContainsString('/Outlines', $bytes);
     }
+
+    public function testDocumentWithoutFieldsHasNoAcroForm(): void
+    {
+        $doc = new Document();
+        $doc->addPage();
+        $bytes = $doc->output();
+        self::assertStringNotContainsString('/AcroForm', $bytes);
+    }
+
+    public function testDocumentWithTextFieldHasAcroForm(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->field(new \DragonOfMercy\PhpPdf\Form\TextField(50.0, 100.0, 80.0, 8.0, name: 'a'));
+        $bytes = $doc->output();
+        self::assertStringContainsString('/AcroForm ', $bytes);
+        self::assertStringContainsString('/FT /Tx', $bytes);
+        self::assertStringContainsString('/T (a)', $bytes);
+        self::assertStringContainsString('/NeedAppearances true', $bytes);
+    }
+
+    public function testDocumentWithFieldAndLinkMergesAnnots(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 10);
+        $page->field(new \DragonOfMercy\PhpPdf\Form\TextField(50.0, 100.0, 80.0, 8.0, name: 'a'));
+        $page->link(50.0, 200.0, 80.0, 8.0, \DragonOfMercy\PhpPdf\Outline\Link::url('https://example.com'));
+        $bytes = $doc->output();
+        // /Annots should contain at least 2 refs (one for link, one for field)
+        self::assertMatchesRegularExpression('~/Annots \[\d+ 0 R \d+ 0 R\]~', $bytes);
+    }
 }

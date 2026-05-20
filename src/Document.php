@@ -17,6 +17,7 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
 use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Font\Custom\Cff\CffOpenTypeSubsetter;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
@@ -499,12 +500,15 @@ final class Document
     {
         $pagesRef = PdfReference::to(2, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
-        unset($allWidgets); // consumed in Task 18
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
+        unset($allWidgets); // consumed inside buildPagesFontsImages
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
             ->withEntry(Name::of('Pages'), $pagesRef);
+        if ($acroFormRef !== null) {
+            $catalogDict = $catalogDict->withEntry(Name::of('AcroForm'), $acroFormRef);
+        }
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
 
         $nextObjectNumber = 3 + count($pageAndContentObjects);
@@ -536,13 +540,16 @@ final class Document
         $pagesRef = PdfReference::to(2, 0);
         $metadataStreamRef = PdfReference::to(4, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
-        unset($allWidgets); // consumed in Task 18
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
+        unset($allWidgets); // consumed inside buildPagesFontsImages
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
             ->withEntry(Name::of('Pages'), $pagesRef)
             ->withEntry(Name::of('Metadata'), $metadataStreamRef);
+        if ($acroFormRef !== null) {
+            $catalogDict = $catalogDict->withEntry(Name::of('AcroForm'), $acroFormRef);
+        }
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
 
         $nextObjectNumber = 5 + count($pageAndContentObjects);
@@ -609,17 +616,20 @@ final class Document
         $metadataObjectNumber = $hasMetadata ? 4 : null;
         $firstPageObjectNumber = $hasMetadata ? 6 : 4;
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets] = $this->buildPagesFontsImages(
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] = $this->buildPagesFontsImages(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
-        unset($allWidgets); // consumed in Task 18
+        unset($allWidgets); // consumed inside buildPagesFontsImages
 
         $catalogDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
             ->withEntry(Name::of('Pages'), $pagesRef);
         if ($hasMetadata) {
             $catalogDict = $catalogDict->withEntry(Name::of('Metadata'), PdfReference::to(4, 0));
+        }
+        if ($acroFormRef !== null) {
+            $catalogDict = $catalogDict->withEntry(Name::of('AcroForm'), $acroFormRef);
         }
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
 
@@ -696,9 +706,9 @@ final class Document
      *
      * All objects share a single numbering starting at $firstObjectNumber.
      *
-     * Returns [allObjects, pageRefs, pageHeightsPt, allWidgets].
+     * Returns [allObjects, pageRefs, pageHeightsPt, allWidgets, acroFormRef].
      *
-     * @return array{0: list<IndirectObject>, 1: list<PdfReference>, 2: list<float>, 3: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>}
+     * @return array{0: list<IndirectObject>, 1: list<PdfReference>, 2: list<float>, 3: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>, 4: ?PdfReference}
      */
     private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
@@ -708,6 +718,17 @@ final class Document
 
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = [];
+
+        // Pre-register Helvetica if any page has form fields - the /AcroForm
+        // dict needs to reference it via /DR /Font /Helv. Done BEFORE the
+        // fontRefs allocation loop so Helvetica gets a stable object number
+        // even when no page draws text with it.
+        foreach ($this->pages as $p) {
+            if ($p->getFormFields() !== []) {
+                $this->fontRegistry->shortName(Font::helvetica());
+                break;
+            }
+        }
 
         /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
         $pending = [];
@@ -880,6 +901,25 @@ final class Document
             }
         }
 
+        $acroFormRef = null;
+        if ($allWidgets !== []) {
+            // Helvetica was pre-registered at the start of this method whenever
+            // a page declared a form field, so its short name (and therefore
+            // its ref) must exist in $fontRefs.
+            $helveticaShortName = $this->fontRegistry->shortName(Font::helvetica());
+            if (!isset($fontRefs[$helveticaShortName])) {
+                throw new PdfException('Internal: Helvetica not allocated despite form fields being present');
+            }
+            $helveticaRef = $fontRefs[$helveticaShortName];
+
+            $acroEmit = (new AcroFormEmitter($this->unit))
+                ->emit($allWidgets, $helveticaRef, $nextObjectNumber, 'document acroform');
+            $acroFormRef = $acroEmit['acroFormRef'];
+            foreach ($acroEmit['objects'] as $obj) {
+                $objects[] = $obj;
+            }
+        }
+
         foreach ($this->fontRegistry->registeredFonts() as $font) {
             $shortName = $this->fontRegistry->shortName($font);
             $fontRef = $fontRefs[$shortName];
@@ -935,7 +975,7 @@ final class Document
             }
         }
 
-        return [$objects, $pageRefs, $pageHeightsPt, $allWidgets];
+        return [$objects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef];
     }
 
     private function resolveTtfByKey(CustomFontKey $key): ParsedTtf
