@@ -59,6 +59,28 @@ final class CffReader
         0x0c26 => 'FontName',
     ];
 
+    /** Private DICT operators (Adobe TN #5176 Table 23). */
+    private const array PRIVATE_DICT_OPS = [
+        0x06 => 'BlueValues',
+        0x07 => 'OtherBlues',
+        0x08 => 'FamilyBlues',
+        0x09 => 'FamilyOtherBlues',
+        0x0a => 'StdHW',
+        0x0b => 'StdVW',
+        0x13 => 'Subrs',
+        0x14 => 'defaultWidthX',
+        0x15 => 'nominalWidthX',
+        0x0c09 => 'BlueScale',
+        0x0c0a => 'BlueShift',
+        0x0c0b => 'BlueFuzz',
+        0x0c0c => 'StemSnapH',
+        0x0c0d => 'StemSnapV',
+        0x0c0e => 'ForceBold',
+        0x0c11 => 'LanguageGroup',
+        0x0c12 => 'ExpansionFactor',
+        0x0c13 => 'initialRandomSeed',
+    ];
+
     public function read(string $cffBytes, string $context): ParsedCff
     {
         $header = $this->readHeader($cffBytes, $context);
@@ -83,19 +105,51 @@ final class CffReader
         [$gsubrEntries, $cursor] = $this->readIndex($cffBytes, $cursor, 'GSubrs', $context);
 
         $charStringsOffset = $this->requireIntOperator($topDict, 'CharStrings', $context);
-        $numGlyphs = $this->readIndexCount($cffBytes, $charStringsOffset, 'CharStrings', $context);
+        [$csEntries, ] = $this->readIndex($cffBytes, $charStringsOffset, 'CharStrings', $context);
+        $numGlyphs = count($csEntries);
+        $glyphsMap = [];
+        foreach ($csEntries as $gid => $entry) {
+            $glyphsMap[$gid] = $entry;
+        }
 
         $charsetOffset = $this->requireIntOperator($topDict, 'charset', $context);
+        $isCidKeyed = isset($topDict['ROS']);
         $charset = $this->readCharset($cffBytes, $charsetOffset, $numGlyphs, $context);
 
-        // topDictData is partially populated here (charset + numGlyphs); Tasks 4-5
-        // fill the encoding, glyph payload, Private DICT, and CID-keyed branches.
+        $encoding = null;
+        if (!$isCidKeyed && isset($topDict['Encoding'])) {
+            $encodingOff = $topDict['Encoding'];
+            if (!is_int($encodingOff)) {
+                throw new PdfException("CFF Encoding operand must be int for {$context}");
+            }
+            $encoding = $this->readEncoding($cffBytes, $encodingOff, $context);
+        }
+
+        $namePrivate = null;
+        $cidKeyed = null;
+        if ($isCidKeyed) {
+            // Filled in Task 5.
+        } else {
+            $privOps = $topDict['Private'] ?? null;
+            if ($privOps !== null) {
+                if (!is_array($privOps) || count($privOps) !== 2) {
+                    throw new PdfException("CFF Private operator must be [size, offset] for {$context}");
+                }
+                $size = $privOps[0];
+                $offset = $privOps[1];
+                if (!is_int($size) || !is_int($offset)) {
+                    throw new PdfException("CFF Private size/offset must be int for {$context}");
+                }
+                $namePrivate = $this->readPrivateAndSubrs($cffBytes, $offset, $size, $context);
+            }
+        }
+
         $topData = new CffTopDictData(
             charset: $charset,
-            encoding: null,
-            charStrings: new CffCharStrings(glyphs: [], numGlyphs: $numGlyphs),
-            namePrivate: null,
-            cidKeyed: null,
+            encoding: $encoding,
+            charStrings: new CffCharStrings(glyphs: $glyphsMap, numGlyphs: $numGlyphs),
+            namePrivate: $namePrivate,
+            cidKeyed: $cidKeyed,
         );
 
         return new ParsedCff(
@@ -106,6 +160,48 @@ final class CffReader
             gsubrsIndex: $gsubrEntries,
             topDictData: [$topData],
         );
+    }
+
+    private function readEncoding(string $bytes, int $offset, string $context): CffEncoding
+    {
+        if ($offset >= strlen($bytes)) {
+            throw new PdfException("CFF encoding offset {$offset} out of bounds for {$context}");
+        }
+        $formatByte = ord($bytes[$offset]);
+        $format = $formatByte & 0x7f;
+        $hasSup = ($formatByte & 0x80) !== 0;
+        if ($format === 0) {
+            $nCodes = ord($bytes[$offset + 1]);
+            $len = 2 + $nCodes;
+        } elseif ($format === 1) {
+            $nRanges = ord($bytes[$offset + 1]);
+            $len = 2 + $nRanges * 2;
+        } else {
+            throw new PdfException("Unsupported CFF encoding format {$format} for {$context}");
+        }
+        if ($hasSup) {
+            $nSups = ord($bytes[$offset + $len]);
+            $len += 1 + $nSups * 3;
+        }
+        return new CffEncoding(substr($bytes, $offset, $len));
+    }
+
+    private function readPrivateAndSubrs(string $bytes, int $offset, int $size, string $context): CffNameKeyedPrivate
+    {
+        if ($offset + $size > strlen($bytes)) {
+            throw new PdfException("CFF Private DICT out of bounds for {$context}");
+        }
+        $privateBody = substr($bytes, $offset, $size);
+        $privateDict = $this->parseDict($privateBody, self::PRIVATE_DICT_OPS, 'Private DICT', $context);
+        $localSubrs = [];
+        if (isset($privateDict['Subrs'])) {
+            $subrsRel = $privateDict['Subrs'];
+            if (!is_int($subrsRel)) {
+                throw new PdfException("CFF Private Subrs operand must be int for {$context}");
+            }
+            [$localSubrs, ] = $this->readIndex($bytes, $offset + $subrsRel, 'local Subrs', $context);
+        }
+        return new CffNameKeyedPrivate($privateDict, $localSubrs);
     }
 
     /**
@@ -121,14 +217,6 @@ final class CffReader
             throw new PdfException("CFF Top DICT operator '{$name}' must be an integer offset for {$context}");
         }
         return $v;
-    }
-
-    private function readIndexCount(string $bytes, int $offset, string $name, string $context): int
-    {
-        if ($offset < 0 || $offset + 2 > strlen($bytes)) {
-            throw new PdfException("CFF INDEX '{$name}' header truncated for {$context}");
-        }
-        return (ord($bytes[$offset]) << 8) | ord($bytes[$offset + 1]);
     }
 
     private function readCharset(string $bytes, int $offset, int $numGlyphs, string $context): CffCharset

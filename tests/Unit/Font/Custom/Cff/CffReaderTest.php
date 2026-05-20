@@ -285,6 +285,105 @@ final class CffReaderTest extends TestCase
         (new CffReader())->read($bad, 'Plex');
     }
 
+    public function testCharStringsEntriesAreDecoded(): void
+    {
+        $bytes = $this->buildMinimalNameKeyedCff('Plex', numGlyphs: 4, charsetFormat: 0);
+        // Builder fills every entry with single byte 0x0e (endchar).
+        $cff = (new CffReader())->read($bytes, 'Plex');
+        $cs = $cff->topDictData[0]->charStrings;
+        self::assertSame(4, $cs->numGlyphs);
+        self::assertCount(4, $cs->glyphs);
+        self::assertSame("\x0e", $cs->glyphs[0]);
+        self::assertSame("\x0e", $cs->glyphs[3]);
+    }
+
+    public function testNameKeyedPrivateDictAndSubrsAreDecoded(): void
+    {
+        // Build a CFF that adds a Private DICT (with one operator BlueValues + Subrs offset)
+        // and a local Subrs INDEX (1 entry of 1 byte). Layout:
+        //   header | NameINDEX | TopDictINDEX | StringINDEX | GSubrsINDEX | charset | CharStrings | PrivateDICT | LocalSubrs
+        $header = "\x01\x00\x04\x01";
+        $nameIndex = self::buildIndex(['Plex']);
+        $stringIndex = "\x00\x00";
+        $gsubrsIndex = "\x00\x00";
+        $cs = self::buildIndex(array_fill(0, 4, "\x0e"));
+        $charset = "\x00" . pack('n', 1) . pack('n', 2) . pack('n', 3);
+
+        $build = static fn (int $csetOff, int $csOff, int $privSize, int $privOff): string =>
+            "\x1d" . pack('N', $csetOff) . "\x0f"
+            . "\x1d" . pack('N', $csOff) . "\x11"
+            . self::encodeInt($privSize) . "\x1d" . pack('N', $privOff) . "\x12";
+
+        // pass 1 placeholder offsets
+        $topDictIndex = self::buildIndex([$build(0, 0, 0, 0)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $csetOff = strlen($preamble);
+        $csOff = $csetOff + strlen($charset);
+        $privOff = $csOff + strlen($cs);
+        // Private DICT body: BlueValues = delta-encoded [0, 0] (one operand, then operator 6),
+        // Subrs operator (0x13) with operand = relative offset where local Subrs INDEX starts.
+        // We place LocalSubrs right after the Private DICT body; offset is its position
+        // relative to $privOff.
+        $localSubrs = self::buildIndex(["\x0b"]);
+        // Build the private body without Subrs offset first to measure its length, then re-emit.
+        $build2 = static function (int $subrsRel): string {
+            // BlueValues operands [0]: 0 -> single byte 139
+            return "\x8b" . "\x06" . self::encodeInt($subrsRel) . "\x13";
+        };
+        // pass 1 placeholder for Subrs rel offset
+        $privBody1 = $build2(0);
+        $privSize = strlen($privBody1);
+        $subrsRel = $privSize; // local Subrs INDEX immediately after Private body
+        $privBody = $build2($subrsRel);
+
+        // assemble pass 2 with final offsets
+        $topDictIndex = self::buildIndex([$build($csetOff, $csOff, $privSize, $privOff)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $csetOff = strlen($preamble);
+        $csOff = $csetOff + strlen($charset);
+        $privOff = $csOff + strlen($cs);
+        $topDictIndex = self::buildIndex([$build($csetOff, $csOff, $privSize, $privOff)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $bytes = $preamble . $charset . $cs . $privBody . $localSubrs;
+
+        $cff = (new CffReader())->read($bytes, 'Plex');
+        $td = $cff->topDictData[0];
+        self::assertNotNull($td->namePrivate);
+        self::assertArrayHasKey('BlueValues', $td->namePrivate->privateDict);
+        self::assertSame([0], (array) $td->namePrivate->privateDict['BlueValues']);
+        self::assertSame(["\x0b"], $td->namePrivate->localSubrs);
+    }
+
+    public function testPrivateWithoutSubrsHasEmptyLocalSubrs(): void
+    {
+        // Same as above but no Subrs operator in the Private DICT.
+        $header = "\x01\x00\x04\x01";
+        $nameIndex = self::buildIndex(['Plex']);
+        $stringIndex = "\x00\x00";
+        $gsubrsIndex = "\x00\x00";
+        $cs = self::buildIndex(array_fill(0, 4, "\x0e"));
+        $charset = "\x00" . pack('n', 1) . pack('n', 2) . pack('n', 3);
+
+        $privBody = "\x8b" . "\x06"; // BlueValues = [0], no Subrs
+        $privSize = strlen($privBody);
+        $build = static fn (int $a, int $b, int $sz, int $po): string =>
+            "\x1d" . pack('N', $a) . "\x0f"
+            . "\x1d" . pack('N', $b) . "\x11"
+            . self::encodeInt($sz) . "\x1d" . pack('N', $po) . "\x12";
+        $topDictIndex = self::buildIndex([$build(0, 0, $privSize, 0)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $csetOff = strlen($preamble);
+        $csOff = $csetOff + strlen($charset);
+        $privOff = $csOff + strlen($cs);
+        $topDictIndex = self::buildIndex([$build($csetOff, $csOff, $privSize, $privOff)]);
+        $preamble = $header . $nameIndex . $topDictIndex . $stringIndex . $gsubrsIndex;
+        $bytes = $preamble . $charset . $cs . $privBody;
+
+        $cff = (new CffReader())->read($bytes, 'Plex');
+        self::assertNotNull($cff->topDictData[0]->namePrivate);
+        self::assertSame([], $cff->topDictData[0]->namePrivate->localSubrs);
+    }
+
     public function testCidKeyedDiscriminationByRosOperator(): void
     {
         // Build a CID-keyed minimal CFF: same as name-keyed but Top DICT carries
