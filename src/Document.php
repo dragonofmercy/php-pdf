@@ -17,6 +17,7 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\Custom\Cff\CffOpenTypeSubsetter;
 use DragonOfMercy\PhpPdf\Font\Custom\CompositeFontEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
@@ -802,14 +803,24 @@ final class Document
         if ($customEmissions !== []) {
             $ttfEmitter = new CompositeFontEmitter();
             $otfEmitter = new OpenTypeFontEmitter();
+            $cffSubsetter = new CffOpenTypeSubsetter();
             foreach ($customEmissions as [$parsed, $key, $t0, $cf, $desc, $ff, $tu]) {
+                $context = $parsed->postScriptName;
+                $used = $this->glyphUsage->usedGids($key->toRegistryKey());
                 if ($parsed->outlineFormat === OutlineFormat::Cff) {
-                    // CFF outlines: whole-font embed, no subsetting (Identity-H, no subset tag).
-                    $emitted = $otfEmitter->emit($parsed, $t0, $cf, $desc, $ff, $tu);
+                    // CFF outlines: GID-preserving subset of CharStrings INDEX only
+                    // (closure = used GIDs + notdef GID 0). All other CFF tables are
+                    // copied verbatim by CffWriter; FontFile3 carries the rebuilt
+                    // sfnt and BaseFont/FontName get the deterministic subset tag.
+                    $closure = $used + [0 => true];
+                    $sortedGids = array_keys($closure);
+                    sort($sortedGids);
+                    $subsetBytes = $cffSubsetter->subset($parsed->bytes, $closure, $context);
+                    $tag = SubsetTag::derive($context, $sortedGids);
+                    $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
+                    $emitted = $otfEmitter->emit($subset, $parsed, $t0, $cf, $desc, $ff, $tu);
                 } else {
                     // TrueType outlines: GID-preserving subset + derived tag (Phase 3b path).
-                    $context = $parsed->postScriptName;
-                    $used = $this->glyphUsage->usedGids($key->toRegistryKey());
                     $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
                     $sortedGids = array_keys($closure);
                     sort($sortedGids); // makes tag derivation independent of GlyphClosure's internal insertion order
