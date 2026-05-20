@@ -357,6 +357,36 @@ if (is_file($fontsDir . '/IBMPlexSans-Regular.otf') && is_file($fontsDir . '/IBM
     echo "Skipped page-with-otf.pdf (IBM Plex Sans OTF fixtures absent)\n";
 }
 
+// Fixture: page with custom OTF/CFF CID-keyed (Phase 3c.1)
+if (is_file($fontsDir . '/NotoSansCJKsc-Regular.otf')) {
+    $doc = new Document(Unit::PT);
+    $doc->registerFontFamily('Noto', regular: $fontsDir . '/NotoSansCJKsc-Regular.otf');
+
+    $page = $doc->addPage();
+
+    $page->setFont(Font::helvetica(), 11);
+    $page->text(50, 50, 'Phase 3c.1 CJK subsetting demo');
+
+    $page->setFont(Font::custom('Noto'), 16);
+    $page->text(50, 90, "\u{4E2D}\u{56FD} PDF \u{30C6}\u{30B9}\u{30C8} \u{D55C}\u{AE00}");
+
+    $doc->save($fixturesDir . '/page-with-otf-cjk.pdf');
+    $cjkSize = filesize($fixturesDir . '/page-with-otf-cjk.pdf');
+    $otfSize = filesize($fontsDir . '/NotoSansCJKsc-Regular.otf');
+    if ($cjkSize !== false && $otfSize !== false) {
+        echo sprintf(
+            "Regenerated page-with-otf-cjk.pdf (%d bytes, %.2f%% of %d-byte source OTF)\n",
+            $cjkSize,
+            ($cjkSize / $otfSize) * 100,
+            $otfSize,
+        );
+    } else {
+        echo "Regenerated page-with-otf-cjk.pdf\n";
+    }
+} else {
+    echo "Skipped page-with-otf-cjk.pdf (Noto Sans CJK SC fixture absent)\n";
+}
+
 // Fixture 13: page with header + footer + numbering (Phase 6)
 $doc = new Document(Unit::PT);
 $doc->setMargins(new \DragonOfMercy\PhpPdf\PageMargins(top: 80.0, right: 50.0, bottom: 60.0, left: 50.0));
