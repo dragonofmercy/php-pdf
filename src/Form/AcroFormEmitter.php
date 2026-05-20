@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Form;
 
+use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Unit;
+use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -45,6 +47,15 @@ final readonly class AcroFormEmitter
             $field = $w['field'];
             if ($field instanceof TextField) {
                 $objects[] = $this->emitTextField($field, $w['widgetRef'], $w['pageHeightPt']);
+                $topLevelRefs[] = $w['widgetRef'];
+                continue;
+            }
+            if ($field instanceof Checkbox) {
+                [$widgetObj, $apObjs] = $this->emitCheckbox($field, $w['widgetRef'], $w['pageHeightPt'], $nextId);
+                $objects[] = $widgetObj;
+                foreach ($apObjs as $ap) {
+                    $objects[] = $ap;
+                }
                 $topLevelRefs[] = $w['widgetRef'];
                 continue;
             }
@@ -125,6 +136,75 @@ final readonly class AcroFormEmitter
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    /**
+     * @return array{0: IndirectObject, 1: list<IndirectObject>}
+     */
+    private function emitCheckbox(Checkbox $f, PdfReference $widgetRef, float $pageHeightPt, int &$nextId): array
+    {
+        $flags = 0;
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+
+        $onId = $nextId++;
+        $offId = $nextId++;
+
+        $d = $f->dimensions();
+        $wPt = $this->unit->toPoints($d['width']);
+        $hPt = $this->unit->toPoints($d['height']);
+        $textColor = $f->appearance !== null && $f->appearance->textColor !== null
+            ? $f->appearance->textColor
+            : Color::rgb(0, 0, 0);
+        $apContent = CheckboxAppearance::generate($wPt, $hPt, $textColor);
+
+        $onStream = $this->buildAppearanceStream($apContent['onContent'], $apContent['bbox']);
+        $offStream = $this->buildAppearanceStream($apContent['offContent'], $apContent['bbox']);
+        $onObj = IndirectObject::of($onId, 0, $onStream);
+        $offObj = IndirectObject::of($offId, 0, $offStream);
+
+        $apDict = Dictionary::empty()
+            ->withEntry(Name::of('N'), Dictionary::empty()
+                ->withEntry(Name::of('On'), PdfReference::to($onId, 0))
+                ->withEntry(Name::of('Off'), PdfReference::to($offId, 0)));
+
+        $state = $f->checked ? 'On' : 'Off';
+        $dict = $this->baseWidgetDict($f, 'Btn', $widgetRef, $pageHeightPt, $flags)
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('AS'), Name::of($state))
+            ->withEntry(Name::of('AP'), $apDict);
+
+        if ($f->checked) {
+            $dict = $dict->withEntry(Name::of('V'), Name::of('On'));
+            $dict = $dict->withEntry(Name::of('DV'), Name::of('On'));
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        $widgetObj = IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+        return [$widgetObj, [$onObj, $offObj]];
+    }
+
+    /**
+     * @param array{float, float, float, float} $bbox
+     */
+    private function buildAppearanceStream(string $content, array $bbox): CompressedStream
+    {
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($bbox[0]),
+                PdfNumber::ofFloat($bbox[1]),
+                PdfNumber::ofFloat($bbox[2]),
+                PdfNumber::ofFloat($bbox[3]),
+            ));
+        return CompressedStream::of($content, $dict);
     }
 
     private function baseWidgetDict(FormField $f, string $ftName, PdfReference $widgetRef, float $pageHeightPt, int $flags): Dictionary

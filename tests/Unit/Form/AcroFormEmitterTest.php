@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
+use DragonOfMercy\PhpPdf\Form\Checkbox;
 use DragonOfMercy\PhpPdf\Form\TextField;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
@@ -125,5 +126,38 @@ final class AcroFormEmitterTest extends TestCase
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Duplicate field name 'dup'");
         (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+    }
+
+    public function testEmitCheckboxUnchecked(): void
+    {
+        $field = new Checkbox(50.0, 100.0, 5.0, 5.0, name: 'agree');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 841.89]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/FT /Btn', $serialized);
+        self::assertStringContainsString('/T (agree)', $serialized);
+        self::assertStringContainsString('/AS /Off', $serialized);
+        self::assertStringContainsString('/AP', $serialized);
+        self::assertStringContainsString('/N', $serialized);
+    }
+
+    public function testEmitCheckboxChecked(): void
+    {
+        $field = new Checkbox(0.0, 0.0, 5.0, 5.0, name: 'a', checked: true);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/AS /On', $serialized);
+        self::assertStringContainsString('/V /On', $serialized);
     }
 }
