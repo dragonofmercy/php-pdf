@@ -160,4 +160,62 @@ final class AcroFormEmitterTest extends TestCase
         self::assertStringContainsString('/AS /On', $serialized);
         self::assertStringContainsString('/V /On', $serialized);
     }
+
+    public function testEmitRadioGroupCreatesParentAndKids(): void
+    {
+        $r1 = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 0.0, 5.0, 5.0, group: 'civility', value: 'mr', checked: true);
+        $r2 = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 10.0, 5.0, 5.0, group: 'civility', value: 'mrs');
+        $r3 = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 20.0, 5.0, 5.0, group: 'civility', value: 'other');
+        $widgets = [
+            ['field' => $r1, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $r2, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $r3, 'widgetRef' => PdfReference::to(12, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 13;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        // Exactly ONE /T (civility) (on the parent only - kids do not have /T)
+        self::assertSame(1, substr_count($serialized, '/T (civility)'));
+        // /Kids array with 3 entries
+        self::assertMatchesRegularExpression('~/Kids \[10 0 R 11 0 R 12 0 R\]~', $serialized);
+        // /V on parent points to selected value
+        self::assertStringContainsString('/V /mr', $serialized);
+        // Each kid has /Parent reference to the parent field ref
+        self::assertSame(3, substr_count($serialized, '/Parent '));
+        // /AS on each kid: /mr (the checked one) or /Off (others)
+        self::assertStringContainsString('/AS /mr', $serialized);
+        self::assertSame(2, substr_count($serialized, '/AS /Off'));
+        // Radio flag bit 17 set (1 << 16 = 65536) and bit 16 NoToggleToOff (1 << 15 = 32768)
+        if (preg_match_all('~/Ff (\d+)~', $serialized, $matches) !== false) {
+            self::assertNotEmpty($matches[1], 'Expected at least one /Ff');
+            $parentFlags = (int) $matches[1][0];
+            self::assertSame(65536, $parentFlags & 65536, 'Radio bit set');
+            self::assertSame(32768, $parentFlags & 32768, 'NoToggleToOff bit set');
+        } else {
+            self::fail('preg_match_all failed');
+        }
+    }
+
+    public function testEmitRadioMultipleGroups(): void
+    {
+        $a = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 0.0, 5.0, 5.0, group: 'g1', value: 'a', checked: true);
+        $b = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 10.0, 5.0, 5.0, group: 'g2', value: 'x');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/T (g1)', $serialized);
+        self::assertStringContainsString('/T (g2)', $serialized);
+    }
 }
