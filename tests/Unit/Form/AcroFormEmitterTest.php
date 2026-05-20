@@ -281,4 +281,64 @@ final class AcroFormEmitterTest extends TestCase
         $this->expectExceptionMessage("Combobox value 'zz' not found in options for field 'c'");
         (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
     }
+
+    public function testEmitListboxSingleValue(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b'], value: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/FT /Ch', $serialized);
+        self::assertStringContainsString('/V (a)', $serialized);
+        // Combo bit (1<<17 = 131072) must NOT be set ; MultiSelect bit (1<<21 = 2097152) must NOT be set
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) === 1) {
+            self::assertSame(0, ((int) $m[1]) & 131072, 'Combo bit must not be set');
+            self::assertSame(0, ((int) $m[1]) & 2097152, 'MultiSelect bit must not be set');
+        }
+        // If no /Ff at all (flags=0), that is fine - both bits are absent by default.
+    }
+
+    public function testEmitListboxMultiSelect(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b', 'c'], value: ['a', 'c'], multiSelect: true);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/V [(a) (c)]', $serialized);
+        // MultiSelect bit (1 << 21 = 2097152) must be set
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present');
+        }
+        self::assertSame(2097152, ((int) $m[1]) & 2097152);
+    }
+
+    public function testEmitListboxRejectsValueNotInOptions(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b'], value: 'z');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Listbox value 'z' not found in options for field 'l'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+    }
+
+    public function testEmitListboxRejectsMultipleValuesWhenSingleSelect(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b'], value: ['a', 'b'], multiSelect: false);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Listbox value must be a single string or null when multiSelect is false, got 2 entries for field 'l'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, $nextId, 'test');
+    }
 }

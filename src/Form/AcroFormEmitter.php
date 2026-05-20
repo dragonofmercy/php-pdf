@@ -81,6 +81,11 @@ final readonly class AcroFormEmitter
                 $topLevelRefs[] = $w['widgetRef'];
                 continue;
             }
+            if ($field instanceof Listbox) {
+                $objects[] = $this->emitListbox($field, $w['widgetRef'], $w['pageHeightPt']);
+                $topLevelRefs[] = $w['widgetRef'];
+                continue;
+            }
             throw new PdfException(sprintf(
                 'AcroFormEmitter: unsupported field type %s for %s',
                 $field::class,
@@ -358,6 +363,79 @@ final readonly class AcroFormEmitter
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    private function emitListbox(Listbox $f, PdfReference $widgetRef, float $pageHeightPt): IndirectObject
+    {
+        $flags = 0; // NO Combo bit
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+        if ($f->multiSelect) {
+            $flags |= 1 << 21;
+        }
+
+        $normalized = self::normalizeOptions($f->options);
+
+        // Normalize value into a list<string>.
+        $values = $this->normalizeListboxValue($f, $normalized);
+
+        $dict = $this->baseWidgetDict($f, 'Ch', $widgetRef, $pageHeightPt, $flags)
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('Opt'), self::buildOptArray($normalized));
+
+        if ($values !== []) {
+            if (count($values) === 1 && !$f->multiSelect) {
+                $dict = $dict->withEntry(Name::of('V'), PdfString::of($values[0]));
+                $dict = $dict->withEntry(Name::of('DV'), PdfString::of($values[0]));
+            } else {
+                $items = [];
+                foreach ($values as $v) {
+                    $items[] = PdfString::of($v);
+                }
+                $dict = $dict->withEntry(Name::of('V'), PdfArray::of(...$items));
+                $dict = $dict->withEntry(Name::of('DV'), PdfArray::of(...$items));
+            }
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    /**
+     * @param list<array{export: string, label: string, hasDistinctLabel: bool}> $normalized
+     * @return list<string>
+     */
+    private function normalizeListboxValue(Listbox $f, array $normalized): array
+    {
+        if ($f->value === null) {
+            return [];
+        }
+
+        $values = is_string($f->value) ? [$f->value] : $f->value;
+        if (!$f->multiSelect && count($values) > 1) {
+            throw new PdfException(sprintf(
+                "Listbox value must be a single string or null when multiSelect is false, got %d entries for field '%s'",
+                count($values),
+                $f->name,
+            ));
+        }
+
+        foreach ($values as $v) {
+            if (!self::optionsContainExport($normalized, $v)) {
+                throw new PdfException(sprintf(
+                    "Listbox value '%s' not found in options for field '%s'",
+                    $v,
+                    $f->name,
+                ));
+            }
+        }
+        return $values;
     }
 
     /**
