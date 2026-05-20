@@ -900,4 +900,56 @@ final class DocumentTest extends TestCase
         self::assertStringContainsString('/CIDFontType0', $pdf);
         self::assertStringContainsString('/Subtype /OpenType', $pdf);
     }
+
+    public function testOutlineReturnsTheSameOutlineNodeOnEachCall(): void
+    {
+        $doc = new Document(Unit::PT);
+        $first = $doc->outline();
+        $second = $doc->outline();
+        self::assertSame($first, $second);
+    }
+
+    public function testDocumentWithoutOutlineCallDoesNotContainOutlines(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->addPage();
+        $bytes = $doc->output();
+        self::assertStringNotContainsString('/Outlines', $bytes);
+        self::assertStringNotContainsString('/Type /Outlines', $bytes);
+    }
+
+    public function testDocumentWithEmptyOutlineDoesNotContainOutlines(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->addPage();
+        $doc->outline();
+        $bytes = $doc->output();
+        self::assertStringNotContainsString('/Outlines', $bytes);
+    }
+
+    public function testDocumentWithOutlinePopulatedAddsOutlinesEntryToCatalog(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->addPage();
+        $doc->addPage();
+        $doc->outline()->add('Chapter 1', \DragonOfMercy\PhpPdf\Outline\Destination::page(0));
+        $doc->outline()->add('Chapter 2', \DragonOfMercy\PhpPdf\Outline\Destination::page(1));
+        $bytes = $doc->output();
+        self::assertStringContainsString('/Type /Catalog', $bytes);
+        self::assertStringContainsString('/Outlines', $bytes);
+        self::assertStringContainsString('/Type /Outlines', $bytes);
+        self::assertStringContainsString('/Title (Chapter 1)', $bytes);
+        self::assertStringContainsString('/Title (Chapter 2)', $bytes);
+    }
+
+    public function testDocumentWithOutlineAndMetadataKeepsBothInCatalog(): void
+    {
+        $doc = new Document(Unit::PT);
+        $doc->metadata()->title('Test');
+        $doc->addPage();
+        $doc->outline()->add('Only chapter', \DragonOfMercy\PhpPdf\Outline\Destination::page(0));
+        $bytes = $doc->output();
+        self::assertStringContainsString('/Metadata', $bytes);
+        self::assertStringContainsString('/Outlines', $bytes);
+    }
 }

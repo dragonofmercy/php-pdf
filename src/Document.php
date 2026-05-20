@@ -34,6 +34,8 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
+use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -105,6 +107,8 @@ final class Document
     private ?Page $currentPage = null;
     private int $pageCounter = 0;
     private bool $footersRendered = false;
+
+    private ?OutlineNode $outlineRoot = null;
 
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
@@ -294,6 +298,18 @@ final class Document
     public function encryption(): Encryption
     {
         return $this->encryption ??= new Encryption();
+    }
+
+    /**
+     * Returns the outline (bookmarks) tree root. The first call creates the
+     * root lazily; subsequent calls return the same instance so the user can
+     * keep adding nodes. The tree is only emitted if it has at least one
+     * child - a bare outline() call without add() has no effect on the
+     * output.
+     */
+    public function outline(): OutlineNode
+    {
+        return $this->outlineRoot ??= OutlineNode::root();
     }
 
     /**
@@ -487,6 +503,10 @@ final class Document
             ->withEntry(Name::of('Type'), Name::of('Catalog'))
             ->withEntry(Name::of('Pages'), $pagesRef);
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
+
+        $nextObjectNumber = 3 + count($pageAndContentObjects);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $nextObjectNumber);
+
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
         $pages = IndirectObject::of(
@@ -498,7 +518,10 @@ final class Document
                 ->withEntry(Name::of('Count'), PdfNumber::ofInt(count($this->pages))),
         );
 
-        return (new PdfWriter())->write([$catalog, $pages, ...$pageAndContentObjects], $catalog->reference());
+        return (new PdfWriter())->write(
+            [$catalog, $pages, ...$pageAndContentObjects, ...$outlineObjects],
+            $catalog->reference(),
+        );
     }
 
     private function outputWithMetadata(Metadata $metadata): string
@@ -517,6 +540,10 @@ final class Document
             ->withEntry(Name::of('Pages'), $pagesRef)
             ->withEntry(Name::of('Metadata'), $metadataStreamRef);
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
+
+        $nextObjectNumber = 5 + count($pageAndContentObjects);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $nextObjectNumber);
+
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
         $pages = IndirectObject::of(
@@ -533,7 +560,7 @@ final class Document
         $xmpXml = (new XmpWriter())->write($effective);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects];
+        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects];
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
@@ -590,6 +617,10 @@ final class Document
             $catalogDict = $catalogDict->withEntry(Name::of('Metadata'), PdfReference::to(4, 0));
         }
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
+
+        $nextObjectNumber = $firstPageObjectNumber + count($pageAndContentObjects);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $nextObjectNumber);
+
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
 
@@ -626,7 +657,7 @@ final class Document
         $encryptObject = IndirectObject::of($encryptObjectNumber, 0, $encryptDict);
         $objects[] = $encryptObject;
 
-        $objects = array_merge($objects, $pageAndContentObjects);
+        $objects = array_merge($objects, $pageAndContentObjects, $outlineObjects);
 
         $documentId = $metadata !== null
             ? ($metadata->documentId ?? $this->deriveDocumentId($effectiveMetadata))
@@ -893,6 +924,45 @@ final class Document
             );
         }
         return $catalogDict;
+    }
+
+    /**
+     * Runs the OutlineEmitter if an outline with children was declared and
+     * appends the resulting /Outlines reference to the catalog dict. When no
+     * outline was requested (or the root has no children) the catalog dict
+     * is returned untouched and the object list is empty - the user pays
+     * nothing for an absent feature.
+     *
+     * @param  list<PdfReference> $pageRefs
+     * @return array{0: Dictionary, 1: list<IndirectObject>}
+     */
+    private function withOutlines(Dictionary $catalogDict, array $pageRefs, int &$nextObjectNumber): array
+    {
+        if ($this->outlineRoot === null || !$this->outlineRoot->hasChildren()) {
+            return [$catalogDict, []];
+        }
+        $emitter = new OutlineEmitter($this->unit);
+        $emit = $emitter->emit(
+            $this->outlineRoot,
+            $pageRefs,
+            $this->collectPageHeightsPt(),
+            $nextObjectNumber,
+            'document outline',
+        );
+        $catalogDict = $catalogDict->withEntry(Name::of('Outlines'), $emit['outlinesRef']);
+        return [$catalogDict, $emit['objects']];
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function collectPageHeightsPt(): array
+    {
+        $heights = [];
+        foreach ($this->pages as $page) {
+            $heights[] = $page->pageHeight;
+        }
+        return $heights;
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
