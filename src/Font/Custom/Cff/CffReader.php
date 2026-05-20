@@ -82,15 +82,97 @@ final class CffReader
         [$stringEntries, $cursor] = $this->readIndex($cffBytes, $cursor, 'String', $context);
         [$gsubrEntries, $cursor] = $this->readIndex($cffBytes, $cursor, 'GSubrs', $context);
 
-        // topDictData is filled by Tasks 3-5.
+        $charStringsOffset = $this->requireIntOperator($topDict, 'CharStrings', $context);
+        $numGlyphs = $this->readIndexCount($cffBytes, $charStringsOffset, 'CharStrings', $context);
+
+        $charsetOffset = $this->requireIntOperator($topDict, 'charset', $context);
+        $charset = $this->readCharset($cffBytes, $charsetOffset, $numGlyphs, $context);
+
+        // topDictData is partially populated here (charset + numGlyphs); Tasks 4-5
+        // fill the encoding, glyph payload, Private DICT, and CID-keyed branches.
+        $topData = new CffTopDictData(
+            charset: $charset,
+            encoding: null,
+            charStrings: new CffCharStrings(glyphs: [], numGlyphs: $numGlyphs),
+            namePrivate: null,
+            cidKeyed: null,
+        );
+
         return new ParsedCff(
             header: $header,
             nameIndexEntry: $nameEntries[0],
             topDicts: [$topDict],
             stringIndex: $stringEntries,
             gsubrsIndex: $gsubrEntries,
-            topDictData: [],
+            topDictData: [$topData],
         );
+    }
+
+    /**
+     * @param array<string, int|float|array<int, int|float>> $dict
+     */
+    private function requireIntOperator(array $dict, string $name, string $context): int
+    {
+        if (!isset($dict[$name])) {
+            throw new PdfException("CFF Top DICT missing required '{$name}' for {$context}");
+        }
+        $v = $dict[$name];
+        if (!is_int($v)) {
+            throw new PdfException("CFF Top DICT operator '{$name}' must be an integer offset for {$context}");
+        }
+        return $v;
+    }
+
+    private function readIndexCount(string $bytes, int $offset, string $name, string $context): int
+    {
+        if ($offset < 0 || $offset + 2 > strlen($bytes)) {
+            throw new PdfException("CFF INDEX '{$name}' header truncated for {$context}");
+        }
+        return (ord($bytes[$offset]) << 8) | ord($bytes[$offset + 1]);
+    }
+
+    private function readCharset(string $bytes, int $offset, int $numGlyphs, string $context): CffCharset
+    {
+        $len = strlen($bytes);
+        if ($offset < 0 || $offset >= $len) {
+            throw new PdfException("CFF charset offset {$offset} out of bounds for {$context}");
+        }
+        $format = ord($bytes[$offset]);
+        $cursor = $offset + 1;
+        $map = [0 => 0]; // GID 0 = .notdef implicitly
+        if ($format === 0) {
+            for ($gid = 1; $gid < $numGlyphs; $gid++) {
+                if ($cursor + 2 > $len) {
+                    throw new PdfException("Truncated CFF charset format 0 for {$context}");
+                }
+                $map[$gid] = (ord($bytes[$cursor]) << 8) | ord($bytes[$cursor + 1]);
+                $cursor += 2;
+            }
+            return new CffCharset($map, 0, substr($bytes, $offset, $cursor - $offset));
+        }
+        if ($format === 1 || $format === 2) {
+            $nLeftSize = $format === 1 ? 1 : 2;
+            $gid = 1;
+            while ($gid < $numGlyphs) {
+                if ($cursor + 2 + $nLeftSize > $len) {
+                    throw new PdfException("Truncated CFF charset format {$format} for {$context}");
+                }
+                $first = (ord($bytes[$cursor]) << 8) | ord($bytes[$cursor + 1]);
+                $cursor += 2;
+                if ($nLeftSize === 1) {
+                    $nLeft = ord($bytes[$cursor]);
+                    $cursor += 1;
+                } else {
+                    $nLeft = (ord($bytes[$cursor]) << 8) | ord($bytes[$cursor + 1]);
+                    $cursor += 2;
+                }
+                for ($k = 0; $k <= $nLeft && $gid < $numGlyphs; $k++) {
+                    $map[$gid++] = $first + $k;
+                }
+            }
+            return new CffCharset($map, $format, substr($bytes, $offset, $cursor - $offset));
+        }
+        throw new PdfException("Unsupported CFF charset format {$format} for {$context}");
     }
 
     private function readHeader(string $bytes, string $context): CffHeader
