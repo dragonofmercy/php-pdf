@@ -114,70 +114,17 @@ final class CffWriter
 
         if ($td->namePrivate !== null) {
             // Name-keyed: Private body sits right after CharStrings, then Subrs follows.
-            // We need the Private DICT's body size so the Top DICT carries [size, offset].
-            $privBodySized = $this->serializeDictForPrivate($td->namePrivate->privateDict, 0);
-            $privBody = $this->serializeDictForPrivate(
-                $td->namePrivate->privateDict,
-                $td->namePrivate->localSubrs !== [] ? strlen($privBodySized) : 0,
-            );
+            [$privBody, $subrsBytes] = $this->buildPrivateAndSubrs($td->namePrivate);
             $real['Private'] = [strlen($privBody), $cursor];
-            $cursor += strlen($privBody);
-            $subrsBytes = $this->serializeIndex($td->namePrivate->localSubrs);
-            $cursor += strlen($subrsBytes);
+            $cursor += strlen($privBody) + strlen($subrsBytes);
             $nameKeyedTail = $privBody . $subrsBytes;
         }
 
         if ($td->cidKeyed !== null) {
-            $real['FDSelect'] = $cursor;
-            $fdSelectBytes = $this->serializeFdSelect($td->cidKeyed);
-            $cursor += strlen($fdSelectBytes);
-
-            // Per-FD Private bodies and Subrs are computed first so each Font DICT's
-            // Private operator can carry the final [size, offset] in Pass A's FDArray
-            // entries. Layout: FDSelect | FDArray | priv0 | subrs0 | priv1 | subrs1 ...
-            $perFdPrivBodies = [];
-            $perFdSubrs = [];
-            foreach ($td->cidKeyed->fdPrivates as $fdp) {
-                $subrsBytes = $this->serializeIndex($fdp->localSubrs);
-                $privBody = $this->serializeDictForPrivate($fdp->privateDict, 0);
-                if ($fdp->localSubrs !== []) {
-                    // Refine Subrs operator to actual relative offset = strlen(privBody).
-                    $privBody = $this->serializeDictForPrivate($fdp->privateDict, strlen($privBody));
-                }
-                $perFdPrivBodies[] = $privBody;
-                $perFdSubrs[] = $subrsBytes;
-            }
-
-            // Pass A: size the FDArray entries with placeholder Private [size, 0]
-            // to know strlen(fdaBytes) before patching with the real per-FD offsets.
-            $entries = [];
-            foreach ($td->cidKeyed->fontDicts as $i => $fontDict) {
-                $size = strlen($perFdPrivBodies[$i]);
-                $patched = $fontDict;
-                $patched['Private'] = [$size, 0];
-                $entries[] = $this->serializeDict($patched, self::TOP_DICT_OPCODES, offsetOps: ['Private']);
-            }
-            $fdaBytes = $this->serializeIndex($entries);
-            $real['FDArray'] = $cursor;
-            $afterFda = $cursor + strlen($fdaBytes);
-
-            // Pass B: patch each Font DICT with the final per-FD Private offset.
-            $privCursor = $afterFda;
-            $entriesPatched = [];
-            foreach ($td->cidKeyed->fontDicts as $i => $fontDict) {
-                $size = strlen($perFdPrivBodies[$i]);
-                $patched = $fontDict;
-                $patched['Private'] = [$size, $privCursor];
-                $entriesPatched[] = $this->serializeDict($patched, self::TOP_DICT_OPCODES, offsetOps: ['Private']);
-                $privCursor += strlen($perFdPrivBodies[$i]) + strlen($perFdSubrs[$i]);
-            }
-            $fdaBytes = $this->serializeIndex($entriesPatched);
-            $cursor = $privCursor;
-
-            $cidKeyedTail = $fdSelectBytes . $fdaBytes;
-            foreach ($perFdPrivBodies as $i => $pb) {
-                $cidKeyedTail .= $pb . $perFdSubrs[$i];
-            }
+            [$cidKeyedTail, $cursor, $fdSelectOff, $fdArrayOff] =
+                $this->layoutCidKeyedTail($td->cidKeyed, $cursor);
+            $real['FDSelect'] = $fdSelectOff;
+            $real['FDArray'] = $fdArrayOff;
         }
 
         // Pass 2: re-emit Top DICT with the real offsets.
@@ -188,7 +135,11 @@ final class CffWriter
         );
         if (strlen($topDictBody2) !== strlen($topDictBody)) {
             // Long-form offsets keep operand width fixed; any size delta is a bug.
-            throw new PdfException('CffWriter internal error: Top DICT size changed between passes');
+            throw new PdfException(sprintf(
+                'CffWriter internal error: Top DICT size changed between passes (%d vs %d)',
+                strlen($topDictBody),
+                strlen($topDictBody2),
+            ));
         }
         $topDictIndex2 = $this->serializeIndex([$topDictBody2]);
 
@@ -390,5 +341,98 @@ final class CffWriter
             $patched['Subrs'] = $subrsRelOffset;
         }
         return $this->serializeDict($patched, self::PRIVATE_DICT_OPCODES, offsetOps: []);
+    }
+
+    /**
+     * Builds the Private DICT body + local Subrs INDEX bytes for one Font DICT.
+     * Two-pass: first serialize Private with Subrs=0 to learn its size, then
+     * re-serialize with the actual Subrs relative offset (= size of the body
+     * itself, since the Subrs INDEX sits immediately after).
+     *
+     * @return array{0: string, 1: string} privBody, subrsBytes
+     */
+    private function buildPrivateAndSubrs(CffNameKeyedPrivate $priv): array
+    {
+        $subrsBytes = $this->serializeIndex($priv->localSubrs);
+        $privBody = $this->serializeDictForPrivate($priv->privateDict, 0);
+        if ($priv->localSubrs !== []) {
+            $privBody = $this->serializeDictForPrivate($priv->privateDict, strlen($privBody));
+        }
+        return [$privBody, $subrsBytes];
+    }
+
+    /**
+     * Lays out the CID-keyed tail starting at $cursor, returning the assembled
+     * bytes plus the offsets the Top DICT must point at.
+     *
+     * Layout: FDSelect | FDArray | priv0 | subrs0 | priv1 | subrs1 ...
+     *
+     * @return array{0: string, 1: int, 2: int, 3: int} tail bytes, end cursor, FDSelect offset, FDArray offset
+     */
+    private function layoutCidKeyedTail(CffCidKeyed $cid, int $cursor): array
+    {
+        $fdSelectBytes = $this->serializeFdSelect($cid);
+        $fdSelectOffset = $cursor;
+        $cursor += strlen($fdSelectBytes);
+
+        $perFdPrivBodies = [];
+        $perFdSubrs = [];
+        foreach ($cid->fdPrivates as $fdp) {
+            [$privBody, $subrsBytes] = $this->buildPrivateAndSubrs($fdp);
+            $perFdPrivBodies[] = $privBody;
+            $perFdSubrs[] = $subrsBytes;
+        }
+
+        // FDArray serialized twice: Pass A with placeholder per-FD offsets to
+        // size the INDEX, Pass B with the resolved offsets. Pass A's bytes are
+        // discarded but the size is needed to compute the per-FD layout.
+        $fdaBytes = $this->serializeFdArray($cid->fontDicts, $perFdPrivBodies, fillOffsets: false);
+        $fdArrayOffset = $cursor;
+        $afterFda = $cursor + strlen($fdaBytes);
+        $fdaBytes = $this->serializeFdArray(
+            $cid->fontDicts,
+            $perFdPrivBodies,
+            fillOffsets: true,
+            startOffset: $afterFda,
+            subrsBytes: $perFdSubrs,
+        );
+        $cursor = $afterFda;
+
+        $tail = $fdSelectBytes . $fdaBytes;
+        foreach ($perFdPrivBodies as $i => $pb) {
+            $tail .= $pb . $perFdSubrs[$i];
+            $cursor += strlen($pb) + strlen($perFdSubrs[$i]);
+        }
+        return [$tail, $cursor, $fdSelectOffset, $fdArrayOffset];
+    }
+
+    /**
+     * Serializes the FDArray INDEX. When $fillOffsets is false, per-FD Private
+     * operators carry [size, 0] placeholders; when true, the Private offsets
+     * are resolved against $startOffset + the running sum of priv+subrs sizes.
+     *
+     * @param list<array<string, int|float|array<int, int|float>>> $fontDicts
+     * @param list<string>                                          $perFdPrivBodies
+     * @param list<string>                                          $subrsBytes
+     */
+    private function serializeFdArray(
+        array $fontDicts,
+        array $perFdPrivBodies,
+        bool $fillOffsets,
+        int $startOffset = 0,
+        array $subrsBytes = [],
+    ): string {
+        $privCursor = $startOffset;
+        $entries = [];
+        foreach ($fontDicts as $i => $fontDict) {
+            $size = strlen($perFdPrivBodies[$i]);
+            $patched = $fontDict;
+            $patched['Private'] = [$size, $fillOffsets ? $privCursor : 0];
+            $entries[] = $this->serializeDict($patched, self::TOP_DICT_OPCODES, offsetOps: ['Private']);
+            if ($fillOffsets) {
+                $privCursor += $size + strlen($subrsBytes[$i]);
+            }
+        }
+        return $this->serializeIndex($entries);
     }
 }

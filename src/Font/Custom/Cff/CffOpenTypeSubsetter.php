@@ -20,13 +20,14 @@ final class CffOpenTypeSubsetter
 {
     private const int HEAD_CHECKSUM_ADJUSTMENT_OFFSET = 8;
     private const int CHECKSUM_MAGIC = 0xB1B0AFBA;
+    private const string CFF_TABLE_TAG = 'CFF ';
 
     /**
      * @param array<int, true> $closure  GIDs to keep (must include 0)
      */
     public function subset(string $otfBytes, array $closure, string $context): string
     {
-        $cffBytes = SfntReader::extractTable($otfBytes, 'CFF ', $context);
+        $cffBytes = SfntReader::extractTable($otfBytes, self::CFF_TABLE_TAG, $context);
         $parsed = (new CffReader())->read($cffBytes, $context);
         $reduced = (new CffSubsetter())->subset($parsed, $closure, $context);
         $newCff = (new CffWriter())->write($reduced);
@@ -54,7 +55,7 @@ final class CffOpenTypeSubsetter
         // Re-assemble tables in ascending tag order.
         $tables = [];
         foreach ($dir as $tag => $entry) {
-            if ($tag === 'CFF ') {
+            if ($tag === self::CFF_TABLE_TAG) {
                 $tables[$tag] = $newCff;
             } elseif ($tag === 'head') {
                 $head = substr($otfBytes, $entry['offset'], $entry['length']);
@@ -71,26 +72,34 @@ final class CffOpenTypeSubsetter
         $directory = '';
         $body = '';
         $headOffsetInFile = null;
+        $bodyChecksum = 0;
         foreach ($tables as $tag => $data) {
             $pad = (4 - strlen($data) % 4) % 4;
             $padded = $data . str_repeat("\x00", $pad);
             if ($tag === 'head') {
                 $headOffsetInFile = $running;
             }
+            $tableChecksum = $this->checksum($padded);
             $directory .= $tag
-                . pack('N', $this->checksum($padded))
+                . pack('N', $tableChecksum)
                 . pack('N', $running)
                 . pack('N', strlen($data));
             $body .= $padded;
             $running += strlen($padded);
+            // Accumulate sub-checksums so we don't re-unpack the whole file.
+            $bodyChecksum = ($bodyChecksum + $tableChecksum) & 0xFFFFFFFF;
         }
-
-        $file = $offsetTable . $directory . $body;
 
         if ($headOffsetInFile === null) {
             throw new PdfException("OTF rebuild missing 'head' table for {$context}");
         }
-        $adjustment = (self::CHECKSUM_MAGIC - $this->checksum($file)) & 0xFFFFFFFF;
+        // The OpenType file checksum is a uint32 sum of words. Since the offset
+        // table, directory and each padded table are all 4-byte aligned, the
+        // checksum of their concatenation equals the sum of their individual
+        // checksums - no need to unpack the entire (potentially multi-MB) file.
+        $fileChecksum = ($this->checksum($offsetTable) + $this->checksum($directory) + $bodyChecksum) & 0xFFFFFFFF;
+        $adjustment = (self::CHECKSUM_MAGIC - $fileChecksum) & 0xFFFFFFFF;
+        $file = $offsetTable . $directory . $body;
         return substr_replace(
             $file,
             pack('N', $adjustment),

@@ -13,10 +13,6 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * exactly one Top DICT INDEX entry, fail-fast on any unsupported operator
  * or format.
  *
- * Parts 2-5 of this file (Tasks 3-5 in the plan) extend read() to parse
- * String INDEX, GSubrs INDEX, charset, encoding, CharStrings INDEX, Private
- * DICT, local Subrs, FDArray and FDSelect, and populate topDictData.
- *
  * @internal
  */
 final class CffReader
@@ -107,10 +103,7 @@ final class CffReader
         $charStringsOffset = $this->requireIntOperator($topDict, 'CharStrings', $context);
         [$csEntries, ] = $this->readIndex($cffBytes, $charStringsOffset, 'CharStrings', $context);
         $numGlyphs = count($csEntries);
-        $glyphsMap = [];
-        foreach ($csEntries as $gid => $entry) {
-            $glyphsMap[$gid] = $entry;
-        }
+        $glyphsMap = $csEntries;
 
         $charsetOffset = $this->requireIntOperator($topDict, 'charset', $context);
         $isCidKeyed = isset($topDict['ROS']);
