@@ -63,14 +63,18 @@ final readonly class Code128 implements Barcode
         $hPt = $unit->toPoints($h);
 
         $modules = $this->encodeModules();
-        // Quiet zone 10 modules each side per ISO 15417.
-        $totalModules = count($modules) + 20;
+        // Quiet zone QUIET_MODULES on each side per ISO 15417.
+        $totalModules = count($modules) + 2 * self::QUIET_MODULES;
         $moduleW = $wPt / $totalModules;
         // 85% of h goes to bars, 15% to human-readable text below.
         $barsHeight = $hPt * 0.85;
         $textHeight = $hPt - $barsHeight;
 
-        $padded = array_merge(array_fill(0, 10, false), $modules, array_fill(0, 10, false));
+        $padded = array_merge(
+            array_fill(0, self::QUIET_MODULES, false),
+            $modules,
+            array_fill(0, self::QUIET_MODULES, false),
+        );
         $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
         $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
@@ -90,6 +94,8 @@ final readonly class Code128 implements Barcode
             $page->restore();
         }
     }
+
+    private const int QUIET_MODULES = 10;
 
     /**
      * Code 128 pattern table per ISO/IEC 15417 Annex A.
