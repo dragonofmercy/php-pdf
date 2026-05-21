@@ -259,10 +259,14 @@ final class Matrix
     private function writeBit(int $dgRow, int $dgCol, string $bits, int $bitIdx, int $rows, int $cols): void
     {
         if ($dgRow < 0) {
+            // ISO/IEC 16022 5.8.1 wrap rule for data grids that are not a multiple
+            // of 8 in either dimension: wrap negative coordinates and shift the
+            // orthogonal axis by 4 - ((dim + 4) % 8) to land on a valid cell.
             $dgRow += $rows;
             $dgCol += 4 - (($rows + 4) % 8);
         }
         if ($dgCol < 0) {
+            // Same wrap rule, transposed.
             $dgCol += $cols;
             $dgRow += 4 - (($cols + 4) % 8);
         }

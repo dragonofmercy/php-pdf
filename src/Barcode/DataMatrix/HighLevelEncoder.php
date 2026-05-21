@@ -78,8 +78,12 @@ final class HighLevelEncoder
      */
     private static function lookaheadMode(string $input, int $pos, DataMatrixMode $current): DataMatrixMode
     {
+        // NOTE: the cost model below is a faithful heuristic in the spirit of the
+        // ISO/IEC 16022 Annex P lookahead test. Magic numbers carry their own
+        // inline comments. The output is valid DataMatrix but not necessarily
+        // byte-identical to other Annex P implementations.
         $len = strlen($input);
-        $window = min(8, $len - $pos);
+        $window = min(8, $len - $pos); // Annex P canonical 8-byte lookahead window.
         $sub = substr($input, $pos, $window);
         $best = $current;
         $bestCost = self::projectCost($sub, $current, $current);
@@ -100,7 +104,8 @@ final class HighLevelEncoder
     {
         $switchCost = ($from === $to) ? 0.0 : 1.0;
         if (($from === DataMatrixMode::C40 || $from === DataMatrixMode::TEXT) && $to !== $from) {
-            $switchCost += 1.0; // extra unlatch
+            // +1 codeword for the unlatch (254) when leaving a triplet mode (ISO 5.2.5.2).
+            $switchCost += 1.0;
         }
         return $switchCost + self::modeCost($sub, $to);
     }
@@ -113,8 +118,11 @@ final class HighLevelEncoder
         }
         return match ($m) {
             DataMatrixMode::ASCII   => self::asciiCost($sub, $len),
+            // C40 packs 3 values into 2 codewords -> 2/3 cw per value (ISO 16022 5.2.5).
             DataMatrixMode::C40     => self::tripletCost($sub, $len, self::c40Values(...)),
+            // Text mode shares C40's triplet packing density, different alphabet (ISO 16022 5.2.6).
             DataMatrixMode::TEXT    => self::tripletCost($sub, $len, self::textValues(...)),
+            // 1 codeword per data byte + ~1.5 amortised for the latch and length prefix.
             DataMatrixMode::BASE256 => $len + 1.5,
         };
     }
@@ -234,7 +242,7 @@ final class HighLevelEncoder
     {
         $len = strlen($rest);
         for ($i = 1; $i <= $len; $i++) {
-            $tail = substr($rest, $i, 4);
+            $tail = substr($rest, $i, 4); // 4-byte tail: enough to amortise one mode switch's overhead.
             if ($tail === '') {
                 break;
             }
