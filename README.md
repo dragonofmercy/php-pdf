@@ -2,29 +2,29 @@
 
 Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime dependencies beyond the standard `mbstring`, `openssl`, and `zlib` extensions.
 
-> **Status:** work in progress, pre-1.0. The public API is reasonably stable for what is shipped (through Phase 8.1) but is not yet frozen.
+> **Status:** work in progress, pre-1.0. The public API is reasonably stable for what is shipped but is not yet frozen.
 
 ## What works today
 
-- **Document scaffolding** - PDF 1.7 output, deterministic byte-identical fixtures, encryption (RC4 + AES-128), metadata + XMP, viewer preferences (page layout, page mode, initial open action).
-- **Pages** - standard formats (A3, A4, A5, A6, Letter, Legal) with portrait / landscape orientation, plus arbitrary custom dimensions for labels and similar. Coordinates and sizes default to millimetres; switch to PDF points with `Unit::PT`.
-- **Graphics** - lines, rectangles, circles, paths (move/line/curve), fill/stroke, dash patterns, line caps/joins, save/restore, transforms (translate/rotate/scale).
-- **Text** - 12 standard PDF fonts (Helvetica / Times / Courier x Regular / Bold / Italic / BoldItalic). WinAnsi encoding (covers western Latin scripts incl. accents and the typographic chars in 0x80-0x9F: `EUR -- oe Oe %.` etc.). Multi-line via `\n`, custom leading.
-- **Custom TTF fonts** - register your own TrueType fonts via `Document::registerFontFamily('alias', regular: ..., bold: ..., italic: ..., boldItalic: ...)`. Composite CIDFont/Type0 with Identity-H encoding and embedded ToUnicode CMap (copy-paste works). Full Unicode reach beyond WinAnsi: Latin Extended, Greek, Cyrillic, etc. cmap subtable formats 4 and 12 supported. Fonts are automatically subsetted to the glyphs used (GID-preserving), so embedded size stays small. OpenType/CFF (.otf) fonts are also supported - embedded as CIDFontType0 with GID-preserving subsetting (CharStrings reduced to the glyphs actually used, including CID-keyed CJK fonts).
-- **Cells** - rectangles with text, borders (per-side, with width / color / style: solid / dashed / dotted), fill, padding, alignment (left / center / right * top / middle / bottom), three fit modes (none / condense / shrink), word-wrap with automatic force-break.
-- **Text measurement** - `$page->stringWidth(...)` using AFM metrics for the 12 standard fonts.
-- **Images** - JPEG (RGB / Gray / CMYK) and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha / Palette+tRNS) embedded as XObjects. Soft-mask transparency for PNG alpha channels. Auto-format detection by magic bytes. Per-document caching: same path / instance reuses one XObject across multiple placements.
-- **SVG vector images** - inline `<svg>` documents embedded as PDF Form XObjects (vector, infinite zoom). Shapes (rect / circle / ellipse / line / polygon / polyline / path), all path commands (M / L / H / V / C / S / Q / T / A / Z) including arcs (cubic Bezier approximation), transforms (matrix / translate / rotate / scale / skewX / skewY), groups, `<use>` / `<defs>` references with cycle detection, `viewBox` + `preserveAspectRatio` (all 9 alignments x meet/slice), solid fill / stroke with full per-channel and global opacity (via ExtGState), fill rules (nonzero / evenodd), stroke dash patterns. 147 W3C named colors, hex, `rgb()`, `rgba()`. Unsupported features (`<text>`, gradients, filters, masks, patterns) are skipped silently per the SVG fallback spec.
-- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels). Pure-PHP encoders, vector rendering as filled rects, configurable color, optional human text under 1D codes.
-- **Outlines & hyperlinks** - hierarchical bookmarks tree (Acrobat Bookmarks panel) and clickable link annotations (URLs + internal GoTo). Declarative API: `$doc->outline()->add('Chapter 1', Destination::page(0))` builds the tree; `$page->link($x, $y, $w, $h, Link::url('https://...'))` declares one clickable rectangle. Internal destinations support XYZ / Fit / FitH variants. Borders are invisible (`/Border [0 0 0]`), pages without `link()` get no `/Annots` (golden byte-identity preserved).
-- **AcroForm interactive forms** - TextField (single + multi-line), Checkbox, Radio (grouped via a shared `group` name), Combobox (dropdown), Listbox (single or multi-select). VO-based API: `$page->field(new TextField(...))` mirrors the rest of the library (named arguments, immutable value objects). Hybrid appearance strategy: `NeedAppearances=true` lets the reader render text fields with the live `/DA` default appearance, while Checkbox and Radio embed pre-generated `/AP` On/Off streams so their tick marks render identically across Acrobat, browser viewers, and headless renderers. Optional per-field styling via `FieldAppearance`: border color + width (emits `/Border [0 0 W]` so the coloured frame renders in Edge / Firefox / Brave / Foxit / Acrobat), background color, text color, font (Helvetica / Courier / Times -- auto-registered in `/AcroForm /DR`), font size, alignment (TextField only). Pages without `field()` get no extra `/Annots`, the catalog gets no `/AcroForm` entry, and the byte-identity baseline of earlier phases is preserved.
+- **Documents** - A4 / Letter / Legal and many other standard formats, custom dimensions for labels, portrait or landscape, multi-page, metadata (title, author, dates), password protection (40-bit and 128-bit), and the usual viewer hints (initial zoom, page layout, bookmarks panel open on launch).
+- **Coordinates** - millimetres by default, with the origin at the top-left of the page (Y axis pointing down). Switch to PDF points with `Unit::PT` if you prefer.
+- **Graphics** - lines, rectangles, circles, paths, fill / stroke, dashed lines, line caps and joins, transforms (translate, rotate, scale), save / restore graphics state.
+- **Text** - the 12 standard PDF fonts (Helvetica, Times, Courier in regular / bold / italic / bold-italic), multi-line text with `\n`, configurable leading. Western Latin scripts including accents and the typographic characters `EUR`, `oe`, `OE`, `%.` etc.
+- **Custom TrueType / OpenType fonts** - register `.ttf` or `.otf` files for the document (regular / bold / italic / boldItalic variants) and use them like the built-in fonts. Full Unicode reach: Latin Extended, Greek, Cyrillic, CJK, etc. Copy-paste from the rendered PDF works correctly. Fonts are automatically subsetted to the glyphs used, so even multi-megabyte CJK families produce small PDFs.
+- **Cells** - rectangles with text, borders (per-side, configurable width / color / style: solid / dashed / dotted), fill color, padding, text alignment (left / center / right * top / middle / bottom), three width-fit modes (none / condense / shrink), automatic word-wrap, automatic force-break for words wider than the cell.
+- **Text measurement** - `$page->stringWidth(...)` returns the exact width of any string in the current font.
+- **Images** - JPEG and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha) with transparency support. Auto-format detection. Same image used N times = one embed, N placements (per-document caching).
+- **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
+- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes.
+- **Outlines & hyperlinks** - hierarchical bookmarks tree (the Bookmarks panel in Acrobat / browser PDF viewers) and clickable link rectangles (URLs and internal page jumps). Declarative API.
+- **AcroForm interactive forms** - TextField (single / multi-line), Checkbox, Radio (grouped), Combobox, Listbox. Optional per-field styling: border color + width, background, text color, font, size, alignment.
 
 ## Not yet implemented
 
-- TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL/Arabic/Indic shaping -- out of scope.
-- Other 2D barcode formats (DataMatrix, PDF417, Aztec) -- add on demand.
-- Forms - reported to later phases: push button widgets, signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields.
-- Digital signatures, HTML/CSS rendering -- later phases.
+- TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
+- Other 2D barcode formats (DataMatrix, PDF417, Aztec) - add on demand.
+- Forms : push buttons, signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields - later phases.
+- Digital signatures, HTML / CSS rendering - later phases.
 
 ## Installation
 
@@ -87,7 +87,7 @@ $pdf->save('invoice.pdf');
 
 ### Viewer preferences
 
-Hints stored in the catalog that the PDF viewer applies when opening the document. Three independent setters, all optional. Equivalent to TCPDF's `setDisplayMode()` but split into typed setters with named-constructor value objects.
+Hints stored in the document that the PDF viewer applies when opening it. Three independent setters, all optional. Equivalent to TCPDF's `setDisplayMode()` but split into typed setters with named-constructor value objects.
 
 ```php
 use DragonOfMercy\PhpPdf\{OpenAction, PageLayout, PageMode};
@@ -107,13 +107,13 @@ OpenAction::zoom($page, left: 10, top: 20, zoom: 1.5);    // top-left corner at 
 OpenAction::actualSize($page);                            // 100% zoom anchored at top-left
 ```
 
-Coordinates use the document's unit and a top-down Y axis (consistent with the rest of the API). They are converted to PDF native (bottom-up, points) at serialisation. Out-of-range page indices throw `PdfException` at output time.
+Coordinates use the document's unit and a top-down Y axis (consistent with the rest of the API). Out-of-range page indices throw `PdfException` at output time.
 
 Pass `null` to any setter to clear it. These are hints: Acrobat respects them faithfully, browser viewers (Chrome, Firefox PDF.js) honour some and ignore others, notably full-screen mode.
 
 ### Outlines and hyperlinks
 
-A document can declare a navigable bookmarks tree and clickable link annotations.
+A document can declare a navigable bookmarks tree and clickable link rectangles.
 
 ```php
 use DragonOfMercy\PhpPdf\Outline\{Destination, Link};
@@ -124,7 +124,7 @@ $page1->text(50, 60, 'Chapter 1');
 $page2 = $pdf->addPage();
 $page2->text(50, 60, 'Chapter 2');
 
-// Outline tree (Acrobat Bookmarks panel)
+// Outline tree (Bookmarks panel)
 $root = $pdf->outline();
 $chap1 = $root->add('Chapter 1', Destination::page(0));
 $chap1->add('Section 1.1', Destination::page(0));
@@ -135,7 +135,7 @@ $page1->link(50, 100, 200, 14, Link::url('https://example.com'));
 $page1->link(50, 120, 200, 14, Link::destination(Destination::page(1)));
 ```
 
-Destinations are 0-indexed pages. `Destination::page($i)` is XYZ at the top-left of the page (the safe default); `Destination::xyz()`, `Destination::fit()` and `Destination::fitWidth()` cover the other supported variants. Coordinates use the document's unit and the top-down Y axis (same as `text()`/`cell()`); the Y-flip to PDF native happens at serialisation. Out-of-range page indices throw `PdfException` at output time.
+Destinations are 0-indexed pages. `Destination::page($i)` jumps to the top-left of the page (the safe default); `Destination::xyz()`, `Destination::fit()` and `Destination::fitWidth()` cover other variants. Coordinates use the document's unit and the top-down Y axis (same as `text()` / `cell()`). Out-of-range page indices throw `PdfException` at output time.
 
 ### Graphics
 
@@ -183,9 +183,9 @@ $savedFont = $page->getFont();
 $savedSize = $page->getFontSize();
 ```
 
-#### Custom TTF fonts
+#### Custom TTF / OTF fonts
 
-Beyond the 12 built-in standard PDF fonts, you can register your own TrueType fonts for the document. Each registration declares a family alias and up to four variant files (regular, bold, italic, boldItalic):
+Beyond the 12 built-in standard PDF fonts, you can register your own TrueType or OpenType fonts for the document. Each registration declares a family alias and up to four variant files (regular, bold, italic, boldItalic):
 
 ```php
 use DragonOfMercy\PhpPdf\{Document, Font};
@@ -198,7 +198,7 @@ $pdf->registerFontFamily('Inter',
 
 $page = $pdf->addPage();
 $page->setFont(Font::custom('Inter'), 14);
-$page->text(50, 50, 'Resume, cafe, naivete, oeuvre'); // Latin, also fine in WinAnsi
+$page->text(50, 50, 'Resume, cafe, naivete, oeuvre'); // Latin
 $page->text(50, 70, "\u{0391} \u{0392} \u{0393} \u{0394}"); // Greek: Alpha Beta Gamma Delta
 $page->text(50, 90, "\u{041C}\u{043E}\u{0441}\u{043A}\u{0432}\u{0430}"); // Cyrillic: Moscow
 
@@ -217,23 +217,22 @@ Variant fallback chain when a requested style is not registered:
 - `Font::custom('alias')->italic()` -> `italic > regular`
 - `Font::custom('alias')` -> `regular` (always required)
 
-`registerFontFamily()` parses each TTF eagerly: missing files, unsupported flavours, malformed tables, and missing required tables raise `PdfException` immediately at registration time, not later during page rendering.
+`registerFontFamily()` parses each font file eagerly: missing files, unsupported flavours, malformed tables, and missing required tables raise `PdfException` immediately at registration time, not later during page rendering.
 
 Currently supported:
 
-- TrueType outlines (`.ttf`) and OpenType/CFF outlines (`.otf`, `OTTO`).
-- `cmap` subtable formats 4 (BMP, U+0000 to U+FFFF) and 12 (full Unicode, including supplementary planes).
-- Identity-H encoding, left-to-right scripts (Latin, Greek, Cyrillic, etc.). Copy-paste from the rendered PDF works correctly thanks to the embedded ToUnicode CMap.
-- Both TrueType and OpenType/CFF fonts are automatically subsetted to the glyphs actually used (GID-preserving). OTF fonts are embedded as `CIDFontType0` with the CFF table rewritten to keep only the used CharStrings, so even multi-megabyte CJK families produce small PDFs.
+- TrueType outlines (`.ttf`) and OpenType / CFF outlines (`.otf`, `OTTO`).
+- Full Unicode coverage, including supplementary planes.
+- Left-to-right scripts (Latin, Greek, Cyrillic, etc.). Copy-paste from the rendered PDF works correctly.
+- Automatic glyph subsetting: the embedded font only contains the glyphs your document actually uses, so even multi-megabyte CJK families produce small PDFs.
 
 Not supported (out of scope):
 
 - TrueType Collection (`.ttc`).
-- Variable fonts (fvar / gvar).
-- Kerning (GPOS / `kern` table).
-- Ligatures and complex shaping (GSUB).
+- Variable fonts.
+- Kerning, ligatures, and complex shaping (GPOS / GSUB).
 - Right-to-left, Arabic, Indic, and other scripts requiring shaping.
-- Identity-V (vertical writing).
+- Vertical writing.
 
 ### Cells
 
@@ -285,7 +284,7 @@ $page->cell(x: 20, y: 95, text: 'Auto-sized label', border: Border::all());
 
 `cell()` returns a `CellResult` carrying `x`, `y` (the bottom-right anchor for stacking, in the document's unit), `effectiveWidth` (useful when the cell was auto-sized from text), `height`, `lineCount`, `brokenWords`, and `textOverflow`.
 
-When `w` is omitted, the cell auto-sizes its width to fit the longest line of `text` plus horizontal padding (default or per-call). This requires non-empty text -- omitting both `w` and `text` raises an error.
+When `w` is omitted, the cell auto-sizes its width to fit the longest line of `text` plus horizontal padding (default or per-call). This requires non-empty text - omitting both `w` and `text` raises an error.
 
 #### Padding (uniform or per-side)
 
@@ -353,7 +352,7 @@ $page->cell(w: 30, h: 8, text: '+41 21 000 0000', border: Border::all());
 
 An explicit `x` always becomes the new "row start" used by `NEWLINE`. Calling `cell()` without `x` before any cursor is set raises an error.
 
-The cursor is also exposed directly via `getX()`, `getY()`, `setX()`, `setY()`, and `setXY()` -- handy to seed the cursor before the first `cell()`, jump to a known position mid-flow, or read the current position after a stack of cells:
+The cursor is also exposed directly via `getX()`, `getY()`, `setX()`, `setY()`, and `setXY()` - handy to seed the cursor before the first `cell()`, jump to a known position mid-flow, or read the current position after a stack of cells:
 
 ```php
 $page->setXY(20, 20);            // seed the cursor
@@ -386,7 +385,7 @@ $page->image($photo, x: 20, y: 60, w: 80);              // h derived from aspect
 $signature = Image::fromBase64($request->input('signature_png'));
 $page->image($signature, x: 20, y: 100, w: 60);
 
-// Same path used twice -> one XObject embedded, two placements.
+// Same path used twice -> embedded once, two placements.
 $page->image('logo.png', x: 150, y: 20, w: 30, h: 15);
 ```
 
@@ -396,9 +395,9 @@ Dimension rules:
 - Only `h` -> `w` derived to preserve aspect ratio.
 - Neither -> intrinsic pixel size at 72 DPI (1 pixel = 1 point ~= 0.353 mm).
 
-`(x, y)` is the **top-left** corner in the page user space (Y-down origin, consistent with the rest of phppdf since Phase 2a).
+`(x, y)` is the **top-left** corner in the page user space (Y-down origin, consistent with the rest of phppdf).
 
-SVG inputs are auto-detected by magic bytes (`<svg>` or `<?xml ... <svg`). They flow through the same `Image::fromXxx()` factories and the same `$page->image(...)` call as PNG/JPEG. Same dimension rules (`w`+`h` forced, `w` alone preserves aspect, etc.). Same caching: one SVG used N times = one Form XObject embedded, N placements.
+SVG inputs are auto-detected by magic bytes (`<svg>` or `<?xml ... <svg`). They flow through the same `Image::fromXxx()` factories and the same `$page->image(...)` call as PNG / JPEG. Same dimension rules (`w`+`h` forced, `w` alone preserves aspect, etc.). Same caching: one SVG used N times = one embed, N placements.
 
 ```php
 $logo = Image::fromFile('logo.svg');
@@ -417,14 +416,14 @@ $brand = Image::fromBase64('data:image/svg+xml;base64,...');
 $page->image($brand, x: 20, y: 80, w: 60);
 ```
 
-Supported in Phase 7:
+Supported:
 
 - All path commands: M, L, H, V, C, S, Q, T, A, Z and their lowercase relative variants.
-- Basic shapes: rect (with optional rx/ry rounded corners), circle, ellipse, line, polyline, polygon.
+- Basic shapes: rect (with optional rx / ry rounded corners), circle, ellipse, line, polyline, polygon.
 - Transforms: matrix(), translate(), scale(), rotate() with optional center, skewX(), skewY(); composition left-to-right.
 - viewBox + preserveAspectRatio (xMinYMin to xMaxYMax x meet | slice; `none` stretches).
 - Groups (`<g>`), `<defs>` + `<use>` references with cycle detection.
-- Paint state: solid fill / stroke (147 named CSS colors, `#abc` / `#aabbcc`, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative, emitted via ExtGState).
+- Paint state: solid fill / stroke (147 named CSS colors, `#abc` / `#aabbcc`, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative).
 - Presentation attributes AND inline `style="..."` (inline > direct > inherited precedence).
 
 Not supported (skipped silently per SVG spec fallback):
@@ -471,22 +470,23 @@ $page->barcode(
 
 Standards supported:
 
-- **EAN-13** (ISO/IEC 15420) -- 12 or 13 digits, auto checksum.
-- **EAN-8** -- 7 or 8 digits, auto checksum.
-- **Code 128** (ISO/IEC 15417) -- ASCII 0-127, auto-switching between sets A/B/C to minimise width.
-- **QR Code** (ISO/IEC 18004) -- full version range V1-V40 (up to ~4296 alphanumeric or ~2953 byte chars at L), error correction L/M/Q/H, modes numeric / alphanumeric / byte. Output validated against the zxing-cpp decoder across the full range.
+- **EAN-13** (ISO/IEC 15420) - 12 or 13 digits, auto checksum.
+- **EAN-8** - 7 or 8 digits, auto checksum.
+- **Code 128** (ISO/IEC 15417) - ASCII 0-127, auto-switching between sets A / B / C to minimise width.
+- **UPC-A**, **Code 39**, **Code 93**, **ITF** (Interleaved 2 of 5).
+- **QR Code** (ISO/IEC 18004) - full version range V1-V40 (up to ~4296 alphanumeric or ~2953 byte chars at L), error correction L / M / Q / H, modes numeric / alphanumeric / byte. Output validated against the zxing-cpp decoder across the full range.
 
 API shape:
 
-- `Page::barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null)` -- one method, polymorphic by value object.
+- `Page::barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null)` - one method, polymorphic by value object.
 - 1D codes (Ean13, Ean8, Code128) require `h`; QR codes only need `w` (h defaults to `w`).
-- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) -- all immutable.
+- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) - all immutable.
 - Default color is **black**, not the page's current fillColor (deterministic regardless of page state).
 - Coordinates use the document unit (mm by default), top-down Y axis (consistent with the rest of the API).
 
 Recommended sizes for reliable scanning: EAN-13 >= 25 mm wide, QR module >= 0.5 mm (so a V3 QR ~ 15 mm minimum).
 
-The quiet zone is **included** in the `w` / `h` you provide. The barcode wraps its rendering in a graphics state save/restore, so it does not alter your page's current font / fill color.
+The quiet zone is **included** in the `w` / `h` you provide. The barcode wraps its rendering in a graphics state save / restore, so it does not alter your page's current font / fill color.
 
 ## Development
 
@@ -518,13 +518,17 @@ Then commit the regenerated fixture(s) alongside the code change.
 
 ### Generating the standard font metrics
 
-The 12 AFM-derived metrics PHP files in `src/Font/Metrics/` are regenerated from Adobe Type 1 AFM source files placed in `bin/afm-source/` (gitignored):
+The 12 PHP files in `src/Font/Metrics/` are regenerated from Adobe Type 1 AFM source files placed in `bin/afm-source/` (gitignored):
 
 ```bash
 php bin/generate-font-metrics.php
 ```
 
 The script handles the WinAnsi glyph-name mapping and emits one PHP file per font.
+
+## Going deeper
+
+For everything that happens under the hood - how text encoding works, how fonts are subsetted, how SVG opacity is rendered, how AcroForm appearances are generated, how encryption transforms each PDF object, etc. - see [technical-infos.md](technical-infos.md).
 
 ## License
 
