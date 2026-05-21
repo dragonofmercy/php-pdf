@@ -65,6 +65,14 @@ final readonly class Upca implements Barcode
         return new self($this->digits, $this->color, false);
     }
 
+    public function widthForModule(float $moduleSize): float
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
+        }
+        return self::TOTAL_MODULES * $moduleSize;
+    }
+
     /**
      * UPC-A checksum: (sum of digits at odd positions)*3 + sum at even
      * positions, mod 10, complemented. Positions 1-indexed from the left

@@ -61,6 +61,14 @@ final readonly class Ean8 implements Barcode
         return new self($this->digits, $this->color, false);
     }
 
+    public function widthForModule(float $moduleSize): float
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
+        }
+        return self::TOTAL_MODULES * $moduleSize;
+    }
+
     /**
      * EAN-8 checksum: 3*d1 + d2 + 3*d3 + d4 + 3*d5 + d6 + 3*d7, mod 10, complement.
      * @internal

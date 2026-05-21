@@ -62,6 +62,14 @@ final readonly class Ean13 implements Barcode
         return new self($this->digits, $this->color, false);
     }
 
+    public function widthForModule(float $moduleSize): float
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
+        }
+        return self::TOTAL_MODULES * $moduleSize;
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         if ($h === null) {
