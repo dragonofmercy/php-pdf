@@ -18,10 +18,11 @@ namespace DragonOfMercy\PhpPdf\Barcode\DataMatrix;
 final class HighLevelEncoder
 {
     // ASCII mode codewords (ISO 16022 5.2.3, Table 6).
-    // Other ASCII codewords (PAD=129, LATCH_C40=230, LATCH_BASE256=231,
-    // FNC1=232, LATCH_TEXT=239) are introduced by tasks 5-7 when they
-    // become consumed; PHPStan max rejects unused private constants.
+    // Other ASCII codewords (PAD=129, LATCH_C40=230, FNC1=232, LATCH_TEXT=239)
+    // are introduced by tasks 6-7 when they become consumed; PHPStan max
+    // rejects unused private constants.
     private const int CW_ASCII_DIGIT_PAIR      = 130; // base for digit-pair packing
+    private const int CW_ASCII_LATCH_BASE256   = 231;
     private const int CW_ASCII_EXTENDED_ASCII  = 235;
 
     /**
@@ -70,5 +71,50 @@ final class HighLevelEncoder
     private static function isDigit(string $c): bool
     {
         return $c >= '0' && $c <= '9';
+    }
+
+    /**
+     * Encode a byte sequence using Base256 mode per ISO/IEC 16022 5.4.3.
+     *
+     * Output structure:
+     *   [231]
+     *   [length codeword(s)] (1 codeword if length < 250, else 2)
+     *   [randomized data bytes...]
+     *
+     * Randomization formula (ISO 5.4.3): for codeword at position pos (1-based,
+     * counting from the byte after the latch), output = (raw + ((149 * pos) % 255) + 1) mod 256.
+     *
+     * @return list<int>
+     */
+    public static function encodeBase256(string $bytes): array
+    {
+        $len = strlen($bytes);
+        $out = [self::CW_ASCII_LATCH_BASE256];
+        $pos = 1;
+        if ($len < 250) {
+            $out[] = self::randomize255State($len, $pos);
+            $pos++;
+        } else {
+            $hi = intdiv($len, 250) + 249;
+            $lo = $len % 250;
+            $out[] = self::randomize255State($hi, $pos);
+            $pos++;
+            $out[] = self::randomize255State($lo, $pos);
+            $pos++;
+        }
+        for ($i = 0; $i < $len; $i++) {
+            $out[] = self::randomize255State(ord($bytes[$i]), $pos);
+            $pos++;
+        }
+        return $out;
+    }
+
+    /**
+     * Base256 randomization (ISO 5.4.3): output = (value + ((149 * pos) % 255) + 1) mod 256.
+     */
+    private static function randomize255State(int $value, int $position): int
+    {
+        $pseudoRandom = ((149 * $position) % 255) + 1;
+        return ($value + $pseudoRandom) % 256;
     }
 }

@@ -39,4 +39,37 @@ final class HighLevelEncoderTest extends TestCase
         // "1A" -> '1' alone (50), 'A' (66). Pair window only consumes consecutive digits.
         self::assertSame([50, 66], HighLevelEncoder::encode('1A'));
     }
+
+    public function testBase256WrapsBinaryWithLengthPrefixAndRandomization(): void
+    {
+        // 3 binary bytes 0xFF, 0xFE, 0xFD wrapped by Base256:
+        //   codeword 231 (latch to Base256), length codeword, then 3 randomized bytes.
+        $out = HighLevelEncoder::encodeBase256("\xFF\xFE\xFD");
+        self::assertCount(5, $out);
+        self::assertSame(231, $out[0]);
+        // For length < 250, the length codeword is the count, randomized at pos 1:
+        // pseudoRandom = ((149 * 1) % 255) + 1 = 150; (3 + 150) % 256 = 153.
+        self::assertSame(153, $out[1]);
+    }
+
+    public function testBase256SingleByteUsesLengthOne(): void
+    {
+        $out = HighLevelEncoder::encodeBase256("\x80");
+        self::assertSame(231, $out[0]);
+        // length 1 randomized at pos 1: (1 + 150) % 256 = 151.
+        self::assertSame(151, $out[1]);
+        self::assertCount(3, $out);
+    }
+
+    public function testBase256LongPayloadUsesTwoByteLength(): void
+    {
+        // Length >= 250 uses two length codewords:
+        //   first = (length / 250) + 249  (randomized)
+        //   second = length % 250         (randomized)
+        $payload = str_repeat("\xFF", 300);
+        $out = HighLevelEncoder::encodeBase256($payload);
+        self::assertSame(231, $out[0]);
+        // 1 (latch) + 2 (length) + 300 (data) = 303 codewords.
+        self::assertCount(303, $out);
+    }
 }
