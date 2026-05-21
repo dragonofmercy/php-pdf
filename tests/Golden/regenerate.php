@@ -608,6 +608,7 @@ echo "Regenerated barcode-aztec-unicode.pdf\n";
 
 // Fixture: Barcode Gallery - every supported format on a single A4 page
 $doc = new Document(Unit::MM);
+$doc->setMargins(\DragonOfMercy\PhpPdf\PageMargins::sides(top: 20, right: 20, bottom: 40, left: 20));
 $page = $doc->addPage();
 
 $page->setFont(Font::helvetica()->bold(), 16);
@@ -618,9 +619,9 @@ $page->text(20, 28, 'All supported 1D and 2D barcode formats in a single page.')
 $labelX = 20.0;
 $codeX = 70.0;
 $dataX = 140.0;
-$row1dHeight = 22.0;
+$row1dHeight = 18.0;
 $row1dBarcodeWidth = 60.0;
-$row1dBarcodeHeight = 12.0;
+$row1dBarcodeHeight = 10.0;
 $y = 40.0;
 
 $page->setFont(Font::helvetica()->bold(), 9);
@@ -640,10 +641,10 @@ $rows1d = [
 
 foreach ($rows1d as [$label, $code, $data]) {
     $page->setFont(Font::helvetica()->bold(), 10);
-    $page->text($labelX, $y + 7, $label);
+    $page->text($labelX, $y + 6, $label);
     $page->barcode($code, x: $codeX, y: $y, w: $row1dBarcodeWidth, h: $row1dBarcodeHeight);
     $page->setFont(Font::courier(), 9);
-    $page->text($dataX, $y + 7, $data);
+    $page->text($dataX, $y + 6, $data);
     $y += $row1dHeight;
 }
 
@@ -653,39 +654,19 @@ $page->text($labelX, $y, '2D codes');
 $y += 6.0;
 
 $rows2d = [
-    [
-        'QR Code (M)',
-        \DragonOfMercy\PhpPdf\Barcode\QrCode::of('https://example.com/product/SKU-2026'),
-        'https://example.com/product/SKU-2026',
-    ],
-    [
-        'QR Code (H)',
-        \DragonOfMercy\PhpPdf\Barcode\QrCode::of('phppdf', \DragonOfMercy\PhpPdf\Barcode\ErrorCorrection::H),
-        'phppdf (EC=H, 30%)',
-    ],
-    [
-        'Aztec (MEDIUM)',
-        \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('https://example.com'),
-        'https://example.com',
-    ],
-    [
-        'Aztec (HIGH)',
-        \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('M1DOE/JOHN  EABCDEF DTWJFK', \DragonOfMercy\PhpPdf\Barcode\AztecEc::HIGH),
-        'boarding payload, EC=H',
-    ],
+    ['QR Code (M)',    \DragonOfMercy\PhpPdf\Barcode\QrCode::of('https://example.com/product/SKU-2026')],
+    ['QR Code (H)',    \DragonOfMercy\PhpPdf\Barcode\QrCode::of('phppdf', \DragonOfMercy\PhpPdf\Barcode\ErrorCorrection::H)],
+    ['Aztec (MEDIUM)', \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('https://example.com')],
+    ['Aztec (HIGH)',   \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('M1DOE/JOHN  EABCDEF DTWJFK', \DragonOfMercy\PhpPdf\Barcode\AztecEc::HIGH)],
 ];
 
 $code2dSize = 28.0;
-$code2dGap = 6.0;
-$code2dRowHeight = $code2dSize + $code2dGap;
+$col2dX = [$labelX, 65.0, 110.0, 155.0];
 
-foreach ($rows2d as [$label, $code, $data]) {
-    $page->setFont(Font::helvetica()->bold(), 10);
-    $page->text($labelX, $y + 14, $label);
-    $page->barcode($code, x: $codeX, y: $y, w: $code2dSize);
-    $page->setFont(Font::courier(), 9);
-    $page->text($dataX, $y + 14, $data);
-    $y += $code2dRowHeight;
+foreach ($rows2d as $i => [$label, $code]) {
+    $page->setFont(Font::helvetica()->bold(), 9);
+    $page->text($col2dX[$i], $y, $label);
+    $page->barcode($code, x: $col2dX[$i], y: $y + 2, w: $code2dSize);
 }
 
 $doc->save($fixturesDir . '/barcode-gallery.pdf');
