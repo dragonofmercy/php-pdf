@@ -66,4 +66,35 @@ final class WidthForModuleTest extends TestCase
         $expectedBars = count($bc->encodeModulesForTest());
         self::assertSame(($expectedBars + 20) * 0.3, $bc->widthForModule(0.3));
     }
+
+    /**
+     * @return iterable<string, array{0: Code128|Code39|Code93|Ean13|Ean8|Itf|Upca, 1: float, 2: string}>
+     */
+    public static function nonPositiveModuleSizeProvider(): iterable
+    {
+        $factories = [
+            'Itf'     => fn () => Itf::of('12345678'),
+            'Code39'  => fn () => Code39::of('A'),
+            'Code93'  => fn () => Code93::of('A'),
+            'Code128' => fn () => Code128::of('ABC'),
+            'Ean8'    => fn () => Ean8::of('1234567'),
+            'Ean13'   => fn () => Ean13::of('123456789012'),
+            'Upca'    => fn () => Upca::of('12345678901'),
+        ];
+        foreach ($factories as $name => $factory) {
+            yield "{$name} rejects zero"     => [$factory(), 0.0, 'got 0'];
+            yield "{$name} rejects negative" => [$factory(), -1.0, 'got -1'];
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('nonPositiveModuleSizeProvider')]
+    public function testWidthForModuleRejectsNonPositive(
+        Code128|Code39|Code93|Ean13|Ean8|Itf|Upca $bc,
+        float $size,
+        string $expectedFragment,
+    ): void {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage($expectedFragment);
+        $bc->widthForModule($size);
+    }
 }
