@@ -487,7 +487,7 @@ Standards supported:
 - **UPC-A**, **Code 39**, **Code 93**, **ITF** (Interleaved 2 of 5).
 - **QR Code** (ISO/IEC 18004) - full version range V1-V40 (up to ~4296 alphanumeric or ~2953 byte chars at L), error correction L / M / Q / H, modes numeric / alphanumeric / byte. Output validated against the zxing-cpp decoder across the full range.
 - **Aztec Code** (ISO/IEC 24778) - Compact (1-4 layers, 15x15 to 27x27 modules) and Full Range (1-32 layers, up to 151x151 modules), four EC presets (LOW ~10%, MEDIUM ~23%, HIGH ~36%, MAX ~50%), auto-detects ASCII vs UTF-8 (with ECI escape) for the payload. Output validated against the zxing-cpp decoder.
-- **DataMatrix** (ISO/IEC 16022) - ECC200 only, all 24 square sizes from 10x10 to 144x144 modules (rectangles and DMRE are out of scope), auto-fits the smallest symbol that holds the payload, Reed-Solomon error correction sized per ECC200 (no user knob), automatic encoding selection across ASCII, C40, Text, and Base256 with Annex P lookahead. Output validated against the zxing-cpp decoder.
+- **DataMatrix** (ISO/IEC 16022) - ECC200 only, all 24 square sizes from 10x10 to 144x144 modules (rectangles and DMRE are out of scope), auto-fits the smallest symbol that holds the payload, Reed-Solomon error correction sized per ECC200 (no user knob), automatic encoding selection across ASCII (with digit-pair packing), C40, Text, and Base256 with Annex P lookahead. Reed-Solomon validated against the canonical ISO/IEC 16022 Annex O reference vector.
 
 API shape:
 
