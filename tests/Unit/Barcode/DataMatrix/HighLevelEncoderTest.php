@@ -102,4 +102,26 @@ final class HighLevelEncoderTest extends TestCase
         $out = HighLevelEncoder::encodeText('abc');
         self::assertSame([239, 89, 233, 254], $out);
     }
+
+    public function testC40ResidualOneFallsBackToAscii(): void
+    {
+        // 'ABCD' -> 4 C40 values (14, 15, 16, 17). One triplet (ABC = 23017) packs to high=89, low=233.
+        // residual = 1 (just 'D' left).
+        // ISO 16022 5.2.5.2 residual 1: emit unlatch (254), then last input byte as ASCII.
+        // 'D' = 0x44 = 68 -> ASCII codeword 69.
+        // Final: [230 (latch), 89, 233, 254 (unlatch), 69 (ASCII 'D')].
+        $out = HighLevelEncoder::encodeC40('ABCD');
+        self::assertSame([230, 89, 233, 254, 69], $out);
+    }
+
+    public function testC40ResidualTwoPadsWithZero(): void
+    {
+        // 'ABCDE' -> 5 C40 values (14, 15, 16, 17, 18). One triplet (ABC) + residual 'DE' (17, 18).
+        // residual = 2: pad with C40 value 0 -> triplet (D, E, pad) = (17, 18, 0).
+        // V_first  = 1600*14 + 40*15 + 16 + 1 = 23017 -> high=89, low=233
+        // V_second = 1600*17 + 40*18 + 0  + 1 = 27200 + 720 + 1 = 27921 -> high=109, low=17 (27921 >> 8 = 109, 27921 & 0xFF = 17)
+        // Final: [230, 89, 233, 109, 17, 254].
+        $out = HighLevelEncoder::encodeC40('ABCDE');
+        self::assertSame([230, 89, 233, 109, 17, 254], $out);
+    }
 }
