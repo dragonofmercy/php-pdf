@@ -605,3 +605,88 @@ $page->barcode(
 );
 $doc->save($fixturesDir . '/barcode-aztec-unicode.pdf');
 echo "Regenerated barcode-aztec-unicode.pdf\n";
+
+// Fixture: Barcode Gallery - every supported format on a single A4 page
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+
+$page->setFont(Font::helvetica()->bold(), 16);
+$page->text(20, 22, 'phppdf - Barcode Gallery');
+$page->setFont(Font::helvetica(), 9);
+$page->text(20, 28, 'All supported 1D and 2D barcode formats in a single page.');
+
+$labelX = 20.0;
+$codeX = 70.0;
+$dataX = 140.0;
+$row1dHeight = 22.0;
+$row1dBarcodeWidth = 60.0;
+$row1dBarcodeHeight = 12.0;
+$y = 40.0;
+
+$page->setFont(Font::helvetica()->bold(), 9);
+$page->text($labelX, $y - 3, 'Format');
+$page->text($codeX, $y - 3, 'Barcode');
+$page->text($dataX, $y - 3, 'Encoded data');
+
+$rows1d = [
+    ['EAN-13', \DragonOfMercy\PhpPdf\Barcode\Ean13::of('978013110362'), '978013110362'],
+    ['EAN-8', \DragonOfMercy\PhpPdf\Barcode\Ean8::of('1234567'), '1234567'],
+    ['Code 128', \DragonOfMercy\PhpPdf\Barcode\Code128::of('SHIP-2026-001'), 'SHIP-2026-001'],
+    ['UPC-A', \DragonOfMercy\PhpPdf\Barcode\Upca::of('03600029145'), '03600029145'],
+    ['Code 39', \DragonOfMercy\PhpPdf\Barcode\Code39::of('CODE 39 ABC'), 'CODE 39 ABC'],
+    ['Code 93', \DragonOfMercy\PhpPdf\Barcode\Code93::of('CODE-93-XYZ'), 'CODE-93-XYZ'],
+    ['ITF', \DragonOfMercy\PhpPdf\Barcode\Itf::of('1234567890'), '1234567890'],
+];
+
+foreach ($rows1d as [$label, $code, $data]) {
+    $page->setFont(Font::helvetica()->bold(), 10);
+    $page->text($labelX, $y + 7, $label);
+    $page->barcode($code, x: $codeX, y: $y, w: $row1dBarcodeWidth, h: $row1dBarcodeHeight);
+    $page->setFont(Font::courier(), 9);
+    $page->text($dataX, $y + 7, $data);
+    $y += $row1dHeight;
+}
+
+$y += 6.0;
+$page->setFont(Font::helvetica()->bold(), 10);
+$page->text($labelX, $y, '2D codes');
+$y += 6.0;
+
+$rows2d = [
+    [
+        'QR Code (M)',
+        \DragonOfMercy\PhpPdf\Barcode\QrCode::of('https://example.com/product/SKU-2026'),
+        'https://example.com/product/SKU-2026',
+    ],
+    [
+        'QR Code (H)',
+        \DragonOfMercy\PhpPdf\Barcode\QrCode::of('phppdf', \DragonOfMercy\PhpPdf\Barcode\ErrorCorrection::H),
+        'phppdf (EC=H, 30%)',
+    ],
+    [
+        'Aztec (MEDIUM)',
+        \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('https://example.com'),
+        'https://example.com',
+    ],
+    [
+        'Aztec (HIGH)',
+        \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('M1DOE/JOHN  EABCDEF DTWJFK', \DragonOfMercy\PhpPdf\Barcode\AztecEc::HIGH),
+        'boarding payload, EC=H',
+    ],
+];
+
+$code2dSize = 28.0;
+$code2dGap = 6.0;
+$code2dRowHeight = $code2dSize + $code2dGap;
+
+foreach ($rows2d as [$label, $code, $data]) {
+    $page->setFont(Font::helvetica()->bold(), 10);
+    $page->text($labelX, $y + 14, $label);
+    $page->barcode($code, x: $codeX, y: $y, w: $code2dSize);
+    $page->setFont(Font::courier(), 9);
+    $page->text($dataX, $y + 14, $data);
+    $y += $code2dRowHeight;
+}
+
+$doc->save($fixturesDir . '/barcode-gallery.pdf');
+echo "Regenerated barcode-gallery.pdf\n";
