@@ -7,7 +7,8 @@ namespace DragonOfMercy\PhpPdf\Barcode;
 use DragonOfMercy\PhpPdf\{Color, Page};
 
 /**
- * A drawable barcode -- either 1D (EAN-13, EAN-8, Code 128) or 2D (QR Code).
+ * A drawable barcode -- 1D (EAN-13, EAN-8, UPC-A, Code 39, Code 93, Code 128,
+ * ITF) or 2D (QR Code, Aztec Code, DataMatrix).
  * Implementations are immutable value objects constructed via named factories
  * on the concrete class. Use {@see \DragonOfMercy\PhpPdf\Page::barcode()}
  * to draw onto a page.
@@ -26,8 +27,8 @@ interface Barcode
      * (x, y) is the top-left corner of the barcode bounding box (including the quiet zone), in the page's unit.
      *
      * For 1D barcodes, h is required; passing null throws.
-     * For QR (which is square), h is optional: if null, h = w; if provided,
-     * it must equal w or a PdfException is thrown.
+     * For square 2D barcodes (QR, Aztec, DataMatrix), h is optional: if null,
+     * h = w; if provided, it must equal w or a PdfException is thrown.
      *
      * This method is not part of the public drawing API; call
      * {@see \DragonOfMercy\PhpPdf\Page::barcode()} instead. Implementations

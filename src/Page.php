@@ -811,13 +811,14 @@ final class Page
     }
 
     /**
-     * Draws a barcode (1D or QR) at the given top-left position in the page
+     * Draws a barcode (1D or 2D) at the given top-left position in the page
      * unit. The barcode itself manages its rendering, including a save/restore
      * of the graphics state, so this call does not alter the page's current
      * fill color, font, etc.
      *
-     * For 1D barcodes (EAN-13, EAN-8, Code 128) `h` is required; for QR it is
-     * optional (defaults to `w`, since QR is square).
+     * For 1D barcodes (EAN-13, EAN-8, UPC-A, Code 39, Code 93, Code 128, ITF)
+     * `h` is required; for square 2D barcodes (QR, Aztec, DataMatrix) it is
+     * optional (defaults to `w`).
      */
     public function barcode(
         Barcode $code,
