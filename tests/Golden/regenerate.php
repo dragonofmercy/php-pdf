@@ -540,3 +540,8 @@ echo "Regenerated page-with-outlines-and-links.pdf\n";
 $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\PageWithFormsTest('test'))->buildDocument();
 $doc->save($fixturesDir . '/page-with-forms.pdf');
 echo "Regenerated page-with-forms.pdf\n";
+
+// Fixture: page with styled AcroForm fields (Phase 8.1)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\PageWithStyledFormsTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/page-with-styled-forms.pdf');
+echo "Regenerated page-with-styled-forms.pdf\n";
