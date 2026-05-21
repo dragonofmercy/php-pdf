@@ -72,4 +72,34 @@ final class HighLevelEncoderTest extends TestCase
         // 1 (latch) + 2 (length) + 300 (data) = 303 codewords.
         self::assertCount(303, $out);
     }
+
+    public function testC40EncodesThreeCharsIntoTwoCodewords(): void
+    {
+        // C40 packs 3 characters into a 16-bit value (2 codewords).
+        // Formula: V = 1600*a + 40*b + c + 1, then high = V >> 8, low = V & 0xFF.
+        // 'A' 'B' 'C' in C40 are 14, 15, 16 (uppercase basic set, offset 14 from 'A').
+        // V = 1600*14 + 40*15 + 16 + 1 = 22400 + 600 + 17 = 23017
+        // high = 89, low = 233
+        $out = HighLevelEncoder::encodeC40('ABC');
+        // Output: latch (230), high, low, unlatch (254).
+        self::assertSame([230, 89, 233, 254], $out);
+    }
+
+    public function testC40DigitsUseBasicSet(): void
+    {
+        // Digits '0'..'9' in C40 are 4..13.
+        // '123' -> V = 1600*5 + 40*6 + 7 + 1 = 8000 + 240 + 8 = 8248
+        // high = 32, low = 56
+        $out = HighLevelEncoder::encodeC40('123');
+        self::assertSame([230, 32, 56, 254], $out);
+    }
+
+    public function testTextEncodesLowercaseInBasicSet(): void
+    {
+        // Text mode is C40 with lowercase in the basic set and uppercase in Shift 3.
+        // 'abc' in Text basic set are 14, 15, 16 (same offsets as C40 uppercase).
+        // V = 1600*14 + 40*15 + 16 + 1 = 23017, same packing as testC40EncodesThreeCharsIntoTwoCodewords.
+        $out = HighLevelEncoder::encodeText('abc');
+        self::assertSame([239, 89, 233, 254], $out);
+    }
 }
