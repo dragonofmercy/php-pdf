@@ -722,12 +722,36 @@ final class Document
         // Pre-register Helvetica if any page has form fields - the /AcroForm
         // dict needs to reference it via /DR /Font /Helv. Done BEFORE the
         // fontRefs allocation loop so Helvetica gets a stable object number
-        // even when no page draws text with it.
+        // even when no page draws text with it. Also scan FieldAppearance
+        // entries for any Standard 14 Courier/Times so they get registered
+        // (and exposed in /DR /Font as /Cour and /TiRo).
+        $hasFormFields = false;
+        /** @var array<string, Font> $standardFontsToRegister keyed by pdfName for dedup */
+        $standardFontsToRegister = [];
         foreach ($this->pages as $p) {
-            if ($p->getFormFields() !== []) {
-                $this->fontRegistry->shortName(Font::helvetica());
-                break;
+            $fields = $p->getFormFields();
+            if ($fields === []) {
+                continue;
             }
+            $hasFormFields = true;
+            foreach ($fields as $field) {
+                $appearance = $field->appearance();
+                if ($appearance === null || $appearance->font === null) {
+                    continue;
+                }
+                $font = $appearance->font;
+                if ($font->isCustom()) {
+                    // Will throw at AcroFormEmitter time with a precise message.
+                    continue;
+                }
+                $standardFontsToRegister[$font->pdfName()] = $font;
+            }
+        }
+        if ($hasFormFields) {
+            $this->fontRegistry->shortName(Font::helvetica());
+        }
+        foreach ($standardFontsToRegister as $font) {
+            $this->fontRegistry->shortName($font);
         }
 
         /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
@@ -910,10 +934,29 @@ final class Document
             if (!isset($fontRefs[$helveticaShortName])) {
                 throw new PdfException('Internal: Helvetica not allocated despite form fields being present');
             }
-            $helveticaRef = $fontRefs[$helveticaShortName];
+            /** @var array<string, PdfReference> $standardFontRefs alias => reference */
+            $standardFontRefs = ['Helv' => $fontRefs[$helveticaShortName]];
+            // Map any Courier/Times variant registered for an appearance to its
+            // /AcroForm /DR alias. The first variant encountered wins; Acrobat
+            // selects the actual face from /DA, not from the /DR alias.
+            $aliasByFamilyPrefix = ['Courier' => 'Cour', 'Times' => 'TiRo'];
+            foreach ($this->fontRegistry->registeredFonts() as $regFont) {
+                $pdfName = $regFont->pdfName();
+                foreach ($aliasByFamilyPrefix as $prefix => $alias) {
+                    if (isset($standardFontRefs[$alias])) {
+                        continue;
+                    }
+                    if (str_starts_with($pdfName, $prefix)) {
+                        $shortName = $this->fontRegistry->shortName($regFont);
+                        if (isset($fontRefs[$shortName])) {
+                            $standardFontRefs[$alias] = $fontRefs[$shortName];
+                        }
+                    }
+                }
+            }
 
             $acroEmit = (new AcroFormEmitter($this->unit))
-                ->emit($allWidgets, $helveticaRef, $nextObjectNumber, 'document acroform');
+                ->emit($allWidgets, $standardFontRefs, $nextObjectNumber, 'document acroform');
             $acroFormRef = $acroEmit['acroFormRef'];
             foreach ($acroEmit['objects'] as $obj) {
                 $objects[] = $obj;

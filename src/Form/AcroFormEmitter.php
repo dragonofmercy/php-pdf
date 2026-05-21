@@ -6,6 +6,8 @@ namespace DragonOfMercy\PhpPdf\Form;
 
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
@@ -34,10 +36,17 @@ final readonly class AcroFormEmitter
 
     /**
      * @param list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $widgets
+     * @param array<string, PdfReference> $standardFontRefs alias => reference, e.g. ['Helv' => ..., 'Cour' => ..., 'TiRo' => ...]. Must contain at least 'Helv'.
      * @return array{acroFormRef: PdfReference, objects: list<IndirectObject>}
      */
-    public function emit(array $widgets, PdfReference $helveticaRef, int &$nextId, string $context): array
+    public function emit(array $widgets, array $standardFontRefs, int &$nextId, string $context): array
     {
+        if (!isset($standardFontRefs['Helv'])) {
+            throw new PdfException(
+                'AcroFormEmitter::emit() requires at minimum a "Helv" entry in $standardFontRefs',
+            );
+        }
+
         $this->validateUniqueNames($widgets, $context);
 
         $objects = [];
@@ -106,7 +115,10 @@ final readonly class AcroFormEmitter
         }
 
         $acroFormId = $nextId++;
-        $drFontDict = Dictionary::empty()->withEntry(Name::of('Helv'), $helveticaRef);
+        $drFontDict = Dictionary::empty();
+        foreach ($standardFontRefs as $alias => $ref) {
+            $drFontDict = $drFontDict->withEntry(Name::of($alias), $ref);
+        }
         $drDict = Dictionary::empty()->withEntry(Name::of('Font'), $drFontDict);
         $acroFormDict = Dictionary::empty()
             ->withEntry(Name::of('Fields'), PdfArray::of(...$topLevelRefs))
@@ -214,6 +226,10 @@ final readonly class AcroFormEmitter
             if ($mk !== null) {
                 $kidDict = $kidDict->withEntry(Name::of('MK'), $mk);
             }
+            $da = self::buildDA($widget->appearance());
+            if ($da !== null) {
+                $kidDict = $kidDict->withEntry(Name::of('DA'), PdfString::of($da));
+            }
             $kidDict = $kidDict
                 ->withEntry(Name::of('AS'), Name::of($state))
                 ->withEntry(Name::of('AP'), $apDict);
@@ -269,6 +285,11 @@ final readonly class AcroFormEmitter
 
         $dict = $this->baseWidgetDict($f, 'Tx', $widgetRef, $pageHeightPt, $flags)
             ->withEntry(Name::of('T'), PdfString::of($f->name));
+
+        if ($f->appearance !== null && $f->appearance->align !== TextAlign::LEFT) {
+            $q = $f->appearance->align === TextAlign::CENTER ? 1 : 2;
+            $dict = $dict->withEntry(Name::of('Q'), PdfNumber::ofInt($q));
+        }
 
         if ($f->value !== '') {
             $dict = $dict->withEntry(Name::of('V'), PdfString::of($f->value));
@@ -541,10 +562,95 @@ final readonly class AcroFormEmitter
         if ($mk !== null) {
             $dict = $dict->withEntry(Name::of('MK'), $mk);
         }
+        $da = self::buildDA($f->appearance());
+        if ($da !== null) {
+            $dict = $dict->withEntry(Name::of('DA'), PdfString::of($da));
+        }
         if ($flags !== 0) {
             $dict = $dict->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags));
         }
         return $dict;
+    }
+
+    /**
+     * Maps a Standard 14 Font to its /AcroForm /DR alias. Throws for custom
+     * (TTF) fonts; FieldAppearance.font is only allowed to reference one of
+     * the Standard 14 in Phase 8.1.
+     */
+    private static function fontAlias(Font $font): string
+    {
+        if ($font->isCustom()) {
+            throw new PdfException(
+                'FieldAppearance.font must be one of the Standard 14 fonts (Helvetica, Courier, Times); custom TTF fonts are not supported in AcroForm /DR yet',
+            );
+        }
+        $pdfName = $font->pdfName();
+        if (str_starts_with($pdfName, 'Helvetica')) {
+            return 'Helv';
+        }
+        if (str_starts_with($pdfName, 'Courier')) {
+            return 'Cour';
+        }
+        if (str_starts_with($pdfName, 'Times')) {
+            return 'TiRo';
+        }
+        throw new PdfException(sprintf(
+            'Unsupported standard font for /AcroForm /DR: %s',
+            $pdfName,
+        ));
+    }
+
+    /**
+     * Builds the /DA appearance string for a widget when its appearance
+     * overrides textColor / font / fontSize. Returns null if no override
+     * is needed (the form-level /DA "0 g /Helv 10 Tf" suffices).
+     *
+     * Format: "<color> /<alias> <size> Tf"
+     */
+    private static function buildDA(?FieldAppearance $appearance): ?string
+    {
+        if ($appearance === null) {
+            return null;
+        }
+        if ($appearance->textColor === null && $appearance->font === null && $appearance->fontSize === null) {
+            return null;
+        }
+        $color = $appearance->textColor !== null ? self::colorSetter($appearance->textColor) : '0 g';
+        $alias = $appearance->font !== null ? self::fontAlias($appearance->font) : 'Helv';
+        $size = $appearance->fontSize ?? 10.0;
+        return sprintf('%s /%s %s Tf', $color, $alias, self::formatNum($size));
+    }
+
+    /**
+     * Returns a PDF content-stream color-setting operator suitable for a /DA
+     * string. Emits "L g" (DeviceGray) when r == g == b, otherwise
+     * "R G B rg" (DeviceRGB).
+     */
+    private static function colorSetter(Color $c): string
+    {
+        $components = $c->rgbComponents();
+        if ($components[0] === $components[1] && $components[1] === $components[2]) {
+            return self::formatNum($components[0]) . ' g';
+        }
+        return sprintf(
+            '%s %s %s rg',
+            self::formatNum($components[0]),
+            self::formatNum($components[1]),
+            self::formatNum($components[2]),
+        );
+    }
+
+    /**
+     * Compact deterministic float formatting mirroring PdfNumber::ofFloat,
+     * but reusable for substrings inside a /DA literal.
+     */
+    private static function formatNum(float $v): string
+    {
+        if ((float) (int) $v === $v) {
+            return (string) (int) $v;
+        }
+        $formatted = rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.');
+        return $formatted === '' || $formatted === '-' ? '0' : $formatted;
     }
 
     /**

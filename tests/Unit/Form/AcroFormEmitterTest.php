@@ -21,7 +21,7 @@ final class AcroFormEmitterTest extends TestCase
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => $pageRef, 'pageHeightPt' => 841.89]];
 
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         self::assertNotEmpty($emit['objects']);
         $serialized = '';
@@ -39,7 +39,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 50.0, name: 'a', multiline: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -57,7 +57,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 8.0, name: 'a', required: true, readOnly: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -76,7 +76,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 8.0, name: 'a', maxLength: 50);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -90,7 +90,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 100.0, 8.0, name: 'a', tooltip: 'My tooltip');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -104,7 +104,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(50.0, 100.0, 80.0, 8.0, name: 'a');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 841.89]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -125,7 +125,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 12;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Duplicate field name 'dup'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
 
     public function testEmitCheckboxUnchecked(): void
@@ -133,7 +133,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new Checkbox(50.0, 100.0, 5.0, 5.0, name: 'agree');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 841.89]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -151,7 +151,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new Checkbox(0.0, 0.0, 5.0, 5.0, name: 'a', checked: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -172,7 +172,7 @@ final class AcroFormEmitterTest extends TestCase
             ['field' => $r3, 'widgetRef' => PdfReference::to(12, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
         ];
         $nextId = 13;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -209,7 +209,7 @@ final class AcroFormEmitterTest extends TestCase
             ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
         ];
         $nextId = 12;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -224,7 +224,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['A', 'B', 'C']);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -244,7 +244,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['fr' => 'France', 'ch' => 'Suisse'], value: 'ch');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -259,7 +259,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['x'], editable: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -279,7 +279,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 11;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Combobox value 'zz' not found in options for field 'c'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
 
     public function testEmitListboxSingleValue(): void
@@ -287,7 +287,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b'], value: 'a');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -308,7 +308,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 30.0, name: 'l', options: ['a', 'b', 'c'], value: ['a', 'c'], multiSelect: true);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -329,7 +329,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 11;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Listbox value 'z' not found in options for field 'l'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
 
     public function testEmitListboxRejectsMultipleValuesWhenSingleSelect(): void
@@ -339,7 +339,7 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 11;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Listbox value must be a single string or null when multiSelect is false, got 2 entries for field 'l'");
-        (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
 
     public function testAcroFormDictContainsDAAndDRFontHelv(): void
@@ -347,7 +347,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -366,9 +366,9 @@ final class AcroFormEmitterTest extends TestCase
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
 
         $n1 = 11;
-        $emit1 = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $n1, 'a');
+        $emit1 = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $n1, 'a');
         $n2 = 11;
-        $emit2 = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $n2, 'a');
+        $emit2 = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $n2, 'a');
 
         $s1 = '';
         foreach ($emit1['objects'] as $obj) {
@@ -389,7 +389,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -407,7 +407,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['x'], appearance: $appearance);
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -422,7 +422,7 @@ final class AcroFormEmitterTest extends TestCase
         $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
         $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -439,7 +439,7 @@ final class AcroFormEmitterTest extends TestCase
         $r = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 0.0, 5.0, 5.0, group: 'g', value: 'v', checked: true, appearance: $appearance);
         $widgets = [['field' => $r, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
         $nextId = 11;
-        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
 
         $serialized = '';
         foreach ($emit['objects'] as $obj) {
@@ -447,5 +447,159 @@ final class AcroFormEmitterTest extends TestCase
         }
         self::assertStringContainsString('/MK', $serialized);
         self::assertStringContainsString('/BC', $serialized);
+    }
+
+    public function testWidgetWithTextColorEmitsCustomDA(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            textColor: \DragonOfMercy\PhpPdf\Color::rgb(255, 0, 0),
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        // Per-widget /DA with red text color and the default Helvetica 10pt.
+        self::assertStringContainsString('(1 0 0 rg /Helv 10 Tf)', $serialized);
+        // Form-level /DA still present.
+        self::assertStringContainsString('/DA (0 g /Helv 10 Tf)', $serialized);
+    }
+
+    public function testWidgetWithCourierFontEmitsCustomDA(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            font: \DragonOfMercy\PhpPdf\Font::courier(),
+            fontSize: 12.0,
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, [
+            'Helv' => PdfReference::to(999, 0),
+            'Cour' => PdfReference::to(998, 0),
+        ], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('(0 g /Cour 12 Tf)', $serialized);
+        self::assertStringContainsString('/Cour 998 0 R', $serialized);
+    }
+
+    public function testWidgetWithTimesFontEmitsTiRoAlias(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            font: \DragonOfMercy\PhpPdf\Font::times(),
+            fontSize: 14.0,
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, [
+            'Helv' => PdfReference::to(999, 0),
+            'TiRo' => PdfReference::to(997, 0),
+        ], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('(0 g /TiRo 14 Tf)', $serialized);
+        self::assertStringContainsString('/TiRo 997 0 R', $serialized);
+    }
+
+    public function testTextFieldCenterAlignEmitsQ1(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            align: \DragonOfMercy\PhpPdf\TextAlign::CENTER,
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/Q 1', $serialized);
+    }
+
+    public function testTextFieldRightAlignEmitsQ2(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            align: \DragonOfMercy\PhpPdf\TextAlign::RIGHT,
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/Q 2', $serialized);
+    }
+
+    public function testTextFieldLeftAlignDoesNotEmitQ(): void
+    {
+        // LEFT is the default; explicitly setting it should NOT emit /Q.
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            align: \DragonOfMercy\PhpPdf\TextAlign::LEFT,
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringNotContainsString('/Q ', $serialized);
+    }
+
+    public function testWidgetWithoutAppearanceDoesNotEmitDA(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        // Only one /DA occurrence: the form-level default. No per-widget override.
+        self::assertSame(1, substr_count($serialized, '/DA '));
+    }
+
+    public function testCustomFontInAppearanceThrows(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            font: \DragonOfMercy\PhpPdf\Font::custom('SomeTtfAlias'),
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('FieldAppearance.font must be one of the Standard 14 fonts');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
+
+    public function testEmitRequiresHelvEntryInStandardFontRefs(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('"Helv" entry');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, [], $nextId, 'test');
     }
 }
