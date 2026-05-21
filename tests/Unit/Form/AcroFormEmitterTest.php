@@ -602,4 +602,59 @@ final class AcroFormEmitterTest extends TestCase
         $this->expectExceptionMessage('"Helv" entry');
         (new AcroFormEmitter(Unit::PT))->emit($widgets, [], $nextId, 'test');
     }
+
+    public function testWidgetWithBorderWidthEmitsItInBorderArray(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            borderColor: \DragonOfMercy\PhpPdf\Color::rgb(255, 0, 0),
+            borderWidth: 2.0,
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/Border [0 0 2]', $serialized);
+    }
+
+    public function testWidgetWithFloatBorderWidthEmitsFloat(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(borderWidth: 1.5);
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/Border [0 0 1.5]', $serialized);
+    }
+
+    public function testWidgetWithoutBorderWidthEmitsZero(): void
+    {
+        // Critical for byte-identity: widget without appearance must produce /Border [0 0 0] with three integer zeros.
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/Border [0 0 0]', $serialized);
+    }
+
+    public function testRadioKidBorderWidthEmitted(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(borderWidth: 3.0);
+        $r = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 0.0, 5.0, 5.0, group: 'g', value: 'v', checked: true, appearance: $appearance);
+        $widgets = [['field' => $r, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/Border [0 0 3]', $serialized);
+    }
 }

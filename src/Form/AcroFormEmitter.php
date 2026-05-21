@@ -221,7 +221,7 @@ final readonly class AcroFormEmitter
                 ->withEntry(Name::of('Subtype'), Name::of('Widget'))
                 ->withEntry(Name::of('Parent'), $parentRef)
                 ->withEntry(Name::of('Rect'), $this->computeRect($widget, $r['pageHeightPt']))
-                ->withEntry(Name::of('Border'), PdfArray::of(PdfNumber::ofInt(0), PdfNumber::ofInt(0), PdfNumber::ofInt(0)));
+                ->withEntry(Name::of('Border'), $this->borderArray($widget->appearance()));
             $mk = $this->buildMK($widget->appearance());
             if ($mk !== null) {
                 $kidDict = $kidDict->withEntry(Name::of('MK'), $mk);
@@ -553,11 +553,7 @@ final readonly class AcroFormEmitter
             ->withEntry(Name::of('Subtype'), Name::of('Widget'))
             ->withEntry(Name::of('FT'), Name::of($ftName))
             ->withEntry(Name::of('Rect'), $rect)
-            ->withEntry(Name::of('Border'), PdfArray::of(
-                PdfNumber::ofInt(0),
-                PdfNumber::ofInt(0),
-                PdfNumber::ofInt(0),
-            ));
+            ->withEntry(Name::of('Border'), $this->borderArray($f->appearance()));
         $mk = $this->buildMK($f->appearance());
         if ($mk !== null) {
             $dict = $dict->withEntry(Name::of('MK'), $mk);
@@ -651,6 +647,26 @@ final readonly class AcroFormEmitter
         }
         $formatted = rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.');
         return $formatted === '' || $formatted === '-' ? '0' : $formatted;
+    }
+
+    /**
+     * Builds /Border [HCornerRadius VCornerRadius Width]. When the appearance
+     * has a non-null borderWidth, that width is used; otherwise 0 (no border
+     * drawn by the reader). Integer values are emitted as integers to keep
+     * the output compact and stable for byte-identity tests on widgets
+     * without an appearance.
+     */
+    private function borderArray(?FieldAppearance $appearance): PdfArray
+    {
+        $width = ($appearance !== null && $appearance->borderWidth !== null) ? $appearance->borderWidth : 0.0;
+        $widthEntry = ((float) (int) $width === $width)
+            ? PdfNumber::ofInt((int) $width)
+            : PdfNumber::ofFloat($width);
+        return PdfArray::of(
+            PdfNumber::ofInt(0),
+            PdfNumber::ofInt(0),
+            $widthEntry,
+        );
     }
 
     /**

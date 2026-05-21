@@ -63,6 +63,7 @@ final class PageWithStyledFormsTest extends TestCase
         self::assertStringContainsString('(0 g /Cour 12 Tf)', $bytes);
         self::assertStringContainsString('/MK', $bytes);
         self::assertStringContainsString('/BC [1 0 0]', $bytes);
+        self::assertStringContainsString('/Border [0 0 2]', $bytes);
     }
 
     public function testTextFieldCenterAlignEmitsQ1(): void
@@ -117,6 +118,7 @@ final class PageWithStyledFormsTest extends TestCase
             value: 'Hello',
             appearance: new FieldAppearance(
                 borderColor: Color::rgb(255, 0, 0),
+                borderWidth: 2.0,
                 backgroundColor: Color::rgb(240, 240, 240),
                 font: Font::courier(),
                 fontSize: 12.0,
@@ -143,6 +145,7 @@ final class PageWithStyledFormsTest extends TestCase
             value: 'x',
             appearance: new FieldAppearance(
                 borderColor: Color::rgb(0, 0, 0),
+                borderWidth: 1.0,
                 font: Font::times(),
                 fontSize: 11.0,
             ),
@@ -153,7 +156,10 @@ final class PageWithStyledFormsTest extends TestCase
             name: 'styled_list',
             options: ['music', 'sport', 'code'],
             value: ['music'],
-            appearance: new FieldAppearance(borderColor: Color::rgb(0, 0, 0)),
+            appearance: new FieldAppearance(
+                borderColor: Color::rgb(0, 0, 0),
+                borderWidth: 1.0,
+            ),
         ));
 
         return $doc;
