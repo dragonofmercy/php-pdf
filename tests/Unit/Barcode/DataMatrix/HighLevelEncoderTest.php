@@ -124,4 +124,39 @@ final class HighLevelEncoderTest extends TestCase
         $out = HighLevelEncoder::encodeC40('ABCDE');
         self::assertSame([230, 89, 233, 109, 17, 254], $out);
     }
+
+    public function testShortPureAsciiStaysAscii(): void
+    {
+        // Short ASCII payloads stay in ASCII mode (C40 latch overhead doesn't pay).
+        self::assertSame([66, 67, 68], HighLevelEncoder::encode('ABC'));
+    }
+
+    public function testLongUppercaseRunSwitchesToC40(): void
+    {
+        // 20 consecutive uppercase letters: C40 wins. Output must start with 230 (latch).
+        $out = HighLevelEncoder::encode(str_repeat('A', 20));
+        self::assertSame(230, $out[0], 'Should latch to C40 for long uppercase run');
+    }
+
+    public function testLongLowercaseRunSwitchesToText(): void
+    {
+        $out = HighLevelEncoder::encode(str_repeat('a', 20));
+        self::assertSame(239, $out[0], 'Should latch to Text for long lowercase run');
+    }
+
+    public function testHighByteRunTriggersBase256(): void
+    {
+        // A payload of 4 consecutive high bytes is cheaper in Base256 than the
+        // 2-codeword extended-ASCII escape per byte (4 * 2 = 8 ASCII vs ~6 Base256).
+        $out = HighLevelEncoder::encode("\xFF\xFE\xFD\xFC");
+        self::assertSame(231, $out[0], 'Should latch to Base256 for high-byte run');
+    }
+
+    public function testUtf8InputUsesBase256ForHighRun(): void
+    {
+        // 'eee' with 3 consecutive U+00E9 (e-acute) = 6 contiguous high bytes
+        // in UTF-8, well above the Base256 break-even of ~3 contiguous high bytes.
+        $out = HighLevelEncoder::encode("\xC3\xA9\xC3\xA9\xC3\xA9");
+        self::assertContains(231, $out, 'Should include Base256 latch for contiguous high-byte UTF-8 run');
+    }
 }

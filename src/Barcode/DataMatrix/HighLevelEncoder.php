@@ -28,46 +28,226 @@ final class HighLevelEncoder
     private const int CW_ASCII_LATCH_TEXT      = 239;
 
     /**
-     * Encode the input string into a sequence of DataMatrix codewords.
+     * Encode the input string into a sequence of DataMatrix codewords using the
+     * ISO/IEC 16022 Annex P shortest-path mode selector.
      *
-     * For now: pure ASCII with digit-pair packing. Bytes > 0x7F use the
-     * extended-ASCII upper-shift codeword 235.
+     * Walks the input one position at a time. At each step, projects the
+     * codeword cost of continuing in the current mode versus latching to each
+     * candidate mode (ASCII / C40 / Text / Base256) over a short lookahead
+     * window, and picks the cheapest. On mode change, emits the appropriate
+     * latch/unlatch sequence and then encodes the next "unit" (1-2 bytes for
+     * ASCII, a run for C40/Text/Base256). At end of input, emits a final
+     * unlatch if still in a triplet mode.
      *
-     * @param string $input Non-empty UTF-8 byte sequence.
+     * @param string $input Non-empty byte sequence.
      * @return list<int>    Codewords (each 0-255).
      */
     public static function encode(string $input): array
     {
-        return self::encodeAscii($input, 0, strlen($input));
+        $len = strlen($input);
+        if ($len === 0) {
+            return [];
+        }
+        $out = [];
+        $mode = DataMatrixMode::ASCII;
+        $i = 0;
+        while ($i < $len) {
+            $next = self::lookaheadMode($input, $i, $mode);
+            if ($next !== $mode) {
+                foreach (self::modeSwitch($mode, $next) as $cw) {
+                    $out[] = $cw;
+                }
+                $mode = $next;
+            }
+            [$emitted, $consumed] = self::encodeOneUnit($input, $i, $mode);
+            foreach ($emitted as $cw) {
+                $out[] = $cw;
+            }
+            $i += $consumed;
+        }
+        if ($mode === DataMatrixMode::C40 || $mode === DataMatrixMode::TEXT) {
+            $out[] = 254;
+        }
+        return $out;
+    }
+
+    /**
+     * Pick the cheapest mode for the substring starting at $pos, given we are
+     * currently in $current. Implements the Annex P lookahead by projecting
+     * codeword cost over an 8-byte window.
+     */
+    private static function lookaheadMode(string $input, int $pos, DataMatrixMode $current): DataMatrixMode
+    {
+        $len = strlen($input);
+        $window = min(8, $len - $pos);
+        $sub = substr($input, $pos, $window);
+        $best = $current;
+        $bestCost = self::projectCost($sub, $current, $current);
+        foreach ([DataMatrixMode::ASCII, DataMatrixMode::C40, DataMatrixMode::TEXT, DataMatrixMode::BASE256] as $cand) {
+            if ($cand === $current) {
+                continue;
+            }
+            $c = self::projectCost($sub, $current, $cand);
+            if ($c < $bestCost) {
+                $bestCost = $c;
+                $best = $cand;
+            }
+        }
+        return $best;
+    }
+
+    private static function projectCost(string $sub, DataMatrixMode $from, DataMatrixMode $to): float
+    {
+        $switchCost = ($from === $to) ? 0.0 : 1.0;
+        if (($from === DataMatrixMode::C40 || $from === DataMatrixMode::TEXT) && $to !== $from) {
+            $switchCost += 1.0; // extra unlatch
+        }
+        return $switchCost + self::modeCost($sub, $to);
+    }
+
+    private static function modeCost(string $sub, DataMatrixMode $m): float
+    {
+        $len = strlen($sub);
+        if ($len === 0) {
+            return 0.0;
+        }
+        return match ($m) {
+            DataMatrixMode::ASCII   => self::asciiCost($sub, $len),
+            DataMatrixMode::C40     => self::tripletCost($sub, $len, self::c40Values(...)),
+            DataMatrixMode::TEXT    => self::tripletCost($sub, $len, self::textValues(...)),
+            DataMatrixMode::BASE256 => $len + 1.5,
+        };
+    }
+
+    private static function asciiCost(string $sub, int $len): float
+    {
+        $c = 0.0;
+        $i = 0;
+        while ($i < $len) {
+            if ($i + 1 < $len && self::isDigit($sub[$i]) && self::isDigit($sub[$i + 1])) {
+                $c += 1.0;
+                $i += 2;
+            } elseif (ord($sub[$i]) > 0x7F) {
+                $c += 2.0;
+                $i++;
+            } else {
+                $c += 1.0;
+                $i++;
+            }
+        }
+        return $c;
+    }
+
+    /**
+     * @param callable(int): list<int> $mapByte
+     */
+    private static function tripletCost(string $sub, int $len, callable $mapByte): float
+    {
+        $values = 0;
+        for ($i = 0; $i < $len; $i++) {
+            $values += count($mapByte(ord($sub[$i])));
+        }
+        return $values * 2.0 / 3.0;
     }
 
     /**
      * @return list<int>
      */
-    private static function encodeAscii(string $input, int $start, int $end): array
+    private static function modeSwitch(DataMatrixMode $from, DataMatrixMode $to): array
     {
-        $out = [];
-        $i = $start;
-        while ($i < $end) {
-            if ($i + 1 < $end
-                && self::isDigit($input[$i])
-                && self::isDigit($input[$i + 1])
-            ) {
-                $pair = (int) substr($input, $i, 2);
-                $out[] = self::CW_ASCII_DIGIT_PAIR + $pair;
-                $i += 2;
-                continue;
-            }
-            $b = ord($input[$i]);
-            if ($b > 0x7F) {
-                $out[] = self::CW_ASCII_EXTENDED_ASCII;
-                $out[] = $b - 128 + 1;
-            } else {
-                $out[] = $b + 1;
-            }
-            $i++;
+        $cw = [];
+        if ($from === DataMatrixMode::C40 || $from === DataMatrixMode::TEXT) {
+            $cw[] = 254;
         }
-        return $out;
+        return match ($to) {
+            DataMatrixMode::ASCII   => $cw,
+            DataMatrixMode::C40     => [...$cw, self::CW_ASCII_LATCH_C40],
+            DataMatrixMode::TEXT    => [...$cw, self::CW_ASCII_LATCH_TEXT],
+            DataMatrixMode::BASE256 => [...$cw, self::CW_ASCII_LATCH_BASE256],
+        };
+    }
+
+    /**
+     * @return array{list<int>, int}
+     */
+    private static function encodeOneUnit(string $input, int $pos, DataMatrixMode $mode): array
+    {
+        $len = strlen($input);
+        if ($mode === DataMatrixMode::ASCII) {
+            if ($pos + 1 < $len && self::isDigit($input[$pos]) && self::isDigit($input[$pos + 1])) {
+                $pair = (int) substr($input, $pos, 2);
+                return [[self::CW_ASCII_DIGIT_PAIR + $pair], 2];
+            }
+            $b = ord($input[$pos]);
+            if ($b > 0x7F) {
+                return [[self::CW_ASCII_EXTENDED_ASCII, $b - 128 + 1], 1];
+            }
+            return [[$b + 1], 1];
+        }
+        $rest = substr($input, $pos);
+        $runLen = self::tripletRunLength($rest, $mode);
+        $block = substr($rest, 0, $runLen);
+        // ASCII handled by the early return above; remaining modes are C40 / TEXT / BASE256.
+        return match ($mode) {
+            DataMatrixMode::C40  => [self::stripTripletWrapper(self::encodeC40($block)), $runLen],
+            DataMatrixMode::TEXT => [self::stripTripletWrapper(self::encodeText($block)), $runLen],
+            default              => [self::stripBase256Latch(self::encodeBase256($block)), $runLen],
+        };
+    }
+
+    /**
+     * Strip the leading latch (230 or 239) and trailing unlatch (254) emitted
+     * by encodeC40/encodeText: in the Annex P walker we emit the latch via
+     * modeSwitch() and defer the unlatch until the next mode change or end of
+     * input. Residual-1 fallback emits the unlatch followed by an ASCII
+     * codeword for the trailing byte, so we only strip when the very last
+     * codeword is 254.
+     *
+     * @param list<int> $full
+     * @return list<int>
+     */
+    private static function stripTripletWrapper(array $full): array
+    {
+        array_shift($full);
+        if (end($full) === 254) {
+            array_pop($full);
+        }
+        // array_shift / array_pop on a list already reindex; return is still a list.
+        return $full;
+    }
+
+    /**
+     * @param list<int> $full
+     * @return list<int>
+     */
+    private static function stripBase256Latch(array $full): array
+    {
+        array_shift($full);
+        return $full;
+    }
+
+    /**
+     * Length of the prefix of $rest that is cheaper to encode in $mode than to
+     * switch back to ASCII.
+     */
+    private static function tripletRunLength(string $rest, DataMatrixMode $mode): int
+    {
+        $len = strlen($rest);
+        for ($i = 1; $i <= $len; $i++) {
+            $tail = substr($rest, $i, 4);
+            if ($tail === '') {
+                break;
+            }
+            $costContinue = self::modeCost($tail, $mode);
+            $costSwitch = 1.0 + self::modeCost($tail, DataMatrixMode::ASCII);
+            if ($mode === DataMatrixMode::C40 || $mode === DataMatrixMode::TEXT) {
+                $costSwitch += 1.0;
+            }
+            if ($costSwitch < $costContinue) {
+                return $i;
+            }
+        }
+        return $len;
     }
 
     private static function isDigit(string $c): bool
