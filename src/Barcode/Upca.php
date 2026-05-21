@@ -143,8 +143,13 @@ final readonly class Upca implements Barcode
         $hPt = $unit->toPoints($h);
 
         $moduleW = $wPt / self::TOTAL_MODULES;
-        $barsHeight = $hPt * 0.85;
-        $textHeight = $hPt - $barsHeight;
+        // Standard UPC-A typography per ISO 15420: five zones extend below the
+        // data bars (left guard, number-system digit bars, centre guard, check
+        // digit bars, right guard). The 5+5 middle digits sit centred in the
+        // extension band between those tabs; number-system and check digits are
+        // detached to the left and right respectively.
+        $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
+        $extensionHeight = $hPt - $barsHeight;
 
         $modules = $this->encodeModules();
         $padded = array_merge(
@@ -154,19 +159,40 @@ final readonly class Upca implements Barcode
         );
 
         $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+
+        if ($extensionHeight > 0.0) {
+            // Extension ranges in padded coordinates:
+            //   left guard         -> 9..11   (3 modules)
+            //   number-system bars -> 12..18  (7 modules, encodes digit 0)
+            //   centre guard       -> 54..58  (5 modules)
+            //   check-digit bars   -> 94..100 (7 modules, encodes digit 11)
+            //   right guard        -> 101..103 (3 modules)
+            foreach ([[9, 3], [12, 7], [54, 5], [94, 7], [101, 3]] as [$start, $len]) {
+                $slice = array_slice($padded, $start, $len);
+                $body .= Renderer::runLengthRow(
+                    $slice,
+                    $xPt + $start * $moduleW,
+                    $yPt + $barsHeight,
+                    $moduleW,
+                    $extensionHeight,
+                );
+            }
+        }
+
         $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
         if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $textHeight);
+            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
         }
     }
 
     /**
      * Draws the UPC-A human-readable digits in the official layout:
-     *   - number-system digit detached to the left (inside quiet zone)
-     *   - 5 digits centred under the left half
-     *   - 5 digits centred under the right half
-     *   - check digit detached to the right (inside quiet zone)
+     *   - number-system digit detached to the left (inside left quiet zone)
+     *   - 5 digits centred in padded 19..53 (35 modules, between number-system bars and centre guard)
+     *   - 5 digits centred in padded 59..93 (35 modules, between centre guard and check-digit bars)
+     *   - check digit detached to the right (inside right quiet zone)
+     * Glyph baseline is centred vertically inside the guard-extension band.
      */
     private function drawHumanText(
         Page $page,
@@ -174,34 +200,42 @@ final readonly class Upca implements Barcode
         float $yPt,
         float $moduleW,
         float $barsHeight,
-        float $textHeight,
+        float $extensionHeight,
     ): void {
         $first = $this->digits[0];
-        $left = substr($this->digits, 1, 5);
-        $right = substr($this->digits, 6, 5);
+        $middleLeft = substr($this->digits, 1, 5);
+        $middleRight = substr($this->digits, 6, 5);
         $last = $this->digits[11];
 
-        $fontSize = min(12.0, (self::TOTAL_MODULES * $moduleW) / 14.0);
-        $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
+        // Font: each 5-digit group occupies a 35-module zone (~7 modules per digit).
+        // Capped at extensionHeight so the glyphs stay inside the extension band.
+        $fontSize = min(12.0, 35 * $moduleW / 6.0, $extensionHeight);
+
+        // Baseline vertically centred in the extension band.
+        $textY = $yPt + $barsHeight + ($extensionHeight + $fontSize * 0.7) / 2;
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
         $page->setFillColor($this->color);
         $page->setFont(Font::helvetica(), $fontSize);
 
+        // Number-system digit: 1 module from the left edge of the quiet zone.
         $firstX = $page->unit->fromPoints($xPt + $moduleW);
         $page->text($firstX, $textYUnit, $first);
 
-        $leftStart = $page->unit->fromPoints($xPt + (self::QUIET + 3) * $moduleW);
+        // Middle-left 5 digits: centred in padded 19..53 (35 modules wide).
+        $leftStartX = $page->unit->fromPoints($xPt + 19 * $moduleW);
         $halfWidthUnit = $page->unit->fromPoints(35 * $moduleW);
-        $leftW = $page->stringWidth($left);
-        $page->text($leftStart + ($halfWidthUnit - $leftW) / 2, $textYUnit, $left);
+        $leftW = $page->stringWidth($middleLeft);
+        $page->text($leftStartX + ($halfWidthUnit - $leftW) / 2, $textYUnit, $middleLeft);
 
-        $rightStart = $page->unit->fromPoints($xPt + (self::QUIET + 3 + 42 + 5) * $moduleW);
-        $rightW = $page->stringWidth($right);
-        $page->text($rightStart + ($halfWidthUnit - $rightW) / 2, $textYUnit, $right);
+        // Middle-right 5 digits: centred in padded 59..93 (35 modules wide).
+        $rightStartX = $page->unit->fromPoints($xPt + 59 * $moduleW);
+        $rightW = $page->stringWidth($middleRight);
+        $page->text($rightStartX + ($halfWidthUnit - $rightW) / 2, $textYUnit, $middleRight);
 
-        $lastX = $page->unit->fromPoints($xPt + (self::QUIET + 95 + 1) * $moduleW);
+        // Check digit: 1 module right of the right guard.
+        $lastX = $page->unit->fromPoints($xPt + 105 * $moduleW);
         $page->text($lastX, $textYUnit, $last);
 
         $page->restore();

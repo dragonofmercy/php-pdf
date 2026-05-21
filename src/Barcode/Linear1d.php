@@ -83,7 +83,10 @@ final class Linear1d
         Color $color,
         string $text,
     ): void {
-        $fontSize = min(12.0, $wPt / 10.0);
+        // Cap fontSize at textHeight so cap-height (~70% of fontSize) leaves
+        // ~15% of the text band as gap above and below the glyphs - otherwise
+        // a 12pt cap glues the text against the bars when the band is small.
+        $fontSize = min(12.0, $wPt / 10.0, $textHeight);
         $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
         $textYUnit = $page->unit->fromPoints($textY);
 

@@ -89,7 +89,10 @@ final readonly class Code128 implements Barcode
 
         if ($this->showText) {
             // Font sized to fit the data; minimum 8pt cap-height-ish, max 12pt.
-            $fontSize = min(12.0, $wPt / max(strlen($this->data), 8) * 0.8);
+            // Also capped at textHeight so cap-height (~70% of fontSize) keeps
+            // a visible gap above the glyphs - otherwise long data + small h
+            // makes the text overlap the bars.
+            $fontSize = min(12.0, $wPt / max(strlen($this->data), 8) * 0.8, $textHeight);
             // Baseline: centre of text band + half cap-height (approx fontSize * 0.35).
             $textY = $yPt + $barsHeight + $textHeight / 2 + $fontSize * 0.35;
             $textYUnit = $page->unit->fromPoints($textY);

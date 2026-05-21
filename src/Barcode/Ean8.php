@@ -128,20 +128,36 @@ final readonly class Ean8 implements Barcode
         $hPt = $unit->toPoints($h);
 
         // 7 + 67 + 7 = 81 total modules (quiet zones + barcode).
-        $totalModules = self::TOTAL_MODULES;
-        $moduleW = $wPt / $totalModules;
-        // 85% of h goes to the bars, 15% to the human-readable text below.
-        $barsHeight = $hPt * 0.85;
-        $textHeight = $hPt - $barsHeight;
+        $moduleW = $wPt / self::TOTAL_MODULES;
+        // Standard EAN-8 typography per ISO 15420: left/centre/right guards
+        // extend below the data bars and the 4+4 human-readable digits sit
+        // centred in that extension band.
+        $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
+        $extensionHeight = $hPt - $barsHeight;
 
         $modules = $this->encodeModules();
         $padded = array_merge(array_fill(0, 7, false), $modules, array_fill(0, 7, false));
 
         $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+
+        if ($extensionHeight > 0.0) {
+            // Guard ranges in padded coordinates: left 7..9 (3), centre 38..42 (5), right 71..73 (3).
+            foreach ([[7, 3], [38, 5], [71, 3]] as [$start, $len]) {
+                $slice = array_slice($padded, $start, $len);
+                $body .= Renderer::runLengthRow(
+                    $slice,
+                    $xPt + $start * $moduleW,
+                    $yPt + $barsHeight,
+                    $moduleW,
+                    $extensionHeight,
+                );
+            }
+        }
+
         $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
         if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $textHeight);
+            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
         }
     }
 
@@ -151,33 +167,33 @@ final readonly class Ean8 implements Barcode
         float $yPt,
         float $moduleW,
         float $barsHeight,
-        float $textHeight,
+        float $extensionHeight,
     ): void {
         $left = substr($this->digits, 0, 4);
         $right = substr($this->digits, 4, 4);
 
-        // Font sized to fit the half-width comfortably.
-        $fontSize = min(12.0, self::TOTAL_MODULES * $moduleW / 10.0);
-        // Baseline: centre of the text band, raised by half the cap-height.
-        $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
+        // Font: each 4-digit group occupies a 28-module zone (~7 modules per digit).
+        // Capped at extensionHeight so the glyphs stay inside the extension band.
+        $fontSize = min(12.0, 28 * $moduleW / 5.0, $extensionHeight);
+
+        // Baseline vertically centred in the extension band.
+        $textY = $yPt + $barsHeight + ($extensionHeight + $fontSize * 0.7) / 2;
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
         $page->setFillColor($this->color);
         $page->setFont(Font::helvetica(), $fontSize);
 
-        // Left half: 4 digits centred over modules 10..37 in padded coords (7 quiet + 3 guard = 10 start, width 28).
+        // Left half: 4 digits centred in padded 10..37 (28 modules wide).
         $leftStartXUnit = $page->unit->fromPoints($xPt + 10 * $moduleW);
-        $leftHalfWidthUnit = $page->unit->fromPoints(28 * $moduleW);
+        $halfWidthUnit = $page->unit->fromPoints(28 * $moduleW);
         $leftWidth = $page->stringWidth($left);
-        $leftX = $leftStartXUnit + ($leftHalfWidthUnit - $leftWidth) / 2;
-        $page->text($leftX, $textYUnit, $left);
+        $page->text($leftStartXUnit + ($halfWidthUnit - $leftWidth) / 2, $textYUnit, $left);
 
-        // Right half: modules 43..70 in padded coords (7+3+28+5 = 43 start, width 28).
+        // Right half: 4 digits centred in padded 43..70 (28 modules wide).
         $rightStartXUnit = $page->unit->fromPoints($xPt + 43 * $moduleW);
         $rightWidth = $page->stringWidth($right);
-        $rightX = $rightStartXUnit + ($leftHalfWidthUnit - $rightWidth) / 2;
-        $page->text($rightX, $textYUnit, $right);
+        $page->text($rightStartXUnit + ($halfWidthUnit - $rightWidth) / 2, $textYUnit, $right);
 
         $page->restore();
     }

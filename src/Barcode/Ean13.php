@@ -82,13 +82,15 @@ final readonly class Ean13 implements Barcode
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        $totalModules = self::TOTAL_MODULES;
-        $moduleW = $wPt / $totalModules;
-        // 85% of h goes to the bars, 15% to the human-readable text below.
-        // This is a layout choice (not an ISO value); good visual balance for typical
-        // EAN-13 sizes. If you want bars-only, use ->withoutText() instead of tweaking this.
-        $barsHeight = $hPt * 0.85;
-        $textHeight = $hPt - $barsHeight;
+        $moduleW = $wPt / self::TOTAL_MODULES;
+        // Standard EAN-13 typography per ISO 15420: the three guard bars
+        // (left/centre/right) extend below the data bars, and the
+        // human-readable digits sit at the level of that extension - 6+6
+        // between the guards, first digit detached to the left in the quiet
+        // zone. When ->withoutText() is set, all bars are at full height with
+        // no extension.
+        $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
+        $extensionHeight = $hPt - $barsHeight;
 
         $modules = $this->encodeModules();
         // Pad with leading false for left quiet zone, trailing false for right.
@@ -100,61 +102,73 @@ final readonly class Ean13 implements Barcode
 
         $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 
-        $contentStream = $page->contentStream();
-        $contentStream->append(Renderer::wrap($body, $this->color));
+        if ($extensionHeight > 0.0) {
+            // Guard ranges in padded coordinates: left 11..13 (3), centre 56..60 (5), right 103..105 (3).
+            foreach ([[11, 3], [56, 5], [103, 3]] as [$start, $len]) {
+                $slice = array_slice($padded, $start, $len);
+                $body .= Renderer::runLengthRow(
+                    $slice,
+                    $xPt + $start * $moduleW,
+                    $yPt + $barsHeight,
+                    $moduleW,
+                    $extensionHeight,
+                );
+            }
+        }
+
+        $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
         if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $hPt, $moduleW, $barsHeight, $textHeight);
+            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
         }
     }
 
     /**
      * Draws the EAN-13 human-readable digits in the official layout:
      *   - first digit detached to the left, inside the quiet zone
-     *   - 6 digits centred under the left half (between left guard and centre)
-     *   - 6 digits centred under the right half (between centre and right guard)
+     *   - 6 digits centred between left guard and centre guard (padded 14..55, 42 modules)
+     *   - 6 digits centred between centre guard and right guard (padded 61..102, 42 modules)
+     * Glyph baseline is centred vertically inside the guard-extension band.
      */
     private function drawHumanText(
         Page $page,
         float $xPt,
         float $yPt,
-        float $hPt,
         float $moduleW,
         float $barsHeight,
-        float $textHeight,
+        float $extensionHeight,
     ): void {
         $first = $this->digits[0];
         $left = substr($this->digits, 1, 6);
         $right = substr($this->digits, 7, 6);
 
-        // Font + size: Helvetica, sized to fit the half-width comfortably.
-        $fontSize = min(12.0, (self::TOTAL_MODULES * $moduleW) / 14.0);
-        // Baseline for the human-readable digits: centre of the text band, raised by
-        // half the cap-height (approximated as fontSize * 0.7 / 2) so the glyphs sit
-        // vertically centred in the reserved 15% strip.
-        $textY = $yPt + $barsHeight + ($textHeight - $fontSize * 0.7) / 2 + $fontSize * 0.7;
+        // Font: each 6-digit group occupies a 42-module zone (~7 modules per digit).
+        // Capped at extensionHeight so the glyphs stay inside the extension band.
+        $fontSize = min(12.0, 42 * $moduleW / 7.0, $extensionHeight);
+
+        // Baseline vertically centred in the extension band.
+        $textY = $yPt + $barsHeight + ($extensionHeight + $fontSize * 0.7) / 2;
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
         $page->setFillColor($this->color);
         $page->setFont(Font::helvetica(), $fontSize);
 
-        // First digit: x ~= xPt + 1 module (in unit).
+        // First digit: 1 module from the left edge of the quiet zone.
         $firstX = $page->unit->fromPoints($xPt + $moduleW);
         $page->text($firstX, $textYUnit, $first);
 
-        // Left half (between modules 14 and 47 in padded coords): 6 digits centred.
-        // module index 14 = end of left guard, 47 = start of centre. Width = 33 modules.
+        // Left half: 6 digits centred in padded 14..55 (42 modules wide).
         $leftStartX = $page->unit->fromPoints($xPt + 14 * $moduleW);
-        $leftHalfWidth = 33 * $moduleW;
-        $leftWidth = $page->stringWidth($left); // in unit
-        $leftX = $leftStartX + ($page->unit->fromPoints($leftHalfWidth) - $leftWidth) / 2;
+        $halfWidthUnit = $page->unit->fromPoints(42 * $moduleW);
+        $leftWidth = $page->stringWidth($left);
+        $leftX = $leftStartX + ($halfWidthUnit - $leftWidth) / 2;
         $page->text($leftX, $textYUnit, $left);
 
-        // Right half: module index 52 = end of centre, 85 = start of right guard. Width = 33.
-        $rightStartX = $page->unit->fromPoints($xPt + 52 * $moduleW);
+        // Right half: 6 digits centred in padded 61..102 (42 modules wide).
+        $rightStartX = $page->unit->fromPoints($xPt + 61 * $moduleW);
         $rightWidth = $page->stringWidth($right);
-        $rightX = $rightStartX + ($page->unit->fromPoints($leftHalfWidth) - $rightWidth) / 2;
+        $rightX = $rightStartX + ($halfWidthUnit - $rightWidth) / 2;
         $page->text($rightX, $textYUnit, $right);
 
         $page->restore();
