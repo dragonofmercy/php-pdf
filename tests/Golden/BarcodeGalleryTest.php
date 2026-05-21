@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Barcode\AztecCode;
-use DragonOfMercy\PhpPdf\Barcode\AztecEc;
 use DragonOfMercy\PhpPdf\Barcode\Code128;
 use DragonOfMercy\PhpPdf\Barcode\Code39;
 use DragonOfMercy\PhpPdf\Barcode\Code93;
+use DragonOfMercy\PhpPdf\Barcode\DataMatrix;
 use DragonOfMercy\PhpPdf\Barcode\Ean13;
 use DragonOfMercy\PhpPdf\Barcode\Ean8;
 use DragonOfMercy\PhpPdf\Barcode\ErrorCorrection;
@@ -84,10 +84,10 @@ final class BarcodeGalleryTest extends AbstractBarcodeGoldenTest
         $y += 6.0;
 
         $rows2d = [
-            ['QR Code (M)',    QrCode::of('https://example.com/product/SKU-2026')],
-            ['QR Code (H)',    QrCode::of('phppdf', ErrorCorrection::H)],
-            ['Aztec (MEDIUM)', AztecCode::of('https://example.com')],
-            ['Aztec (HIGH)',   AztecCode::of('M1DOE/JOHN  EABCDEF DTWJFK', AztecEc::HIGH)],
+            ['QR Code (M)', QrCode::of('https://example.com/product/SKU-2026')],
+            ['QR Code (H)', QrCode::of('phppdf', ErrorCorrection::H)],
+            ['Aztec',       AztecCode::of('https://example.com')],
+            ['DataMatrix',  DataMatrix::of('https://example.com/dm')],
         ];
 
         $code2dSize = 28.0;

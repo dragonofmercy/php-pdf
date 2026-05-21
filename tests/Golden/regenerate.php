@@ -724,10 +724,10 @@ $page->text($labelX, $y, '2D codes');
 $y += 6.0;
 
 $rows2d = [
-    ['QR Code (M)',    \DragonOfMercy\PhpPdf\Barcode\QrCode::of('https://example.com/product/SKU-2026')],
-    ['QR Code (H)',    \DragonOfMercy\PhpPdf\Barcode\QrCode::of('phppdf', \DragonOfMercy\PhpPdf\Barcode\ErrorCorrection::H)],
-    ['Aztec (MEDIUM)', \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('https://example.com')],
-    ['Aztec (HIGH)',   \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('M1DOE/JOHN  EABCDEF DTWJFK', \DragonOfMercy\PhpPdf\Barcode\AztecEc::HIGH)],
+    ['QR Code (M)', \DragonOfMercy\PhpPdf\Barcode\QrCode::of('https://example.com/product/SKU-2026')],
+    ['QR Code (H)', \DragonOfMercy\PhpPdf\Barcode\QrCode::of('phppdf', \DragonOfMercy\PhpPdf\Barcode\ErrorCorrection::H)],
+    ['Aztec',       \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('https://example.com')],
+    ['DataMatrix',  \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of('https://example.com/dm')],
 ];
 
 $code2dSize = 28.0;
