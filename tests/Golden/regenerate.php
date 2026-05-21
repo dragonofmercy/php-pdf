@@ -606,6 +606,76 @@ $page->barcode(
 $doc->save($fixturesDir . '/barcode-aztec-unicode.pdf');
 echo "Regenerated barcode-aztec-unicode.pdf\n";
 
+// Fixture: DataMatrix - smallest square ('Hello' in 10x10 or 12x12)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of('Hello'),
+    x: 20.0, y: 20.0, w: 25.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix.pdf');
+echo "Regenerated barcode-datamatrix.pdf\n";
+
+// Fixture: DataMatrix - digit-pair packing
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of('1234567890'),
+    x: 20.0, y: 20.0, w: 25.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix-digits.pdf');
+echo "Regenerated barcode-datamatrix-digits.pdf\n";
+
+// Fixture: DataMatrix - C40 latch for uppercase + digits
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of('PARTNO ABCDEFGHIJ 1234567890 REV3'),
+    x: 20.0, y: 20.0, w: 30.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix-c40.pdf');
+echo "Regenerated barcode-datamatrix-c40.pdf\n";
+
+// Fixture: DataMatrix - Text latch for lowercase
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of('the quick brown fox jumps over the lazy dog'),
+    x: 20.0, y: 20.0, w: 30.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix-text.pdf');
+echo "Regenerated barcode-datamatrix-text.pdf\n";
+
+// Fixture: DataMatrix - Base256 path for UTF-8 input
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of("caf\xC3\xA9 \xC3\xA0 la fran\xC3\xA7aise"),
+    x: 20.0, y: 20.0, w: 30.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix-unicode.pdf');
+echo "Regenerated barcode-datamatrix-unicode.pdf\n";
+
+// Fixture: DataMatrix - multi-region symbol (around 52x52)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of(str_repeat('ABCDEFGHIJ', 18)),
+    x: 20.0, y: 20.0, w: 60.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix-large.pdf');
+echo "Regenerated barcode-datamatrix-large.pdf\n";
+
+// Fixture: DataMatrix - large multi-region symbol pushing toward 144x144
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\DataMatrix::of(str_repeat('Lorem ipsum dolor sit amet, consectetur adipiscing elit. ', 25)),
+    x: 20.0, y: 20.0, w: 80.0,
+);
+$doc->save($fixturesDir . '/barcode-datamatrix-max.pdf');
+echo "Regenerated barcode-datamatrix-max.pdf\n";
+
 // Fixture: Barcode Gallery - every supported format on a single A4 page
 $doc = new Document(Unit::MM);
 $doc->setMargins(\DragonOfMercy\PhpPdf\PageMargins::sides(top: 20, right: 20, bottom: 40, left: 20));
