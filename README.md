@@ -16,8 +16,8 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Images** - JPEG and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha) with transparency support. Auto-format detection. Same image used N times = one embed, N placements (per-document caching).
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes.
-- **Outlines & hyperlinks** - hierarchical bookmarks tree (the Bookmarks panel in Acrobat / browser PDF viewers) and clickable link rectangles (URLs and internal page jumps). Declarative API.
-- **AcroForm interactive forms** - TextField (single / multi-line), Checkbox, Radio (grouped), Combobox, Listbox. Optional per-field styling: border color + width, background, text color, font, size, alignment.
+- **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line), checkboxes, radio buttons (grouped), dropdowns, and listboxes. Each field can be styled with border color and width, background color, text color, font, size, and alignment.
 
 ## Not yet implemented
 
@@ -111,9 +111,9 @@ Coordinates use the document's unit and a top-down Y axis (consistent with the r
 
 Pass `null` to any setter to clear it. These are hints: Acrobat respects them faithfully, browser viewers (Chrome, Firefox PDF.js) honour some and ignore others, notably full-screen mode.
 
-### Outlines and hyperlinks
+### Bookmarks and hyperlinks
 
-A document can declare a navigable bookmarks tree and clickable link rectangles.
+A document can declare a sidebar table of contents and place clickable areas on its pages.
 
 ```php
 use DragonOfMercy\PhpPdf\Outline\{Destination, Link};
@@ -124,18 +124,18 @@ $page1->text(50, 60, 'Chapter 1');
 $page2 = $pdf->addPage();
 $page2->text(50, 60, 'Chapter 2');
 
-// Outline tree (Bookmarks panel)
+// Sidebar table of contents (the Bookmarks panel)
 $root = $pdf->outline();
 $chap1 = $root->add('Chapter 1', Destination::page(0));
 $chap1->add('Section 1.1', Destination::page(0));
 $root->add('Chapter 2', Destination::page(1));
 
-// Clickable links
+// Clickable areas on a page
 $page1->link(50, 100, 200, 14, Link::url('https://example.com'));
 $page1->link(50, 120, 200, 14, Link::destination(Destination::page(1)));
 ```
 
-Destinations are 0-indexed pages. `Destination::page($i)` jumps to the top-left of the page (the safe default); `Destination::xyz()`, `Destination::fit()` and `Destination::fitWidth()` cover other variants. Coordinates use the document's unit and the top-down Y axis (same as `text()` / `cell()`). Out-of-range page indices throw `PdfException` at output time.
+Pages are 0-indexed. `Destination::page($i)` jumps to the top-left of page `$i` (the safe default). Other variants - `Destination::xyz()`, `Destination::fit()`, `Destination::fitWidth()` - additionally control the zoom level after the jump. Coordinates use the document's unit and the top-down Y axis (same as `text()` / `cell()`). Out-of-range page indices throw `PdfException` at output time.
 
 ### Graphics
 
@@ -528,7 +528,7 @@ The script handles the WinAnsi glyph-name mapping and emits one PHP file per fon
 
 ## Going deeper
 
-For everything that happens under the hood - how text encoding works, how fonts are subsetted, how SVG opacity is rendered, how AcroForm appearances are generated, how encryption transforms each PDF object, etc. - see [technical-infos.md](technical-infos.md).
+For everything that happens under the hood - how text encoding works, how fonts are subsetted, how SVG opacity is rendered, how form field appearances are generated, how encryption transforms each PDF object, etc. - see [technical-infos.md](technical-infos.md).
 
 ## License
 
