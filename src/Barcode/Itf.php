@@ -79,6 +79,15 @@ final readonly class Itf implements Barcode
         return new self($this->digits, $this->color, false);
     }
 
+    public function widthForModule(float $moduleSize): float
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
+        }
+        $modules = $this->encodeModules();
+        return (count($modules) + 2 * self::QUIET_MODULES) * $moduleSize;
+    }
+
     /**
      * GS1 mod-10 check digit over 13 digits: from the right-most data digit,
      * multiply alternately by 3 and 1, sum, complement to 10.

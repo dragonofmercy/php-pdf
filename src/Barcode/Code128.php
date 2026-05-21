@@ -51,6 +51,15 @@ final readonly class Code128 implements Barcode
         return new self($this->data, $this->color, false);
     }
 
+    public function widthForModule(float $moduleSize): float
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
+        }
+        $modules = $this->encodeModules();
+        return (count($modules) + 2 * self::QUIET_MODULES) * $moduleSize;
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         if ($h === null) {

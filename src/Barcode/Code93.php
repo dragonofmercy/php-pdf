@@ -84,6 +84,15 @@ final readonly class Code93 implements Barcode
         return new self($this->data, $this->color, false);
     }
 
+    public function widthForModule(float $moduleSize): float
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
+        }
+        $modules = $this->encodeModules();
+        return (count($modules) + 2 * self::QUIET_MODULES) * $moduleSize;
+    }
+
     /**
      * @internal Test access.
      * @return list<bool>
