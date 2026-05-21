@@ -380,4 +380,72 @@ final class AcroFormEmitterTest extends TestCase
         }
         self::assertSame($s1, $s2, 'two emissions of the same input must produce identical bytes');
     }
+
+    public function testWidgetWithBorderColorEmitsMKBC(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            borderColor: \DragonOfMercy\PhpPdf\Color::rgb(255, 0, 0),
+        );
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a', appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/MK', $serialized);
+        self::assertStringContainsString('/BC [1 0 0]', $serialized);
+    }
+
+    public function testWidgetWithBackgroundColorEmitsMKBG(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            backgroundColor: \DragonOfMercy\PhpPdf\Color::rgb(240, 240, 240),
+        );
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'c', options: ['x'], appearance: $appearance);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/MK', $serialized);
+        self::assertStringContainsString('/BG', $serialized);
+    }
+
+    public function testWidgetWithoutAppearanceDoesNotEmitMK(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringNotContainsString('/MK', $serialized);
+    }
+
+    public function testRadioKidEmitsMKWhenAppearanceSet(): void
+    {
+        $appearance = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            borderColor: \DragonOfMercy\PhpPdf\Color::rgb(0, 128, 0),
+        );
+        $r = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 0.0, 5.0, 5.0, group: 'g', value: 'v', checked: true, appearance: $appearance);
+        $widgets = [['field' => $r, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, PdfReference::to(999, 0), $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringContainsString('/MK', $serialized);
+        self::assertStringContainsString('/BC', $serialized);
+    }
 }

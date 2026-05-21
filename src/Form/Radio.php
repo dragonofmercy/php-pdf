@@ -53,6 +53,11 @@ final readonly class Radio implements FormField
         return ['x' => $this->x, 'y' => $this->y, 'width' => $this->width, 'height' => $this->height];
     }
 
+    public function appearance(): ?FieldAppearance
+    {
+        return $this->appearance;
+    }
+
     private static function formatNumber(float $v): string
     {
         if ((float) (int) $v === $v) {

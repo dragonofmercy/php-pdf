@@ -209,7 +209,12 @@ final readonly class AcroFormEmitter
                 ->withEntry(Name::of('Subtype'), Name::of('Widget'))
                 ->withEntry(Name::of('Parent'), $parentRef)
                 ->withEntry(Name::of('Rect'), $this->computeRect($widget, $r['pageHeightPt']))
-                ->withEntry(Name::of('Border'), PdfArray::of(PdfNumber::ofInt(0), PdfNumber::ofInt(0), PdfNumber::ofInt(0)))
+                ->withEntry(Name::of('Border'), PdfArray::of(PdfNumber::ofInt(0), PdfNumber::ofInt(0), PdfNumber::ofInt(0)));
+            $mk = $this->buildMK($widget->appearance());
+            if ($mk !== null) {
+                $kidDict = $kidDict->withEntry(Name::of('MK'), $mk);
+            }
+            $kidDict = $kidDict
                 ->withEntry(Name::of('AS'), Name::of($state))
                 ->withEntry(Name::of('AP'), $apDict);
 
@@ -532,10 +537,47 @@ final readonly class AcroFormEmitter
                 PdfNumber::ofInt(0),
                 PdfNumber::ofInt(0),
             ));
+        $mk = $this->buildMK($f->appearance());
+        if ($mk !== null) {
+            $dict = $dict->withEntry(Name::of('MK'), $mk);
+        }
         if ($flags !== 0) {
             $dict = $dict->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags));
         }
         return $dict;
+    }
+
+    /**
+     * Builds the /MK appearance characteristics dict for a widget when the
+     * appearance has at least one of borderColor / backgroundColor set.
+     * Returns null when nothing to emit (keeps the widget dict slim).
+     */
+    private function buildMK(?FieldAppearance $appearance): ?Dictionary
+    {
+        if ($appearance === null) {
+            return null;
+        }
+        if ($appearance->borderColor === null && $appearance->backgroundColor === null) {
+            return null;
+        }
+        $mk = Dictionary::empty();
+        if ($appearance->borderColor !== null) {
+            $components = $appearance->borderColor->rgbComponents();
+            $mk = $mk->withEntry(Name::of('BC'), PdfArray::of(
+                PdfNumber::ofFloat($components[0]),
+                PdfNumber::ofFloat($components[1]),
+                PdfNumber::ofFloat($components[2]),
+            ));
+        }
+        if ($appearance->backgroundColor !== null) {
+            $components = $appearance->backgroundColor->rgbComponents();
+            $mk = $mk->withEntry(Name::of('BG'), PdfArray::of(
+                PdfNumber::ofFloat($components[0]),
+                PdfNumber::ofFloat($components[1]),
+                PdfNumber::ofFloat($components[2]),
+            ));
+        }
+        return $mk;
     }
 
     private function computeRect(FormField $f, float $pageHeightPt): PdfArray

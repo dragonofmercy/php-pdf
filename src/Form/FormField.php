@@ -13,6 +13,9 @@ namespace DragonOfMercy\PhpPdf\Form;
  *
  * `dimensions()` returns the widget's rectangle in the document's user unit
  * (top-down Y), used by the emitter to compute the bottom-up `/Rect`.
+ *
+ * `appearance()` returns the optional visual customization (border, background,
+ * text color, font, size, alignment). Null means "use the PDF default".
  */
 interface FormField
 {
@@ -22,4 +25,6 @@ interface FormField
      * @return array{x: float, y: float, width: float, height: float}
      */
     public function dimensions(): array;
+
+    public function appearance(): ?FieldAppearance;
 }
