@@ -15,14 +15,14 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Text measurement** - `$page->stringWidth(...)` returns the exact width of any string in the current font.
 - **Images** - JPEG and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha) with transparency support. Auto-format detection. Same image used N times = one embed, N placements (per-document caching).
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
-- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes.
+- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
 - **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line), checkboxes, radio buttons (grouped), dropdowns, and listboxes. Each field can be styled with border color and width, background color, text color, font, size, and alignment.
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Other 2D barcode formats (DataMatrix, PDF417, Aztec) - add on demand.
+- Other 2D barcode formats (DataMatrix, PDF417) - add on demand.
 - Forms : push buttons, signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields - later phases.
 - Digital signatures, HTML / CSS rendering - later phases.
 
@@ -448,7 +448,7 @@ Hard limits (raise `PdfException`):
 
 ```php
 use DragonOfMercy\PhpPdf\Color;
-use DragonOfMercy\PhpPdf\Barcode\{Ean13, Ean8, Code128, QrCode, ErrorCorrection};
+use DragonOfMercy\PhpPdf\Barcode\{Ean13, Ean8, Code128, QrCode, ErrorCorrection, AztecCode, AztecEc};
 
 // EAN-13 with 12 digits (checksum auto-computed) and human-readable digits below.
 $page->barcode(Ean13::of('978013110362'), x: 20, y: 20, w: 50, h: 18);
@@ -466,6 +466,17 @@ $page->barcode(
         ->withColor(Color::hex('#003366')),
     x: 130, y: 20, w: 40,
 );
+
+// Aztec Code with default MEDIUM EC, auto-fit to Compact 1-4 or Full Range 1-32.
+$page->barcode(AztecCode::of('https://example.com'), x: 20, y: 80, w: 30);
+
+// Aztec with higher EC and a UTF-8 payload (ECI prefix emitted automatically).
+$page->barcode(
+    AztecCode::of('Cafe Naivete Oeuvre')
+        ->withErrorCorrection(AztecEc::HIGH)
+        ->withColor(Color::hex('#003366')),
+    x: 60, y: 80, w: 30,
+);
 ```
 
 Standards supported:
@@ -475,16 +486,17 @@ Standards supported:
 - **Code 128** (ISO/IEC 15417) - ASCII 0-127, auto-switching between sets A / B / C to minimise width.
 - **UPC-A**, **Code 39**, **Code 93**, **ITF** (Interleaved 2 of 5).
 - **QR Code** (ISO/IEC 18004) - full version range V1-V40 (up to ~4296 alphanumeric or ~2953 byte chars at L), error correction L / M / Q / H, modes numeric / alphanumeric / byte. Output validated against the zxing-cpp decoder across the full range.
+- **Aztec Code** (ISO/IEC 24778) - Compact (1-4 layers, 15x15 to 27x27 modules) and Full Range (1-32 layers, up to 151x151 modules), four EC presets (LOW ~10%, MEDIUM ~23%, HIGH ~36%, MAX ~50%), auto-detects ASCII vs UTF-8 (with ECI escape) for the payload. Output validated against the zxing-cpp decoder.
 
 API shape:
 
 - `Page::barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null)` - one method, polymorphic by value object.
-- 1D codes (Ean13, Ean8, Code128) require `h`; QR codes only need `w` (h defaults to `w`).
-- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) - all immutable.
+- 1D codes (Ean13, Ean8, Code128) require `h`; 2D codes (QR, Aztec) only need `w` (h defaults to `w`, and `h != w` raises an error since 2D codes are square).
+- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) or `withErrorCorrection(AztecEc)` (Aztec) - all immutable.
 - Default color is **black**, not the page's current fillColor (deterministic regardless of page state).
 - Coordinates use the document unit (mm by default), top-down Y axis (consistent with the rest of the API).
 
-Recommended sizes for reliable scanning: EAN-13 >= 25 mm wide, QR module >= 0.5 mm (so a V3 QR ~ 15 mm minimum).
+Recommended sizes for reliable scanning: EAN-13 >= 25 mm wide, QR module >= 0.5 mm (so a V3 QR ~ 15 mm minimum), Aztec module >= 0.5 mm (so a Compact 1-layer ~ 10 mm minimum, Full Range 32-layer ~ 80 mm minimum).
 
 The quiet zone is **included** in the `w` / `h` you provide. The barcode wraps its rendering in a graphics state save / restore, so it does not alter your page's current font / fill color.
 

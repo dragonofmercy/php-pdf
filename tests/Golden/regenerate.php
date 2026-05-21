@@ -545,3 +545,63 @@ echo "Regenerated page-with-forms.pdf\n";
 $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\PageWithStyledFormsTest('test'))->buildDocument();
 $doc->save($fixturesDir . '/page-with-styled-forms.pdf');
 echo "Regenerated page-with-styled-forms.pdf\n";
+
+// Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('https://example.com'),
+    x: 20.0, y: 20.0, w: 40.0,
+);
+$doc->save($fixturesDir . '/barcode-aztec.pdf');
+echo "Regenerated barcode-aztec.pdf\n";
+
+// Fixture: Aztec Code - compact max (~72 chars), MEDIUM EC
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\AztecCode::of(str_repeat('HELLO ', 12)),
+    x: 20.0, y: 20.0, w: 50.0,
+);
+$doc->save($fixturesDir . '/barcode-aztec-compact-max.pdf');
+echo "Regenerated barcode-aztec-compact-max.pdf\n";
+
+// Fixture: Aztec Code - boarding-pass payload, MEDIUM EC, Full Range
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('M1DOE/JOHN       EABCDEF DTWJFKAA 1234 123Y012C0001 100'),
+    x: 20.0, y: 20.0, w: 50.0,
+);
+$doc->save($fixturesDir . '/barcode-aztec-full-mid.pdf');
+echo "Regenerated barcode-aztec-full-mid.pdf\n";
+
+// Fixture: Aztec Code - 200 x 'A', LOW EC, Full Range high-layer
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\AztecCode::of(str_repeat('A', 200), \DragonOfMercy\PhpPdf\Barcode\AztecEc::LOW),
+    x: 20.0, y: 20.0, w: 80.0,
+);
+$doc->save($fixturesDir . '/barcode-aztec-full-max.pdf');
+echo "Regenerated barcode-aztec-full-max.pdf\n";
+
+// Fixture: Aztec Code - SHORT, HIGH EC, custom color
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\AztecCode::of('SHORT', \DragonOfMercy\PhpPdf\Barcode\AztecEc::HIGH)->withColor(Color::rgb(192, 0, 0)),
+    x: 20.0, y: 20.0, w: 30.0,
+);
+$doc->save($fixturesDir . '/barcode-aztec-ec-high.pdf');
+echo "Regenerated barcode-aztec-ec-high.pdf\n";
+
+// Fixture: Aztec Code - UTF-8 e-acute (ECI path), MEDIUM EC
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\AztecCode::of("caf\xc3\xa9"),
+    x: 20.0, y: 20.0, w: 30.0,
+);
+$doc->save($fixturesDir . '/barcode-aztec-unicode.pdf');
+echo "Regenerated barcode-aztec-unicode.pdf\n";
