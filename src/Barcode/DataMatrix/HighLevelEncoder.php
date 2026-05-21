@@ -301,15 +301,7 @@ final class HighLevelEncoder
     }
 
     /**
-     * Map a single byte to its C40 representation (ISO 16022 Table 8).
-     *
-     * Returns a list of values in the C40 alphabet to emit in order, including
-     * any shift codewords needed:
-     *   - Shift 1 (control chars 0x00-0x1F): emit [0, byte]
-     *   - Shift 2 (punctuation 0x21-0x2F, ':' to '@', '[' to '_'): emit [1, mapped]
-     *   - Shift 3 (lowercase a-z + extras): emit [2, mapped]
-     *   - Basic set (space, digits, uppercase): emit single value
-     *   - Bytes > 0x7F: emit upper-shift escape (Shift 2 value 30) then inner mapping for byte - 128.
+     * Map a single byte to its C40 representation (ISO/IEC 16022 Table 8).
      *
      * @return list<int>
      */
@@ -322,36 +314,13 @@ final class HighLevelEncoder
             return [$b - 0x30 + 4]; // digits 4-13
         }
         if ($b >= 0x41 && $b <= 0x5A) {
-            return [$b - 0x41 + 14]; // uppercase A-Z 14-39
+            return [$b - 0x41 + 14]; // uppercase A-Z basic set 14-39
         }
-        if ($b <= 0x1F) {
-            return [0, $b]; // Shift 1
-        }
-        if ($b <= 0x2F) {
-            return [1, $b - 0x21]; // Shift 2 punctuation 0-14 (0x21-0x2F; 0x20 handled above)
-        }
-        if ($b <= 0x40) {
-            return [1, $b - 0x3A + 15]; // Shift 2 ':' to '@' 15-21 (0x3A-0x40; 0x30-0x39 handled above)
-        }
-        if ($b <= 0x5F) {
-            return [1, $b - 0x5B + 22]; // Shift 2 '[' to '_' 22-26 (0x5B-0x5F; 0x41-0x5A handled above)
-        }
-        if ($b === 0x60) {
-            return [2, 0]; // backtick -> Shift 3 value 0
-        }
-        if ($b <= 0x7A) {
-            return [2, $b - 0x61 + 1]; // Shift 3 lowercase a-z 1-26
-        }
-        if ($b <= 0x7F) {
-            return [2, $b - 0x7B + 27]; // Shift 3 '{' to DEL 27-31
-        }
-        // Bytes > 0x7F: upper-shift escape (Shift 2 value 30), then inner mapping for b - 128.
-        $inner = self::c40Values($b - 128);
-        return array_merge([1, 30], $inner);
+        return self::shiftMapping($b, caseSwap: false);
     }
 
     /**
-     * Same mapping as C40 but with lowercase in the basic set and uppercase in Shift 3.
+     * Map a single byte to its Text-mode representation (ISO/IEC 16022 Table 8).
      *
      * @return list<int>
      */
@@ -364,31 +333,52 @@ final class HighLevelEncoder
             return [$b - 0x30 + 4];
         }
         if ($b >= 0x61 && $b <= 0x7A) {
-            return [$b - 0x61 + 14]; // lowercase basic set 14-39
+            return [$b - 0x61 + 14]; // lowercase a-z basic set 14-39
         }
+        return self::shiftMapping($b, caseSwap: true);
+    }
+
+    /**
+     * Shared Shift 1 / Shift 2 / Shift 3 / upper-shift logic for C40 and Text.
+     * Returns the value sequence for a byte that is NOT in the basic set of the
+     * caller's mode.
+     *
+     * $caseSwap=false (C40): lowercase a-z mapped via Shift 3 values 1-26.
+     * $caseSwap=true  (Text): uppercase A-Z mapped via Shift 3 values 1-26.
+     *
+     * @return list<int>
+     */
+    private static function shiftMapping(int $b, bool $caseSwap): array
+    {
         if ($b <= 0x1F) {
-            return [0, $b];
+            return [0, $b]; // Shift 1: control chars
         }
-        if ($b <= 0x2F) {
-            return [1, $b - 0x21]; // Shift 2 punctuation 0-14 (0x21-0x2F; 0x20 handled above)
+        if ($b >= 0x21 && $b <= 0x2F) {
+            return [1, $b - 0x21]; // Shift 2: punctuation 0-14
         }
-        if ($b <= 0x40) {
-            return [1, $b - 0x3A + 15]; // Shift 2 ':' to '@' (0x3A-0x40; digits handled above)
+        if ($b >= 0x3A && $b <= 0x40) {
+            return [1, $b - 0x3A + 15]; // Shift 2: ':' to '@' -> 15-21
         }
-        if ($b <= 0x5A) {
-            return [2, $b - 0x41 + 1]; // uppercase Shift 3 1-26 (0x41-0x5A)
-        }
-        if ($b <= 0x5F) {
-            return [1, $b - 0x5B + 22]; // Shift 2 '[' to '_' (0x5B-0x5F)
+        if ($b >= 0x5B && $b <= 0x5F) {
+            return [1, $b - 0x5B + 22]; // Shift 2: '[' to '_' -> 22-26
         }
         if ($b === 0x60) {
-            return [2, 0];
+            return [2, 0]; // Shift 3: backtick
         }
-        if ($b <= 0x7F) {
-            return [2, $b - 0x7B + 27]; // Shift 3 '{' to DEL (0x7B-0x7F; lowercase handled above)
+        if (!$caseSwap && $b >= 0x61 && $b <= 0x7A) {
+            return [2, $b - 0x61 + 1]; // C40: lowercase a-z via Shift 3 -> 1-26
         }
-        $inner = self::textValues($b - 128);
-        return array_merge([1, 30], $inner);
+        if ($caseSwap && $b >= 0x41 && $b <= 0x5A) {
+            return [2, $b - 0x41 + 1]; // Text: uppercase A-Z via Shift 3 -> 1-26
+        }
+        if ($b >= 0x7B && $b <= 0x7F) {
+            return [2, $b - 0x7B + 27]; // Shift 3: '{' to DEL -> 27-31
+        }
+        // Upper-shift escape for bytes > 0x7F: Shift 2 value 30 then recursive inner mapping.
+        $inner = $caseSwap
+            ? self::textValues($b - 128)
+            : self::c40Values($b - 128);
+        return [1, 30, ...$inner];
     }
 
     /**
