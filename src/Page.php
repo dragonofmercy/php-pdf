@@ -539,18 +539,8 @@ final class Page
         // An explicit x defines a new row anchor for NEWLINE; an omitted x
         // falls back to the cursor maintained by previous cell() calls.
         $xExplicit = $x !== null;
-        if ($x === null) {
-            if ($this->cursor->xPt() === null) {
-                throw new PdfException('Cell x is required: no cursor set yet');
-            }
-            $x = $this->fromPt($this->cursor->xPt());
-        }
-        if ($y === null) {
-            if ($this->cursor->yPt() === null) {
-                throw new PdfException('Cell y is required: no cursor set yet');
-            }
-            $y = $this->fromPt($this->cursor->yPt());
-        }
+        $x = $this->cursor->resolveX($x, 'Cell');
+        $y = $this->cursor->resolveY($y, 'Cell');
         if ($xExplicit) {
             $this->cursor->setLineStartXPt($this->toPt($x));
         }
@@ -634,18 +624,8 @@ final class Page
             throw new PdfException("Image height must be positive, got {$h}");
         }
 
-        if ($x === null) {
-            if ($this->cursor->xPt() === null) {
-                throw new PdfException('Image x is required: no cursor set yet');
-            }
-            $x = $this->fromPt($this->cursor->xPt());
-        }
-        if ($y === null) {
-            if ($this->cursor->yPt() === null) {
-                throw new PdfException('Image y is required: no cursor set yet');
-            }
-            $y = $this->fromPt($this->cursor->yPt());
-        }
+        $x = $this->cursor->resolveX($x, 'Image');
+        $y = $this->cursor->resolveY($y, 'Image');
 
         [$shortName, $resolved] = $this->imageRegistry->register($image);
         // Intrinsic image dimensions are pixel counts; the library treats one
@@ -712,18 +692,8 @@ final class Page
         if ($w === null) {
             throw new PdfException('Barcode width is required');
         }
-        if ($x === null) {
-            if ($this->cursor->xPt() === null) {
-                throw new PdfException('Barcode x is required: no cursor set yet');
-            }
-            $x = $this->fromPt($this->cursor->xPt());
-        }
-        if ($y === null) {
-            if ($this->cursor->yPt() === null) {
-                throw new PdfException('Barcode y is required: no cursor set yet');
-            }
-            $y = $this->fromPt($this->cursor->yPt());
-        }
+        $x = $this->cursor->resolveX($x, 'Barcode');
+        $y = $this->cursor->resolveY($y, 'Barcode');
         $code->draw($this, $x, $y, $w, $h);
         // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
         // the right edge of the barcode's VISUAL bounding box. For a vertical

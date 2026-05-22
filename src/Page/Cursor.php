@@ -51,6 +51,36 @@ final class Cursor
         return $this->fromPt($this->yPt);
     }
 
+    /**
+     * Resolves an x coordinate: returns $x when provided, otherwise the current
+     * cursor x in the document unit, or throws using $label when no cursor is set.
+     */
+    public function resolveX(?float $x, string $label): float
+    {
+        if ($x !== null) {
+            return $x;
+        }
+        if ($this->xPt === null) {
+            throw new PdfException("{$label} x is required: no cursor set yet");
+        }
+        return $this->fromPt($this->xPt);
+    }
+
+    /**
+     * Resolves a y coordinate: returns $y when provided, otherwise the current
+     * cursor y in the document unit, or throws using $label when no cursor is set.
+     */
+    public function resolveY(?float $y, string $label): float
+    {
+        if ($y !== null) {
+            return $y;
+        }
+        if ($this->yPt === null) {
+            throw new PdfException("{$label} y is required: no cursor set yet");
+        }
+        return $this->fromPt($this->yPt);
+    }
+
     public function setX(float $x): void
     {
         $this->xPt = $this->toPt($x);

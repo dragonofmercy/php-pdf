@@ -61,4 +61,34 @@ final class CursorTest extends TestCase
         self::assertSame(5.0, $c->xPt());
         self::assertSame(5.0, $c->yPt());
     }
+
+    public function testResolveXReturnsProvidedValue(): void
+    {
+        $c = new Cursor(Unit::PT);
+        self::assertSame(42.0, $c->resolveX(42.0, 'Cell'));
+    }
+
+    public function testResolveXFallsBackToCursor(): void
+    {
+        $c = new Cursor(Unit::PT);
+        $c->setXY(10.0, 20.0);
+        self::assertSame(10.0, $c->resolveX(null, 'Cell'));
+        self::assertSame(20.0, $c->resolveY(null, 'Cell'));
+    }
+
+    public function testResolveXThrowsWithLabelWhenNullAndUnset(): void
+    {
+        $c = new Cursor(Unit::PT);
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Image x is required: no cursor set yet');
+        $c->resolveX(null, 'Image');
+    }
+
+    public function testResolveYThrowsWithLabelWhenNullAndUnset(): void
+    {
+        $c = new Cursor(Unit::PT);
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Barcode y is required: no cursor set yet');
+        $c->resolveY(null, 'Barcode');
+    }
 }
