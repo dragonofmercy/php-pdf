@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Barcode;
 
-use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\{Color, Page};
 use DragonOfMercy\PhpPdf\Page\Operators;
 
 /**
@@ -76,5 +76,39 @@ final class Renderer
             . $body
             . Operators::fill()
             . Operators::restoreState();
+    }
+
+    /**
+     * Run a horizontal barcode draw closure, optionally wrapped in a 90-degree
+     * CCW rotation so the bottom of the horizontal symbol ends up on the left.
+     *
+     * The page content stream operates in Y-down user space (a Y-flip CTM is
+     * prepended by ContentStream). In that space a -90 degree rotation maps
+     * (x, y) -> (-y, x), i.e. matrix [0 1 -1 0]. The translation places the
+     * image of the horizontal box's bottom-left corner at the caller's top-left
+     * (xPt, yPt), giving a visual footprint hPt wide x wPt tall anchored there.
+     *
+     * @param \Closure(): void $drawHorizontal emits the format's bars + text
+     */
+    public static function oriented(
+        Page $page,
+        Orientation $orientation,
+        float $xPt,
+        float $yPt,
+        float $wPt,
+        float $hPt,
+        \Closure $drawHorizontal,
+    ): void {
+        if ($orientation === Orientation::Horizontal) {
+            $drawHorizontal();
+            return;
+        }
+        $tx = $xPt + $yPt + $hPt;
+        $ty = $yPt - $xPt;
+        $stream = $page->contentStream();
+        $stream->append(Operators::saveState());
+        $stream->append(Operators::concatMatrix(0, 1, -1, 0, $tx, $ty));
+        $drawHorizontal();
+        $stream->append(Operators::restoreState());
     }
 }
