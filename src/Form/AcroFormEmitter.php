@@ -173,7 +173,7 @@ final readonly class AcroFormEmitter
                 break;
             }
         }
-        $flags = (1 << 15) | (1 << 16); // NoToggleToOff + Radio
+        $flags = (1 << 14) | (1 << 15); // NoToggleToOff (bit 15) + Radio (bit 16), per PDF 32000-1 Table 227
         if ($sourceForFlags->readOnly) {
             $flags |= 1 << 0;
         }

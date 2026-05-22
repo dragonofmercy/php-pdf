@@ -189,12 +189,16 @@ final class AcroFormEmitterTest extends TestCase
         // /AS on each kid: /mr (the checked one) or /Off (others)
         self::assertStringContainsString('/AS /mr', $serialized);
         self::assertSame(2, substr_count($serialized, '/AS /Off'));
-        // Radio flag bit 17 set (1 << 16 = 65536) and bit 16 NoToggleToOff (1 << 15 = 32768)
+        // Per PDF 32000-1:2008 Table 227:
+        // - Radio (bit 16) = 1<<15 = 32768
+        // - NoToggleToOff (bit 15) = 1<<14 = 16384
+        // Combined = 49152. The old (buggy) value was 98304 = Radio + Pushbutton.
         if (preg_match_all('~/Ff (\d+)~', $serialized, $matches) !== false) {
             self::assertNotEmpty($matches[1], 'Expected at least one /Ff');
             $parentFlags = (int) $matches[1][0];
-            self::assertSame(65536, $parentFlags & 65536, 'Radio bit set');
-            self::assertSame(32768, $parentFlags & 32768, 'NoToggleToOff bit set');
+            self::assertSame(32768, $parentFlags & 32768, 'Radio bit (bit 16) set');
+            self::assertSame(16384, $parentFlags & 16384, 'NoToggleToOff bit (bit 15) set');
+            self::assertSame(0, $parentFlags & 65536, 'Pushbutton bit (bit 17) must NOT be set');
         } else {
             self::fail('preg_match_all failed');
         }

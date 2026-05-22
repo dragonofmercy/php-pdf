@@ -70,6 +70,33 @@ final class PageWithFormsTest extends TestCase
         self::assertMatchesRegularExpression('~/Kids \[\d+ 0 R \d+ 0 R \d+ 0 R\]~', $bytes);
     }
 
+    public function testRadioParentFfIsNoToggleToOffPlusRadio(): void
+    {
+        // Per PDF 32000-1:2008 Table 227:
+        // - Radio (bit 16) = 1<<15 = 32768
+        // - NoToggleToOff (bit 15) = 1<<14 = 16384
+        // - Combined = 49152
+        // The buggy value was 98304 = (1<<15)|(1<<16) = Radio + Pushbutton.
+        $bytes = $this->buildDocument()->output();
+        // The radio parent dict is emitted as a plain indirect object; it contains
+        // both /Kids [...] and /Ff. Extract all indirect objects then find the one
+        // that is the radio parent (has /FT /Btn and /Kids).
+        preg_match_all('/\d+ 0 obj.*?endobj/s', $bytes, $m);
+        $parentDict = null;
+        foreach ($m[0] as $obj) {
+            if (str_contains($obj, '/Kids') && str_contains($obj, '/FT /Btn')) {
+                $parentDict = $obj;
+                break;
+            }
+        }
+        self::assertNotNull($parentDict, 'Could not find radio parent dict (no object with /Kids and /FT /Btn)');
+        self::assertStringContainsString(
+            '/Ff 49152',
+            $parentDict,
+            'Radio parent /Ff must be 49152 (NoToggleToOff + Radio, bits 15-16), got: ' . $parentDict,
+        );
+    }
+
     public function testCheckboxHasAPNOnOff(): void
     {
         $bytes = $this->buildDocument()->output();
