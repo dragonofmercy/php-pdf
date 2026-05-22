@@ -47,17 +47,18 @@ final class HighLevelEncoderTest extends TestCase
         $out = HighLevelEncoder::encodeBase256("\xFF\xFE\xFD");
         self::assertCount(5, $out);
         self::assertSame(231, $out[0]);
-        // For length < 250, the length codeword is the count, randomized at pos 1:
-        // pseudoRandom = ((149 * 1) % 255) + 1 = 150; (3 + 150) % 256 = 153.
-        self::assertSame(153, $out[1]);
+        // The latch sits at symbol codeword position 1, so the length codeword is
+        // randomized at its ABSOLUTE position 2 (ISO 16022 5.4.3), not a block-relative
+        // index. pseudoRandom = ((149 * 2) % 255) + 1 = 44; (3 + 44) % 256 = 47.
+        self::assertSame(47, $out[1]);
     }
 
     public function testBase256SingleByteUsesLengthOne(): void
     {
         $out = HighLevelEncoder::encodeBase256("\x80");
         self::assertSame(231, $out[0]);
-        // length 1 randomized at pos 1: (1 + 150) % 256 = 151.
-        self::assertSame(151, $out[1]);
+        // length 1 randomized at absolute position 2: (1 + 44) % 256 = 45.
+        self::assertSame(45, $out[1]);
         self::assertCount(3, $out);
     }
 
@@ -158,5 +159,35 @@ final class HighLevelEncoderTest extends TestCase
         // in UTF-8, well above the Base256 break-even of ~3 contiguous high bytes.
         $out = HighLevelEncoder::encode("\xC3\xA9\xC3\xA9\xC3\xA9");
         self::assertContains(231, $out, 'Should include Base256 latch for contiguous high-byte UTF-8 run');
+    }
+
+    public function testTextResidualOneReturnsToAsciiWithoutSpuriousUnlatch(): void
+    {
+        // 'Hello': 'H' as ASCII (73). Annex P latches to Text for 'ello'.
+        // 'ell' packs as a triplet (values 18,25,25 -> 116,130); residual 1 emits
+        // the in-band unlatch (254) then 'o' as ASCII (112). After the in-band
+        // unlatch the encoder is back in ASCII, so NO closing 254 must follow.
+        self::assertSame([73, 239, 116, 130, 254, 112], HighLevelEncoder::encode('Hello'));
+    }
+
+    public function testTextModeAllLowercaseDoesNotEndWithSpuriousUnlatch(): void
+    {
+        // All-lowercase payload latches to Text; the trailing residual-1 byte
+        // returns to ASCII. The stream must end on that ASCII byte, never on a
+        // bare 254 (which is invalid in ASCII mode and breaks decoders).
+        $out = HighLevelEncoder::encode('the quick brown fox jumps over the lazy dog');
+        self::assertNotSame(254, end($out), 'Text residual-1 must not leave a spurious closing unlatch');
+    }
+
+    public function testUtf8PayloadBase256LengthUsesAbsolutePosition(): void
+    {
+        // 'cafe a la francaise' (with UTF-8 accents): the leading run latches to
+        // Base256 (latch at symbol codeword position 1). The 8-byte run's length
+        // codeword must randomize at its ABSOLUTE position 2 -> (8 + 44) % 256 = 52.
+        // A block-relative position-1 value (158) makes the decoder un-randomize a
+        // bogus length and overrun the symbol (crashes strict decoders).
+        $out = HighLevelEncoder::encode("caf\xC3\xA9 \xC3\xA0 la fran\xC3\xA7aise");
+        self::assertSame(231, $out[0], 'leading run latches to Base256');
+        self::assertSame(52, $out[1], 'length codeword randomized at absolute position 2');
     }
 }

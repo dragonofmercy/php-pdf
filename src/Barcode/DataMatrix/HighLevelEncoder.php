@@ -59,7 +59,7 @@ final class HighLevelEncoder
                 }
                 $mode = $next;
             }
-            [$emitted, $consumed] = self::encodeOneUnit($input, $i, $mode);
+            [$emitted, $consumed, $mode] = self::encodeOneUnit($input, $i, $mode, count($out));
             foreach ($emitted as $cw) {
                 $out[] = $cw;
             }
@@ -176,31 +176,57 @@ final class HighLevelEncoder
     }
 
     /**
-     * @return array{list<int>, int}
+     * Encode one unit (1-2 bytes in ASCII, a run in C40/Text/Base256) starting
+     * at $pos in the given $mode.
+     *
+     * Returns the emitted codewords, the number of input bytes consumed, and the
+     * mode the encoder is actually in afterwards. The trailing mode matters: a
+     * C40/Text run with a residual of 1 emits an in-band unlatch (254) and falls
+     * back to ASCII for the trailing byte, and a Base256 run auto-returns to
+     * ASCII once the announced byte count is read. In both cases the walker must
+     * learn that it is back in ASCII so it neither emits a spurious closing
+     * unlatch at end of input nor skips a needed latch on the next unit.
+     *
+     * @param int $emittedCount Number of codewords already emitted (the Base256
+     *                          latch is the last of them); used to compute the
+     *                          absolute symbol position for Base256 randomization.
+     *
+     * @return array{list<int>, int, DataMatrixMode}
      */
-    private static function encodeOneUnit(string $input, int $pos, DataMatrixMode $mode): array
+    private static function encodeOneUnit(string $input, int $pos, DataMatrixMode $mode, int $emittedCount): array
     {
         $len = strlen($input);
         if ($mode === DataMatrixMode::ASCII) {
             if ($pos + 1 < $len && self::isDigit($input[$pos]) && self::isDigit($input[$pos + 1])) {
                 $pair = (int) substr($input, $pos, 2);
-                return [[self::CW_ASCII_DIGIT_PAIR + $pair], 2];
+                return [[self::CW_ASCII_DIGIT_PAIR + $pair], 2, DataMatrixMode::ASCII];
             }
             $b = ord($input[$pos]);
             if ($b > 0x7F) {
-                return [[self::CW_ASCII_EXTENDED_ASCII, $b - 128 + 1], 1];
+                return [[self::CW_ASCII_EXTENDED_ASCII, $b - 128 + 1], 1, DataMatrixMode::ASCII];
             }
-            return [[$b + 1], 1];
+            return [[$b + 1], 1, DataMatrixMode::ASCII];
         }
         $rest = substr($input, $pos);
         $runLen = self::tripletRunLength($rest, $mode);
         $block = substr($rest, 0, $runLen);
-        // ASCII handled by the early return above; remaining modes are C40 / TEXT / BASE256.
-        return match ($mode) {
-            DataMatrixMode::C40  => [self::stripTripletWrapper(self::encodeC40($block)), $runLen],
-            DataMatrixMode::TEXT => [self::stripTripletWrapper(self::encodeText($block)), $runLen],
-            default              => [self::stripBase256Latch(self::encodeBase256($block)), $runLen],
-        };
+
+        if ($mode === DataMatrixMode::BASE256) {
+            // The latch is already emitted (it is codeword #$emittedCount, 1-based);
+            // the length codeword follows at the next absolute symbol position.
+            // Base256 auto-returns to ASCII after its length-prefixed byte run.
+            return [self::encodeBase256Body($block, $emittedCount + 1), $runLen, DataMatrixMode::ASCII];
+        }
+
+        // C40 / TEXT. encodeC40/encodeText terminate with a 254 unlatch for a
+        // residual of 0 or 2 (the run stays in triplet mode, walker defers the
+        // unlatch), or with an ASCII codeword for a residual of 1 (the in-band
+        // 254 already returned to ASCII). Detect which from the un-stripped form.
+        $full = $mode === DataMatrixMode::C40
+            ? self::encodeC40($block)
+            : self::encodeText($block);
+        $newMode = end($full) === 254 ? $mode : DataMatrixMode::ASCII;
+        return [self::stripTripletWrapper($full), $runLen, $newMode];
     }
 
     /**
@@ -221,16 +247,6 @@ final class HighLevelEncoder
             array_pop($full);
         }
         // array_shift / array_pop on a list already reindex; return is still a list.
-        return $full;
-    }
-
-    /**
-     * @param list<int> $full
-     * @return list<int>
-     */
-    private static function stripBase256Latch(array $full): array
-    {
-        array_shift($full);
         return $full;
     }
 
@@ -271,25 +287,41 @@ final class HighLevelEncoder
      *   [length codeword(s)] (1 codeword if length < 250, else 2)
      *   [randomized data bytes...]
      *
-     * Randomization formula (ISO 5.4.3): for codeword at position pos (1-based,
-     * counting from the byte after the latch), output = (raw + ((149 * pos) % 255) + 1) mod 256.
+     * The latch sits at symbol codeword position 1, so the length and data are
+     * randomized from position 2 onward. When Base256 appears later in the
+     * stream the walker calls {@see self::encodeBase256Body()} directly with the
+     * correct absolute position.
      *
      * @return list<int>
      */
     public static function encodeBase256(string $bytes): array
     {
+        return [self::CW_ASCII_LATCH_BASE256, ...self::encodeBase256Body($bytes, 2)];
+    }
+
+    /**
+     * Emit the Base256 length prefix + randomized data (no latch).
+     *
+     * Randomization (ISO 5.4.3) keys off the codeword's ABSOLUTE 1-based position
+     * in the symbol's codeword stream, not a block-relative index. The decoder
+     * un-randomizes the length at that same absolute position; an off-by-one
+     * there yields a bogus length and overruns the symbol.
+     *
+     * @param int $lengthPosition Absolute 1-based position of the length codeword.
+     * @return list<int>
+     */
+    private static function encodeBase256Body(string $bytes, int $lengthPosition): array
+    {
         $len = strlen($bytes);
-        $out = [self::CW_ASCII_LATCH_BASE256];
-        $pos = 1;
+        $out = [];
+        $pos = $lengthPosition;
         if ($len < 250) {
             $out[] = self::randomize255State($len, $pos);
             $pos++;
         } else {
-            $hi = intdiv($len, 250) + 249;
-            $lo = $len % 250;
-            $out[] = self::randomize255State($hi, $pos);
+            $out[] = self::randomize255State(intdiv($len, 250) + 249, $pos);
             $pos++;
-            $out[] = self::randomize255State($lo, $pos);
+            $out[] = self::randomize255State($len % 250, $pos);
             $pos++;
         }
         for ($i = 0; $i < $len; $i++) {

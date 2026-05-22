@@ -31,9 +31,13 @@ final class MatrixTest extends TestCase
                 "top row timing at x={$x} expected " . ($expected ? 'dark' : 'light'),
             );
         }
-        // Right column timing visible region: y=1..8 (y=0 is timing corner, y=9 is L base).
+        // Right clock track is anchored at the bottom-right corner (adjacent to
+        // the solid L base): dark there, alternating upward. For a 10x10 symbol the
+        // region bottom is y=9, so the visible track at y=1..8 is dark on ODD y.
+        // (Anchoring at the top instead inverts the parity and breaks strict
+        // decoders -- see the DataMatrix timing-parity fix.)
         for ($y = 1; $y < 9; $y++) {
-            $expected = ($y % 2 === 0);
+            $expected = ($y % 2 === 1);
             self::assertSame(
                 $expected,
                 $matrix->modules[$y][9],
@@ -67,6 +71,34 @@ final class MatrixTest extends TestCase
         // Internal vertical L base at col 16 (between the two side-by-side regions).
         for ($y = 0; $y < 32; $y++) {
             self::assertTrue($matrix->modules[$y][16], "internal col 16 y={$y} should be dark");
+        }
+    }
+
+    /**
+     * Every symbol size must yield a module grid of exactly moduleRows x
+     * moduleCols after placement. Symbols 16x16 and 24x24 (data grids 14x14 and
+     * 22x22) used to overrun: the Utah walker re-ran on cells the corner cases
+     * already placed, and the offset wrapping wrote out of bounds, auto-vivifying
+     * stray rows/cells. The placed[] guard prevents that.
+     */
+    public function testEverySymbolSizeProducesWellFormedGrid(): void
+    {
+        foreach (Symbol::all() as $symbol) {
+            $matrix = Matrix::build($symbol);
+            $matrix->placeCodewords(array_fill(0, $symbol->totalCodewords(), 0xAA));
+
+            self::assertCount(
+                $symbol->moduleRows,
+                $matrix->modules,
+                "symbol {$symbol->moduleRows}x{$symbol->moduleCols} should have exactly {$symbol->moduleRows} rows",
+            );
+            foreach ($matrix->modules as $y => $row) {
+                self::assertCount(
+                    $symbol->moduleCols,
+                    $row,
+                    "symbol {$symbol->moduleRows}x{$symbol->moduleCols} row {$y} should have exactly {$symbol->moduleCols} cells",
+                );
+            }
         }
     }
 }

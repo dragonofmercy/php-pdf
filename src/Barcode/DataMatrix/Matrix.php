@@ -22,8 +22,15 @@ final class Matrix
     /** @var array<int, array<int, bool>> */
     public array $modules;
 
-    /** @var array<int, array<int, bool>> True = reserved by finder/timing/region border. */
-    private array $reserved;
+    /**
+     * @var array<int, array<int, bool>> True = a data bit has already been placed
+     * at this data-grid coordinate. Mirrors the `placed[]` array of the ISO/IEC
+     * 16022 Annex F placement algorithm: corner-case placements mark their cells,
+     * and the Utah walker skips a position whose centre is already placed. Without
+     * this, the walker re-runs Utah on cells the corner cases handled and its
+     * offset wrapping overruns the data grid (symbols 16x16 and 24x24).
+     */
+    private array $placed;
 
     public readonly int $dataGridRows;
     public readonly int $dataGridCols;
@@ -34,8 +41,8 @@ final class Matrix
         $this->dataGridCols = $symbol->dataRegionCols * $symbol->regionCols;
         $rows = $symbol->moduleRows;
         $cols = $symbol->moduleCols;
-        $this->modules  = array_fill(0, $rows, array_fill(0, $cols, false));
-        $this->reserved = array_fill(0, $rows, array_fill(0, $cols, false));
+        $this->modules = array_fill(0, $rows, array_fill(0, $cols, false));
+        $this->placed  = array_fill(0, $this->dataGridRows, array_fill(0, $this->dataGridCols, false));
     }
 
     public static function build(Symbol $symbol): self
@@ -66,25 +73,25 @@ final class Matrix
                 $y0 = $ry * $regionStrideR;
                 $x0 = $rx * $regionStrideC;
                 $rightX = $x0 + $regionStrideC - 1;
+                $regionBottomY = $y0 + $regionStrideR - 1;
                 for ($y = $y0; $y < $y0 + $regionStrideR; $y++) {
-                    $isDark = (($y - $y0) % 2) === 0;
+                    // Right clock track is anchored at the bottom-right corner
+                    // (adjacent to the solid L base): dark there, alternating up.
+                    // ISO/IEC 16022 5.7.1.
+                    $isDark = (($regionBottomY - $y) % 2) === 0;
                     $this->modules[$y][$rightX] = $isDark;
-                    $this->reserved[$y][$rightX] = true;
                 }
                 $topY = $y0;
                 for ($x = $x0; $x < $x0 + $regionStrideC; $x++) {
                     $isDark = (($x - $x0) % 2) === 0;
                     $this->modules[$topY][$x] = $isDark;
-                    $this->reserved[$topY][$x] = true;
                 }
                 $bottomY = $y0 + $regionStrideR - 1;
                 for ($x = $x0; $x < $x0 + $regionStrideC; $x++) {
                     $this->modules[$bottomY][$x] = true;
-                    $this->reserved[$bottomY][$x] = true;
                 }
                 for ($y = $y0; $y < $y0 + $regionStrideR; $y++) {
                     $this->modules[$y][$x0] = true;
-                    $this->reserved[$y][$x0] = true;
                 }
             }
         }
@@ -138,7 +145,7 @@ final class Matrix
     private function walkUpRight(int $row, int $col, string $bits, int $bitIdx, int $rows, int $cols): array
     {
         do {
-            if ($row < $rows && $col >= 0 && !$this->isReservedDataCell($row, $col)) {
+            if ($row < $rows && $col >= 0 && !$this->isPlaced($row, $col)) {
                 $bitIdx += $this->placeUtah($row, $col, $bits, $bitIdx, $rows, $cols);
             }
             $row -= 2;
@@ -153,7 +160,7 @@ final class Matrix
     private function walkDownLeft(int $row, int $col, string $bits, int $bitIdx, int $rows, int $cols): array
     {
         do {
-            if ($row >= 0 && $col < $cols && !$this->isReservedDataCell($row, $col)) {
+            if ($row >= 0 && $col < $cols && !$this->isPlaced($row, $col)) {
                 $bitIdx += $this->placeUtah($row, $col, $bits, $bitIdx, $rows, $cols);
             }
             $row += 2;
@@ -273,6 +280,9 @@ final class Matrix
         if ($bitIdx >= strlen($bits)) {
             return;
         }
+        // Mark the (wrapped) data-grid cell placed so the Utah walker skips any
+        // later position whose centre lands here (ISO/IEC 16022 Annex F placed[]).
+        $this->placed[$dgRow][$dgCol] = true;
         [$mRow, $mCol] = $this->dataGridToModule($dgRow, $dgCol);
         $this->modules[$mRow][$mCol] = ($bits[$bitIdx] === '1');
     }
@@ -289,7 +299,12 @@ final class Matrix
         return [$mRow, $mCol];
     }
 
-    private function isReservedDataCell(int $dgRow, int $dgCol): bool
+    /**
+     * Whether the data-grid centre at ($dgRow, $dgCol) already carries a placed
+     * bit. Out-of-grid coordinates count as placed so the walker skips them
+     * (mirrors the bounds + placed[] guard of ISO/IEC 16022 Annex F).
+     */
+    private function isPlaced(int $dgRow, int $dgCol): bool
     {
         if ($dgRow < 0 || $dgCol < 0
             || $dgRow >= $this->dataGridRows
@@ -297,7 +312,6 @@ final class Matrix
         ) {
             return true;
         }
-        [$mRow, $mCol] = $this->dataGridToModule($dgRow, $dgCol);
-        return $this->reserved[$mRow][$mCol];
+        return $this->placed[$dgRow][$dgCol];
     }
 }
