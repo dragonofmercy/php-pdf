@@ -818,7 +818,9 @@ final class Page
      *
      * For 1D barcodes (EAN-13, EAN-8, UPC-A, Code 39, Code 93, Code 128, ITF)
      * `h` is required; for square 2D barcodes (QR, Aztec, DataMatrix) it is
-     * optional (defaults to `w`).
+     * optional (defaults to `w`). PDF417 is rectangular: `h` is optional and
+     * unconstrained (need not equal `w`); when null it is derived from the
+     * symbol's row count.
      */
     public function barcode(
         Barcode $code,
