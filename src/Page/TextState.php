@@ -116,7 +116,7 @@ final class TextState
         return $this->currentFontEngine;
     }
 
-    public function buildEngineFor(Font $font): FontEngine
+    private function buildEngineFor(Font $font): FontEngine
     {
         return $this->fontResolver !== null
             ? $this->fontResolver->resolveEngine($font)
@@ -153,6 +153,9 @@ final class TextState
      */
     public function measureMaxLineWidthPt(string $text, Font $font, float $size): float
     {
+        if ($text === '') {
+            return 0.0;
+        }
         if ($font->isCustom() && $this->fontResolver === null) {
             throw new PdfException('Cannot measure custom Font without a registered family');
         }

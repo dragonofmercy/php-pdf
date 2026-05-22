@@ -14,12 +14,12 @@ use DragonOfMercy\PhpPdf\Unit;
 /**
  * Stateless emitter of graphics operators (primitives, graphics state,
  * transforms, save/restore) into a page content stream. Works in the page's
- * document unit; converts to points before emitting. Holds no mutable state -
+ * document unit; converts to points before emitting. Holds no mutable fields of its own -
  * Page owns one instance and delegates its public drawing methods here.
  *
  * @internal
  */
-final class PageGraphics
+final readonly class PageGraphics
 {
     private const float BEZIER_KAPPA = 0.5522847498;
 
