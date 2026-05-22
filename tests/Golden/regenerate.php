@@ -260,7 +260,7 @@ echo "Regenerated barcode-code128-vertical.pdf\n";
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
 $page->barcode(
-    \DragonOfMercy\PhpPdf\Barcode\Ean13::of('978013110362')->vertical(),
+    \DragonOfMercy\PhpPdf\Barcode\Ean13::of('9780131103627')->vertical(),
     x: 20.0, y: 20.0, w: 60.0, h: 25.0,
 );
 $doc->save($fixturesDir . '/barcode-ean13-vertical.pdf');

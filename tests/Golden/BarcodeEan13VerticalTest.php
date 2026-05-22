@@ -20,7 +20,7 @@ final class BarcodeEan13VerticalTest extends AbstractBarcodeGoldenTest
         $doc = new Document(Unit::MM);
         $page = $doc->addPage();
         $page->barcode(
-            Ean13::of('978013110362')->vertical(),
+            Ean13::of('9780131103627')->vertical(),
             x: 20.0, y: 20.0, w: 60.0, h: 25.0,
         );
         return $doc->output();
