@@ -95,6 +95,11 @@ final readonly class AcroFormEmitter
                 $topLevelRefs[] = $w['widgetRef'];
                 continue;
             }
+            if ($field instanceof PushButton) {
+                $objects[] = $this->emitPushButton($field, $w['widgetRef'], $w['pageHeightPt']);
+                $topLevelRefs[] = $w['widgetRef'];
+                continue;
+            }
             throw new PdfException(sprintf(
                 'AcroFormEmitter: unsupported field type %s for %s',
                 $field::class,
@@ -303,6 +308,43 @@ final readonly class AcroFormEmitter
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    private function emitPushButton(PushButton $f, PdfReference $widgetRef, float $pageHeightPt): IndirectObject
+    {
+        $flags = 1 << 16; // Pushbutton, bit 17 (PDF 32000-1:2008 Table 227).
+        if ($f->readOnly) {
+            $flags |= 1 << 0; // ReadOnly (bit 1).
+        }
+
+        $dict = $this->baseWidgetDict($f, 'Btn', $widgetRef, $pageHeightPt, $flags)
+            ->withEntry(Name::of('T'), PdfString::of($f->name));
+
+        // The button always needs an /MK carrying the caption (/CA); border and
+        // background come from the appearance when present. withEntry replaces by
+        // key, so this overwrites any /MK that baseWidgetDict may have added.
+        $mk = ($this->buildMK($f->appearance()) ?? Dictionary::empty())
+            ->withEntry(Name::of('CA'), PdfString::of($f->caption));
+        $dict = $dict->withEntry(Name::of('MK'), $mk);
+
+        $dict = $dict->withEntry(Name::of('A'), $this->buildButtonAction($f->action));
+
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    private function buildButtonAction(ButtonAction $action): Dictionary
+    {
+        return match ($action->type()) {
+            ButtonActionType::OpenUrl => Dictionary::empty()
+                ->withEntry(Name::of('S'), Name::of('URI'))
+                ->withEntry(Name::of('URI'), PdfString::of((string) $action->url())),
+            ButtonActionType::ResetForm => Dictionary::empty()
+                ->withEntry(Name::of('S'), Name::of('ResetForm')),
+        };
     }
 
     /**
