@@ -21,6 +21,7 @@ use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
+use DragonOfMercy\PhpPdf\Page\Cursor;
 use DragonOfMercy\PhpPdf\Page\Operators;
 use DragonOfMercy\PhpPdf\Page\PageGraphics;
 use DragonOfMercy\PhpPdf\TextAlign;
@@ -41,18 +42,13 @@ final class Page
 
     private readonly ContentStream $stream;
     private readonly PageGraphics $graphics;
+    private readonly Cursor $cursor;
 
     private ?Font $currentFont = null;
     private ?float $currentSize = null;
     private ?float $customLeading = null;
     /** Per-side padding stored in points (canonical internal unit). */
     private CellPadding $cellsPaddingPt;
-
-    /** Cell cursor (in pt). Populated by cell() when ln updates the position. */
-    private ?float $cursorXPt = null;
-    private ?float $cursorYPt = null;
-    /** x of the start of the current row of cells (in pt), used by NEWLINE. */
-    private ?float $lineStartXPt = null;
 
     /** @var array<string, Font> Fonts used by this page, keyed by PDF canonical name */
     private array $fontsUsed = [];
@@ -93,6 +89,7 @@ final class Page
     ) {
         $this->stream = new ContentStream($pageHeight);
         $this->graphics = new PageGraphics($this->stream, $this->unit);
+        $this->cursor = new Cursor($this->unit);
         if (($defaultFont === null) !== ($defaultSize === null)) {
             throw new PdfException('Page default font requires both font and size, or neither');
         }
@@ -470,18 +467,12 @@ final class Page
      */
     public function getX(): float
     {
-        if ($this->cursorXPt === null) {
-            throw new PdfException('No cursor set: call setX/setXY or cell() first');
-        }
-        return $this->fromPt($this->cursorXPt);
+        return $this->cursor->getX();
     }
 
     public function getY(): float
     {
-        if ($this->cursorYPt === null) {
-            throw new PdfException('No cursor set: call setY/setXY or cell() first');
-        }
-        return $this->fromPt($this->cursorYPt);
+        return $this->cursor->getY();
     }
 
     /**
@@ -508,22 +499,19 @@ final class Page
      */
     public function setX(float $x): self
     {
-        $this->cursorXPt = $this->toPt($x);
-        $this->lineStartXPt = $this->cursorXPt;
+        $this->cursor->setX($x);
         return $this;
     }
 
     public function setY(float $y): self
     {
-        $this->cursorYPt = $this->toPt($y);
+        $this->cursor->setY($y);
         return $this;
     }
 
     public function setXY(float $x, float $y): self
     {
-        $this->cursorXPt = $this->toPt($x);
-        $this->cursorYPt = $this->toPt($y);
-        $this->lineStartXPt = $this->cursorXPt;
+        $this->cursor->setXY($x, $y);
         return $this;
     }
 
@@ -565,7 +553,7 @@ final class Page
         ) {
             $resolvedYPt = $y !== null
                 ? $this->toPt($y)
-                : ($this->cursorYPt ?? null);
+                : ($this->cursor->yPt() ?? null);
 
             if ($resolvedYPt !== null) {
                 $estimatedHeightPt = $h !== null
@@ -613,19 +601,19 @@ final class Page
         // falls back to the cursor maintained by previous cell() calls.
         $xExplicit = $x !== null;
         if ($x === null) {
-            if ($this->cursorXPt === null) {
+            if ($this->cursor->xPt() === null) {
                 throw new PdfException('Cell x is required: no cursor set yet');
             }
-            $x = $this->fromPt($this->cursorXPt);
+            $x = $this->fromPt($this->cursor->xPt());
         }
         if ($y === null) {
-            if ($this->cursorYPt === null) {
+            if ($this->cursor->yPt() === null) {
                 throw new PdfException('Cell y is required: no cursor set yet');
             }
-            $y = $this->fromPt($this->cursorYPt);
+            $y = $this->fromPt($this->cursor->yPt());
         }
         if ($xExplicit) {
-            $this->lineStartXPt = $this->toPt($x);
+            $this->cursor->setLineStartXPt($this->toPt($x));
         }
 
         $resolvedPaddingPt = $padding !== null
@@ -679,23 +667,7 @@ final class Page
 
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
-        $bottomPt = $yPt + $result->height;
-        switch ($ln) {
-            case NextPosition::RIGHT:
-                $this->cursorXPt = $xPt + $result->effectiveWidth;
-                $this->cursorYPt = $yPt;
-                break;
-            case NextPosition::NEWLINE:
-                $this->cursorXPt = $this->lineStartXPt ?? $xPt;
-                $this->cursorYPt = $bottomPt;
-                break;
-            case NextPosition::BELOW:
-                $this->cursorXPt = $xPt;
-                $this->cursorYPt = $bottomPt;
-                break;
-            case NextPosition::NONE:
-                break;
-        }
+        $this->cursor->advance($ln, $xPt, $yPt, $result->effectiveWidth, $result->height);
 
         return new CellResult(
             x: $this->fromPt($result->x),
@@ -724,16 +696,16 @@ final class Page
         }
 
         if ($x === null) {
-            if ($this->cursorXPt === null) {
+            if ($this->cursor->xPt() === null) {
                 throw new PdfException('Image x is required: no cursor set yet');
             }
-            $x = $this->fromPt($this->cursorXPt);
+            $x = $this->fromPt($this->cursor->xPt());
         }
         if ($y === null) {
-            if ($this->cursorYPt === null) {
+            if ($this->cursor->yPt() === null) {
                 throw new PdfException('Image y is required: no cursor set yet');
             }
-            $y = $this->fromPt($this->cursorYPt);
+            $y = $this->fromPt($this->cursor->yPt());
         }
 
         [$shortName, $resolved] = $this->imageRegistry->register($image);
@@ -771,8 +743,7 @@ final class Page
         // the right edge of what we just drew so a chained image() or barcode()
         // without explicit x can flow next to it. y is synced to the top edge
         // used (not y + h) so a subsequent call without explicit y aligns.
-        $this->cursorXPt = $xPt + $effWPt;
-        $this->cursorYPt = $yPt;
+        $this->cursor->setPositionPt($xPt + $effWPt, $yPt);
         return $this;
     }
 
@@ -803,16 +774,16 @@ final class Page
             throw new PdfException('Barcode width is required');
         }
         if ($x === null) {
-            if ($this->cursorXPt === null) {
+            if ($this->cursor->xPt() === null) {
                 throw new PdfException('Barcode x is required: no cursor set yet');
             }
-            $x = $this->fromPt($this->cursorXPt);
+            $x = $this->fromPt($this->cursor->xPt());
         }
         if ($y === null) {
-            if ($this->cursorYPt === null) {
+            if ($this->cursor->yPt() === null) {
                 throw new PdfException('Barcode y is required: no cursor set yet');
             }
-            $y = $this->fromPt($this->cursorYPt);
+            $y = $this->fromPt($this->cursor->yPt());
         }
         $code->draw($this, $x, $y, $w, $h);
         // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
@@ -822,8 +793,7 @@ final class Page
         $advancePt = ($code instanceof OrientableBarcode && $code->orientation() === Orientation::Vertical && $h !== null)
             ? $this->toPt($h)
             : $this->toPt($w);
-        $this->cursorXPt = $this->toPt($x) + $advancePt;
-        $this->cursorYPt = $this->toPt($y);
+        $this->cursor->setPositionPt($this->toPt($x) + $advancePt, $this->toPt($y));
         return $this;
     }
 
