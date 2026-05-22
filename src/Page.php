@@ -486,54 +486,9 @@ final class Page
         // Auto-page-break: when active and we are not currently rendering a
         // header, check whether this cell would overflow the bottom margin
         // and if so, delegate to a new page.
-        if ($this->document !== null
-            && $this->document->autoPageBreak()
-            && !$this->inHeaderRender
-        ) {
-            $resolvedYPt = $y !== null
-                ? $this->toPt($y)
-                : ($this->cursor->yPt() ?? null);
-
-            if ($resolvedYPt !== null) {
-                $estimatedHeightPt = $h !== null
-                    ? $this->toPt($h)
-                    : $this->estimateCellHeightPt(
-                        $text,
-                        $this->textState->getFontSize(),
-                        $this->textState->customLeading(),
-                    );
-
-                $bottomLimitPt = $this->pageHeight - $this->toPt(
-                    $this->document->margins()->bottom,
-                );
-
-                if ($resolvedYPt + $estimatedHeightPt > $bottomLimitPt + self::OVERFLOW_EPSILON_PT) {
-                    $newPage = $this->document->addPage();
-                    // Suppress auto-break on the new page for this one emission,
-                    // so that a cell larger than the drawable area does not
-                    // recurse infinitely.
-                    $newPage->inHeaderRender = true;
-                    try {
-                        return $newPage->cell(
-                            x: $x,
-                            y: null,
-                            w: $w,
-                            h: $h,
-                            text: $text,
-                            border: $border,
-                            fill: $fill,
-                            textColor: $textColor,
-                            align: $align,
-                            verticalAlign: $verticalAlign,
-                            fit: $fit,
-                            padding: $padding,
-                            ln: $ln,
-                        );
-                    } finally {
-                        $newPage->inHeaderRender = false;
-                    }
-                }
-            }
+        $broken = $this->maybeAutoBreak($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln);
+        if ($broken !== null) {
+            return $broken;
         }
 
         // An explicit x defines a new row anchor for NEWLINE; an omitted x
@@ -560,18 +515,8 @@ final class Page
             $this->fontsUsed[$engine->usageKey()] = $engine->font();
         }
 
-        // Border width is supplied in the document unit; CellRenderer works
-        // entirely in points, so convert before handing the border off. A null
-        // width means "use the active default", resolved against the Page
-        // override or the owning Document's default.
-        if ($border === null || $border->isEmpty()) {
-            $borderForRenderer = $border;
-        } else {
-            $widthPt = $border->width !== null
-                ? $this->toPt($border->width)
-                : $this->resolveDefaultBorderWidthPt();
-            $borderForRenderer = $border->withWidth($widthPt);
-        }
+        // Border width is converted to points before handing the border off to CellRenderer.
+        $borderForRenderer = $this->resolveBorderForRenderer($border);
 
         $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(
@@ -793,6 +738,99 @@ final class Page
             return (string) (int) $v;
         }
         return (string) $v;
+    }
+
+    /**
+     * Converts the border's width to points for CellRenderer. When the border
+     * is null or empty, it is returned as-is. When the border carries a null
+     * width, the page/document default is used.
+     */
+    private function resolveBorderForRenderer(?Border $border): ?Border
+    {
+        if ($border === null || $border->isEmpty()) {
+            return $border;
+        }
+        $widthPt = $border->width !== null
+            ? $this->toPt($border->width)
+            : $this->resolveDefaultBorderWidthPt();
+        return $border->withWidth($widthPt);
+    }
+
+    /**
+     * When auto-page-break is active and this cell would overflow the bottom
+     * margin, creates a new page and renders the cell there, returning its
+     * result. Returns null when no break is needed (caller renders normally).
+     * $text must already be newline-normalized.
+     */
+    private function maybeAutoBreak(
+        ?float $x,
+        ?float $y,
+        ?float $w,
+        ?float $h,
+        string $text,
+        ?Border $border,
+        ?Color $fill,
+        ?Color $textColor,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        Fit $fit,
+        float|CellPadding|null $padding,
+        NextPosition $ln,
+    ): ?CellResult {
+        if ($this->document === null
+            || !$this->document->autoPageBreak()
+            || $this->inHeaderRender
+        ) {
+            return null;
+        }
+
+        $resolvedYPt = $y !== null
+            ? $this->toPt($y)
+            : ($this->cursor->yPt() ?? null);
+
+        if ($resolvedYPt === null) {
+            return null;
+        }
+
+        $estimatedHeightPt = $h !== null
+            ? $this->toPt($h)
+            : $this->estimateCellHeightPt(
+                $text,
+                $this->textState->getFontSize(),
+                $this->textState->customLeading(),
+            );
+
+        $bottomLimitPt = $this->pageHeight - $this->toPt(
+            $this->document->margins()->bottom,
+        );
+
+        if ($resolvedYPt + $estimatedHeightPt <= $bottomLimitPt + self::OVERFLOW_EPSILON_PT) {
+            return null;
+        }
+
+        $newPage = $this->document->addPage();
+        // Suppress auto-break on the new page for this one emission, so that a cell
+        // larger than the drawable area does not recurse infinitely.
+        $newPage->inHeaderRender = true;
+        try {
+            return $newPage->cell(
+                x: $x,
+                y: null,
+                w: $w,
+                h: $h,
+                text: $text,
+                border: $border,
+                fill: $fill,
+                textColor: $textColor,
+                align: $align,
+                verticalAlign: $verticalAlign,
+                fit: $fit,
+                padding: $padding,
+                ln: $ln,
+            );
+        } finally {
+            $newPage->inHeaderRender = false;
+        }
     }
 
     /**
