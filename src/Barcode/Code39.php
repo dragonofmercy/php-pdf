@@ -16,8 +16,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal
  */
-final readonly class Code39 implements Barcode
+final readonly class Code39 implements OrientableBarcode
 {
+    use Orientable;
     private const int QUIET_MODULES = 10;
 
     /**
@@ -53,6 +54,7 @@ final readonly class Code39 implements Barcode
         public Color $color,
         public bool $showText,
         public bool $hasCheckDigit,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $data): self
@@ -76,17 +78,22 @@ final readonly class Code39 implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->data, $color, $this->showText, $this->hasCheckDigit);
+        return new self($this->data, $color, $this->showText, $this->hasCheckDigit, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->data, $this->color, false, $this->hasCheckDigit);
+        return new self($this->data, $this->color, false, $this->hasCheckDigit, $this->orientation);
     }
 
     public function withCheckDigit(): self
     {
-        return new self($this->data, $this->color, $this->showText, true);
+        return new self($this->data, $this->color, $this->showText, true, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->data, $this->color, $this->showText, $this->hasCheckDigit, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -160,6 +167,7 @@ final readonly class Code39 implements Barcode
             $this->color,
             $this->showText ? $this->data : null,
             'Code39',
+            orientation: $this->orientation,
         );
     }
 }

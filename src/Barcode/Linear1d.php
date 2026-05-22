@@ -37,6 +37,7 @@ final class Linear1d
         ?string $humanText,
         string $formatName,
         ?float $bearerBarModules = null,
+        Orientation $orientation = Orientation::Horizontal,
     ): void {
         if ($h === null) {
             throw new PdfException("{$formatName} requires explicit h (height)");
@@ -52,32 +53,34 @@ final class Linear1d
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        $totalModules = $quietModules * 2 + count($modules);
-        $moduleW = $wPt / $totalModules;
+        Renderer::oriented($page, $orientation, $xPt, $yPt, $wPt, $hPt, function () use ($page, $xPt, $yPt, $wPt, $hPt, $modules, $quietModules, $color, $humanText, $bearerBarModules): void {
+            $totalModules = $quietModules * 2 + count($modules);
+            $moduleW = $wPt / $totalModules;
 
-        if ($humanText !== null) {
-            $barsHeight = $hPt * 0.85;
-            $textHeight = $hPt - $barsHeight;
-        } else {
-            $barsHeight = $hPt;
-            $textHeight = 0.0;
-        }
+            if ($humanText !== null) {
+                $barsHeight = $hPt * 0.85;
+                $textHeight = $hPt - $barsHeight;
+            } else {
+                $barsHeight = $hPt;
+                $textHeight = 0.0;
+            }
 
-        $padded = array_merge(
-            array_fill(0, $quietModules, false),
-            $modules,
-            array_fill(0, $quietModules, false),
-        );
+            $padded = array_merge(
+                array_fill(0, $quietModules, false),
+                $modules,
+                array_fill(0, $quietModules, false),
+            );
 
-        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
-        if ($bearerBarModules !== null) {
-            $body .= self::bearerFrame($xPt, $yPt, $wPt, $barsHeight, $bearerBarModules * $moduleW);
-        }
-        $page->contentStream()->append(Renderer::wrap($body, $color));
+            $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+            if ($bearerBarModules !== null) {
+                $body .= self::bearerFrame($xPt, $yPt, $wPt, $barsHeight, $bearerBarModules * $moduleW);
+            }
+            $page->contentStream()->append(Renderer::wrap($body, $color));
 
-        if ($humanText !== null) {
-            self::drawCenteredText($page, $xPt, $yPt, $wPt, $barsHeight, $textHeight, $color, $humanText);
-        }
+            if ($humanText !== null) {
+                self::drawCenteredText($page, $xPt, $yPt, $wPt, $barsHeight, $textHeight, $color, $humanText);
+            }
+        });
     }
 
     /**

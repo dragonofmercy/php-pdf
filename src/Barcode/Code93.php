@@ -17,8 +17,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal
  */
-final readonly class Code93 implements Barcode
+final readonly class Code93 implements OrientableBarcode
 {
+    use Orientable;
     private const int QUIET_MODULES = 10;
 
     /** 9-module pattern per value 0-46 plus start/stop, '1' = dark module. */
@@ -53,6 +54,7 @@ final readonly class Code93 implements Barcode
         public string $data,
         public Color $color,
         public bool $showText,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $data): self
@@ -76,12 +78,17 @@ final readonly class Code93 implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->data, $color, $this->showText);
+        return new self($this->data, $color, $this->showText, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->data, $this->color, false);
+        return new self($this->data, $this->color, false, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->data, $this->color, $this->showText, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -172,6 +179,7 @@ final readonly class Code93 implements Barcode
             $this->color,
             $this->showText ? $this->data : null,
             'Code93',
+            orientation: $this->orientation,
         );
     }
 }

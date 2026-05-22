@@ -16,8 +16,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal
  */
-final readonly class Itf implements Barcode
+final readonly class Itf implements OrientableBarcode
 {
+    use Orientable;
     private const int QUIET_MODULES = 10;
 
     /** 2-of-5 width pattern per digit: 5 elements, 'n' narrow / 'w' wide. */
@@ -31,6 +32,7 @@ final readonly class Itf implements Barcode
         public Color $color,
         public bool $showText,
         public ?float $bearerBarModules = null,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $digits): self
@@ -72,12 +74,12 @@ final readonly class Itf implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText, $this->bearerBarModules);
+        return new self($this->digits, $color, $this->showText, $this->bearerBarModules, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false, $this->bearerBarModules);
+        return new self($this->digits, $this->color, false, $this->bearerBarModules, $this->orientation);
     }
 
     /**
@@ -90,7 +92,12 @@ final readonly class Itf implements Barcode
         if ($thickness <= 0) {
             throw new PdfException("ITF bearer bar thickness must be positive, got {$thickness}");
         }
-        return new self($this->digits, $this->color, $this->showText, $thickness);
+        return new self($this->digits, $this->color, $this->showText, $thickness, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->digits, $this->color, $this->showText, $this->bearerBarModules, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -170,6 +177,7 @@ final readonly class Itf implements Barcode
             $this->showText ? $this->digits : null,
             'Itf',
             $this->bearerBarModules,
+            orientation: $this->orientation,
         );
     }
 }
