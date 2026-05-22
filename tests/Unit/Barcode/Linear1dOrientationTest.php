@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Barcode\Code93;
 use DragonOfMercy\PhpPdf\Barcode\Itf;
 use DragonOfMercy\PhpPdf\Barcode\Orientation;
 use DragonOfMercy\PhpPdf\Barcode\OrientableBarcode;
+use DragonOfMercy\PhpPdf\Color;
 use PHPUnit\Framework\TestCase;
 
 final class Linear1dOrientationTest extends TestCase
@@ -50,5 +51,26 @@ final class Linear1dOrientationTest extends TestCase
         self::assertSame(Orientation::Horizontal, Code39::of('ABC')->orientation());
         self::assertSame(Orientation::Horizontal, Code93::of('XYZ')->orientation());
         self::assertSame(Orientation::Horizontal, Itf::of('1234')->orientation());
+    }
+
+    public function testWithoutTextPreservesOrientationAcrossFormats(): void
+    {
+        self::assertSame(Orientation::Vertical, Code39::of('ABC')->vertical()->withoutText()->orientation());
+        self::assertSame(Orientation::Vertical, Code93::of('XYZ')->vertical()->withoutText()->orientation());
+        self::assertSame(Orientation::Vertical, Itf::of('1234')->vertical()->withoutText()->orientation());
+    }
+
+    public function testWithColorPreservesOrientationAcrossFormats(): void
+    {
+        $red = Color::rgb(255, 0, 0);
+        self::assertSame(Orientation::Vertical, Code39::of('ABC')->vertical()->withColor($red)->orientation());
+        self::assertSame(Orientation::Vertical, Code93::of('XYZ')->vertical()->withColor($red)->orientation());
+        self::assertSame(Orientation::Vertical, Itf::of('1234')->vertical()->withColor($red)->orientation());
+    }
+
+    public function testVerticalReturnsDistinctInstance(): void
+    {
+        $h = Code39::of('ABC');
+        self::assertNotSame($h, $h->vertical());
     }
 }
