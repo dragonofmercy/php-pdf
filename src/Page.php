@@ -22,6 +22,7 @@ use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
 use DragonOfMercy\PhpPdf\Page\Operators;
+use DragonOfMercy\PhpPdf\Page\PageGraphics;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -35,12 +36,11 @@ use DragonOfMercy\PhpPdf\VerticalAlign;
  */
 final class Page
 {
-    private const float BEZIER_KAPPA = 0.5522847498;
-
     /** Tolerance (in points) for the auto-break overflow comparison; absorbs float drift on exact-fit cells. */
     private const float OVERFLOW_EPSILON_PT = 0.0001;
 
     private readonly ContentStream $stream;
+    private readonly PageGraphics $graphics;
 
     private ?Font $currentFont = null;
     private ?float $currentSize = null;
@@ -92,6 +92,7 @@ final class Page
         private readonly ?Document $document = null,
     ) {
         $this->stream = new ContentStream($pageHeight);
+        $this->graphics = new PageGraphics($this->stream, $this->unit);
         if (($defaultFont === null) !== ($defaultSize === null)) {
             throw new PdfException('Page default font requires both font and size, or neither');
         }
@@ -235,75 +236,41 @@ final class Page
 
     public function line(float $x1, float $y1, float $x2, float $y2): PathOperation
     {
-        $this->stream->append(Operators::moveTo($this->toPt($x1), $this->toPt($y1)));
-        $this->stream->append(Operators::lineTo($this->toPt($x2), $this->toPt($y2)));
-        return new PathOperation($this->stream);
+        return $this->graphics->line($x1, $y1, $x2, $y2);
     }
 
     public function rect(float $x, float $y, float $w, float $h): PathOperation
     {
-        $this->stream->append(Operators::rectangle(
-            $this->toPt($x),
-            $this->toPt($y),
-            $this->toPt($w),
-            $this->toPt($h),
-        ));
-        return new PathOperation($this->stream);
+        return $this->graphics->rect($x, $y, $w, $h);
     }
 
     public function circle(float $cx, float $cy, float $r): PathOperation
     {
-        $cxPt = $this->toPt($cx);
-        $cyPt = $this->toPt($cy);
-        $rPt = $this->toPt($r);
-        $k = self::BEZIER_KAPPA * $rPt;
-        $this->stream->append(Operators::moveTo($cxPt + $rPt, $cyPt));
-        $this->stream->append(Operators::curveTo(
-            $cxPt + $rPt, $cyPt + $k,
-            $cxPt + $k, $cyPt + $rPt,
-            $cxPt, $cyPt + $rPt,
-        ));
-        $this->stream->append(Operators::curveTo(
-            $cxPt - $k, $cyPt + $rPt,
-            $cxPt - $rPt, $cyPt + $k,
-            $cxPt - $rPt, $cyPt,
-        ));
-        $this->stream->append(Operators::curveTo(
-            $cxPt - $rPt, $cyPt - $k,
-            $cxPt - $k, $cyPt - $rPt,
-            $cxPt, $cyPt - $rPt,
-        ));
-        $this->stream->append(Operators::curveTo(
-            $cxPt + $k, $cyPt - $rPt,
-            $cxPt + $rPt, $cyPt - $k,
-            $cxPt + $rPt, $cyPt,
-        ));
-        $this->stream->append(Operators::closePath());
-        return new PathOperation($this->stream);
+        return $this->graphics->circle($cx, $cy, $r);
     }
 
     public function path(): Path
     {
-        return new Path($this->stream, $this->unit);
+        return $this->graphics->path();
     }
 
     // ----- Graphics state -----
 
     public function setStrokeColor(Color $color): self
     {
-        $this->stream->append($color->toPdfOperator(stroke: true));
+        $this->graphics->setStrokeColor($color);
         return $this;
     }
 
     public function setFillColor(Color $color): self
     {
-        $this->stream->append($color->toPdfOperator(stroke: false));
+        $this->graphics->setFillColor($color);
         return $this;
     }
 
     public function setLineWidth(float $width): self
     {
-        $this->stream->append(Operators::setLineWidth($this->toPt($width)));
+        $this->graphics->setLineWidth($width);
         return $this;
     }
 
@@ -312,20 +279,19 @@ final class Page
      */
     public function setDashPattern(array $pattern, float $phase = 0.0): self
     {
-        $patternPt = array_map(fn (float $v): float => $this->toPt($v), $pattern);
-        $this->stream->append(Operators::setDashPattern($patternPt, $this->toPt($phase)));
+        $this->graphics->setDashPattern($pattern, $phase);
         return $this;
     }
 
     public function setLineCap(LineCap $cap): self
     {
-        $this->stream->append(Operators::setLineCap($cap));
+        $this->graphics->setLineCap($cap);
         return $this;
     }
 
     public function setLineJoin(LineJoin $join): self
     {
-        $this->stream->append(Operators::setLineJoin($join));
+        $this->graphics->setLineJoin($join);
         return $this;
     }
 
@@ -333,19 +299,19 @@ final class Page
 
     public function translate(float $x, float $y): self
     {
-        $this->stream->append(Operators::translate($this->toPt($x), $this->toPt($y)));
+        $this->graphics->translate($x, $y);
         return $this;
     }
 
     public function rotate(float $degrees): self
     {
-        $this->stream->append(Operators::rotate($degrees));
+        $this->graphics->rotate($degrees);
         return $this;
     }
 
     public function scale(float $sx, float $sy): self
     {
-        $this->stream->append(Operators::scale($sx, $sy));
+        $this->graphics->scale($sx, $sy);
         return $this;
     }
 
@@ -353,13 +319,13 @@ final class Page
 
     public function save(): self
     {
-        $this->stream->append(Operators::saveState());
+        $this->graphics->save();
         return $this;
     }
 
     public function restore(): self
     {
-        $this->stream->append(Operators::restoreState());
+        $this->graphics->restore();
         return $this;
     }
 
