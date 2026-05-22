@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Barcode;
 
 use DragonOfMercy\PhpPdf\{Color, Font, Page};
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Page\Operators;
 
 /**
  * Shared rendering pipeline for the generic 1D barcodes (Code 39, Code 93,
@@ -21,6 +22,8 @@ final class Linear1d
     /**
      * @param list<bool> $modules symbol modules WITHOUT the quiet zone
      * @param int $quietModules quiet-zone width in modules, added on both sides
+     * @param ?float $bearerBarModules when set, draw a full-frame bearer bar of
+     *     this thickness (in modules) around the symbol; null draws none
      */
     public static function draw(
         Page $page,
@@ -33,6 +36,7 @@ final class Linear1d
         Color $color,
         ?string $humanText,
         string $formatName,
+        ?float $bearerBarModules = null,
     ): void {
         if ($h === null) {
             throw new PdfException("{$formatName} requires explicit h (height)");
@@ -66,11 +70,27 @@ final class Linear1d
         );
 
         $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+        if ($bearerBarModules !== null) {
+            $body .= self::bearerFrame($xPt, $yPt, $wPt, $barsHeight, $bearerBarModules * $moduleW);
+        }
         $page->contentStream()->append(Renderer::wrap($body, $color));
 
         if ($humanText !== null) {
             self::drawCenteredText($page, $xPt, $yPt, $wPt, $barsHeight, $textHeight, $color, $humanText);
         }
+    }
+
+    /**
+     * Four `re` rects forming a GS1 full-frame bearer bar around the bar area:
+     * top and bottom span the full width (quiet zones included), left and right
+     * span the bar height. Same fill as the bars, so it joins them visually.
+     */
+    private static function bearerFrame(float $xPt, float $yPt, float $wPt, float $barsHeight, float $t): string
+    {
+        return Operators::rectangle($xPt, $yPt, $wPt, $t)
+            . Operators::rectangle($xPt, $yPt + $barsHeight - $t, $wPt, $t)
+            . Operators::rectangle($xPt, $yPt, $t, $barsHeight)
+            . Operators::rectangle($xPt + $wPt - $t, $yPt, $t, $barsHeight);
     }
 
     private static function drawCenteredText(

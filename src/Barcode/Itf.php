@@ -30,6 +30,7 @@ final readonly class Itf implements Barcode
         public string $digits,
         public Color $color,
         public bool $showText,
+        public ?float $bearerBarModules = null,
     ) {}
 
     public static function of(string $digits): self
@@ -71,12 +72,25 @@ final readonly class Itf implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText);
+        return new self($this->digits, $color, $this->showText, $this->bearerBarModules);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false);
+        return new self($this->digits, $this->color, false, $this->bearerBarModules);
+    }
+
+    /**
+     * Add a GS1-style full-frame bearer bar around the symbol (anti short-scan).
+     * Thickness is expressed in modules; null applies the GS1 default of 2.
+     */
+    public function withBearerBar(?float $modules = null): self
+    {
+        $thickness = $modules ?? 2.0;
+        if ($thickness <= 0) {
+            throw new PdfException("ITF bearer bar thickness must be positive, got {$thickness}");
+        }
+        return new self($this->digits, $this->color, $this->showText, $thickness);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -155,6 +169,7 @@ final readonly class Itf implements Barcode
             $this->color,
             $this->showText ? $this->digits : null,
             'Itf',
+            $this->bearerBarModules,
         );
     }
 }

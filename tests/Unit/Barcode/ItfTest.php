@@ -65,6 +65,50 @@ final class ItfTest extends TestCase
         self::assertFalse($base->withoutText()->showText);
     }
 
+    public function testNoBearerBarByDefault(): void
+    {
+        self::assertNull(Itf::of('1234')->bearerBarModules);
+    }
+
+    public function testWithBearerBarDefaultsToTwoModules(): void
+    {
+        self::assertSame(2.0, Itf::of('1234')->withBearerBar()->bearerBarModules);
+    }
+
+    public function testWithBearerBarAcceptsExplicitThickness(): void
+    {
+        self::assertSame(3.0, Itf::of('1234')->withBearerBar(3.0)->bearerBarModules);
+    }
+
+    public function testWithBearerBarImmutable(): void
+    {
+        $base = Itf::of('1234');
+        self::assertNotSame($base, $base->withBearerBar());
+        self::assertNull($base->bearerBarModules);
+    }
+
+    public function testWithBearerBarRejectsNonPositiveThickness(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('ITF bearer bar thickness must be positive, got -1');
+        Itf::of('1234')->withBearerBar(-1.0);
+    }
+
+    public function testBearerBarEmitsAdditionalRects(): void
+    {
+        $doc = new Document(Unit::PT);
+        $without = $doc->addPage();
+        $without->barcode(Itf::of('12345670'), x: 10.0, y: 10.0, w: 100.0, h: 25.0);
+
+        $with = $doc->addPage();
+        $with->barcode(Itf::of('12345670')->withBearerBar(), x: 10.0, y: 10.0, w: 100.0, h: 25.0);
+
+        self::assertGreaterThan(
+            substr_count($without->contentStream()->bytes(), ' re'),
+            substr_count($with->contentStream()->bytes(), ' re'),
+        );
+    }
+
     public function testDrawWithoutHeightThrows(): void
     {
         $doc = new Document(Unit::PT);

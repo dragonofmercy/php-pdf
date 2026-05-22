@@ -497,6 +497,16 @@ $page->barcode(
 $doc->save($fixturesDir . '/barcode-itf.pdf');
 echo "Regenerated barcode-itf.pdf\n";
 
+// Fixture: ITF barcode with GS1 full-frame bearer bar
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Itf::ofGtin14('1234567890123')->withBearerBar(),
+    x: 20.0, y: 20.0, w: 70.0, h: 22.0,
+);
+$doc->save($fixturesDir . '/barcode-itf-bearer.pdf');
+echo "Regenerated barcode-itf-bearer.pdf\n";
+
 // Fixture: page with outlines + hyperlinks (Phase 7)
 $doc = new Document(Unit::PT);
 
