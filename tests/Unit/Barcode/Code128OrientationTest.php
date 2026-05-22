@@ -35,14 +35,24 @@ final class Code128OrientationTest extends TestCase
 
     public function testWithColorPreservesOrientation(): void
     {
-        $v = Code128::of('ABC123')->vertical()->withColor(Color::rgb(255, 0, 0));
+        $red = Color::rgb(255, 0, 0);
+        $v = Code128::of('ABC123')->vertical()->withColor($red);
         self::assertSame(Orientation::Vertical, $v->orientation());
+        self::assertEquals($red, $v->color);
     }
 
     public function testWithoutTextPreservesOrientation(): void
     {
         $v = Code128::of('ABC123')->vertical()->withoutText();
         self::assertSame(Orientation::Vertical, $v->orientation());
+        self::assertFalse($v->showText);
+    }
+
+    public function testWithOrientationSetsOrientationDirectly(): void
+    {
+        $v = Code128::of('ABC123')->withOrientation(Orientation::Vertical);
+        self::assertSame(Orientation::Vertical, $v->orientation());
+        self::assertSame('ABC123', $v->data);
     }
 
     public function testHorizontalResetsOrientation(): void
