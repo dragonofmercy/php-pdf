@@ -179,15 +179,33 @@ final class HighLevelEncoderTest extends TestCase
         self::assertNotSame(254, end($out), 'Text residual-1 must not leave a spurious closing unlatch');
     }
 
+    public function testNonAsciiPayloadEmitsUtf8EciPrefix(): void
+    {
+        // Any non-ASCII byte makes the encoder declare UTF-8 via ECI 26 so readers
+        // do not fall back to Latin-1 (which renders accents as mojibake).
+        // ISO 16022 5.6.1: codeword 241 then (ECI value + 1) = 27.
+        $out = HighLevelEncoder::encode("caf\xC3\xA9");
+        self::assertSame(241, $out[0], 'ECI character');
+        self::assertSame(27, $out[1], 'ECI 26 (UTF-8) encoded as value + 1');
+    }
+
+    public function testAsciiOnlyPayloadEmitsNoEci(): void
+    {
+        // Pure ASCII must not carry an ECI prefix.
+        $out = HighLevelEncoder::encode('ABC');
+        self::assertSame([66, 67, 68], $out);
+    }
+
     public function testUtf8PayloadBase256LengthUsesAbsolutePosition(): void
     {
-        // 'cafe a la francaise' (with UTF-8 accents): the leading run latches to
-        // Base256 (latch at symbol codeword position 1). The 8-byte run's length
-        // codeword must randomize at its ABSOLUTE position 2 -> (8 + 44) % 256 = 52.
-        // A block-relative position-1 value (158) makes the decoder un-randomize a
-        // bogus length and overrun the symbol (crashes strict decoders).
+        // 'cafe a la francaise' (with UTF-8 accents). After the 2-codeword ECI
+        // prefix [241, 27], the leading run latches to Base256 (latch at symbol
+        // position 3). The 8-byte run's length codeword randomizes at its ABSOLUTE
+        // position 4 -> (8 + ((149*4) % 255) + 1) % 256 = (8 + 87) % 256 = 95.
+        // A block-relative index would un-randomize to a bogus length and overrun.
         $out = HighLevelEncoder::encode("caf\xC3\xA9 \xC3\xA0 la fran\xC3\xA7aise");
-        self::assertSame(231, $out[0], 'leading run latches to Base256');
-        self::assertSame(52, $out[1], 'length codeword randomized at absolute position 2');
+        self::assertSame([241, 27], [$out[0], $out[1]], 'UTF-8 ECI prefix');
+        self::assertSame(231, $out[2], 'leading run latches to Base256');
+        self::assertSame(95, $out[3], 'length codeword randomized at absolute position 4');
     }
 }

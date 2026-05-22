@@ -26,6 +26,11 @@ final class HighLevelEncoder
     private const int CW_ASCII_LATCH_BASE256   = 231;
     private const int CW_ASCII_EXTENDED_ASCII  = 235;
     private const int CW_ASCII_LATCH_TEXT      = 239;
+    private const int CW_ASCII_ECI             = 241; // ECI character (ISO 16022 5.6.1)
+
+    // ECI assignment number for UTF-8 (AIM ECI registry). Encoded as a single
+    // codeword (value + 1) since it is <= 126.
+    private const int ECI_UTF8 = 26;
 
     /**
      * Encode the input string into a sequence of DataMatrix codewords using the
@@ -49,6 +54,15 @@ final class HighLevelEncoder
             return [];
         }
         $out = [];
+        // Declare UTF-8 (ECI 26) for genuine UTF-8 text carrying non-ASCII bytes,
+        // so readers interpret it as UTF-8 instead of the default Latin-1 (which
+        // renders accents as mojibake). Raw binary (not valid UTF-8) stays
+        // charset-less and is treated as opaque bytes. Mirrors the Aztec ECI.
+        // ISO/IEC 16022 5.6.1: codeword 241 then (ECI value + 1) for ECI <= 126.
+        if (self::shouldDeclareUtf8($input, $len)) {
+            $out[] = self::CW_ASCII_ECI;
+            $out[] = self::ECI_UTF8 + 1;
+        }
         $mode = DataMatrixMode::ASCII;
         $i = 0;
         while ($i < $len) {
@@ -277,6 +291,18 @@ final class HighLevelEncoder
     private static function isDigit(string $c): bool
     {
         return $c >= '0' && $c <= '9';
+    }
+
+    private static function shouldDeclareUtf8(string $input, int $len): bool
+    {
+        $hasNonAscii = false;
+        for ($i = 0; $i < $len; $i++) {
+            if (ord($input[$i]) > 0x7F) {
+                $hasNonAscii = true;
+                break;
+            }
+        }
+        return $hasNonAscii && mb_check_encoding($input, 'UTF-8');
     }
 
     /**
