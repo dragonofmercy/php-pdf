@@ -15,14 +15,13 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Text measurement** - `$page->stringWidth(...)` returns the exact width of any string in the current font.
 - **Images** - JPEG and PNG (RGB / Gray / Palette / RGB+Alpha / Gray+Alpha) with transparency support. Auto-format detection. Same image used N times = one embed, N placements (per-document caching).
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
-- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes.
+- **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
 - **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line), checkboxes, radio buttons (grouped), dropdowns, and listboxes. Each field can be styled with border color and width, background color, text color, font, size, and alignment.
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Other 2D barcode formats (PDF417) - add on demand.
 - Forms : push buttons, signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields - later phases.
 - Digital signatures, HTML / CSS rendering - later phases.
 
@@ -488,12 +487,13 @@ Standards supported:
 - **QR Code** (ISO/IEC 18004) - full version range V1-V40 (up to ~4296 alphanumeric or ~2953 byte chars at L), error correction L / M / Q / H, modes numeric / alphanumeric / byte. Output validated against the zxing-cpp decoder across the full range.
 - **Aztec Code** (ISO/IEC 24778) - Compact (1-4 layers, 15x15 to 27x27 modules) and Full Range (1-32 layers, up to 151x151 modules), four EC presets (LOW ~10%, MEDIUM ~23%, HIGH ~36%, MAX ~50%), auto-detects ASCII vs UTF-8 (with ECI escape) for the payload. Output validated against the zxing-cpp decoder.
 - **DataMatrix** (ISO/IEC 16022) - ECC200 only, all 24 square sizes from 10x10 to 144x144 modules (rectangles and DMRE are out of scope), auto-fits the smallest symbol that holds the payload, Reed-Solomon error correction sized per ECC200 (no user knob), automatic encoding selection across ASCII (with digit-pair packing), C40, Text, and Base256 with Annex P lookahead. UTF-8 text emits an ECI 26 prefix so readers interpret accents correctly; raw binary stays charset-less. Reed-Solomon validated against the canonical ISO/IEC 16022 Annex O reference vector; every fixture round-trips through the libdmtx decoder and is scan-tested with a mobile barcode reader.
+- **PDF417** (ISO/IEC 15438) - standard variant, stacked rows, Text/Byte/Numeric compaction, Reed-Solomon over GF(929), error-correction levels 0-8 (auto-selected by data size, override via withErrorCorrection), auto-fit dimensions with optional withColumns hint, UTF-8 text emits an ECI 26 prefix. Every fixture round-trips through the zxing-cpp decoder.
 
 API shape:
 
 - `Page::barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null)` - one method, polymorphic by value object.
-- 1D codes (Ean13, Ean8, Code128) require `h`; 2D codes (QR, Aztec, DataMatrix) only need `w` (h defaults to `w`, and `h != w` raises an error since 2D codes are square).
-- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) or `withErrorCorrection(AztecEc)` (Aztec) - all immutable. DataMatrix has no EC knob: ECC200 fixes error correction per symbol size.
+- 1D codes (Ean13, Ean8, Code128) require `h`; the square 2D codes (QR, Aztec, DataMatrix) only need `w` (h defaults to `w`, and `h != w` raises an error since they are square). PDF417 is rectangular: `h` is optional and unconstrained (it need not equal `w`); when null it is derived from the symbol's row count.
+- Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) or `withErrorCorrection(AztecEc)` (Aztec) - all immutable. DataMatrix has no EC knob: ECC200 fixes error correction per symbol size. PDF417 takes an int EC level 0-8 via `withErrorCorrection(int)` and an optional column hint via `withColumns(int)`.
 - Default color is **black**, not the page's current fillColor (deterministic regardless of page state).
 - Coordinates use the document unit (mm by default), top-down Y axis (consistent with the rest of the API).
 
