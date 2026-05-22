@@ -601,6 +601,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormPushButtonTest('test'))->buil
 $doc->save($fixturesDir . '/form-pushbutton.pdf');
 echo "Regenerated form-pushbutton.pdf\n";
 
+// Fixture: password text field
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormPasswordTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-password.pdf');
+echo "Regenerated form-password.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
