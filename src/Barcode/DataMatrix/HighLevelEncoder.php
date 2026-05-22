@@ -7,9 +7,10 @@ namespace DragonOfMercy\PhpPdf\Barcode\DataMatrix;
 /**
  * DataMatrix ECC200 high-level encoder (ISO/IEC 16022 5.2).
  *
- * Walks the input string and emits a sequence of codewords. Future tasks
- * will extend this with C40, Text, Base256 and the Annex P shortest-path
- * selector. For now: pure ASCII with digit-pair packing.
+ * Walks the input string and emits a sequence of codewords, selecting among
+ * ASCII (with digit-pair packing), C40, Text, and Base256 via the ISO/IEC
+ * 16022 Annex P shortest-path mode selector. UTF-8 payloads emit an ECI 26
+ * prefix.
  *
  * Entry point: {@see self::encode()}.
  *
