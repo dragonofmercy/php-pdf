@@ -707,98 +707,23 @@ final class Document
     private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
         $objects = [];
-        $pageRefs = [];
         $allocator = new PdfObjectAllocator($firstObjectNumber);
 
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = [];
 
-        // Pre-register Helvetica if any page has form fields - the /AcroForm
-        // dict needs to reference it via /DR /Font /Helv. Done BEFORE the
-        // fontRefs allocation loop so Helvetica gets a stable object number
-        // even when no page draws text with it. Also scan FieldAppearance
-        // entries for any Standard 14 Courier/Times so they get registered
-        // (and exposed in /DR /Font as /Cour and /TiRo).
-        $hasFormFields = false;
-        /** @var array<string, Font> $standardFontsToRegister keyed by pdfName for dedup */
-        $standardFontsToRegister = [];
-        foreach ($this->pages as $p) {
-            $fields = $p->getFormFields();
-            if ($fields === []) {
-                continue;
-            }
-            $hasFormFields = true;
-            foreach ($fields as $field) {
-                $appearance = $field->appearance();
-                if ($appearance === null || $appearance->font === null) {
-                    continue;
-                }
-                $font = $appearance->font;
-                if ($font->isCustom()) {
-                    // Will throw at AcroFormEmitter time with a precise message.
-                    continue;
-                }
-                $standardFontsToRegister[$font->pdfName()] = $font;
-            }
-        }
-        if ($hasFormFields) {
-            $this->fontRegistry->shortName(Font::helvetica());
-        }
-        foreach ($standardFontsToRegister as $font) {
-            $this->fontRegistry->shortName($font);
-        }
+        $this->preregisterFormFonts();
 
-        /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
-        $pending = [];
-        foreach ($this->pages as $page) {
-            $pageNum = $allocator->next();
-            $contentNum = $page->contentStream()->isEmpty() ? null : $allocator->next();
-            $pending[] = [$page, $pageNum, $contentNum];
-            $pageRefs[] = PdfReference::to($pageNum, 0);
-        }
-
-        /** @var list<float> $pageHeightsPt page heights in points, matched 1:1 with $pageRefs. */
-        $pageHeightsPt = [];
-        $linkAnnotationEmitter = null;
-        foreach ($this->pages as $page) {
-            $pageHeightsPt[] = $page->pageHeight;
-            if ($linkAnnotationEmitter === null && $page->getLinkAnnotations() !== []) {
-                $linkAnnotationEmitter = new LinkAnnotationEmitter($this->unit);
-            }
-        }
-
-        $fontRefs = [];
-        foreach ($this->fontRegistry->registeredFonts() as $font) {
-            $fontNum = $allocator->next();
-            $shortName = $this->fontRegistry->shortName($font);
-            $fontRefs[$shortName] = PdfReference::to($fontNum, 0);
-        }
-
-        /** @var array<string, PdfReference> $customRefs short name => Type0 reference */
-        $customRefs = [];
-        /** @var list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}> $customEmissions */
-        $customEmissions = [];
-        foreach ($this->fontRegistry->customRegistrations() as $shortName => $key) {
-            $type0Id = $allocator->next();
-            $cidFontId = $allocator->next();
-            $descriptorId = $allocator->next();
-            $fontFileId = $allocator->next();
-            $toUnicodeId = $allocator->next();
-
-            $parsedTtf = $this->resolveTtfByKey($key);
-            $customRefs[$shortName] = PdfReference::to($type0Id, 0);
-            $customEmissions[] = [$parsedTtf, $key, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
-        }
-
-        /** @var array<string, PdfReference> $imageRefs short name => main image reference */
-        $imageRefs = [];
-        $imageEmissions = [];
-        foreach ($this->imageRegistry->registeredImages() as $image) {
-            $shortName = $this->imageRegistry->shortName($image);
-            $imageNum = $allocator->reserve(ImageEmbedder::objectCount($image));
-            $imageRefs[$shortName] = PdfReference::to($imageNum, 0);
-            $imageEmissions[] = [$image, $imageNum];
-        }
+        $alloc = $this->allocateObjectNumbers($allocator);
+        $pending = $alloc['pending'];
+        $pageRefs = $alloc['pageRefs'];
+        $pageHeightsPt = $alloc['pageHeightsPt'];
+        $linkAnnotationEmitter = $alloc['linkAnnotationEmitter'];
+        $fontRefs = $alloc['fontRefs'];
+        $customRefs = $alloc['customRefs'];
+        $customEmissions = $alloc['customEmissions'];
+        $imageRefs = $alloc['imageRefs'];
+        $imageEmissions = $alloc['imageEmissions'];
 
         $pageBuild = (new PageObjectsBuilder(
             allocator: $allocator,
@@ -877,6 +802,136 @@ final class Document
         );
 
         return [$objects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef];
+    }
+
+    /**
+     * Pre-registers Helvetica if any page has form fields (the /AcroForm dict
+     * needs it via /DR /Font /Helv), and any Standard 14 Courier/Times fonts
+     * found in FieldAppearance entries (exposed as /Cour and /TiRo). Done
+     * before the object-number allocation so these fonts get stable numbers
+     * even when no page draws text with them directly.
+     */
+    private function preregisterFormFonts(): void
+    {
+        // Pre-register Helvetica if any page has form fields - the /AcroForm
+        // dict needs to reference it via /DR /Font /Helv. Done BEFORE the
+        // fontRefs allocation loop so Helvetica gets a stable object number
+        // even when no page draws text with it. Also scan FieldAppearance
+        // entries for any Standard 14 Courier/Times so they get registered
+        // (and exposed in /DR /Font as /Cour and /TiRo).
+        $hasFormFields = false;
+        /** @var array<string, Font> $standardFontsToRegister keyed by pdfName for dedup */
+        $standardFontsToRegister = [];
+        foreach ($this->pages as $p) {
+            $fields = $p->getFormFields();
+            if ($fields === []) {
+                continue;
+            }
+            $hasFormFields = true;
+            foreach ($fields as $field) {
+                $appearance = $field->appearance();
+                if ($appearance === null || $appearance->font === null) {
+                    continue;
+                }
+                $font = $appearance->font;
+                if ($font->isCustom()) {
+                    // Will throw at AcroFormEmitter time with a precise message.
+                    continue;
+                }
+                $standardFontsToRegister[$font->pdfName()] = $font;
+            }
+        }
+        if ($hasFormFields) {
+            $this->fontRegistry->shortName(Font::helvetica());
+        }
+        foreach ($standardFontsToRegister as $font) {
+            $this->fontRegistry->shortName($font);
+        }
+    }
+
+    /**
+     * Allocates object numbers up front for pages+contents, standard fonts,
+     * custom fonts, and images, in that exact order. Returns the ref maps and
+     * emission lists the rest of the serialization consumes.
+     *
+     * @return array{
+     *   pending: list<array{Page, int, ?int}>,
+     *   pageRefs: list<PdfReference>,
+     *   pageHeightsPt: list<float>,
+     *   linkAnnotationEmitter: ?LinkAnnotationEmitter,
+     *   fontRefs: array<string, PdfReference>,
+     *   customRefs: array<string, PdfReference>,
+     *   customEmissions: list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}>,
+     *   imageRefs: array<string, PdfReference>,
+     *   imageEmissions: list<array{\DragonOfMercy\PhpPdf\Image, int}>
+     * }
+     */
+    private function allocateObjectNumbers(PdfObjectAllocator $allocator): array
+    {
+        /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
+        $pending = [];
+        $pageRefs = [];
+        foreach ($this->pages as $page) {
+            $pageNum = $allocator->next();
+            $contentNum = $page->contentStream()->isEmpty() ? null : $allocator->next();
+            $pending[] = [$page, $pageNum, $contentNum];
+            $pageRefs[] = PdfReference::to($pageNum, 0);
+        }
+
+        /** @var list<float> $pageHeightsPt page heights in points, matched 1:1 with $pageRefs. */
+        $pageHeightsPt = [];
+        $linkAnnotationEmitter = null;
+        foreach ($this->pages as $page) {
+            $pageHeightsPt[] = $page->pageHeight;
+            if ($linkAnnotationEmitter === null && $page->getLinkAnnotations() !== []) {
+                $linkAnnotationEmitter = new LinkAnnotationEmitter($this->unit);
+            }
+        }
+
+        $fontRefs = [];
+        foreach ($this->fontRegistry->registeredFonts() as $font) {
+            $fontNum = $allocator->next();
+            $shortName = $this->fontRegistry->shortName($font);
+            $fontRefs[$shortName] = PdfReference::to($fontNum, 0);
+        }
+
+        /** @var array<string, PdfReference> $customRefs short name => Type0 reference */
+        $customRefs = [];
+        /** @var list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}> $customEmissions */
+        $customEmissions = [];
+        foreach ($this->fontRegistry->customRegistrations() as $shortName => $key) {
+            $type0Id = $allocator->next();
+            $cidFontId = $allocator->next();
+            $descriptorId = $allocator->next();
+            $fontFileId = $allocator->next();
+            $toUnicodeId = $allocator->next();
+
+            $parsedTtf = $this->resolveTtfByKey($key);
+            $customRefs[$shortName] = PdfReference::to($type0Id, 0);
+            $customEmissions[] = [$parsedTtf, $key, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
+        }
+
+        /** @var array<string, PdfReference> $imageRefs short name => main image reference */
+        $imageRefs = [];
+        $imageEmissions = [];
+        foreach ($this->imageRegistry->registeredImages() as $image) {
+            $shortName = $this->imageRegistry->shortName($image);
+            $imageNum = $allocator->reserve(ImageEmbedder::objectCount($image));
+            $imageRefs[$shortName] = PdfReference::to($imageNum, 0);
+            $imageEmissions[] = [$image, $imageNum];
+        }
+
+        return [
+            'pending' => $pending,
+            'pageRefs' => $pageRefs,
+            'pageHeightsPt' => $pageHeightsPt,
+            'linkAnnotationEmitter' => $linkAnnotationEmitter,
+            'fontRefs' => $fontRefs,
+            'customRefs' => $customRefs,
+            'customEmissions' => $customEmissions,
+            'imageRefs' => $imageRefs,
+            'imageEmissions' => $imageEmissions,
+        ];
     }
 
     private function resolveTtfByKey(CustomFontKey $key): ParsedTtf
