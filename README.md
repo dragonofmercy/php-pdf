@@ -23,7 +23,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
 - Forms : push buttons, signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields - later phases.
-- Digital signatures, HTML / CSS rendering - later phases.
+- Digital signatures, Markdown rendering - later phases.
 
 ## Installation
 
