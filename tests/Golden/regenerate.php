@@ -276,6 +276,16 @@ $page->barcode(
 $doc->save($fixturesDir . '/barcode-itf-vertical.pdf');
 echo "Regenerated barcode-itf-vertical.pdf\n";
 
+// Fixture: UPC-A vertical (1D orientation)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Upca::of('03600029145')->vertical(),
+    x: 20.0, y: 20.0, w: 45.0, h: 22.0,
+);
+$doc->save($fixturesDir . '/barcode-upca-vertical.pdf');
+echo "Regenerated barcode-upca-vertical.pdf\n";
+
 // Fixture 11: QR Code (Phase 5)
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
