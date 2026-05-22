@@ -6,7 +6,9 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
+use DragonOfMercy\PhpPdf\Form\ButtonAction;
 use DragonOfMercy\PhpPdf\Form\Checkbox;
+use DragonOfMercy\PhpPdf\Form\PushButton;
 use DragonOfMercy\PhpPdf\Form\TextField;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
@@ -193,7 +195,7 @@ final class AcroFormEmitterTest extends TestCase
         // - Radio (bit 16) = 1<<15 = 32768
         // - NoToggleToOff (bit 15) = 1<<14 = 16384
         // Combined = 49152. The old (buggy) value was 98304 = Radio + Pushbutton.
-        if (preg_match_all('~/Ff (\d+)~', $serialized, $matches) !== false) {
+        if (preg_match_all('~/Ff (\d+)~', $serialized, $matches) > 0) {
             self::assertNotEmpty($matches[1], 'Expected at least one /Ff');
             $parentFlags = (int) $matches[1][0];
             self::assertSame(32768, $parentFlags & 32768, 'Radio bit (bit 16) set');
@@ -660,5 +662,52 @@ final class AcroFormEmitterTest extends TestCase
         $serialized = '';
         foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
         self::assertStringContainsString('/Border [0 0 3]', $serialized);
+    }
+
+    public function testPasswordTextFieldEmitsFf8192(): void
+    {
+        // Password flag is bit 14 (1 << 13 = 8192), per PDF 32000-1:2008 Table 228.
+        $field = new TextField(0.0, 0.0, 80.0, 8.0, name: 'pwd', password: true);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present for password field');
+        }
+        self::assertSame(8192, ((int) $m[1]) & 8192, '/Ff must have Password bit (bit 14, mask 8192) set');
+    }
+
+    public function testPushButtonOpenUrlEmitsFlagsAndActionDict(): void
+    {
+        // Pushbutton flag is bit 17 (1 << 16 = 65536), per PDF 32000-1:2008 Table 227.
+        $field = new PushButton(0.0, 0.0, 60.0, 12.0, name: 'go', caption: 'Click', action: ButtonAction::openUrl('https://example.com'));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        // /Ff 65536 (Pushbutton bit)
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present for push button');
+        }
+        self::assertSame(65536, ((int) $m[1]) & 65536, '/Ff must have Pushbutton bit (bit 17, mask 65536) set');
+
+        // /MK must be present and contain /CA for the caption
+        self::assertStringContainsString('/MK', $serialized);
+        self::assertStringContainsString('/CA (Click)', $serialized);
+
+        // /A must contain /Type /Action, /S /URI, and /URI with the URL
+        self::assertStringContainsString('/Type /Action', $serialized);
+        self::assertStringContainsString('/S /URI', $serialized);
+        self::assertStringContainsString('/URI (https://example.com)', $serialized);
     }
 }

@@ -343,9 +343,11 @@ final readonly class AcroFormEmitter
     {
         return match ($action->type()) {
             ButtonActionType::OpenUrl => Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Action'))
                 ->withEntry(Name::of('S'), Name::of('URI'))
                 ->withEntry(Name::of('URI'), PdfString::of($action->url() ?? throw new PdfException('OpenUrl action must carry a URL'))),
             ButtonActionType::ResetForm => Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Action'))
                 ->withEntry(Name::of('S'), Name::of('ResetForm')),
         };
     }
