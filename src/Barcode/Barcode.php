@@ -32,6 +32,11 @@ interface Barcode
      * PDF417 is rectangular: h is optional and need NOT equal w; when null the
      * height is derived from the symbol's row count.
      *
+     * 1D barcodes implementing OrientableBarcode may be drawn vertically via
+     * ->vertical() (quarter-turn CCW). In vertical mode w and h keep their
+     * logical meaning: w is the code length along the bars, h is the bar height.
+     * The visual footprint is h wide by w tall, anchored at (x, y).
+     *
      * This method is not part of the public drawing API; call
      * {@see \DragonOfMercy\PhpPdf\Page::barcode()} instead. Implementations
      * must wrap their rendering in `q ... Q` so the page's graphics state

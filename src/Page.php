@@ -821,6 +821,10 @@ final class Page
      * optional (defaults to `w`). PDF417 is rectangular: `h` is optional and
      * unconstrained (need not equal `w`); when null it is derived from the
      * symbol's row count.
+     *
+     * After drawing, the cursor advances to the right edge of the barcode's
+     * visual bounding box: by `w` for a horizontal barcode, or by `h` for a
+     * vertical OrientableBarcode (whose visual width is the bar height).
      */
     public function barcode(
         Barcode $code,
