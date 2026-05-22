@@ -13,5 +13,6 @@ interface OrientableBarcode extends Barcode
     /** Returns a copy with the given orientation. Default (factory) is Horizontal. */
     public function withOrientation(Orientation $orientation): self;
 
+    /** Returns the current orientation; Horizontal unless changed via withOrientation(). */
     public function orientation(): Orientation;
 }
