@@ -13,6 +13,7 @@ use DragonOfMercy\PhpPdf\Barcode\Ean13;
 use DragonOfMercy\PhpPdf\Barcode\Ean8;
 use DragonOfMercy\PhpPdf\Barcode\ErrorCorrection;
 use DragonOfMercy\PhpPdf\Barcode\Itf;
+use DragonOfMercy\PhpPdf\Barcode\Pdf417;
 use DragonOfMercy\PhpPdf\Barcode\QrCode;
 use DragonOfMercy\PhpPdf\Barcode\Upca;
 use DragonOfMercy\PhpPdf\Document;
@@ -98,6 +99,11 @@ final class BarcodeGalleryTest extends AbstractBarcodeGoldenTest
             $page->text($col2dX[$i], $y, $label);
             $page->barcode($code, x: $col2dX[$i], y: $y + 2, w: $code2dSize);
         }
+
+        $y += $code2dSize + 12.0;
+        $page->setFont(Font::helvetica()->bold(), 9);
+        $page->text($labelX, $y, 'PDF417');
+        $page->barcode(Pdf417::of('phppdf PDF417'), x: $labelX, y: $y + 4, w: 80.0);
 
         return $doc->output();
     }

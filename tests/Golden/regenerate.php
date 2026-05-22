@@ -774,5 +774,10 @@ foreach ($rows2d as $i => [$label, $code]) {
     $page->barcode($code, x: $col2dX[$i], y: $y + 2, w: $code2dSize);
 }
 
+$y += $code2dSize + 12.0;
+$page->setFont(Font::helvetica()->bold(), 9);
+$page->text($labelX, $y, 'PDF417');
+$page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of('phppdf PDF417'), x: $labelX, y: $y + 4, w: 80.0);
+
 $doc->save($fixturesDir . '/barcode-gallery.pdf');
 echo "Regenerated barcode-gallery.pdf\n";
