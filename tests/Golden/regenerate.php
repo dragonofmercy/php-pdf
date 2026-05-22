@@ -676,6 +676,41 @@ $page->barcode(
 $doc->save($fixturesDir . '/barcode-datamatrix-max.pdf');
 echo "Regenerated barcode-datamatrix-max.pdf\n";
 
+// Fixture: PDF417 - short ASCII
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of('PDF417 sample 12345'), x: 20.0, y: 20.0, w: 90.0);
+$doc->save($fixturesDir . '/barcode-pdf417.pdf');
+echo "Regenerated barcode-pdf417.pdf\n";
+
+// Fixture: PDF417 - long numeric (Numeric compaction)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of('0123456789012345678901234567890123456789'), x: 20.0, y: 20.0, w: 90.0);
+$doc->save($fixturesDir . '/barcode-pdf417-numeric.pdf');
+echo "Regenerated barcode-pdf417-numeric.pdf\n";
+
+// Fixture: PDF417 - column-constrained (6 data columns)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of('Tracking PKG-2026-0001 zone A')->withColumns(6), x: 20.0, y: 20.0, w: 90.0);
+$doc->save($fixturesDir . '/barcode-pdf417-columns.pdf');
+echo "Regenerated barcode-pdf417-columns.pdf\n";
+
+// Fixture: PDF417 - high error-correction level (6)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of('High EC sample')->withErrorCorrection(6), x: 20.0, y: 20.0, w: 90.0);
+$doc->save($fixturesDir . '/barcode-pdf417-ec.pdf');
+echo "Regenerated barcode-pdf417-ec.pdf\n";
+
+// Fixture: PDF417 - UTF-8 payload (ECI 26)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of("Colis caf\xC3\xA9 na\xC3\xAFvet\xC3\xA9"), x: 20.0, y: 20.0, w: 90.0);
+$doc->save($fixturesDir . '/barcode-pdf417-unicode.pdf');
+echo "Regenerated barcode-pdf417-unicode.pdf\n";
+
 // Fixture: Barcode Gallery - every supported format on a single A4 page
 $doc = new Document(Unit::MM);
 $doc->setMargins(\DragonOfMercy\PhpPdf\PageMargins::sides(top: 20, right: 20, bottom: 40, left: 20));
