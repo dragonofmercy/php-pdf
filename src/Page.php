@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf;
 
-use DragonOfMercy\PhpPdf\Barcode\Barcode;
+use DragonOfMercy\PhpPdf\Barcode\{Barcode, Orientation, OrientableBarcode};
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Document;
@@ -846,9 +846,13 @@ final class Page
         }
         $code->draw($this, $x, $y, $w, $h);
         // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
-        // the right edge of the barcode bounding box. y is synced to the top
-        // edge used (not y + h) so a subsequent call without explicit y aligns.
-        $this->cursorXPt = $this->toPt($x) + $this->toPt($w);
+        // the right edge of the barcode's VISUAL bounding box. For a vertical
+        // 1D code the visual width is h (the symbol is rotated a quarter turn),
+        // so advance by h; otherwise by w. y is synced to the top edge used.
+        $advancePt = ($code instanceof OrientableBarcode && $code->orientation() === Orientation::Vertical && $h !== null)
+            ? $this->toPt($h)
+            : $this->toPt($w);
+        $this->cursorXPt = $this->toPt($x) + $advancePt;
         $this->cursorYPt = $this->toPt($y);
         return $this;
     }
