@@ -287,6 +287,9 @@ final readonly class AcroFormEmitter
         if ($f->multiline) {
             $flags |= 1 << 12;  // bit 13: Multiline (mask 4096)
         }
+        if ($f->password) {
+            $flags |= 1 << 13; // Password, bit 14 (PDF 32000-1:2008 Table 228).
+        }
 
         $dict = $this->baseWidgetDict($f, 'Tx', $widgetRef, $pageHeightPt, $flags)
             ->withEntry(Name::of('T'), PdfString::of($f->name));

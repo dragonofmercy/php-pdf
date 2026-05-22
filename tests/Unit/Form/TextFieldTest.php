@@ -92,4 +92,28 @@ final class TextFieldTest extends TestCase
         $this->expectExceptionMessage('TextField maxLength must be positive, got -5');
         new TextField(0.0, 0.0, 10.0, 8.0, name: 'a', maxLength: -5);
     }
+
+    public function testPasswordFlagAccepted(): void
+    {
+        $f = new TextField(x: 10, y: 20, width: 60, height: 8, name: 'pwd', password: true);
+        self::assertTrue($f->password);
+    }
+
+    public function testPasswordDefaultsFalse(): void
+    {
+        $f = new TextField(x: 10, y: 20, width: 60, height: 8, name: 'pwd');
+        self::assertFalse($f->password);
+    }
+
+    public function testPasswordCannotBeMultiline(): void
+    {
+        $this->expectException(PdfException::class);
+        new TextField(x: 10, y: 20, width: 60, height: 8, name: 'pwd', multiline: true, password: true);
+    }
+
+    public function testPasswordCannotHaveValue(): void
+    {
+        $this->expectException(PdfException::class);
+        new TextField(x: 10, y: 20, width: 60, height: 8, name: 'pwd', value: 'secret', password: true);
+    }
 }

@@ -21,6 +21,7 @@ final readonly class TextField implements FormField
         public string $name,
         public string $value = '',
         public bool $multiline = false,
+        public bool $password = false,
         public bool $required = false,
         public bool $readOnly = false,
         public ?int $maxLength = null,
@@ -42,6 +43,12 @@ final readonly class TextField implements FormField
                 'TextField maxLength must be positive, got %d',
                 $maxLength,
             ));
+        }
+        if ($password && $multiline) {
+            throw new PdfException('TextField password field cannot be multiline');
+        }
+        if ($password && $value !== '') {
+            throw new PdfException('TextField password field cannot have a default value');
         }
     }
 
