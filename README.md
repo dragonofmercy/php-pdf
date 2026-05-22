@@ -216,7 +216,7 @@ Variant fallback chain when a requested style is not registered:
 - `Font::custom('alias')->italic()` -> `italic > regular`
 - `Font::custom('alias')` -> `regular` (always required)
 
-`registerFontFamily()` parses each font file eagerly: missing files, unsupported flavours, malformed tables, and missing required tables raise `PdfException` immediately at registration time, not later during page rendering.
+`registerFontFamily()` parses each font file eagerly: missing files, unsupported flavours, malformed tables, and missing required tables raise `PdfException` immediately at registration time, not later during page rendering. Each alias maps to exactly one family: registering an alias that is already registered raises `PdfException` (register a family once, with all its variants in a single call).
 
 Currently supported:
 
