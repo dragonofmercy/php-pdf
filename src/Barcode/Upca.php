@@ -18,8 +18,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal Quiet zone is 9 modules each side per the symbology.
  */
-final readonly class Upca implements Barcode
+final readonly class Upca implements OrientableBarcode
 {
+    use Orientable;
     /** 9 (left quiet) + 95 (bars) + 9 (right quiet). */
     private const int TOTAL_MODULES = 113;
     private const int QUIET = 9;
@@ -28,6 +29,7 @@ final readonly class Upca implements Barcode
         public string $digits,
         public Color $color,
         public bool $showText,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $digits): self
@@ -57,12 +59,17 @@ final readonly class Upca implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText);
+        return new self($this->digits, $color, $this->showText, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false);
+        return new self($this->digits, $this->color, false, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->digits, $this->color, $this->showText, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -142,48 +149,50 @@ final readonly class Upca implements Barcode
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        $moduleW = $wPt / self::TOTAL_MODULES;
-        // Standard UPC-A typography per ISO 15420: five zones extend below the
-        // data bars (left guard, number-system digit bars, centre guard, check
-        // digit bars, right guard). The 5+5 middle digits sit centred in the
-        // extension band between those tabs; number-system and check digits are
-        // detached to the left and right respectively.
-        $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
-        $extensionHeight = $hPt - $barsHeight;
+        Renderer::oriented($page, $this->orientation, $xPt, $yPt, $wPt, $hPt, function () use ($page, $xPt, $yPt, $wPt, $hPt): void {
+            $moduleW = $wPt / self::TOTAL_MODULES;
+            // Standard UPC-A typography per ISO 15420: five zones extend below the
+            // data bars (left guard, number-system digit bars, centre guard, check
+            // digit bars, right guard). The 5+5 middle digits sit centred in the
+            // extension band between those tabs; number-system and check digits are
+            // detached to the left and right respectively.
+            $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
+            $extensionHeight = $hPt - $barsHeight;
 
-        $modules = $this->encodeModules();
-        $padded = array_merge(
-            array_fill(0, self::QUIET, false),
-            $modules,
-            array_fill(0, self::QUIET, false),
-        );
+            $modules = $this->encodeModules();
+            $padded = array_merge(
+                array_fill(0, self::QUIET, false),
+                $modules,
+                array_fill(0, self::QUIET, false),
+            );
 
-        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+            $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 
-        if ($extensionHeight > 0.0) {
-            // Extension ranges in padded coordinates:
-            //   left guard         -> 9..11   (3 modules)
-            //   number-system bars -> 12..18  (7 modules, encodes digit 0)
-            //   centre guard       -> 54..58  (5 modules)
-            //   check-digit bars   -> 94..100 (7 modules, encodes digit 11)
-            //   right guard        -> 101..103 (3 modules)
-            foreach ([[9, 3], [12, 7], [54, 5], [94, 7], [101, 3]] as [$start, $len]) {
-                $slice = array_slice($padded, $start, $len);
-                $body .= Renderer::runLengthRow(
-                    $slice,
-                    $xPt + $start * $moduleW,
-                    $yPt + $barsHeight,
-                    $moduleW,
-                    $extensionHeight,
-                );
+            if ($extensionHeight > 0.0) {
+                // Extension ranges in padded coordinates:
+                //   left guard         -> 9..11   (3 modules)
+                //   number-system bars -> 12..18  (7 modules, encodes digit 0)
+                //   centre guard       -> 54..58  (5 modules)
+                //   check-digit bars   -> 94..100 (7 modules, encodes digit 11)
+                //   right guard        -> 101..103 (3 modules)
+                foreach ([[9, 3], [12, 7], [54, 5], [94, 7], [101, 3]] as [$start, $len]) {
+                    $slice = array_slice($padded, $start, $len);
+                    $body .= Renderer::runLengthRow(
+                        $slice,
+                        $xPt + $start * $moduleW,
+                        $yPt + $barsHeight,
+                        $moduleW,
+                        $extensionHeight,
+                    );
+                }
             }
-        }
 
-        $page->contentStream()->append(Renderer::wrap($body, $this->color));
+            $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
-        if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
-        }
+            if ($this->showText) {
+                $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
+            }
+        });
     }
 
     /**

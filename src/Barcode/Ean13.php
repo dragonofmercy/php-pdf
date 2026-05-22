@@ -16,8 +16,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * EAN-13 layout (first digit detached on the left, 6+6 below the two halves).
  * Disable the text with {@see self::withoutText()}.
  */
-final readonly class Ean13 implements Barcode
+final readonly class Ean13 implements OrientableBarcode
 {
+    use Orientable;
     /** Total module count including quiet zones: 11 (left quiet) + 95 (bars) + 7 (right quiet). */
     private const int TOTAL_MODULES = 113;
 
@@ -25,6 +26,7 @@ final readonly class Ean13 implements Barcode
         public string $digits,
         public Color $color,
         public bool $showText,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $digits): self
@@ -54,12 +56,17 @@ final readonly class Ean13 implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText);
+        return new self($this->digits, $color, $this->showText, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false);
+        return new self($this->digits, $this->color, false, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->digits, $this->color, $this->showText, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -82,45 +89,47 @@ final readonly class Ean13 implements Barcode
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        $moduleW = $wPt / self::TOTAL_MODULES;
-        // Standard EAN-13 typography per ISO 15420: the three guard bars
-        // (left/centre/right) extend below the data bars, and the
-        // human-readable digits sit at the level of that extension - 6+6
-        // between the guards, first digit detached to the left in the quiet
-        // zone. When ->withoutText() is set, all bars are at full height with
-        // no extension.
-        $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
-        $extensionHeight = $hPt - $barsHeight;
+        Renderer::oriented($page, $this->orientation, $xPt, $yPt, $wPt, $hPt, function () use ($page, $xPt, $yPt, $wPt, $hPt): void {
+            $moduleW = $wPt / self::TOTAL_MODULES;
+            // Standard EAN-13 typography per ISO 15420: the three guard bars
+            // (left/centre/right) extend below the data bars, and the
+            // human-readable digits sit at the level of that extension - 6+6
+            // between the guards, first digit detached to the left in the quiet
+            // zone. When ->withoutText() is set, all bars are at full height with
+            // no extension.
+            $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
+            $extensionHeight = $hPt - $barsHeight;
 
-        $modules = $this->encodeModules();
-        // Pad with leading false for left quiet zone, trailing false for right.
-        $padded = array_merge(
-            array_fill(0, 11, false),
-            $modules,
-            array_fill(0, 7, false),
-        );
+            $modules = $this->encodeModules();
+            // Pad with leading false for left quiet zone, trailing false for right.
+            $padded = array_merge(
+                array_fill(0, 11, false),
+                $modules,
+                array_fill(0, 7, false),
+            );
 
-        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+            $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 
-        if ($extensionHeight > 0.0) {
-            // Guard ranges in padded coordinates: left 11..13 (3), centre 56..60 (5), right 103..105 (3).
-            foreach ([[11, 3], [56, 5], [103, 3]] as [$start, $len]) {
-                $slice = array_slice($padded, $start, $len);
-                $body .= Renderer::runLengthRow(
-                    $slice,
-                    $xPt + $start * $moduleW,
-                    $yPt + $barsHeight,
-                    $moduleW,
-                    $extensionHeight,
-                );
+            if ($extensionHeight > 0.0) {
+                // Guard ranges in padded coordinates: left 11..13 (3), centre 56..60 (5), right 103..105 (3).
+                foreach ([[11, 3], [56, 5], [103, 3]] as [$start, $len]) {
+                    $slice = array_slice($padded, $start, $len);
+                    $body .= Renderer::runLengthRow(
+                        $slice,
+                        $xPt + $start * $moduleW,
+                        $yPt + $barsHeight,
+                        $moduleW,
+                        $extensionHeight,
+                    );
+                }
             }
-        }
 
-        $page->contentStream()->append(Renderer::wrap($body, $this->color));
+            $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
-        if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
-        }
+            if ($this->showText) {
+                $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
+            }
+        });
     }
 
     /**

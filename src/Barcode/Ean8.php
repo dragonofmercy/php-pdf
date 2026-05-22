@@ -15,8 +15,9 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * Default rendering: black bars + human-readable text below (4+4 layout).
  * Disable the text with {@see self::withoutText()}.
  */
-final readonly class Ean8 implements Barcode
+final readonly class Ean8 implements OrientableBarcode
 {
+    use Orientable;
     /** Total module count including 7+7 quiet zones (7 + 3+28+5+28+3 + 7 = 81). */
     private const int TOTAL_MODULES = 81;
 
@@ -24,6 +25,7 @@ final readonly class Ean8 implements Barcode
         public string $digits,
         public Color $color,
         public bool $showText,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $digits): self
@@ -53,12 +55,17 @@ final readonly class Ean8 implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText);
+        return new self($this->digits, $color, $this->showText, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false);
+        return new self($this->digits, $this->color, false, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->digits, $this->color, $this->showText, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -127,38 +134,40 @@ final readonly class Ean8 implements Barcode
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        // 7 + 67 + 7 = 81 total modules (quiet zones + barcode).
-        $moduleW = $wPt / self::TOTAL_MODULES;
-        // Standard EAN-8 typography per ISO 15420: left/centre/right guards
-        // extend below the data bars and the 4+4 human-readable digits sit
-        // centred in that extension band.
-        $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
-        $extensionHeight = $hPt - $barsHeight;
+        Renderer::oriented($page, $this->orientation, $xPt, $yPt, $wPt, $hPt, function () use ($page, $xPt, $yPt, $wPt, $hPt): void {
+            // 7 + 67 + 7 = 81 total modules (quiet zones + barcode).
+            $moduleW = $wPt / self::TOTAL_MODULES;
+            // Standard EAN-8 typography per ISO 15420: left/centre/right guards
+            // extend below the data bars and the 4+4 human-readable digits sit
+            // centred in that extension band.
+            $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
+            $extensionHeight = $hPt - $barsHeight;
 
-        $modules = $this->encodeModules();
-        $padded = array_merge(array_fill(0, 7, false), $modules, array_fill(0, 7, false));
+            $modules = $this->encodeModules();
+            $padded = array_merge(array_fill(0, 7, false), $modules, array_fill(0, 7, false));
 
-        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+            $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 
-        if ($extensionHeight > 0.0) {
-            // Guard ranges in padded coordinates: left 7..9 (3), centre 38..42 (5), right 71..73 (3).
-            foreach ([[7, 3], [38, 5], [71, 3]] as [$start, $len]) {
-                $slice = array_slice($padded, $start, $len);
-                $body .= Renderer::runLengthRow(
-                    $slice,
-                    $xPt + $start * $moduleW,
-                    $yPt + $barsHeight,
-                    $moduleW,
-                    $extensionHeight,
-                );
+            if ($extensionHeight > 0.0) {
+                // Guard ranges in padded coordinates: left 7..9 (3), centre 38..42 (5), right 71..73 (3).
+                foreach ([[7, 3], [38, 5], [71, 3]] as [$start, $len]) {
+                    $slice = array_slice($padded, $start, $len);
+                    $body .= Renderer::runLengthRow(
+                        $slice,
+                        $xPt + $start * $moduleW,
+                        $yPt + $barsHeight,
+                        $moduleW,
+                        $extensionHeight,
+                    );
+                }
             }
-        }
 
-        $page->contentStream()->append(Renderer::wrap($body, $this->color));
+            $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
-        if ($this->showText) {
-            $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
-        }
+            if ($this->showText) {
+                $this->drawHumanText($page, $xPt, $yPt, $moduleW, $barsHeight, $extensionHeight);
+            }
+        });
     }
 
     private function drawHumanText(
