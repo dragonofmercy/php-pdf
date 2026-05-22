@@ -596,6 +596,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\PageWithStyledFormsTest('test'))-
 $doc->save($fixturesDir . '/page-with-styled-forms.pdf');
 echo "Regenerated page-with-styled-forms.pdf\n";
 
+// Fixture: push-button fields (resetForm + openUrl actions)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormPushButtonTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-pushbutton.pdf');
+echo "Regenerated form-pushbutton.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();

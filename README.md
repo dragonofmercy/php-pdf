@@ -17,12 +17,12 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
-- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line), checkboxes, radio buttons (grouped), dropdowns, and listboxes. Each field can be styled with border color and width, background color, text color, font, size, and alignment.
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line), checkboxes, radio buttons (grouped), dropdowns, listboxes, and push buttons (resetForm and openUrl actions). Each field can be styled with border color and width, background color, text color, font, size, and alignment.
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Forms : push buttons, signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields - later phases.
+- Forms : signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values), password fields - later phases.
 - Digital signatures, Markdown rendering - later phases.
 
 ## Installation
@@ -135,6 +135,82 @@ $page1->link(50, 120, 200, 14, Link::destination(Destination::page(1)));
 ```
 
 Pages are 0-indexed. `Destination::page($i)` jumps to the top-left of page `$i` (the safe default). Other variants - `Destination::xyz()`, `Destination::fit()`, `Destination::fitWidth()` - additionally control the zoom level after the jump. Coordinates use the document's unit and the top-down Y axis (same as `text()` / `cell()`). Out-of-range page indices throw `PdfException` at output time.
+
+### Interactive forms
+
+Fields are placed via `$page->field(...)`. Each field is a value object built by a named constructor or `new`.
+
+```php
+use DragonOfMercy\PhpPdf\Form\{TextField, Checkbox, Radio, Combobox, Listbox, PushButton, ButtonAction, FieldAppearance};
+use DragonOfMercy\PhpPdf\Color;
+
+$page = $pdf->addPage();
+
+// Text input
+$page->field(new TextField(50.0, 50.0, 80.0, 8.0, name: 'firstname', value: 'Bob', required: true));
+
+// Multi-line text area
+$page->field(new TextField(50.0, 65.0, 80.0, 24.0, name: 'comment', multiline: true));
+
+// Checkbox
+$page->field(new Checkbox(50.0, 95.0, 5.0, 5.0, name: 'agree'));
+
+// Radio group (all widgets sharing the same group name form a single field)
+$page->field(new Radio(50.0, 110.0, 5.0, 5.0, group: 'civility', value: 'mr', checked: true));
+$page->field(new Radio(50.0, 120.0, 5.0, 5.0, group: 'civility', value: 'mrs'));
+
+// Dropdown
+$page->field(new Combobox(50.0, 135.0, 80.0, 8.0, name: 'country', options: ['fr' => 'France', 'ch' => 'Suisse'], value: 'ch'));
+
+// Listbox (multi-select)
+$page->field(new Listbox(50.0, 150.0, 80.0, 24.0, name: 'interests', options: ['music', 'sport', 'code'], value: ['sport'], multiSelect: true));
+```
+
+Styling is uniform across all field types via `FieldAppearance`:
+
+```php
+$page->field(new TextField(50.0, 50.0, 80.0, 8.0,
+    name: 'styled',
+    appearance: new FieldAppearance(
+        borderColor: Color::rgb(255, 0, 0),
+        borderWidth: 1.0,
+        backgroundColor: Color::rgb(240, 240, 240),
+    ),
+));
+```
+
+#### Push buttons
+
+Push buttons trigger an action on click; they hold no value. Two actions are available:
+
+```php
+use DragonOfMercy\PhpPdf\Form\{PushButton, ButtonAction, FieldAppearance};
+use DragonOfMercy\PhpPdf\Color;
+
+// Reset every field in the form to its default value
+$page->field(PushButton::of(
+    x: 20, y: 20, width: 40, height: 10,
+    name: 'reset', caption: 'Effacer', action: ButtonAction::resetForm(),
+));
+
+// Open a URL in the browser
+$page->field(PushButton::of(
+    x: 70, y: 20, width: 40, height: 10,
+    name: 'home', caption: 'Visit', action: ButtonAction::openUrl('https://example.com'),
+));
+
+// With appearance (border, background color)
+$page->field(PushButton::of(
+    x: 20, y: 35, width: 40, height: 10,
+    name: 'styled_reset', caption: 'Clear',
+    action: ButtonAction::resetForm(),
+    appearance: new FieldAppearance(
+        borderColor: Color::rgb(0, 0, 0),
+        borderWidth: 0.5,
+        backgroundColor: Color::rgb(230, 230, 230),
+    ),
+));
+```
 
 ### Graphics
 
