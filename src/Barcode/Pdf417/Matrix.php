@@ -73,6 +73,15 @@ final class Matrix
         return $matrix;
     }
 
+    /**
+     * Module width of one rendered row, excluding the quiet zone:
+     * start(17) + leftIndicator(17) + columns*17 + rightIndicator(17) + stop(18).
+     */
+    public static function modulesPerRow(int $columns): int
+    {
+        return 17 * ($columns + 3) + 18;
+    }
+
     /** @return list<bool> */
     private static function bitsOf(int $pattern, int $width): array
     {

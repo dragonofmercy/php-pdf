@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Barcode\Pdf417;
 
 use DragonOfMercy\PhpPdf\Barcode\Pdf417\ReedSolomon;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use PHPUnit\Framework\TestCase;
 
 final class ReedSolomonTest extends TestCase
@@ -42,5 +43,26 @@ final class ReedSolomonTest extends TestCase
     public function testEmptyDataYieldsZeroEc(): void
     {
         self::assertSame([0, 0], ReedSolomon::compute([], 2));
+    }
+
+    public function testComputeRejectsNonPowerOfTwoEcCount(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/power of two/');
+        ReedSolomon::compute([1, 2, 3], 3);
+    }
+
+    public function testComputeRejectsOutOfRangeEcCount(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/power of two/');
+        ReedSolomon::compute([1, 2, 3], 1024);
+    }
+
+    public function testGeneratorCoefficientsRejectInvalidEcCount(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/power of two/');
+        ReedSolomon::generatorCoefficients(0);
     }
 }

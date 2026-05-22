@@ -97,8 +97,7 @@ final readonly class Pdf417 implements Barcode
         $result = Encoder::encode($this->data, $this->ecLevel, $this->columns);
         $rows = Matrix::build($result);
 
-        $modulesPerRow = 17 * ($result->columns + 3) + 18;
-        $totalCols = $modulesPerRow + 4; // 2-module quiet zone each side
+        $totalCols = Matrix::modulesPerRow($result->columns) + 4; // 2-module quiet zone each side
         $unit = $page->unit;
         $xPt = $unit->toPoints($x);
         $yPt = $unit->toPoints($y);

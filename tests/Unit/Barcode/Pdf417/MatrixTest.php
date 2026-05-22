@@ -20,9 +20,12 @@ final class MatrixTest extends TestCase
     public function testModulesPerRow(): void
     {
         // start(17) + leftIndicator(17) + columns*17 + rightIndicator(17) + stop(18).
+        self::assertSame(17 * (2 + 3) + 18, Matrix::modulesPerRow(2));
+
+        // The single source must match what build() actually produces per row.
         $result = Encoder::encode('PDF417 sample', ecLevel: 2, columnHint: 2);
         $rows = Matrix::build($result);
-        $expected = 17 * ($result->columns + 3) + 18;
+        $expected = Matrix::modulesPerRow($result->columns);
         foreach ($rows as $i => $row) {
             self::assertCount($expected, $row, "row {$i} module count");
         }

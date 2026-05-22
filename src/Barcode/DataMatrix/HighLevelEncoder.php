@@ -306,26 +306,6 @@ final class HighLevelEncoder
     }
 
     /**
-     * Encode a byte sequence using Base256 mode per ISO/IEC 16022 5.4.3.
-     *
-     * Output structure:
-     *   [231]
-     *   [length codeword(s)] (1 codeword if length < 250, else 2)
-     *   [randomized data bytes...]
-     *
-     * The latch sits at symbol codeword position 1, so the length and data are
-     * randomized from position 2 onward. When Base256 appears later in the
-     * stream the walker calls {@see self::encodeBase256Body()} directly with the
-     * correct absolute position.
-     *
-     * @return list<int>
-     */
-    public static function encodeBase256(string $bytes): array
-    {
-        return [self::CW_ASCII_LATCH_BASE256, ...self::encodeBase256Body($bytes, 2)];
-    }
-
-    /**
      * Emit the Base256 length prefix + randomized data (no latch).
      *
      * Randomization (ISO 5.4.3) keys off the codeword's ABSOLUTE 1-based position

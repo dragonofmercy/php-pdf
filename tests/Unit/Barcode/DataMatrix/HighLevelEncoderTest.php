@@ -40,38 +40,52 @@ final class HighLevelEncoderTest extends TestCase
         self::assertSame([50, 66], HighLevelEncoder::encode('1A'));
     }
 
-    public function testBase256WrapsBinaryWithLengthPrefixAndRandomization(): void
+    public function testRawBinaryRunLatchesToBase256(): void
     {
-        // 3 binary bytes 0xFF, 0xFE, 0xFD wrapped by Base256:
-        //   codeword 231 (latch to Base256), length codeword, then 3 randomized bytes.
-        $out = HighLevelEncoder::encodeBase256("\xFF\xFE\xFD");
+        // Production path: a run of 3+ contiguous high bytes latches to Base256.
+        //   codeword 231 (latch), length codeword, then 3 randomized bytes.
+        $out = HighLevelEncoder::encode("\xFF\xFE\xFD");
         self::assertCount(5, $out);
         self::assertSame(231, $out[0]);
-        // The latch sits at symbol codeword position 1, so the length codeword is
-        // randomized at its ABSOLUTE position 2 (ISO 16022 5.4.3), not a block-relative
-        // index. pseudoRandom = ((149 * 2) % 255) + 1 = 44; (3 + 44) % 256 = 47.
+        // The latch sits at symbol position 1, so the length codeword is randomized
+        // at its ABSOLUTE position 2 (ISO 16022 5.4.3): ((149*2)%255)+1 = 44, (3+44)%256 = 47.
         self::assertSame(47, $out[1]);
     }
 
-    public function testBase256SingleByteUsesLengthOne(): void
+    public function testSingleHighByteUsesAsciiUpperShiftNotBase256(): void
     {
-        $out = HighLevelEncoder::encodeBase256("\x80");
-        self::assertSame(231, $out[0]);
-        // length 1 randomized at absolute position 2: (1 + 44) % 256 = 45.
-        self::assertSame(45, $out[1]);
-        self::assertCount(3, $out);
+        // A lone high byte is cheaper as an ASCII upper-shift (235) than a Base256
+        // segment, so the walker must NOT latch to Base256 for it.
+        self::assertSame([235, 1], HighLevelEncoder::encode("\x80"));
     }
 
-    public function testBase256LongPayloadUsesTwoByteLength(): void
+    public function testBase256BodyLengthPrefixIsRandomizedAtAbsolutePosition(): void
     {
-        // Length >= 250 uses two length codewords:
-        //   first = (length / 250) + 249  (randomized)
-        //   second = length % 250         (randomized)
-        $payload = str_repeat("\xFF", 300);
-        $out = HighLevelEncoder::encodeBase256($payload);
-        self::assertSame(231, $out[0]);
-        // 1 (latch) + 2 (length) + 300 (data) = 303 codewords.
-        self::assertCount(303, $out);
+        // encodeBase256Body emits [length codeword(s)] + randomized data, keyed off
+        // the absolute 1-based position passed in (no latch).
+        $body = self::callBase256Body("\xFF\xFE\xFD", 2);
+        self::assertCount(4, $body); // 1 length + 3 data
+        self::assertSame(47, $body[0]); // length 3 at position 2
+    }
+
+    public function testBase256BodyLongPayloadUsesTwoByteLength(): void
+    {
+        // Length >= 250 uses two length codewords, then the data.
+        $body = self::callBase256Body(str_repeat("\xFF", 300), 2);
+        self::assertCount(302, $body); // 2 length + 300 data
+    }
+
+    /**
+     * Invoke the private Base256 body encoder (the real production helper).
+     *
+     * @return list<int>
+     */
+    private static function callBase256Body(string $bytes, int $lengthPosition): array
+    {
+        $method = new \ReflectionMethod(HighLevelEncoder::class, 'encodeBase256Body');
+        /** @var list<int> $out */
+        $out = $method->invoke(null, $bytes, $lengthPosition);
+        return $out;
     }
 
     public function testC40EncodesThreeCharsIntoTwoCodewords(): void

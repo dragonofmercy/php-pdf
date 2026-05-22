@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Barcode\Pdf417;
 
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+
 /**
  * Reed-Solomon error-correction generator for PDF417 (ISO/IEC 15438 8.6).
  *
@@ -29,6 +31,7 @@ final class ReedSolomon
      */
     public static function compute(array $data, int $ecCount): array
     {
+        self::assertValidEcCount($ecCount);
         $generator = self::generatorCoefficients($ecCount);
         $ec = array_fill(0, $ecCount, 0);
         foreach ($data as $d) {
@@ -54,6 +57,7 @@ final class ReedSolomon
      */
     public static function generatorCoefficients(int $ecCount): array
     {
+        self::assertValidEcCount($ecCount);
         $poly = [1]; // constant-term-first; index k = coefficient of x^k
         $root = 1;
         for ($i = 0; $i < $ecCount; $i++) {
@@ -70,5 +74,22 @@ final class ReedSolomon
         $coefficients = array_slice($poly, 0, $ecCount);
         /** @var list<int> $coefficients */
         return $coefficients;
+    }
+
+    /**
+     * EC codeword counts are 2^(level+1) for levels 0-8, i.e. a power of two in
+     * 2..512. Reject anything else: the GF(929) generator and EC blocks are only
+     * defined for those counts, and a bad count yields an undecodable symbol.
+     *
+     * @throws PdfException
+     */
+    private static function assertValidEcCount(int $ecCount): void
+    {
+        if ($ecCount < 2 || $ecCount > 512 || ($ecCount & ($ecCount - 1)) !== 0) {
+            throw new PdfException(sprintf(
+                'PDF417 EC codeword count must be a power of two in 2-512, got %d',
+                $ecCount,
+            ));
+        }
     }
 }
