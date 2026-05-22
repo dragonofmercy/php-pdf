@@ -50,4 +50,26 @@ final class EncoderTest extends TestCase
         $this->expectExceptionMessageMatches('/PDF417 data must not be empty/');
         Encoder::encode('', ecLevel: null, columnHint: null);
     }
+
+    public function testOverCapacityPayloadThrowsCleanly(): void
+    {
+        // A payload that compacts past the 928-codeword ceiling must surface a
+        // PdfException, not crash deeper in the pipeline with an out-of-range
+        // length descriptor (regression: used to TypeError in Matrix::bitsOf).
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/PDF417 data too large/');
+        Encoder::encode(str_repeat('Order line item ', 120), ecLevel: null, columnHint: null);
+    }
+
+    public function testLargestFittingPayloadStillEncodes(): void
+    {
+        // A long-but-fitting payload encodes, and every codeword stays inside
+        // the 0-928 alphabet (descriptor included).
+        $r = Encoder::encode(str_repeat('A', 1000), ecLevel: null, columnHint: null);
+        self::assertLessThanOrEqual(928, $r->rows * $r->columns);
+        foreach ($r->codewords as $c) {
+            self::assertGreaterThanOrEqual(0, $c);
+            self::assertLessThan(929, $c);
+        }
+    }
 }

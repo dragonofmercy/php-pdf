@@ -26,6 +26,25 @@ final class SymbolTest extends TestCase
         self::assertSame(5, Symbol::recommendedEcLevel(800));
     }
 
+    public function testRecommendedEcLevelCapsAtFive(): void
+    {
+        // Auto mode never recommends above level 5 (Annex E ceiling). Higher
+        // levels are override-only: auto-selecting 6+ would only push large
+        // payloads past the 928-codeword ceiling without a capacity benefit.
+        self::assertSame(5, Symbol::recommendedEcLevel(900));
+        self::assertSame(5, Symbol::recommendedEcLevel(5000));
+    }
+
+    public function testOverCapacityAutoColumnsThrows(): void
+    {
+        // A data count that auto-fits within the 1-30 column / 3-90 row box yet
+        // exceeds the 928-codeword symbol ceiling must be rejected cleanly, not
+        // serialized into an out-of-range length descriptor.
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/PDF417 data too large/');
+        Symbol::choose(dataCodewords: 928, ecLevel: 6, columnHint: null);
+    }
+
     public function testChosenGridIsValidAndFitsTotal(): void
     {
         $sym = Symbol::choose(dataCodewords: 6, ecLevel: 2, columnHint: null);
