@@ -46,7 +46,7 @@ final class FormPushButtonTest extends TestCase
     {
         // Pushbutton flag is bit 17 (value 65536 = 1 << 16)
         $bytes = $this->buildDocument()->output();
-        self::assertStringContainsString('/Ff 65536', $bytes);
+        self::assertSame(2, substr_count($bytes, '/Ff 65536'));
     }
 
     public function testResetActionIsPresent(): void

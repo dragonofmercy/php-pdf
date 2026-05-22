@@ -13,6 +13,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  */
 final readonly class PushButton implements FormField
 {
+    // No $required property: push buttons carry no value and do not participate in form validation.
     public function __construct(
         public float $x,
         public float $y,
