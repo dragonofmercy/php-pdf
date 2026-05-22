@@ -19,6 +19,7 @@ use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
 use DragonOfMercy\PhpPdf\Form\FormField;
+use DragonOfMercy\PhpPdf\Document\PageObjectsBuilder;
 use DragonOfMercy\PhpPdf\Document\SubsettedFontObjectsEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
@@ -32,7 +33,6 @@ use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
-use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -800,123 +800,19 @@ final class Document
             $imageEmissions[] = [$image, $imageNum];
         }
 
-        foreach ($pending as [$page, $pageNum, $contentNum]) {
-            $pageDict = Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Page'))
-                ->withEntry(Name::of('Parent'), $pagesRef)
-                ->withEntry(Name::of('MediaBox'), PdfArray::of(
-                    PdfNumber::ofInt(0),
-                    PdfNumber::ofInt(0),
-                    PdfNumber::ofFloat($page->pageWidth),
-                    PdfNumber::ofFloat($page->pageHeight),
-                ));
+        $pageBuild = (new PageObjectsBuilder(
+            allocator: $allocator,
+            fontRegistry: $this->fontRegistry,
+            fontResolver: $this->fontResolver,
+            linkAnnotationEmitter: $linkAnnotationEmitter,
+            pagesRef: $pagesRef,
+            fontRefs: $fontRefs,
+            customRefs: $customRefs,
+            imageRefs: $imageRefs,
+        ))->build($pending, $pageRefs, $pageHeightsPt);
 
-            $pageFonts = $page->fontsUsed();
-            $pageImages = $page->imagesUsed();
-
-            // /Resources is REQUIRED on /Page per PDF 1.7 spec 7.7.3.3 (an
-            // empty dictionary is valid; omitting it means "inherit from a
-            // /Pages ancestor", which we do not emit). qpdf --check warns
-            // ("Resources is missing or invalid; repairing") when this is
-            // absent, even though Adobe and browsers silently tolerate it.
-            $resources = Dictionary::empty();
-            if ($pageFonts !== []) {
-                $fontDict = Dictionary::empty();
-                foreach ($pageFonts as $font) {
-                    if ($font->isCustom()) {
-                        if ($this->fontResolver === null) {
-                            throw new PdfException('Custom font used without registered family');
-                        }
-                        $resolvedTtf = $this->fontResolver->resolve($font);
-                        $key = new CustomFontKey(
-                            $font->requireCustomAlias(),
-                            $resolvedTtf->postScriptName,
-                        );
-                        $shortName = $this->fontRegistry->shortNameForCustom($font, $key);
-                        $fontDict = $fontDict->withEntry(Name::of($shortName), $customRefs[$shortName]);
-                    } else {
-                        $shortName = $this->fontRegistry->shortName($font);
-                        $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
-                    }
-                }
-                $resources = $resources->withEntry(Name::of('Font'), $fontDict);
-            }
-            if ($pageImages !== []) {
-                $xObjectDict = Dictionary::empty();
-                foreach ($pageImages as $imageShort) {
-                    $xObjectDict = $xObjectDict->withEntry(
-                        Name::of($imageShort),
-                        $imageRefs[$imageShort],
-                    );
-                }
-                $resources = $resources->withEntry(Name::of('XObject'), $xObjectDict);
-            }
-            $pageDict = $pageDict->withEntry(Name::of('Resources'), $resources);
-
-            $linkAnnotations = $page->getLinkAnnotations();
-            $formFields = $page->getFormFields();
-            $annotRefs = [];
-
-            if ($linkAnnotations !== [] && $linkAnnotationEmitter !== null) {
-                $pageContext = sprintf('page object #%d', $pageNum);
-                foreach ($linkAnnotations as $annot) {
-                    $annotId = $allocator->next();
-                    $objects[] = $linkAnnotationEmitter->emit(
-                        $annot,
-                        $page->pageHeight,
-                        $pageRefs,
-                        $pageHeightsPt,
-                        $annotId,
-                        $pageContext,
-                    );
-                    $annotRefs[] = PdfReference::to($annotId, 0);
-                }
-            }
-
-            if ($formFields !== []) {
-                // Resolve THIS page's index in $pageRefs (matches $pending entries by pageNum).
-                $thisPageRefIndex = null;
-                foreach ($pending as $idx => $entry) {
-                    if ($entry[1] === $pageNum) {
-                        $thisPageRefIndex = $idx;
-                        break;
-                    }
-                }
-                if ($thisPageRefIndex === null) {
-                    throw new PdfException('Internal: cannot resolve page index for form fields');
-                }
-                foreach ($formFields as $field) {
-                    $widgetId = $allocator->next();
-                    $widgetRef = PdfReference::to($widgetId, 0);
-                    $annotRefs[] = $widgetRef;
-                    $allWidgets[] = [
-                        'field' => $field,
-                        'widgetRef' => $widgetRef,
-                        'pageRef' => $pageRefs[$thisPageRefIndex],
-                        'pageHeightPt' => $page->pageHeight,
-                    ];
-                }
-            }
-
-            if ($annotRefs !== []) {
-                $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...$annotRefs));
-            }
-
-            if ($contentNum !== null) {
-                $pageDict = $pageDict->withEntry(
-                    Name::of('Contents'),
-                    PdfReference::to($contentNum, 0),
-                );
-                $objects[] = IndirectObject::of($pageNum, 0, $pageDict);
-                $objects[] = IndirectObject::of(
-                    $contentNum,
-                    0,
-                    CompressedStream::of($page->contentStream()->bytes()),
-                );
-            } else {
-                $objects[] = IndirectObject::of($pageNum, 0, $pageDict);
-            }
-        }
+        $objects = array_merge($objects, $pageBuild['objects']);
+        $allWidgets = $pageBuild['allWidgets'];
 
         $acroFormRef = null;
         if ($allWidgets !== []) {
