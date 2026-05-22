@@ -53,4 +53,56 @@ final class HighLevelEncoderTest extends TestCase
             self::assertLessThan(929, $c);
         }
     }
+
+    public function testMixedPunctuationLatchIndependentOfPosition(): void
+    {
+        // "&;;;;": '&' enters the Mixed submode, then four ';' should latch to
+        // Punctuation (pl, 25). The latch lookahead must use the run-relative
+        // index, not the absolute start, so the same run encoded after a
+        // numeric segment must yield identical text codewords.
+        $atZero = HighLevelEncoder::encode('&;;;;');
+        $afterNumeric = HighLevelEncoder::encode('1234567890123&;;;;');
+
+        // Strip the leading numeric segment up to and including LATCH_TO_TEXT (900).
+        $latch = array_search(900, $afterNumeric, true);
+        self::assertNotFalse($latch, 'expected a LATCH_TO_TEXT after the numeric run');
+        $textTail = array_slice($afterNumeric, $latch + 1);
+
+        self::assertSame($atZero, $textTail);
+    }
+
+    public function testLoneByteAmidTextUsesShiftNotLatch(): void
+    {
+        // A single non-text byte between two 5-char text runs must be a Byte
+        // SHIFT (913), not a Byte LATCH (924) that swallows the trailing text.
+        // 0xFF makes the payload invalid UTF-8, so no ECI is emitted.
+        $cw = HighLevelEncoder::encode("abcde\xFFabcde");
+        self::assertContains(913, $cw, 'expected SHIFT_TO_BYTE for the lone 0xFF');
+        self::assertNotContains(924, $cw, 'binary run must not swallow the trailing text');
+    }
+
+    public function testByteSixpackMatchesBase900Expansion(): void
+    {
+        // Six contiguous bytes pack into five base-900 codewords. The packing
+        // must equal the canonical 48-bit base-900 expansion (the production
+        // code avoids a 48-bit accumulator so it stays correct on 32-bit PHP).
+        $bytes = "\x10\x20\x30\x40\x50\x60";
+        $method = new \ReflectionMethod(HighLevelEncoder::class, 'encodeBinary');
+        /** @var list<int> $out */
+        $out = $method->invoke(null, $bytes, 0, 6, 1); // startmode = BYTE_COMPACTION
+        $packed = array_slice($out, 1); // drop the latch codeword
+
+        $value = 0;
+        foreach (str_split($bytes) as $b) {
+            $value = $value * 256 + ord($b);
+        }
+        $expected = [];
+        for ($i = 0; $i < 5; $i++) {
+            $expected[] = $value % 900;
+            $value = intdiv($value, 900);
+        }
+        $expected = array_reverse($expected);
+
+        self::assertSame($expected, $packed);
+    }
 }

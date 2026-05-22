@@ -244,7 +244,7 @@ final class HighLevelEncoder
                             continue 2;
                         } else {
                             if (
-                                $startpos + $idx + 1 < $count
+                                $idx + 1 < $count
                                 && self::isPunctuation(ord($input[$startpos + $idx + 1]), $punctuation)
                             ) {
                                 $submode = self::SUBMODE_PUNCTUATION;
@@ -312,14 +312,27 @@ final class HighLevelEncoder
         // Encode sixpacks: 6 bytes -> 5 base-900 codewords.
         if ($count >= 6) {
             while (($startpos + $count - $idx) >= 6) {
-                $t = 0;
-                for ($i = 0; $i < 6; $i++) {
-                    $t = ($t << 8) + ord($input[$idx + $i]);
-                }
+                // Six bytes form a 48-bit value; convert it to five base-900
+                // codewords. The conversion runs as repeated division of the
+                // base-256 digits so the largest intermediate stays under 2^18
+                // (899 * 256 + 255) - no 48-bit accumulator, correct on 32-bit PHP.
+                $work = [
+                    ord($input[$idx]),
+                    ord($input[$idx + 1]),
+                    ord($input[$idx + 2]),
+                    ord($input[$idx + 3]),
+                    ord($input[$idx + 4]),
+                    ord($input[$idx + 5]),
+                ];
                 $chars = [];
-                for ($i = 0; $i < 5; $i++) {
-                    $chars[] = (int) ($t % 900);
-                    $t = intdiv($t, 900);
+                for ($k = 0; $k < 5; $k++) {
+                    $remainder = 0;
+                    for ($j = 0; $j < 6; $j++) {
+                        $cur = ($remainder << 8) + $work[$j];
+                        $work[$j] = intdiv($cur, 900);
+                        $remainder = $cur % 900;
+                    }
+                    $chars[] = $remainder;
                 }
                 // The base-900 digits are produced least-significant first; emit
                 // them most-significant first.
@@ -475,16 +488,29 @@ final class HighLevelEncoder
         $len = strlen($input);
         $idx = $startpos;
         while ($idx < $len) {
+            // A run of 13+ digits is better served by Numeric compaction.
             $numericCount = 0;
-            $i = $idx;
-            while ($numericCount < 13 && self::isDigit(ord($input[$i]))) {
+            while (
+                $numericCount < 13
+                && $idx + $numericCount < $len
+                && self::isDigit(ord($input[$idx + $numericCount]))
+            ) {
                 $numericCount++;
-                $i = $idx + $numericCount;
-                if ($i >= $len) {
-                    break;
-                }
             }
             if ($numericCount >= 13) {
+                return $idx - $startpos;
+            }
+            // A run of 5+ text characters is better served by Text compaction;
+            // ending the binary run there keeps that text out of Byte mode.
+            $textCount = 0;
+            while (
+                $textCount < 5
+                && $idx + $textCount < $len
+                && self::isText(ord($input[$idx + $textCount]))
+            ) {
+                $textCount++;
+            }
+            if ($textCount >= 5) {
                 return $idx - $startpos;
             }
             $idx++;
