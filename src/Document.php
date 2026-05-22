@@ -9,6 +9,8 @@ use DateTimeImmutable;
 use DragonOfMercy\PhpPdf\Document\Encryption;
 use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Document\MetadataStream;
+use DragonOfMercy\PhpPdf\Document\PageObjectsBuilder;
+use DragonOfMercy\PhpPdf\Document\SubsettedFontObjectsEmitter;
 use DragonOfMercy\PhpPdf\Document\XmpWriter;
 use DragonOfMercy\PhpPdf\Encryption\Cipher;
 use DragonOfMercy\PhpPdf\Encryption\EncryptedPdfWriter;
@@ -19,8 +21,6 @@ use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
 use DragonOfMercy\PhpPdf\Form\FormField;
-use DragonOfMercy\PhpPdf\Document\PageObjectsBuilder;
-use DragonOfMercy\PhpPdf\Document\SubsettedFontObjectsEmitter;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
@@ -706,11 +706,7 @@ final class Document
      */
     private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
-        $objects = [];
         $allocator = new PdfObjectAllocator($firstObjectNumber);
-
-        /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
-        $allWidgets = [];
 
         $this->preregisterFormFonts();
 
@@ -736,7 +732,8 @@ final class Document
             imageRefs: $imageRefs,
         ))->build($pending, $pageRefs, $pageHeightsPt);
 
-        $objects = array_merge($objects, $pageBuild['objects']);
+        $objects = $pageBuild['objects'];
+        /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = $pageBuild['allWidgets'];
 
         $acroFormRef = null;
@@ -871,17 +868,14 @@ final class Document
         /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
         $pending = [];
         $pageRefs = [];
+        /** @var list<float> $pageHeightsPt page heights in points, matched 1:1 with $pageRefs. */
+        $pageHeightsPt = [];
+        $linkAnnotationEmitter = null;
         foreach ($this->pages as $page) {
             $pageNum = $allocator->next();
             $contentNum = $page->contentStream()->isEmpty() ? null : $allocator->next();
             $pending[] = [$page, $pageNum, $contentNum];
             $pageRefs[] = PdfReference::to($pageNum, 0);
-        }
-
-        /** @var list<float> $pageHeightsPt page heights in points, matched 1:1 with $pageRefs. */
-        $pageHeightsPt = [];
-        $linkAnnotationEmitter = null;
-        foreach ($this->pages as $page) {
             $pageHeightsPt[] = $page->pageHeight;
             if ($linkAnnotationEmitter === null && $page->getLinkAnnotations() !== []) {
                 $linkAnnotationEmitter = new LinkAnnotationEmitter($this->unit);

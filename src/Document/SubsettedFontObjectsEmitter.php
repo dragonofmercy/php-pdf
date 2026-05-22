@@ -27,7 +27,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
  *
  * @internal
  */
-final class SubsettedFontObjectsEmitter
+final readonly class SubsettedFontObjectsEmitter
 {
     public function __construct(private readonly GlyphUsage $glyphUsage)
     {
