@@ -246,6 +246,36 @@ $page->barcode(
 $doc->save($fixturesDir . '/barcode-code128.pdf');
 echo "Regenerated barcode-code128.pdf\n";
 
+// Fixture: Code 128 vertical (1D orientation)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Code128::of('SHIP-2026-001')->vertical(),
+    x: 20.0, y: 20.0, w: 70.0, h: 18.0,
+);
+$doc->save($fixturesDir . '/barcode-code128-vertical.pdf');
+echo "Regenerated barcode-code128-vertical.pdf\n";
+
+// Fixture: EAN-13 vertical (1D orientation)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Ean13::of('978013110362')->vertical(),
+    x: 20.0, y: 20.0, w: 60.0, h: 25.0,
+);
+$doc->save($fixturesDir . '/barcode-ean13-vertical.pdf');
+echo "Regenerated barcode-ean13-vertical.pdf\n";
+
+// Fixture: ITF vertical (1D orientation)
+$doc = new Document(Unit::MM);
+$page = $doc->addPage();
+$page->barcode(
+    \DragonOfMercy\PhpPdf\Barcode\Itf::of('1234567890')->vertical(),
+    x: 20.0, y: 20.0, w: 60.0, h: 20.0,
+);
+$doc->save($fixturesDir . '/barcode-itf-vertical.pdf');
+echo "Regenerated barcode-itf-vertical.pdf\n";
+
 // Fixture 11: QR Code (Phase 5)
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
