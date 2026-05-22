@@ -79,13 +79,13 @@ final class Renderer
     }
 
     /**
-     * Run a horizontal barcode draw closure, optionally wrapped in a 90-degree
-     * CCW rotation so the bottom of the horizontal symbol ends up on the left.
+     * Run a horizontal barcode draw closure, optionally rotated a quarter turn
+     * so the bottom of the horizontal symbol ends up on the left ("bas-gauche").
      *
      * The page content stream operates in Y-down user space (a Y-flip CTM is
-     * prepended by ContentStream). In that space a -90 degree rotation maps
-     * (x, y) -> (-y, x), i.e. matrix [0 1 -1 0]. The translation places the
-     * image of the horizontal box's bottom-left corner at the caller's top-left
+     * prepended by ContentStream). In that space the quarter-turn is the matrix
+     * [0 1 -1 0] (equivalently Operators::rotate(-90)). The translation maps the
+     * horizontal box's bottom-left corner to the caller's top-left anchor
      * (xPt, yPt), giving a visual footprint hPt wide x wPt tall anchored there.
      *
      * @param \Closure(): void $drawHorizontal emits the format's bars + text
@@ -99,6 +99,7 @@ final class Renderer
         float $hPt,
         \Closure $drawHorizontal,
     ): void {
+        // $page is only written in the Vertical branch; required unconditionally for API uniformity.
         if ($orientation === Orientation::Horizontal) {
             $drawHorizontal();
             return;
