@@ -40,4 +40,24 @@ final class RendererOrientedTest extends TestCase
         $bytes = $page->contentStream()->bytes();
         self::assertStringContainsString("q\n0 1 -1 0 42 10 cm\nMARKER\nQ\n", $bytes);
     }
+
+    public function testVerticalBalancesSaveRestoreWhenClosureThrows(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+
+        try {
+            Renderer::oriented($page, Orientation::Vertical, 10.0, 20.0, 30.0, 12.0, function (): void {
+                throw new \RuntimeException('boom');
+            });
+            self::fail('Expected RuntimeException was not thrown');
+        } catch (\RuntimeException $e) {
+            self::assertSame('boom', $e->getMessage());
+        }
+
+        // The outer save (q) must be matched by a restore (Q) even though the
+        // closure threw - otherwise an orphan 'q' corrupts later page content.
+        $bytes = $page->contentStream()->bytes();
+        self::assertSame(substr_count($bytes, "q\n"), substr_count($bytes, "Q\n"));
+    }
 }

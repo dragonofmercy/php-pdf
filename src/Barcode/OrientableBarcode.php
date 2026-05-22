@@ -15,4 +15,10 @@ interface OrientableBarcode extends Barcode
 
     /** Returns the current orientation; Horizontal unless changed via withOrientation(). */
     public function orientation(): Orientation;
+
+    /** Returns a copy rendered vertically (quarter-turn CCW, bottom-left). */
+    public function vertical(): self;
+
+    /** Returns a copy rendered horizontally (the default). */
+    public function horizontal(): self;
 }

@@ -109,7 +109,12 @@ final class Renderer
         $stream = $page->contentStream();
         $stream->append(Operators::saveState());
         $stream->append(Operators::concatMatrix(0, 1, -1, 0, $tx, $ty));
-        $drawHorizontal();
-        $stream->append(Operators::restoreState());
+        // try/finally keeps the outer q/Q balanced even if the closure throws,
+        // so a caught exception cannot leave an orphan 'q' in the stream.
+        try {
+            $drawHorizontal();
+        } finally {
+            $stream->append(Operators::restoreState());
+        }
     }
 }
