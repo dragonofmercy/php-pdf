@@ -433,6 +433,31 @@ final class DocumentTest extends TestCase
         }
     }
 
+    public function testRegisteringSameAliasTwiceThrows(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new Document();
+        $pdf->registerFontFamily('Inter', regular: $path);
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("'Inter'");
+        $pdf->registerFontFamily('Inter', regular: $path);
+    }
+
+    public function testRegisteringDistinctAliasesSucceeds(): void
+    {
+        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        if (!is_file($path)) {
+            self::markTestSkipped('FreeSans fixture not present');
+        }
+        $pdf = new Document();
+        $pdf->registerFontFamily('AliasOne', regular: $path);
+        $result = $pdf->registerFontFamily('AliasTwo', regular: $path);
+        self::assertSame($pdf, $result);
+    }
+
     public function testRegisterFontFamilyExposesResolverViaInternalAccessor(): void
     {
         $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';

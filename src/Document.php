@@ -148,6 +148,9 @@ final class Document
         ?string $italic = null,
         ?string $boldItalic = null,
     ): self {
+        if (isset($this->customFontFamilies[$alias])) {
+            throw new PdfException("Font family '{$alias}' is already registered; each alias can be registered only once");
+        }
         $regularParsed = $this->parseFontFile($alias, 'regular', $regular);
         $boldParsed = $bold !== null ? $this->parseFontFile($alias, 'bold', $bold) : null;
         $italicParsed = $italic !== null ? $this->parseFontFile($alias, 'italic', $italic) : null;
