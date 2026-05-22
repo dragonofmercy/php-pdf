@@ -48,6 +48,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use DragonOfMercy\PhpPdf\Writer\Object\TextString;
+use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
 use DragonOfMercy\PhpPdf\Writer\PdfWriter;
 use DragonOfMercy\PhpPdf\Writer\Trailer;
 use DragonOfMercy\PhpPdf\Writer\XrefTable;
@@ -714,7 +715,7 @@ final class Document
     {
         $objects = [];
         $pageRefs = [];
-        $nextObjectNumber = $firstObjectNumber;
+        $allocator = new PdfObjectAllocator($firstObjectNumber);
 
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = [];
@@ -757,8 +758,8 @@ final class Document
         /** @var list<array{Page, int, ?int}> $pending page + its assigned number + optional content number */
         $pending = [];
         foreach ($this->pages as $page) {
-            $pageNum = $nextObjectNumber++;
-            $contentNum = $page->contentStream()->isEmpty() ? null : $nextObjectNumber++;
+            $pageNum = $allocator->next();
+            $contentNum = $page->contentStream()->isEmpty() ? null : $allocator->next();
             $pending[] = [$page, $pageNum, $contentNum];
             $pageRefs[] = PdfReference::to($pageNum, 0);
         }
@@ -775,7 +776,7 @@ final class Document
 
         $fontRefs = [];
         foreach ($this->fontRegistry->registeredFonts() as $font) {
-            $fontNum = $nextObjectNumber++;
+            $fontNum = $allocator->next();
             $shortName = $this->fontRegistry->shortName($font);
             $fontRefs[$shortName] = PdfReference::to($fontNum, 0);
         }
@@ -785,11 +786,11 @@ final class Document
         /** @var list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}> $customEmissions */
         $customEmissions = [];
         foreach ($this->fontRegistry->customRegistrations() as $shortName => $key) {
-            $type0Id = $nextObjectNumber++;
-            $cidFontId = $nextObjectNumber++;
-            $descriptorId = $nextObjectNumber++;
-            $fontFileId = $nextObjectNumber++;
-            $toUnicodeId = $nextObjectNumber++;
+            $type0Id = $allocator->next();
+            $cidFontId = $allocator->next();
+            $descriptorId = $allocator->next();
+            $fontFileId = $allocator->next();
+            $toUnicodeId = $allocator->next();
 
             $parsedTtf = $this->resolveTtfByKey($key);
             $customRefs[$shortName] = PdfReference::to($type0Id, 0);
@@ -801,9 +802,8 @@ final class Document
         $imageEmissions = [];
         foreach ($this->imageRegistry->registeredImages() as $image) {
             $shortName = $this->imageRegistry->shortName($image);
-            $imageNum = $nextObjectNumber;
+            $imageNum = $allocator->reserve(ImageEmbedder::objectCount($image));
             $imageRefs[$shortName] = PdfReference::to($imageNum, 0);
-            $nextObjectNumber += ImageEmbedder::objectCount($image);
             $imageEmissions[] = [$image, $imageNum];
         }
 
@@ -867,7 +867,7 @@ final class Document
             if ($linkAnnotations !== [] && $linkAnnotationEmitter !== null) {
                 $pageContext = sprintf('page object #%d', $pageNum);
                 foreach ($linkAnnotations as $annot) {
-                    $annotId = $nextObjectNumber++;
+                    $annotId = $allocator->next();
                     $objects[] = $linkAnnotationEmitter->emit(
                         $annot,
                         $page->pageHeight,
@@ -893,7 +893,7 @@ final class Document
                     throw new PdfException('Internal: cannot resolve page index for form fields');
                 }
                 foreach ($formFields as $field) {
-                    $widgetId = $nextObjectNumber++;
+                    $widgetId = $allocator->next();
                     $widgetRef = PdfReference::to($widgetId, 0);
                     $annotRefs[] = $widgetRef;
                     $allWidgets[] = [
@@ -955,8 +955,9 @@ final class Document
                 }
             }
 
+            $acroNextId = $allocator->peek();
             $acroEmit = (new AcroFormEmitter($this->unit))
-                ->emit($allWidgets, $standardFontRefs, $nextObjectNumber, 'document acroform');
+                ->emit($allWidgets, $standardFontRefs, $acroNextId, 'document acroform');
             $acroFormRef = $acroEmit['acroFormRef'];
             foreach ($acroEmit['objects'] as $obj) {
                 $objects[] = $obj;
