@@ -13,12 +13,15 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * Default rendering: black bars + human-readable text below.
  */
-final readonly class Code128 implements Barcode
+final readonly class Code128 implements OrientableBarcode
 {
+    use Orientable;
+
     private function __construct(
         public string $data,
         public Color $color,
         public bool $showText,
+        public Orientation $orientation = Orientation::Horizontal,
     ) {}
 
     public static function of(string $data): self
@@ -43,12 +46,17 @@ final readonly class Code128 implements Barcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->data, $color, $this->showText);
+        return new self($this->data, $color, $this->showText, $this->orientation);
     }
 
     public function withoutText(): self
     {
-        return new self($this->data, $this->color, false);
+        return new self($this->data, $this->color, false, $this->orientation);
+    }
+
+    public function withOrientation(Orientation $orientation): self
+    {
+        return new self($this->data, $this->color, $this->showText, $orientation);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -71,40 +79,42 @@ final readonly class Code128 implements Barcode
         $wPt = $unit->toPoints($w);
         $hPt = $unit->toPoints($h);
 
-        $modules = $this->encodeModules();
-        // Quiet zone QUIET_MODULES on each side per ISO 15417.
-        $totalModules = count($modules) + 2 * self::QUIET_MODULES;
-        $moduleW = $wPt / $totalModules;
-        // 85% of h goes to bars, 15% to human-readable text below.
-        $barsHeight = $hPt * 0.85;
-        $textHeight = $hPt - $barsHeight;
+        Renderer::oriented($page, $this->orientation, $xPt, $yPt, $wPt, $hPt, function () use ($page, $xPt, $yPt, $wPt, $hPt): void {
+            $modules = $this->encodeModules();
+            // Quiet zone QUIET_MODULES on each side per ISO 15417.
+            $totalModules = count($modules) + 2 * self::QUIET_MODULES;
+            $moduleW = $wPt / $totalModules;
+            // 85% of h goes to bars, 15% to human-readable text below.
+            $barsHeight = $hPt * 0.85;
+            $textHeight = $hPt - $barsHeight;
 
-        $padded = array_merge(
-            array_fill(0, self::QUIET_MODULES, false),
-            $modules,
-            array_fill(0, self::QUIET_MODULES, false),
-        );
-        $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
-        $page->contentStream()->append(Renderer::wrap($body, $this->color));
+            $padded = array_merge(
+                array_fill(0, self::QUIET_MODULES, false),
+                $modules,
+                array_fill(0, self::QUIET_MODULES, false),
+            );
+            $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
+            $page->contentStream()->append(Renderer::wrap($body, $this->color));
 
-        if ($this->showText) {
-            // Font sized to fit the data; minimum 8pt cap-height-ish, max 12pt.
-            // Also capped at textHeight so cap-height (~70% of fontSize) keeps
-            // a visible gap above the glyphs - otherwise long data + small h
-            // makes the text overlap the bars.
-            $fontSize = min(12.0, $wPt / max(strlen($this->data), 8) * 0.8, $textHeight);
-            // Baseline: centre of text band + half cap-height (approx fontSize * 0.35).
-            $textY = $yPt + $barsHeight + $textHeight / 2 + $fontSize * 0.35;
-            $textYUnit = $page->unit->fromPoints($textY);
+            if ($this->showText) {
+                // Font sized to fit the data; minimum 8pt cap-height-ish, max 12pt.
+                // Also capped at textHeight so cap-height (~70% of fontSize) keeps
+                // a visible gap above the glyphs - otherwise long data + small h
+                // makes the text overlap the bars.
+                $fontSize = min(12.0, $wPt / max(strlen($this->data), 8) * 0.8, $textHeight);
+                // Baseline: centre of text band + half cap-height (approx fontSize * 0.35).
+                $textY = $yPt + $barsHeight + $textHeight / 2 + $fontSize * 0.35;
+                $textYUnit = $page->unit->fromPoints($textY);
 
-            $page->save();
-            $page->setFillColor($this->color);
-            $page->setFont(Font::helvetica(), $fontSize);
-            $textWidth = $page->stringWidth($this->data);
-            $textX = $page->unit->fromPoints($xPt + $wPt / 2) - $textWidth / 2;
-            $page->text($textX, $textYUnit, $this->data);
-            $page->restore();
-        }
+                $page->save();
+                $page->setFillColor($this->color);
+                $page->setFont(Font::helvetica(), $fontSize);
+                $textWidth = $page->stringWidth($this->data);
+                $textX = $page->unit->fromPoints($xPt + $wPt / 2) - $textWidth / 2;
+                $page->text($textX, $textYUnit, $this->data);
+                $page->restore();
+            }
+        });
     }
 
     private const int QUIET_MODULES = 10;
