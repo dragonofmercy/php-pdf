@@ -1,0 +1,4 @@
+# PDF golden fixtures are byte-identity contracts. They must never be passed
+# through line-ending normalization (core.autocrlf) - doing so corrupts the
+# bytes on checkout and breaks the byte-compare tests. Treat all PDFs as binary.
+*.pdf binary
