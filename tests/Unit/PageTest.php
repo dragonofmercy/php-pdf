@@ -18,6 +18,7 @@ use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\LineCap;
 use DragonOfMercy\PhpPdf\LineJoin;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Page\TextState;
 use DragonOfMercy\PhpPdf\PageMargins;
 use DragonOfMercy\PhpPdf\Path;
 use DragonOfMercy\PhpPdf\PathOperation;
@@ -1006,13 +1007,16 @@ final class PageTest extends TestCase
         $page->setFont(Font::helvetica(), 12);
 
         // Inject a counting engine so we can compare measurement counts between paths.
-        $ref = new ReflectionProperty($page, 'currentFontEngine');
-        $inner = $ref->getValue($page);
+        $textStateRef = new ReflectionProperty($page, 'textState');
+        $textState = $textStateRef->getValue($page);
+        self::assertInstanceOf(TextState::class, $textState);
+        $ref = new ReflectionProperty($textState, 'currentFontEngine');
+        $inner = $ref->getValue($textState);
         if (!$inner instanceof FontEngine) {
             $inner = new StandardFontEngine(Font::helvetica(), $metricsRegistry->metricsFor(Font::helvetica()));
         }
         $counter = new MeasureCountingFontEngine($inner);
-        $ref->setValue($page, $counter);
+        $ref->setValue($textState, $counter);
 
         // Explicit width: only the wrap pipeline measures.
         $page->setXY(10, 10);
@@ -1040,13 +1044,16 @@ final class PageTest extends TestCase
         );
         $page->setFont(Font::helvetica(), 12);
 
-        $ref = new ReflectionProperty($page, 'currentFontEngine');
-        $inner = $ref->getValue($page);
+        $textStateRef = new ReflectionProperty($page, 'textState');
+        $textState = $textStateRef->getValue($page);
+        self::assertInstanceOf(TextState::class, $textState);
+        $ref = new ReflectionProperty($textState, 'currentFontEngine');
+        $inner = $ref->getValue($textState);
         if (!$inner instanceof FontEngine) {
             $inner = new StandardFontEngine(Font::helvetica(), $metricsRegistry->metricsFor(Font::helvetica()));
         }
         $counter = new MeasureCountingFontEngine($inner);
-        $ref->setValue($page, $counter);
+        $ref->setValue($textState, $counter);
 
         // Explicit width: condenseText measures each paragraph once.
         $page->setXY(10, 10);
@@ -1074,13 +1081,16 @@ final class PageTest extends TestCase
         );
         $page->setFont(Font::helvetica(), 12);
 
-        $ref = new ReflectionProperty($page, 'currentFontEngine');
-        $inner = $ref->getValue($page);
+        $textStateRef = new ReflectionProperty($page, 'textState');
+        $textState = $textStateRef->getValue($page);
+        self::assertInstanceOf(TextState::class, $textState);
+        $ref = new ReflectionProperty($textState, 'currentFontEngine');
+        $inner = $ref->getValue($textState);
         if (!$inner instanceof FontEngine) {
             $inner = new StandardFontEngine(Font::helvetica(), $metricsRegistry->metricsFor(Font::helvetica()));
         }
         $counter = new MeasureCountingFontEngine($inner);
-        $ref->setValue($page, $counter);
+        $ref->setValue($textState, $counter);
 
         // Explicit width wide enough to avoid shrinking: shrinkText measures
         // each paragraph once (no second pass since effectiveSize == originalSize).

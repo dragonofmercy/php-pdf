@@ -14,7 +14,6 @@ use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
-use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Outline\Link;
@@ -24,6 +23,7 @@ use DragonOfMercy\PhpPdf\Page\ContentStream;
 use DragonOfMercy\PhpPdf\Page\Cursor;
 use DragonOfMercy\PhpPdf\Page\Operators;
 use DragonOfMercy\PhpPdf\Page\PageGraphics;
+use DragonOfMercy\PhpPdf\Page\TextState;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -44,9 +44,7 @@ final class Page
     private readonly PageGraphics $graphics;
     private readonly Cursor $cursor;
 
-    private ?Font $currentFont = null;
-    private ?float $currentSize = null;
-    private ?float $customLeading = null;
+    private readonly TextState $textState;
     /** Per-side padding stored in points (canonical internal unit). */
     private CellPadding $cellsPaddingPt;
 
@@ -61,8 +59,6 @@ final class Page
 
     /** @var list<FormField> Form fields declared via {@see field()}, emitted by Document. */
     private array $formFields = [];
-
-    private ?FontEngine $currentFontEngine = null;
 
     private readonly PageMargins $margins;
 
@@ -90,27 +86,16 @@ final class Page
         $this->stream = new ContentStream($pageHeight);
         $this->graphics = new PageGraphics($this->stream, $this->unit);
         $this->cursor = new Cursor($this->unit);
-        if (($defaultFont === null) !== ($defaultSize === null)) {
-            throw new PdfException('Page default font requires both font and size, or neither');
-        }
-        if ($defaultFont !== null && $defaultSize !== null) {
-            if ($defaultSize <= 0) {
-                throw new PdfException('Default font size must be positive, got ' . $defaultSize);
-            }
-            $this->currentFont = $defaultFont;
-            $this->currentSize = $defaultSize;
-        }
+        $this->textState = new TextState(
+            $this->metricsRegistry,
+            $this->fontResolver,
+            $defaultFont,
+            $defaultSize,
+        );
         $this->cellsPaddingPt = $defaultCellsPadding !== null
             ? $this->paddingToPt($this->normalizePadding($defaultCellsPadding))
             : CellPadding::all(2.0);
         $this->margins = $margins ?? PageMargins::all(0.0);
-
-        if ($this->currentFont !== null) {
-            if ($this->currentFont->isCustom() && $this->fontResolver === null) {
-                throw new PdfException('Page received a custom Font as default but no FontResolver from Document');
-            }
-            $this->currentFontEngine = $this->buildEngineFor($this->currentFont);
-        }
     }
 
     /**
@@ -133,12 +118,7 @@ final class Page
      */
     public function captureFontState(): array
     {
-        return [
-            'font' => $this->currentFont,
-            'size' => $this->currentSize,
-            'leading' => $this->customLeading,
-            'engine' => $this->currentFontEngine,
-        ];
+        return $this->textState->capture();
     }
 
     /**
@@ -148,10 +128,7 @@ final class Page
      */
     public function restoreFontState(array $state): void
     {
-        $this->currentFont = $state['font'];
-        $this->currentSize = $state['size'];
-        $this->customLeading = $state['leading'];
-        $this->currentFontEngine = $state['engine'];
+        $this->textState->restore($state);
     }
 
     /**
@@ -330,61 +307,38 @@ final class Page
 
     public function getFont(): Font
     {
-        if ($this->currentFont === null) {
-            throw new PdfException('No font set: call setFont() first');
-        }
-        return $this->currentFont;
+        return $this->textState->getFont();
     }
 
     public function getFontSize(): float
     {
-        if ($this->currentSize === null) {
-            throw new PdfException('No font set: call setFont() first');
-        }
-        return $this->currentSize;
+        return $this->textState->getFontSize();
     }
 
     public function setFont(Font $font, ?float $size = null): self
     {
-        if ($size === null) {
-            if ($this->currentSize === null) {
-                throw new PdfException('Font size is required when no font has been set previously');
-            }
-            $size = $this->currentSize;
-        } elseif ($size <= 0) {
-            throw new PdfException('Font size must be positive, got ' . $size);
-        }
-        if ($font->isCustom() && $this->fontResolver === null) {
-            throw new PdfException(
-                "Cannot use custom font '" . $font->requireCustomAlias() . "': "
-                . 'Call Document::registerFontFamily() first.',
-            );
-        }
-        $this->currentFontEngine = $this->buildEngineFor($font);
-        $this->currentFont = $font;
-        $this->currentSize = $size;
-        $this->customLeading = null;
+        $this->textState->setFont($font, $size);
         return $this;
     }
 
     public function setLeading(float $leading): self
     {
-        $this->customLeading = $leading;
+        $this->textState->setLeading($leading);
         return $this;
     }
 
     public function text(float $x, float $y, string $text): self
     {
-        if ($this->currentFont === null || $this->currentSize === null) {
+        if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before text()');
         }
-        $engine = $this->activeEngine();
+        $engine = $this->textState->activeEngine();
 
         $shortName = $engine->registerOn($this->fontRegistry);
         $this->fontsUsed[$engine->usageKey()] = $engine->font();
 
-        $size = $this->currentSize;
-        $leading = $this->customLeading ?? ($size * 1.2);
+        $size = $this->textState->getFontSize();
+        $leading = $this->textState->customLeading() ?? ($size * 1.2);
 
         $this->stream->append(Operators::beginText());
         $this->stream->append(Operators::setFontAndSize($shortName, $size));
@@ -411,8 +365,8 @@ final class Page
      */
     public function stringWidth(string $text, ?Font $font = null, ?float $size = null): float
     {
-        $resolvedFont = $font ?? $this->currentFont;
-        $resolvedSize = $size ?? $this->currentSize;
+        $resolvedFont = $font ?? $this->textState->currentFont();
+        $resolvedSize = $size ?? $this->textState->currentSize();
 
         if ($resolvedFont === null || $resolvedSize === null) {
             throw new PdfException('No font set: pass $font and $size, or call setFont() first');
@@ -422,22 +376,7 @@ final class Page
             return 0.0;
         }
 
-        if ($resolvedFont->isCustom() && $this->fontResolver === null) {
-            throw new PdfException('Cannot measure custom Font without a registered family');
-        }
-
-        $engine = $resolvedFont === $this->currentFont && $this->currentFontEngine !== null
-            ? $this->currentFontEngine
-            : $this->buildEngineFor($resolvedFont);
-
-        $maxWidthPt = 0.0;
-        foreach (explode("\n", self::normalizeNewlines($text)) as $line) {
-            $w = $engine->measure($line, $resolvedSize);
-            if ($w > $maxWidthPt) {
-                $maxWidthPt = $w;
-            }
-        }
-        return $this->fromPt($maxWidthPt);
+        return $this->fromPt($this->textState->measureMaxLineWidthPt($text, $resolvedFont, $resolvedSize));
     }
 
     /**
@@ -530,7 +469,7 @@ final class Page
         float|CellPadding|null $padding = null,
         NextPosition $ln = NextPosition::RIGHT,
     ): CellResult {
-        if ($this->currentFont === null || $this->currentSize === null) {
+        if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before cell()');
         }
         if ($w !== null && $w <= 0) {
@@ -560,8 +499,8 @@ final class Page
                     ? $this->toPt($h)
                     : $this->estimateCellHeightPt(
                         $text,
-                        $this->currentSize ?? 0.0,
-                        $this->customLeading,
+                        $this->textState->getFontSize(),
+                        $this->textState->customLeading(),
                     );
 
                 $bottomLimitPt = $this->pageHeight - $this->toPt(
@@ -624,7 +563,7 @@ final class Page
             throw new PdfException('Cell width is required when text is empty');
         }
 
-        $engine = $this->activeEngine();
+        $engine = $this->textState->activeEngine();
         $fontShortName = '';
         if ($text !== '') {
             $fontShortName = $engine->registerOn($this->fontRegistry);
@@ -647,8 +586,8 @@ final class Page
         $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(
             engine: $engine,
-            size: $this->currentSize,
-            customLeading: $this->customLeading,
+            size: $this->textState->getFontSize(),
+            customLeading: $this->textState->customLeading(),
             x: $this->toPt($x),
             y: $this->toPt($y),
             w: $w !== null ? $this->toPt($w) : null,
@@ -812,7 +751,7 @@ final class Page
      */
     public function activeFontMetricsAtPt(float $sizePt): array
     {
-        $engine = $this->activeEngine();
+        $engine = $this->textState->activeEngine();
         return [
             'ascent' => $engine->ascentAt($sizePt),
             'descent' => $engine->descentAt($sizePt),
@@ -886,21 +825,6 @@ final class Page
         return (string) $v;
     }
 
-    private function activeEngine(): FontEngine
-    {
-        if ($this->currentFontEngine === null) {
-            throw new PdfException('No active font on this page');
-        }
-        return $this->currentFontEngine;
-    }
-
-    private function buildEngineFor(Font $font): FontEngine
-    {
-        return $this->fontResolver !== null
-            ? $this->fontResolver->resolveEngine($font)
-            : new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
-    }
-
     /**
      * Upper-bound height estimate used by auto-break before rendering. Ignores
      * wrapping (counts only explicit newlines); the tradeoff is documented in
@@ -912,7 +836,7 @@ final class Page
         if ($text === '' || $sizePt <= 0.0) {
             return 0.0;
         }
-        $engine = $this->activeEngine();
+        $engine = $this->textState->activeEngine();
         $lineCount = substr_count(self::normalizeNewlines($text), "\n") + 1;
         $effectiveLeading = $customLeading ?? ($sizePt * 1.2);
         $descentAbs = abs($engine->descentAt($sizePt));
