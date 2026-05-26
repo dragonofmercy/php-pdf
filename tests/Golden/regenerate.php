@@ -611,6 +611,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormJavascriptTest('test'))->buil
 $doc->save($fixturesDir . '/form-javascript.pdf');
 echo "Regenerated form-javascript.pdf\n";
 
+// Fixture: SubmitForm button action (HTML format)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormSubmitTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-submit.pdf');
+echo "Regenerated form-submit.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
