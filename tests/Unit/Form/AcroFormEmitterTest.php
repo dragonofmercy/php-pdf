@@ -1200,8 +1200,9 @@ final class AcroFormEmitterTest extends TestCase
             $serialized .= $obj->toBytes();
         }
 
-        // Each kid carries its own /AS entry
+        // Each kid carries its own /AS entry and its own /AP appearance dict
         self::assertSame(2, substr_count($serialized, '/AS '), 'each kid must have its own /AS');
+        self::assertSame(2, substr_count($serialized, '/AP '), 'each kid must have its own /AP');
         // Parent carries /V /On because first widget is checked
         self::assertStringContainsString('/V /On', $serialized);
     }

@@ -208,7 +208,8 @@ final readonly class AcroFormEmitter
         $firstName = $first['field']->name();
 
         // Validate: no non-first widget may carry actions.
-        for ($i = 1; $i < count($group); $i++) {
+        $groupCount = count($group);
+        for ($i = 1; $i < $groupCount; $i++) {
             if ($group[$i]['field']->actions() !== null) {
                 throw new PdfException(sprintf(
                     "Linked field '%s': actions are only honored on the first widget of a linked group",
@@ -259,23 +260,23 @@ final readonly class AcroFormEmitter
         foreach ($group as $w) {
             $kidField = $w['field'];
             $widgetRef = $w['widgetRef'];
+            $ap = $kidField->appearance();
 
             $kidDict = Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Annot'))
                 ->withEntry(Name::of('Subtype'), Name::of('Widget'))
                 ->withEntry(Name::of('Parent'), $parentRef)
                 ->withEntry(Name::of('Rect'), $this->computeRect($kidField, $w['pageHeightPt']))
-                ->withEntry(Name::of('Border'), $this->borderArray($kidField->appearance()));
+                ->withEntry(Name::of('Border'), $this->borderArray($ap));
 
-            $mk = $this->buildMK($kidField->appearance());
+            $mk = $this->buildMK($ap);
             if ($mk !== null) {
                 $kidDict = $kidDict->withEntry(Name::of('MK'), $mk);
             }
-            $da = self::buildDA($kidField->appearance());
+            $da = self::buildDA($ap);
             if ($da !== null) {
                 $kidDict = $kidDict->withEntry(Name::of('DA'), PdfString::of($da));
             }
-            $ap = $kidField->appearance();
             if ($ap?->hidden === true) {
                 $kidDict = $kidDict->withEntry(Name::of('F'), PdfNumber::ofInt(2));
             }
@@ -290,8 +291,8 @@ final readonly class AcroFormEmitter
                 $d = $kidField->dimensions();
                 $wPt = $this->unit->toPoints($d['width']);
                 $hPt = $this->unit->toPoints($d['height']);
-                $textColor = $kidField->appearance !== null && $kidField->appearance->textColor !== null
-                    ? $kidField->appearance->textColor
+                $textColor = $ap !== null && $ap->textColor !== null
+                    ? $ap->textColor
                     : Color::rgb(0, 0, 0);
                 $apContent = CheckboxAppearance::generate($wPt, $hPt, $textColor);
                 $onStream = $this->buildAppearanceStream($apContent['onContent'], $apContent['bbox']);
