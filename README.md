@@ -17,7 +17,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
-- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, and push buttons (resetForm and openUrl actions). Each field can be styled with border color and width, background color, text color, font, size, and alignment. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, and push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format). Each field can be styled with border color and width, background color, text color, font, size, and alignment. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
 
 ## Not yet implemented
 
@@ -184,7 +184,7 @@ $page->field(new TextField(50.0, 50.0, 80.0, 8.0,
 
 #### Push buttons
 
-Push buttons trigger an action on click; they hold no value. Two actions are available:
+Push buttons trigger an action on click; they hold no value. Three actions are available:
 
 ```php
 use DragonOfMercy\PhpPdf\Form\{PushButton, ButtonAction, FieldAppearance};
@@ -214,6 +214,21 @@ $page->field(PushButton::of(
     ),
 ));
 ```
+
+```php
+use DragonOfMercy\PhpPdf\Form\{PushButton, ButtonAction, SubmitFormat};
+
+// Submit the form's field data to a web endpoint (HTML POST).
+$page->field(PushButton::of(
+    x: 20, y: 50, width: 40, height: 10,
+    name: 'send', caption: 'Submit',
+    action: ButtonAction::submit('https://example.com/post', SubmitFormat::HTML),
+));
+```
+
+The `format` argument selects the submission encoding: `SubmitFormat::FDF` (default, Adobe FDF envelope), `SubmitFormat::HTML` (application/x-www-form-urlencoded), `SubmitFormat::XFDF` (XML variant of FDF), or `SubmitFormat::PDF` (the entire document is sent). Pass `get: true` for an HTTP GET request instead of the default POST - this is mainly meaningful with the HTML format.
+
+Form submission is performed by Adobe Acrobat / Adobe Reader; browser PDF viewers (Chrome, Firefox PDF.js) generally do not submit forms.
 
 #### Form JavaScript actions
 
