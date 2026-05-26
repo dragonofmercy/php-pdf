@@ -330,12 +330,6 @@ final class Document
         return $this;
     }
 
-    /** Returns the configured signature, or null when sign() was never called. */
-    public function getSignature(): ?Signature
-    {
-        return $this->signature;
-    }
-
     /**
      * Returns the outline (bookmarks) tree root. The first call creates the
      * root lazily; subsequent calls return the same instance so the user can
