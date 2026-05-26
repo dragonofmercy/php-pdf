@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Form;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
@@ -239,6 +240,11 @@ final readonly class AcroFormEmitter
                 ->withEntry(Name::of('AS'), Name::of($state))
                 ->withEntry(Name::of('AP'), $apDict);
 
+            $aa = $this->buildAdditionalActions($widget->actions(), false, $group, 'Radio');
+            if ($aa !== null) {
+                $kidDict = $kidDict->withEntry(Name::of('AA'), $aa);
+            }
+
             $kidObjs[] = IndirectObject::of($widgetRef->objectNumber, 0, $kidDict);
         }
 
@@ -310,6 +316,11 @@ final readonly class AcroFormEmitter
             $dict = $dict->withEntry(Name::of('MaxLen'), PdfNumber::ofInt($f->maxLength));
         }
 
+        $aa = $this->buildAdditionalActions($f->actions(), true, $f->name, 'TextField');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
     }
 
@@ -334,6 +345,11 @@ final readonly class AcroFormEmitter
 
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        $aa = $this->buildAdditionalActions($f->actions(), false, $f->name, 'PushButton');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
@@ -400,6 +416,11 @@ final readonly class AcroFormEmitter
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
         }
 
+        $aa = $this->buildAdditionalActions($f->actions(), false, $f->name, 'Checkbox');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+
         $widgetObj = IndirectObject::of($widgetRef->objectNumber, 0, $dict);
         return [$widgetObj, [$onObj, $offObj]];
     }
@@ -437,6 +458,11 @@ final readonly class AcroFormEmitter
         }
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        $aa = $this->buildAdditionalActions($f->actions(), true, $f->name, 'Combobox');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
@@ -479,6 +505,11 @@ final readonly class AcroFormEmitter
         }
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        $aa = $this->buildAdditionalActions($f->actions(), true, $f->name, 'Listbox');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
@@ -747,6 +778,37 @@ final readonly class AcroFormEmitter
             ));
         }
         return $mk;
+    }
+
+    /**
+     * Builds the /AA dictionary for a field, or null when there are no actions.
+     * Enforces that value triggers (K/F/V/C) appear only on text-like fields.
+     */
+    private function buildAdditionalActions(?FieldActions $actions, bool $allowValueTriggers, string $fieldName, string $fieldType): ?Dictionary
+    {
+        if ($actions === null) {
+            return null;
+        }
+        $scripts = $actions->scripts();
+        if ($scripts === []) {
+            return null;
+        }
+        $valueTriggers = ['K' => true, 'F' => true, 'V' => true, 'C' => true];
+        $dict = Dictionary::empty();
+        foreach ($scripts as $trigger => $js) {
+            if (!$allowValueTriggers && isset($valueTriggers[$trigger])) {
+                throw new PdfException(sprintf(
+                    "Field '%s': format/calculate/validate/keystroke actions are not valid on a %s",
+                    $fieldName,
+                    $fieldType,
+                ));
+            }
+            $dict = $dict->withEntry(Name::of($trigger), Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Action'))
+                ->withEntry(Name::of('S'), Name::of('JavaScript'))
+                ->withEntry(Name::of('JS'), PdfString::of($js)));
+        }
+        return $dict;
     }
 
     private function computeRect(FormField $f, float $pageHeightPt): PdfArray

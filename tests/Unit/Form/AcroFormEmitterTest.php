@@ -6,6 +6,9 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
+use DragonOfMercy\PhpPdf\Form\Action\Calculate;
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
+use DragonOfMercy\PhpPdf\Form\Action\Format;
 use DragonOfMercy\PhpPdf\Form\ButtonAction;
 use DragonOfMercy\PhpPdf\Form\Checkbox;
 use DragonOfMercy\PhpPdf\Form\PushButton;
@@ -709,5 +712,70 @@ final class AcroFormEmitterTest extends TestCase
         self::assertStringContainsString('/Type /Action', $serialized);
         self::assertStringContainsString('/S /URI', $serialized);
         self::assertStringContainsString('/URI (https://example.com)', $serialized);
+    }
+
+    public function testTextFieldWithActionsEmitsAAWithFAndCEntries(): void
+    {
+        $actions = FieldActions::new()
+            ->format(Format::currency('EUR', 2))
+            ->calculate(Calculate::sum(['a', 'b']));
+        $field = new TextField(0.0, 0.0, 80.0, 8.0, name: 'total', actions: $actions);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/AA', $serialized);
+        // /F sub-entry with JavaScript action
+        self::assertStringContainsString('/F << /Type /Action /S /JavaScript /JS (AFNumber_Format\(2, 0, 0, 0, " EUR", false\);) >>', $serialized);
+        // /C sub-entry with AFSimple_Calculate
+        self::assertStringContainsString('/C << /Type /Action /S /JavaScript /JS (AFSimple_Calculate\("SUM", new Array\("a", "b"\)\);) >>', $serialized);
+    }
+
+    public function testPushButtonWithValueTriggerThrowsPdfException(): void
+    {
+        $actions = FieldActions::new()->calculate(Calculate::custom('c();'));
+        $field = new PushButton(0.0, 0.0, 60.0, 12.0, name: 'btn', caption: 'OK', action: ButtonAction::openUrl('https://example.com'), actions: $actions);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('actions are not valid on a PushButton');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
+
+    public function testPushButtonWithMouseEnterEmitsAAWithEEntry(): void
+    {
+        $actions = FieldActions::new()->onMouseEnter('app.beep(0);');
+        $field = new PushButton(0.0, 0.0, 60.0, 12.0, name: 'btn', caption: 'OK', action: ButtonAction::openUrl('https://example.com'), actions: $actions);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/AA', $serialized);
+        self::assertStringContainsString('/E << /Type /Action /S /JavaScript /JS (app.beep\(0\);) >>', $serialized);
+    }
+
+    public function testFieldWithNoActionsDoesNotEmitAA(): void
+    {
+        $field = new TextField(0.0, 0.0, 80.0, 8.0, name: 'plain');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringNotContainsString('/AA', $serialized);
     }
 }
