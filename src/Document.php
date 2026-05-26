@@ -811,6 +811,13 @@ final class Document
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = $pageBuild['allWidgets'];
 
+        if ($allWidgets === [] && $this->signature !== null) {
+            throw new PdfException(sprintf(
+                "Signature target field '%s' not found: the document has no form fields",
+                $this->signature->fieldName,
+            ));
+        }
+
         $acroFormRef = null;
         if ($allWidgets !== []) {
             // Helvetica was pre-registered at the start of this method whenever

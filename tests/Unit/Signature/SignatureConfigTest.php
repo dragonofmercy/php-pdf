@@ -49,4 +49,14 @@ final class SignatureConfigTest extends TestCase
         $result = $doc->sign($this->cred(), field: 'sig', reason: 'r');
         self::assertSame($doc, $result);
     }
+
+    public function testOutputThrowsClearErrorWhenNoFormFieldsToSign(): void
+    {
+        $doc = new Document();
+        $doc->addPage();
+        $doc->sign($this->cred(), field: 'sig');
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Signature target field 'sig' not found");
+        $doc->output();
+    }
 }

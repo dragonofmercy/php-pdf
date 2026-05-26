@@ -50,4 +50,14 @@ final class AcroFormSignatureWiringTest extends TestCase
         $this->expectException(PdfException::class);
         (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test', $this->sig('absent'), new SignatureDictionaryEmitter());
     }
+
+    public function testNullEmitterWithSignatureThrows(): void
+    {
+        $field = SignatureField::visible(10, 10, 60, 20, name: 'sig');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Signature emitter required when signing');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test', $this->sig('sig'), null);
+    }
 }
