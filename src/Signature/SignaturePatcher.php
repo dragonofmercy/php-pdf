@@ -34,7 +34,7 @@ final readonly class SignaturePatcher
         if ($contentsPos === false) {
             throw new PdfException('Signature /Contents placeholder not found in output');
         }
-        if (strpos($bytes, $needle, $contentsPos + 1) !== false) {
+        if (strpos($bytes, $needle, $contentsPos + strlen($needle)) !== false) {
             throw new PdfException('Multiple /Contents placeholders found; single-signature only');
         }
         $lt = strpos($bytes, '<', $contentsPos);

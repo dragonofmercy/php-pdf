@@ -74,4 +74,37 @@ final class SignaturePatcherTest extends TestCase
         $this->expectException(PdfException::class);
         (new SignaturePatcher($stub))->patch($bytes, $this->sig(64));
     }
+
+    public function testMultipleContentsPlaceholdersThrow(): void
+    {
+        $max = 8;
+        $contents = '<' . str_repeat('0', $max * 2) . '>';
+        $one = "/ByteRange " . SignatureDictionaryEmitter::BYTERANGE_PLACEHOLDER . " /Contents " . $contents;
+        $bytes = "%PDF\n" . $one . "\n" . $one . "\n%%EOF";
+        $stub = static fn (string $d): string => 'x';
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Multiple /Contents');
+        (new SignaturePatcher($stub))->patch($bytes, $this->sig($max));
+    }
+
+    public function testUnterminatedContentsPlaceholderThrows(): void
+    {
+        // A /Contents < with no closing > anywhere after it.
+        $bytes = "%PDF\n/Contents <000000 and no closing angle bracket\n%%EOF";
+        $stub = static fn (string $d): string => 'x';
+        $this->expectException(PdfException::class);
+        (new SignaturePatcher($stub))->patch($bytes, $this->sig(64));
+    }
+
+    public function testMissingByteRangePlaceholderThrows(): void
+    {
+        $max = 8;
+        $contents = '<' . str_repeat('0', $max * 2) . '>';
+        // /Contents placeholder present but the /ByteRange placeholder is absent.
+        $bytes = "%PDF\n/Contents " . $contents . "\n%%EOF";
+        $stub = static fn (string $d): string => 'x';
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('/ByteRange');
+        (new SignaturePatcher($stub))->patch($bytes, $this->sig($max));
+    }
 }
