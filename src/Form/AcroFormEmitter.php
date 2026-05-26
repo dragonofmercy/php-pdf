@@ -8,6 +8,8 @@ use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
+use DragonOfMercy\PhpPdf\Signature\Signature;
+use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
@@ -40,7 +42,7 @@ final readonly class AcroFormEmitter
      * @param array<string, PdfReference> $standardFontRefs alias => reference, e.g. ['Helv' => ..., 'Cour' => ..., 'TiRo' => ...]. Must contain at least 'Helv'.
      * @return array{acroFormRef: PdfReference, objects: list<IndirectObject>}
      */
-    public function emit(array $widgets, array $standardFontRefs, int &$nextId, string $context): array
+    public function emit(array $widgets, array $standardFontRefs, int &$nextId, string $context, ?Signature $signature = null, ?SignatureDictionaryEmitter $sigEmitter = null): array
     {
         if (!isset($standardFontRefs['Helv'])) {
             throw new PdfException(
@@ -49,6 +51,31 @@ final readonly class AcroFormEmitter
         }
 
         $this->validateUniqueNames($widgets, $context);
+
+        // Resolve the signature binding before the field loop so that $sigRef
+        // can be threaded into emitSingleton.
+        $signedFieldName = $signature?->fieldName;
+        $sigRef = null;
+        if ($signature !== null) {
+            if ($sigEmitter === null) {
+                throw new PdfException('Signature emitter required when signing');
+            }
+            $found = false;
+            foreach ($widgets as $w) {
+                if ($w['field'] instanceof SignatureField && $w['field']->name() === $signedFieldName) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                throw new PdfException(sprintf(
+                    "Signature target field '%s' is not a SignatureField on the document",
+                    (string) $signedFieldName,
+                ));
+            }
+            $sigId = $nextId++;
+            $sigRef = PdfReference::to($sigId, 0);
+        }
 
         $objects = [];
         $topLevelRefs = [];
@@ -81,7 +108,7 @@ final readonly class AcroFormEmitter
         }
         foreach ($byName as $group) {
             if (count($group) === 1) {
-                $this->emitSingleton($group[0], $objects, $topLevelRefs, $calculationOrder, $hasSignatureField, $nextId, $context);
+                $this->emitSingleton($group[0], $objects, $topLevelRefs, $calculationOrder, $hasSignatureField, $nextId, $context, $signedFieldName, $sigRef);
                 continue;
             }
             $this->emitLinkedGroup($group, $objects, $topLevelRefs, $calculationOrder, $nextId, $context);
@@ -97,6 +124,15 @@ final readonly class AcroFormEmitter
                 $objects[] = $ap;
             }
             $topLevelRefs[] = $parentRef;
+        }
+
+        // Emit the /Sig dictionary (with ByteRange/Contents placeholders) when
+        // a signature is configured. This must come after the field loop so that
+        // $sigRef->objectNumber was already consumed by $nextId++.
+        // $sigRef is always non-null here when $signature !== null (set in the
+        // guard block above), so we only need the two outer checks.
+        if ($signature !== null && $sigEmitter !== null) {
+            $objects[] = $sigEmitter->emit($signature, $sigRef->objectNumber);
         }
 
         $acroFormId = $nextId++;
@@ -134,7 +170,7 @@ final readonly class AcroFormEmitter
      * @param list<PdfReference> $topLevelRefs
      * @param list<PdfReference> $calculationOrder
      */
-    private function emitSingleton(array $w, array &$objects, array &$topLevelRefs, array &$calculationOrder, bool &$hasSignatureField, int &$nextId, string $context): void
+    private function emitSingleton(array $w, array &$objects, array &$topLevelRefs, array &$calculationOrder, bool &$hasSignatureField, int &$nextId, string $context, ?string $signedFieldName = null, ?PdfReference $sigRef = null): void
     {
         $field = $w['field'];
         if ($field instanceof TextField) {
@@ -176,7 +212,8 @@ final readonly class AcroFormEmitter
             return;
         }
         if ($field instanceof SignatureField) {
-            $objects[] = $this->emitSignatureField($field, $w['widgetRef'], $w['pageHeightPt']);
+            $thisSigRef = ($signedFieldName !== null && $field->name() === $signedFieldName) ? $sigRef : null;
+            $objects[] = $this->emitSignatureField($field, $w['widgetRef'], $w['pageHeightPt'], $thisSigRef);
             $topLevelRefs[] = $w['widgetRef'];
             $hasSignatureField = true;
             return;
@@ -764,7 +801,7 @@ final readonly class AcroFormEmitter
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
     }
 
-    private function emitSignatureField(SignatureField $f, PdfReference $widgetRef, float $pageHeightPt): IndirectObject
+    private function emitSignatureField(SignatureField $f, PdfReference $widgetRef, float $pageHeightPt, ?PdfReference $sigRef = null): IndirectObject
     {
         $flags = 0;
         if ($f->readOnly) {
@@ -790,6 +827,10 @@ final readonly class AcroFormEmitter
 
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+
+        if ($sigRef !== null) {
+            $dict = $dict->withEntry(Name::of('V'), $sigRef);
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);

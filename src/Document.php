@@ -33,6 +33,10 @@ use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
+use DragonOfMercy\PhpPdf\Signature\Signature;
+use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
+use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
+use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -68,7 +72,7 @@ final class Document
 
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
-    private ?\DragonOfMercy\PhpPdf\Signature\Signature $signature = null;
+    private ?Signature $signature = null;
 
     private ?PageLayout $pageLayout = null;
     private ?PageMode $pageMode = null;
@@ -306,7 +310,7 @@ final class Document
     }
 
     public function sign(
-        \DragonOfMercy\PhpPdf\Signature\SigningCertificate $certificate,
+        SigningCertificate $certificate,
         string $field,
         ?string $reason = null,
         ?string $location = null,
@@ -314,7 +318,7 @@ final class Document
         ?\DateTimeImmutable $signedAt = null,
         int $maxSignatureBytes = 16384,
     ): self {
-        $this->signature = new \DragonOfMercy\PhpPdf\Signature\Signature(
+        $this->signature = new Signature(
             $certificate,
             $field,
             $reason,
@@ -327,7 +331,7 @@ final class Document
     }
 
     /** Returns the configured signature, or null when sign() was never called. */
-    public function getSignature(): ?\DragonOfMercy\PhpPdf\Signature\Signature
+    public function getSignature(): ?Signature
     {
         return $this->signature;
     }
@@ -503,15 +507,25 @@ final class Document
             throw new PdfException('Document has no pages');
         }
 
+        if ($this->signature !== null && $this->encryption !== null) {
+            throw new PdfException('Signing an encrypted document is not supported');
+        }
+
         $this->runFooters();
 
         if ($this->encryption !== null) {
             return $this->outputEncrypted($this->encryption, $this->metadata);
         }
 
-        return $this->metadata === null
+        $bytes = $this->metadata === null
             ? $this->outputWithoutMetadata()
             : $this->outputWithMetadata($this->metadata);
+
+        if ($this->signature !== null) {
+            $bytes = (new SignaturePatcher())->patch($bytes, $this->signature);
+        }
+
+        return $bytes;
     }
 
     private function runFooters(): void
@@ -829,7 +843,14 @@ final class Document
 
             $acroNextId = $allocator->peek();
             $acroEmit = (new AcroFormEmitter($this->unit))
-                ->emit($allWidgets, $standardFontRefs, $acroNextId, 'document acroform');
+                ->emit(
+                    $allWidgets,
+                    $standardFontRefs,
+                    $acroNextId,
+                    'document acroform',
+                    $this->signature,
+                    $this->signature !== null ? new SignatureDictionaryEmitter() : null,
+                );
             $acroFormRef = $acroEmit['acroFormRef'];
             foreach ($acroEmit['objects'] as $obj) {
                 $objects[] = $obj;
