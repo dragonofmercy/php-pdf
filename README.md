@@ -249,10 +249,10 @@ Helper catalogue:
 
 - **Format** - `Format::number(int $decimals, ...)`, `Format::currency(string $symbol, int $decimals)`, `Format::percent(int $decimals)`, `Format::date(string $format)`, `Format::time(string $format)`, `Format::custom(string $jsKeystroke, string $jsFormat)`. Format helpers attach both the Keystroke and Format triggers simultaneously.
 - **Calculate** - `Calculate::sum(array $fields)`, `Calculate::product(array $fields)`, `Calculate::average(array $fields)`, `Calculate::min(array $fields)`, `Calculate::max(array $fields)`, `Calculate::custom(string $js)`. Calculate fields are re-evaluated in the order they appear in the document.
-- **Validate** - `Validate::range(float|int $min, float|int $max)`, `Validate::custom(string $js)`.
-- **Raw triggers** on `FieldActions` - `->keystroke(string $js)`, `->format(string $js)` (raw), `->calculate(string $js)` (raw), `->validate(string $js)` (raw), `->onMouseEnter(string $js)`, `->onMouseExit(string $js)`, `->onMouseDown(string $js)`, `->onMouseUp(string $js)`, `->onFocus(string $js)`, `->onBlur(string $js)`.
+- **Validate** - `Validate::range(?float $min, ?float $max)` (pass `null` for an open-ended bound; at least one bound is required), `Validate::custom(string $js)`.
+- **Raw triggers** on `FieldActions` - `->keystroke(string $js)`, `->onMouseEnter(string $js)`, `->onMouseExit(string $js)`, `->onMouseDown(string $js)`, `->onMouseUp(string $js)`, `->onFocus(string $js)`, `->onBlur(string $js)`. The `->format()`, `->calculate()`, and `->validate()` methods take the `Format`, `Calculate`, and `Validate` value objects above (not raw strings); use `Calculate::custom()` / `Validate::custom()` / `Format::custom()` for arbitrary JavaScript.
 
-Value triggers (calculate, format, validate, keystroke) are only meaningful on text fields, comboboxes, and listboxes; applying them to checkboxes, radio buttons, or push buttons has no effect in Acrobat.
+Value triggers (calculate, format, validate, keystroke) are only valid on text fields, comboboxes, and listboxes; applying them to checkboxes, radio buttons, or push buttons throws a `PdfException` at output time. Mouse and focus triggers are valid on any field.
 
 ### Graphics
 
