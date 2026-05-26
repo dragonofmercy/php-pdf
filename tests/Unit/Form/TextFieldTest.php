@@ -116,4 +116,18 @@ final class TextFieldTest extends TestCase
         $this->expectException(PdfException::class);
         new TextField(x: 10, y: 20, width: 60, height: 8, name: 'pwd', value: 'secret', password: true);
     }
+
+    public function testActionsAccessorDefaultsNull(): void
+    {
+        $f = new \DragonOfMercy\PhpPdf\Form\TextField(0.0, 0.0, 10.0, 5.0, name: 'a');
+        self::assertNull($f->actions());
+    }
+
+    public function testActionsAccessorReturnsProvided(): void
+    {
+        $actions = \DragonOfMercy\PhpPdf\Form\Action\FieldActions::new()
+            ->calculate(\DragonOfMercy\PhpPdf\Form\Action\Calculate::custom('c();'));
+        $f = new \DragonOfMercy\PhpPdf\Form\TextField(0.0, 0.0, 10.0, 5.0, name: 'a', actions: $actions);
+        self::assertSame($actions, $f->actions());
+    }
 }

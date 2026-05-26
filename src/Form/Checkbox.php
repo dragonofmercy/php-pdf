@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
 
 /**
  * On/off checkbox AcroForm field. Width and height in user unit. Two AP
@@ -24,6 +25,7 @@ final readonly class Checkbox implements FormField
         public bool $readOnly = false,
         public ?string $tooltip = null,
         public ?FieldAppearance $appearance = null,
+        public ?FieldActions $actions = null,
     ) {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(
@@ -53,6 +55,11 @@ final readonly class Checkbox implements FormField
     public function appearance(): ?FieldAppearance
     {
         return $this->appearance;
+    }
+
+    public function actions(): ?FieldActions
+    {
+        return $this->actions;
     }
 
     private static function formatNumber(float $v): string

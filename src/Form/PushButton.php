@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
 
 /**
  * Clickable push-button AcroForm field. Width and height are in the document's
@@ -25,6 +26,7 @@ final readonly class PushButton implements FormField
         public bool $readOnly = false,
         public ?string $tooltip = null,
         public ?FieldAppearance $appearance = null,
+        public ?FieldActions $actions = null,
     ) {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(
@@ -49,8 +51,9 @@ final readonly class PushButton implements FormField
         bool $readOnly = false,
         ?string $tooltip = null,
         ?FieldAppearance $appearance = null,
+        ?FieldActions $actions = null,
     ): self {
-        return new self($x, $y, $width, $height, $name, $caption, $action, $readOnly, $tooltip, $appearance);
+        return new self($x, $y, $width, $height, $name, $caption, $action, $readOnly, $tooltip, $appearance, actions: $actions);
     }
 
     public function name(): string
@@ -69,6 +72,11 @@ final readonly class PushButton implements FormField
     public function appearance(): ?FieldAppearance
     {
         return $this->appearance;
+    }
+
+    public function actions(): ?FieldActions
+    {
+        return $this->actions;
     }
 
     private static function formatNumber(float $v): string

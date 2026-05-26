@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
 
 /**
  * Single-line or multi-line text input AcroForm field. Width and height are
@@ -27,6 +28,7 @@ final readonly class TextField implements FormField
         public ?int $maxLength = null,
         public ?string $tooltip = null,
         public ?FieldAppearance $appearance = null,
+        public ?FieldActions $actions = null,
     ) {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(
@@ -68,6 +70,11 @@ final readonly class TextField implements FormField
     public function appearance(): ?FieldAppearance
     {
         return $this->appearance;
+    }
+
+    public function actions(): ?FieldActions
+    {
+        return $this->actions;
     }
 
     private static function formatNumber(float $v): string

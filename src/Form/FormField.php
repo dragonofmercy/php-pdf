@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Form;
 
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
+
 /**
  * Marker interface for AcroForm field value objects. The single `name()`
  * getter is used by {@see \DragonOfMercy\PhpPdf\Form\AcroFormEmitter} to
@@ -16,6 +18,9 @@ namespace DragonOfMercy\PhpPdf\Form;
  *
  * `appearance()` returns the optional visual customization (border, background,
  * text color, font, size, alignment). Null means "use the PDF default".
+ *
+ * `actions()` returns the optional JavaScript actions attached to this field's
+ * widget (emitted as /AA). Null means no additional actions.
  */
 interface FormField
 {
@@ -27,4 +32,11 @@ interface FormField
     public function dimensions(): array;
 
     public function appearance(): ?FieldAppearance;
+
+    /**
+     * Optional JavaScript actions attached to this field's widget (emitted as
+     * /AA). Null means no additional actions. Value triggers (K/F/V/C) are only
+     * legal on text-like fields; this is enforced at emission time.
+     */
+    public function actions(): ?FieldActions;
 }

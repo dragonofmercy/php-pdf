@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
 
 /**
  * Single radio button widget. Multiple `Radio` instances sharing the same
@@ -27,6 +28,7 @@ final readonly class Radio implements FormField
         public bool $readOnly = false,
         public ?string $tooltip = null,
         public ?FieldAppearance $appearance = null,
+        public ?FieldActions $actions = null,
     ) {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(
@@ -56,6 +58,11 @@ final readonly class Radio implements FormField
     public function appearance(): ?FieldAppearance
     {
         return $this->appearance;
+    }
+
+    public function actions(): ?FieldActions
+    {
+        return $this->actions;
     }
 
     private static function formatNumber(float $v): string
