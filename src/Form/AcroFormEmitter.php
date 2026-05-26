@@ -373,16 +373,10 @@ final readonly class AcroFormEmitter
     private function buildButtonAction(ButtonAction $action): Dictionary
     {
         return match ($action->type()) {
-            ButtonActionType::OpenUrl => Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Action'))
-                ->withEntry(Name::of('S'), Name::of('URI'))
+            ButtonActionType::OpenUrl => $this->actionDict('URI')
                 ->withEntry(Name::of('URI'), PdfString::of($action->url() ?? throw new PdfException('OpenUrl action must carry a URL'))),
-            ButtonActionType::ResetForm => Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Action'))
-                ->withEntry(Name::of('S'), Name::of('ResetForm')),
-            ButtonActionType::SubmitForm => Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Action'))
-                ->withEntry(Name::of('S'), Name::of('SubmitForm'))
+            ButtonActionType::ResetForm => $this->actionDict('ResetForm'),
+            ButtonActionType::SubmitForm => $this->actionDict('SubmitForm')
                 ->withEntry(Name::of('F'), Dictionary::empty()
                     ->withEntry(Name::of('FS'), Name::of('URL'))
                     ->withEntry(Name::of('F'), PdfString::of(
@@ -390,6 +384,17 @@ final readonly class AcroFormEmitter
                     )))
                 ->withEntry(Name::of('Flags'), PdfNumber::ofInt($action->flags() ?? 0)),
         };
+    }
+
+    /**
+     * Starts an action dictionary with the shared `/Type /Action /S <subtype>`
+     * header; callers add the subtype-specific entries.
+     */
+    private function actionDict(string $subtype): Dictionary
+    {
+        return Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Action'))
+            ->withEntry(Name::of('S'), Name::of($subtype));
     }
 
     /**
