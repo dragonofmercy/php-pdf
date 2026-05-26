@@ -70,11 +70,17 @@ final readonly class AcroFormEmitter
             }
         }
 
+        /** @var list<PdfReference> $calculationOrder */
+        $calculationOrder = [];
+
         foreach ($nonRadios as $w) {
             $field = $w['field'];
             if ($field instanceof TextField) {
                 $objects[] = $this->emitTextField($field, $w['widgetRef'], $w['pageHeightPt']);
                 $topLevelRefs[] = $w['widgetRef'];
+                if ($field->actions()?->hasCalculate() === true) {
+                    $calculationOrder[] = $w['widgetRef'];
+                }
                 continue;
             }
             if ($field instanceof Checkbox) {
@@ -89,11 +95,17 @@ final readonly class AcroFormEmitter
             if ($field instanceof Combobox) {
                 $objects[] = $this->emitCombobox($field, $w['widgetRef'], $w['pageHeightPt']);
                 $topLevelRefs[] = $w['widgetRef'];
+                if ($field->actions()?->hasCalculate() === true) {
+                    $calculationOrder[] = $w['widgetRef'];
+                }
                 continue;
             }
             if ($field instanceof Listbox) {
                 $objects[] = $this->emitListbox($field, $w['widgetRef'], $w['pageHeightPt']);
                 $topLevelRefs[] = $w['widgetRef'];
+                if ($field->actions()?->hasCalculate() === true) {
+                    $calculationOrder[] = $w['widgetRef'];
+                }
                 continue;
             }
             if ($field instanceof PushButton) {
@@ -131,6 +143,9 @@ final readonly class AcroFormEmitter
             ->withEntry(Name::of('NeedAppearances'), PdfBoolean::true())
             ->withEntry(Name::of('DA'), PdfString::of('0 g /Helv 10 Tf'))
             ->withEntry(Name::of('DR'), $drDict);
+        if ($calculationOrder !== []) {
+            $acroFormDict = $acroFormDict->withEntry(Name::of('CO'), PdfArray::of(...$calculationOrder));
+        }
         $objects[] = IndirectObject::of($acroFormId, 0, $acroFormDict);
 
         return [

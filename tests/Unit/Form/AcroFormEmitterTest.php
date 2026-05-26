@@ -790,6 +790,46 @@ final class AcroFormEmitterTest extends TestCase
         (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
 
+    public function testCalculationOrderListsCalculateFieldsInDeclarationOrder(): void
+    {
+        $total = new TextField(0.0, 30.0, 30.0, 8.0, name: 'total',
+            actions: FieldActions::new()->calculate(Calculate::sum(['a', 'b'])));
+        $grand = new TextField(0.0, 40.0, 30.0, 8.0, name: 'grand',
+            actions: FieldActions::new()->calculate(Calculate::sum(['total'])));
+        $plain = new TextField(0.0, 10.0, 30.0, 8.0, name: 'a');
+        // Declaration order: plain (no calc), total (calc), grand (calc).
+        $widgets = [
+            ['field' => $plain, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $total, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $grand, 'widgetRef' => PdfReference::to(12, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 13;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        // /CO lists 11 0 R (total) before 12 0 R (grand), and excludes 10 0 R (plain).
+        self::assertStringContainsString('/CO [11 0 R 12 0 R]', $serialized);
+    }
+
+    public function testNoCalculationOrderWhenNoCalculateField(): void
+    {
+        $field = new TextField(0.0, 0.0, 30.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringNotContainsString('/CO', $serialized);
+    }
+
     public function testComboboxWithValidateEmitsAAWithVEntry(): void
     {
         $actions = FieldActions::new()->validate(\DragonOfMercy\PhpPdf\Form\Action\Validate::range(0, 100));
