@@ -1,0 +1,58 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /AcroForm 9 0 R /Names 12 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.275591 841.889764] /Resources << >> /Annots [5 0 R 6 0 R 7 0 R 8 0 R] >>
+endobj
+5 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Tx /Rect [56.692913 762.519685 170.07874 785.19685] /Border [0 0 0] /T (qty) /AA << /K << /Type /Action /S /JavaScript /JS (AFNumber_Keystroke\(0, 0, 0, 0, "", false\);) >> /F << /Type /Action /S /JavaScript /JS (AFNumber_Format\(0, 0, 0, 0, "", false\);) >> /V << /Type /Action /S /JavaScript /JS (AFRange_Validate\(true, 0, true, 999\);) >> >> >>
+endobj
+6 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Tx /Rect [56.692913 728.503937 170.07874 751.181102] /Border [0 0 0] /T (price) /AA << /K << /Type /Action /S /JavaScript /JS (AFNumber_Keystroke\(2, 0, 0, 0, " EUR", false\);) >> /F << /Type /Action /S /JavaScript /JS (AFNumber_Format\(2, 0, 0, 0, " EUR", false\);) >> >> >>
+endobj
+7 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Tx /Rect [56.692913 694.488189 170.07874 717.165354] /Border [0 0 0] /Ff 1 /T (total) /AA << /K << /Type /Action /S /JavaScript /JS (AFNumber_Keystroke\(2, 0, 0, 0, " EUR", false\);) >> /F << /Type /Action /S /JavaScript /JS (AFNumber_Format\(2, 0, 0, 0, " EUR", false\);) >> /C << /Type /Action /S /JavaScript /JS (AFSimple_Calculate\("PRD", new Array\("qty", "price"\)\);) >> >> >>
+endobj
+8 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Btn /Rect [56.692913 654.80315 141.732283 683.149606] /Border [0 0 0] /Ff 65536 /T (reset) /MK << /CA (Reset) >> /A << /Type /Action /S /ResetForm >> /AA << /E << /Type /Action /S /JavaScript /JS (app.beep\(0\);) >> >> >>
+endobj
+9 0 obj
+<< /Fields [5 0 R 6 0 R 7 0 R 8 0 R] /NeedAppearances true /DA (0 g /Helv 10 Tf) /DR << /Font << /Helv 4 0 R >> >> /CO [7 0 R] >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+10 0 obj
+<< /Type /Action /S /JavaScript /JS (console.println\("ready"\);) >>
+endobj
+11 0 obj
+<< /Names [(init) 10 0 R] >>
+endobj
+12 0 obj
+<< /JavaScript 11 0 R >>
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000094 00000 n 
+0000000151 00000 n 
+0000001875 00000 n 
+0000000287 00000 n 
+0000000689 00000 n 
+0000001018 00000 n 
+0000001455 00000 n 
+0000001730 00000 n 
+0000001972 00000 n 
+0000002057 00000 n 
+0000002102 00000 n 
+trailer
+<< /Size 13 /Root 1 0 R >>
+startxref
+2143
+%%EOF

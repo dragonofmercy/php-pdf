@@ -606,6 +606,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormPasswordTest('test'))->buildD
 $doc->save($fixturesDir . '/form-password.pdf');
 echo "Regenerated form-password.pdf\n";
 
+// Fixture: form with JavaScript actions (Format/Calculate/Validate/FieldActions + document script)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormJavascriptTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-javascript.pdf');
+echo "Regenerated form-javascript.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
