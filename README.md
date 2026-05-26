@@ -196,7 +196,7 @@ $page->field(new TextField(50.0, 50.0, 80.0, 8.0,
 
 **Visibility and submission flags** - two boolean flags on `FieldAppearance`:
 
-- `hidden: true` - the field is present in the form data and in the PDF object graph but is not rendered on screen or printed. Useful for hidden tokens or metadata fields. Sets the /F annotation flag bits for invisible + hidden.
+- `hidden: true` - the field is present in the form data and in the PDF object graph but is not rendered on screen or printed. Useful for hidden tokens or metadata fields. Sets the /F annotation Hidden flag (bit 2, value 2).
 - `noExport: true` - the field is visible in the reader but its value is excluded from form submissions (SubmitForm action). Sets bit 3 of the /Ff AcroForm flags.
 
 **Decoupled default value** - text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` parameter (last parameter, optional). When provided it is stored as the /DV entry and is the value restored by a ResetForm button, independently of the current display `value`. When omitted, `defaultValue` falls back to `value` (the existing behavior).
