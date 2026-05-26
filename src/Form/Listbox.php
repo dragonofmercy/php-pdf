@@ -22,6 +22,7 @@ final readonly class Listbox implements FormField
     /**
      * @param list<string>|array<string, string> $options
      * @param string|list<string>|null           $value
+     * @param string|list<string>|null           $defaultValue
      */
     public function __construct(
         public float $x,
@@ -37,6 +38,7 @@ final readonly class Listbox implements FormField
         public ?string $tooltip = null,
         public ?FieldAppearance $appearance = null,
         public ?FieldActions $actions = null,
+        public string|array|null $defaultValue = null,
     ) {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(

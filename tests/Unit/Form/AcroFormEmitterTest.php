@@ -1010,4 +1010,50 @@ final class AcroFormEmitterTest extends TestCase
         foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
         self::assertStringContainsString('/BS << /W 1 /S /D /D [3] >>', $serialized);
     }
+
+    public function testTextFieldDefaultValueDecouplesDV(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 't', value: 'current', defaultValue: 'original');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/V (current)', $serialized);
+        self::assertStringContainsString('/DV (original)', $serialized);
+    }
+
+    public function testTextFieldNullDefaultValueMirrorsValue(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 't', value: 'x');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/V (x)', $serialized);
+        self::assertStringContainsString('/DV (x)', $serialized);
+    }
+
+    public function testCheckboxDefaultValueDecouplesDV(): void
+    {
+        $field = new Checkbox(0.0, 0.0, 5.0, 5.0, name: 'c', checked: true, defaultValue: false);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/V /On', $serialized);
+        self::assertStringContainsString('/DV /Off', $serialized);
+    }
+
+    public function testComboboxDefaultValueNotInOptionsThrows(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'cb', options: ['a' => 'A'], value: 'a', defaultValue: 'zzz');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage("Combobox default value 'zzz' not found in options for field 'cb'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
 }

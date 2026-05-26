@@ -37,6 +37,7 @@ final readonly class Combobox implements FormField
         public ?string $tooltip = null,
         public ?FieldAppearance $appearance = null,
         public ?FieldActions $actions = null,
+        public ?string $defaultValue = null,
     ) {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(

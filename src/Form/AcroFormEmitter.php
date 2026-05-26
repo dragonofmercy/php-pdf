@@ -332,7 +332,10 @@ final readonly class AcroFormEmitter
 
         if ($f->value !== '') {
             $dict = $dict->withEntry(Name::of('V'), PdfString::of($f->value));
-            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($f->value));
+        }
+        $dvText = $f->defaultValue ?? ($f->value !== '' ? $f->value : null);
+        if ($dvText !== null && $dvText !== '') {
+            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($dvText));
         }
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
@@ -480,6 +483,10 @@ final readonly class AcroFormEmitter
 
         if ($f->checked) {
             $dict = $dict->withEntry(Name::of('V'), Name::of('On'));
+        }
+        if ($f->defaultValue !== null) {
+            $dict = $dict->withEntry(Name::of('DV'), Name::of($f->defaultValue ? 'On' : 'Off'));
+        } elseif ($f->checked) {
             $dict = $dict->withEntry(Name::of('DV'), Name::of('On'));
         }
         if ($f->tooltip !== null) {
@@ -524,7 +531,17 @@ final readonly class AcroFormEmitter
 
         if ($f->value !== null) {
             $dict = $dict->withEntry(Name::of('V'), PdfString::of($f->value));
-            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($f->value));
+        }
+        $dvCombo = $f->defaultValue ?? $f->value;
+        if ($dvCombo !== null) {
+            if ($f->defaultValue !== null && !self::optionsContainExport($normalized, $f->defaultValue)) {
+                throw new PdfException(sprintf(
+                    "Combobox default value '%s' not found in options for field '%s'",
+                    $f->defaultValue,
+                    $f->name,
+                ));
+            }
+            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($dvCombo));
         }
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
@@ -563,13 +580,23 @@ final readonly class AcroFormEmitter
         if ($values !== []) {
             if (count($values) === 1 && !$f->multiSelect) {
                 $dict = $dict->withEntry(Name::of('V'), PdfString::of($values[0]));
-                $dict = $dict->withEntry(Name::of('DV'), PdfString::of($values[0]));
             } else {
                 $items = [];
                 foreach ($values as $v) {
                     $items[] = PdfString::of($v);
                 }
                 $dict = $dict->withEntry(Name::of('V'), PdfArray::of(...$items));
+            }
+        }
+        $defaultValues = $this->resolveListboxDefault($f, $normalized, $values);
+        if ($defaultValues !== []) {
+            if (count($defaultValues) === 1 && !$f->multiSelect) {
+                $dict = $dict->withEntry(Name::of('DV'), PdfString::of($defaultValues[0]));
+            } else {
+                $items = [];
+                foreach ($defaultValues as $v) {
+                    $items[] = PdfString::of($v);
+                }
                 $dict = $dict->withEntry(Name::of('DV'), PdfArray::of(...$items));
             }
         }
@@ -614,6 +641,29 @@ final readonly class AcroFormEmitter
             }
         }
         return $values;
+    }
+
+    /**
+     * @param list<array{export: string, label: string, hasDistinctLabel: bool}> $normalized
+     * @param list<string> $values resolved /V values, used when defaultValue is null
+     * @return list<string>
+     */
+    private function resolveListboxDefault(Listbox $f, array $normalized, array $values): array
+    {
+        if ($f->defaultValue === null) {
+            return $values; // mirror /V, byte-identical to today
+        }
+        $defaults = is_string($f->defaultValue) ? [$f->defaultValue] : $f->defaultValue;
+        foreach ($defaults as $v) {
+            if (!self::optionsContainExport($normalized, $v)) {
+                throw new PdfException(sprintf(
+                    "Listbox default value '%s' not found in options for field '%s'",
+                    $v,
+                    $f->name,
+                ));
+            }
+        }
+        return $defaults;
     }
 
     /**
