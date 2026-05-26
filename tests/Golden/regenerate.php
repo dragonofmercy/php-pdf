@@ -621,6 +621,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormSignatureTest('test'))->build
 $doc->save($fixturesDir . '/form-signature.pdf');
 echo "Regenerated form-signature.pdf\n";
 
+// Fixture: form polish (hidden/noExport flags, /BS border style, decoupled defaultValue, tab order)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormPolishTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-polish.pdf');
+echo "Regenerated form-polish.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
