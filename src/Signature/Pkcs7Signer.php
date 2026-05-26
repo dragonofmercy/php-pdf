@@ -34,19 +34,14 @@ final readonly class Pkcs7Signer
 
             $cert = openssl_x509_read($certificate->certificatePem);
             if ($cert === false) {
-                throw new PdfException(
-                    'openssl_x509_read failed: ' . (openssl_error_string() ?: 'unknown openssl error'),
-                );
+                throw new PdfException('openssl_x509_read failed: ' . self::opensslError());
             }
 
             $privateKey = openssl_pkey_get_private($certificate->privateKeyPem);
             if ($privateKey === false) {
-                throw new PdfException(
-                    'openssl_pkey_get_private failed: ' . (openssl_error_string() ?: 'unknown openssl error'),
-                );
+                throw new PdfException('openssl_pkey_get_private failed: ' . self::opensslError());
             }
 
-            $extraCertsFile = null;
             if ($certificate->extraCertificates !== []) {
                 $extra = tempnam(sys_get_temp_dir(), 'pps_chain');
                 if ($extra === false) {
@@ -55,7 +50,6 @@ final readonly class Pkcs7Signer
                 if (file_put_contents($extra, implode("\n", $certificate->extraCertificates)) === false) {
                     throw new PdfException('Failed to write certificate chain temp file');
                 }
-                $extraCertsFile = $extra;
             }
 
             $ok = openssl_cms_sign(
@@ -66,12 +60,10 @@ final readonly class Pkcs7Signer
                 [],
                 OPENSSL_CMS_DETACHED | OPENSSL_CMS_BINARY,
                 OPENSSL_ENCODING_DER,
-                $extraCertsFile,
+                is_string($extra) ? $extra : null,
             );
             if ($ok === false) {
-                throw new PdfException(
-                    'openssl_cms_sign failed: ' . (openssl_error_string() ?: 'unknown openssl error'),
-                );
+                throw new PdfException('openssl_cms_sign failed: ' . self::opensslError());
             }
             $der = file_get_contents($out);
             if ($der === false || $der === '') {
@@ -85,5 +77,10 @@ final readonly class Pkcs7Signer
                 @unlink($extra);
             }
         }
+    }
+
+    private static function opensslError(): string
+    {
+        return openssl_error_string() ?: 'unknown openssl error';
     }
 }
