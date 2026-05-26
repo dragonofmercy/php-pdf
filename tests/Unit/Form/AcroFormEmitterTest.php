@@ -778,4 +778,32 @@ final class AcroFormEmitterTest extends TestCase
 
         self::assertStringNotContainsString('/AA', $serialized);
     }
+
+    public function testRadioKidWithValueTriggerThrowsPdfException(): void
+    {
+        $actions = FieldActions::new()->calculate(Calculate::custom('c();'));
+        $r = new \DragonOfMercy\PhpPdf\Form\Radio(0.0, 0.0, 5.0, 5.0, group: 'civility', value: 'mr', actions: $actions);
+        $widgets = [['field' => $r, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('actions are not valid on a Radio');
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
+
+    public function testComboboxWithValidateEmitsAAWithVEntry(): void
+    {
+        $actions = FieldActions::new()->validate(\DragonOfMercy\PhpPdf\Form\Action\Validate::range(0, 100));
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 80.0, 8.0, name: 'c', options: ['fr' => 'France'], value: 'fr', actions: $actions);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/AA', $serialized);
+        self::assertStringContainsString('/V << /Type /Action /S /JavaScript /JS (AFRange_Validate\(true, 0, true, 100\);) >>', $serialized);
+    }
 }
