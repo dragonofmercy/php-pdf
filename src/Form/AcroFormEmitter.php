@@ -72,6 +72,7 @@ final readonly class AcroFormEmitter
 
         /** @var list<PdfReference> $calculationOrder */
         $calculationOrder = [];
+        $hasSignatureField = false;
 
         foreach ($nonRadios as $w) {
             $field = $w['field'];
@@ -113,6 +114,12 @@ final readonly class AcroFormEmitter
                 $topLevelRefs[] = $w['widgetRef'];
                 continue;
             }
+            if ($field instanceof SignatureField) {
+                $objects[] = $this->emitSignatureField($field, $w['widgetRef'], $w['pageHeightPt']);
+                $topLevelRefs[] = $w['widgetRef'];
+                $hasSignatureField = true;
+                continue;
+            }
             throw new PdfException(sprintf(
                 'AcroFormEmitter: unsupported field type %s for %s',
                 $field::class,
@@ -145,6 +152,9 @@ final readonly class AcroFormEmitter
             ->withEntry(Name::of('DR'), $drDict);
         if ($calculationOrder !== []) {
             $acroFormDict = $acroFormDict->withEntry(Name::of('CO'), PdfArray::of(...$calculationOrder));
+        }
+        if ($hasSignatureField) {
+            $acroFormDict = $acroFormDict->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
         }
         $objects[] = IndirectObject::of($acroFormId, 0, $acroFormDict);
 
@@ -365,6 +375,37 @@ final readonly class AcroFormEmitter
         $aa = $this->buildAdditionalActions($f->actions(), false, $f->name, 'PushButton');
         if ($aa !== null) {
             $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+
+        return IndirectObject::of($widgetRef->objectNumber, 0, $dict);
+    }
+
+    private function emitSignatureField(SignatureField $f, PdfReference $widgetRef, float $pageHeightPt): IndirectObject
+    {
+        $flags = 0;
+        if ($f->readOnly) {
+            $flags |= 1 << 0;   // ReadOnly (bit 1)
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;   // Required (bit 2)
+        }
+
+        $dict = $this->baseWidgetDict($f, 'Sig', $widgetRef, $pageHeightPt, $flags)
+            ->withEntry(Name::of('T'), PdfString::of($f->name));
+
+        if (!$f->visible) {
+            // Idiomatic invisible-signature rectangle; overrides the Y-flipped
+            // rect baseWidgetDict computed from the zero dimensions.
+            $dict = $dict->withEntry(Name::of('Rect'), PdfArray::of(
+                PdfNumber::ofInt(0),
+                PdfNumber::ofInt(0),
+                PdfNumber::ofInt(0),
+                PdfNumber::ofInt(0),
+            ));
+        }
+
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
         }
 
         return IndirectObject::of($widgetRef->objectNumber, 0, $dict);

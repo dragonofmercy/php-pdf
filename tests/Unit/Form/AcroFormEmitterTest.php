@@ -12,6 +12,7 @@ use DragonOfMercy\PhpPdf\Form\Action\Format;
 use DragonOfMercy\PhpPdf\Form\ButtonAction;
 use DragonOfMercy\PhpPdf\Form\Checkbox;
 use DragonOfMercy\PhpPdf\Form\PushButton;
+use DragonOfMercy\PhpPdf\Form\SignatureField;
 use DragonOfMercy\PhpPdf\Form\SubmitFormat;
 use DragonOfMercy\PhpPdf\Form\TextField;
 use DragonOfMercy\PhpPdf\Unit;
@@ -863,6 +864,72 @@ final class AcroFormEmitterTest extends TestCase
         }
 
         self::assertStringContainsString('/Flags 0', $serialized);
+    }
+
+    public function testVisibleSignatureFieldEmitsSigWidgetWithoutValue(): void
+    {
+        $field = SignatureField::visible(10.0, 20.0, 60.0, 30.0, name: 'sig1');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/FT /Sig', $serialized);
+        self::assertStringContainsString('/T (sig1)', $serialized);
+        self::assertStringContainsString('/SigFlags 3', $serialized);
+        self::assertStringNotContainsString('/V ', $serialized);
+    }
+
+    public function testInvisibleSignatureFieldEmitsZeroRect(): void
+    {
+        $field = SignatureField::invisible(name: 'sig2');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/Rect [0 0 0 0]', $serialized);
+    }
+
+    public function testSignatureFieldReadOnlyRequiredFlags(): void
+    {
+        $field = SignatureField::visible(0.0, 0.0, 50.0, 20.0, name: 'sig', required: true, readOnly: true);
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present');
+        }
+        $flags = (int) $m[1];
+        self::assertSame(1, $flags & 1, 'ReadOnly bit');
+        self::assertSame(2, $flags & 2, 'Required bit');
+    }
+
+    public function testNoSigFlagsWhenNoSignatureField(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'a');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+        self::assertStringNotContainsString('/SigFlags', $serialized);
     }
 
     public function testComboboxWithValidateEmitsAAWithVEntry(): void
