@@ -1246,4 +1246,41 @@ final class AcroFormEmitterTest extends TestCase
         $this->expectExceptionMessage("Linked field 'shared'");
         (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
+
+    public function testLinkedCalculateFieldPutsParentRefInCalculationOrder(): void
+    {
+        // Linked TextField group whose first widget has a calculate action.
+        // /CO must reference the PARENT object (allocated at nextId), not a kid.
+        $a = new TextField(0.0, 0.0, 80.0, 8.0, name: 'shared',
+            actions: FieldActions::new()->calculate(Calculate::sum(['x', 'y'])));
+        $b = new TextField(0.0, 20.0, 80.0, 8.0, name: 'shared');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12; // parent will be object 12.
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        // /CO references the parent (12 0 R), and excludes the kid refs 10/11.
+        self::assertStringContainsString('/CO [12 0 R]', $serialized);
+    }
+
+    public function testDuplicateSignatureFieldNameThrows(): void
+    {
+        $a = SignatureField::invisible(name: 'sig');
+        $b = SignatureField::invisible(name: 'sig');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Duplicate field name 'sig'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
 }
