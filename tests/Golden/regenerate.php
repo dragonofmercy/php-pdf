@@ -626,6 +626,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormPolishTest('test'))->buildDoc
 $doc->save($fixturesDir . '/form-polish.pdf');
 echo "Regenerated form-polish.pdf\n";
 
+// Fixture: linked form fields (shared name -> parent /Kids widgets)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormLinkingTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-linking.pdf');
+echo "Regenerated form-linking.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
