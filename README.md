@@ -17,7 +17,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
-- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible placeholders to be signed later in a desktop reader). Each field can be styled with border color and width, background color, text color, font, size, and alignment. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible placeholders to be signed later in a desktop reader). Each field can be styled with border color and width, background color, text color, font, size, and alignment - plus per-field visibility flags (`hidden`, `noExport`) and advanced border styles (SOLID / DASHED / BEVELED / INSET / UNDERLINE via `FieldBorderStyle`). Text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` decoupled from their display `value`, restored by a ResetForm button. Page tab order is settable via `Page::setTabOrder(TabOrder::ROW | COLUMN | STRUCTURE)`. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
 
 ## Not yet implemented
 
@@ -180,6 +180,41 @@ $page->field(new TextField(50.0, 50.0, 80.0, 8.0,
         backgroundColor: Color::rgb(240, 240, 240),
     ),
 ));
+```
+
+#### Advanced field options
+
+**Border styles** - `FieldAppearance` accepts an optional `borderStyle: FieldBorderStyle` to control the widget border shape. The five values mirror the PDF /BS dictionary:
+
+| Case | PDF /S | Visual |
+|---|---|---|
+| `FieldBorderStyle::SOLID` | `/S` | plain solid line (default when omitted) |
+| `FieldBorderStyle::DASHED` | `/D` | dashed line (3-unit dash) |
+| `FieldBorderStyle::BEVELED` | `/B` | raised 3-D bevel |
+| `FieldBorderStyle::INSET` | `/I` | sunken 3-D inset |
+| `FieldBorderStyle::UNDERLINE` | `/U` | bottom edge only |
+
+**Visibility and submission flags** - two boolean flags on `FieldAppearance`:
+
+- `hidden: true` - the field is present in the form data and in the PDF object graph but is not rendered on screen or printed. Useful for hidden tokens or metadata fields. Sets the /F annotation flag bits for invisible + hidden.
+- `noExport: true` - the field is visible in the reader but its value is excluded from form submissions (SubmitForm action). Sets bit 3 of the /Ff AcroForm flags.
+
+**Decoupled default value** - text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` parameter (last parameter, optional). When provided it is stored as the /DV entry and is the value restored by a ResetForm button, independently of the current display `value`. When omitted, `defaultValue` falls back to `value` (the existing behavior).
+
+**Page tab order** - `Page::setTabOrder(?TabOrder $order)` writes a /Tabs entry on the page dictionary, telling compatible readers the order in which Tab key presses move through the page's fields. Pass `null` to clear the entry (reader default). The `TabOrder` enum lives in the root namespace.
+
+```php
+use DragonOfMercy\PhpPdf\Form\{TextField, FieldAppearance, FieldBorderStyle};
+use DragonOfMercy\PhpPdf\TabOrder;
+
+$page->setTabOrder(TabOrder::ROW);
+
+// Beveled border, excluded from form submission, with a default value.
+$page->field(new TextField(20, 20, 80, 8, name: 'amount', value: '0', defaultValue: '0',
+    appearance: new FieldAppearance(borderWidth: 1.0, borderStyle: FieldBorderStyle::BEVELED, noExport: true)));
+
+// Hidden field (present in the form data but not rendered on screen or printed).
+$page->field(new TextField(20, 40, 80, 8, name: 'token', appearance: new FieldAppearance(hidden: true)));
 ```
 
 #### Push buttons
