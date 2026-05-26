@@ -41,6 +41,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use DragonOfMercy\PhpPdf\Writer\Object\TextString;
+use DragonOfMercy\PhpPdf\Writer\PdfDate;
 use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
 use DragonOfMercy\PhpPdf\Writer\PdfWriter;
 use DragonOfMercy\PhpPdf\Writer\Trailer;
@@ -1144,15 +1145,7 @@ final class Document
 
     private function formatPdfDate(DateTimeImmutable $date): string
     {
-        $base = $date->format('\D\:YmdHis');
-        $offset = $date->getOffset();
-        if ($offset === 0) {
-            return $base . 'Z';
-        }
-        $sign = $offset >= 0 ? '+' : '-';
-        $h = intdiv(abs($offset), 3600);
-        $m = intdiv(abs($offset) % 3600, 60);
-        return $base . sprintf("%s%02d'%02d", $sign, $h, $m);
+        return PdfDate::format($date);
     }
 
     private function deriveDocumentId(Metadata $m): string
