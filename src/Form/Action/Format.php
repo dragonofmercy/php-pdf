@@ -31,6 +31,7 @@ final readonly class Format
     public static function number(int $decimals = 2, bool $thousands = true, int $negStyle = 0): self
     {
         self::assertDecimals($decimals);
+        self::assertNegStyle($negStyle);
         $sep = $thousands ? 0 : 1;
         $args = sprintf('%d, %d, %d, 0, "", false', $decimals, $sep, $negStyle);
         return new self("AFNumber_Keystroke({$args});", "AFNumber_Format({$args});");
@@ -102,8 +103,17 @@ final readonly class Format
         }
     }
 
+    private static function assertNegStyle(int $negStyle): void
+    {
+        if ($negStyle < 0 || $negStyle > 3) {
+            throw new PdfException(sprintf('Format number negStyle must be 0-3, got %d', $negStyle));
+        }
+    }
+
     private static function escapeJsString(string $s): string
     {
+        // Escapes backslash and double-quote only. Inputs are short currency
+        // symbols and date/time patterns that never contain control characters.
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $s);
     }
 }

@@ -98,4 +98,30 @@ final class FormatTest extends TestCase
         $this->expectExceptionMessage('Format::custom keystroke and format JavaScript cannot be empty');
         Format::custom('', 'x');
     }
+
+    public function testNumberNegStyleOutOfRangeThrows(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Format number negStyle must be 0-3, got 4');
+        Format::number(negStyle: 4);
+    }
+
+    public function testCurrencyAssertsKeystrokeJsToo(): void
+    {
+        $f = Format::currency('EUR', 2, prepend: false);
+        self::assertSame('AFNumber_Keystroke(2, 0, 0, 0, " EUR", false);', $f->keystrokeJs());
+    }
+
+    public function testCustomEmptyFormatJsThrows(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Format::custom keystroke and format JavaScript cannot be empty');
+        Format::custom('x', '');
+    }
+
+    public function testCurrencySymbolWithQuoteIsEscaped(): void
+    {
+        $f = Format::currency('"$"', 2, prepend: true);
+        self::assertSame('AFNumber_Format(2, 0, 0, 0, "\"$\" ", true);', $f->formatJs());
+    }
 }
