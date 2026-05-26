@@ -1,7 +1,7 @@
 %PDF-1.7
 %‚„œ”
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R /AcroForm 9 0 R /Names 12 0 R >>
+<< /Type /Catalog /Pages 2 0 R /AcroForm 9 0 R /Names << /JavaScript << /Names [(init) << /Type /Action /S /JavaScript /JS (console.println\("ready"\);) >>] >> >> >>
 endobj
 2 0 obj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
@@ -27,32 +27,20 @@ endobj
 4 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
 endobj
-10 0 obj
-<< /Type /Action /S /JavaScript /JS (console.println\("ready"\);) >>
-endobj
-11 0 obj
-<< /Names [(init) 10 0 R] >>
-endobj
-12 0 obj
-<< /JavaScript 11 0 R >>
-endobj
 xref
-0 13
+0 10
 0000000000 65535 f 
 0000000015 00000 n 
-0000000094 00000 n 
-0000000151 00000 n 
-0000001875 00000 n 
-0000000287 00000 n 
-0000000689 00000 n 
-0000001018 00000 n 
-0000001455 00000 n 
-0000001730 00000 n 
-0000001972 00000 n 
-0000002057 00000 n 
-0000002102 00000 n 
+0000000196 00000 n 
+0000000253 00000 n 
+0000001977 00000 n 
+0000000389 00000 n 
+0000000791 00000 n 
+0000001120 00000 n 
+0000001557 00000 n 
+0000001832 00000 n 
 trailer
-<< /Size 13 /Root 1 0 R >>
+<< /Size 10 /Root 1 0 R >>
 startxref
-2143
+2074
 %%EOF

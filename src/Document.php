@@ -536,7 +536,7 @@ final class Document
 
         $nextObjectNumber = 3 + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        [$catalogDict, $scriptObjects] = $this->withDocumentScripts($catalogDict, $nextObjectNumber);
+        $catalogDict = $this->withDocumentScripts($catalogDict);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -550,7 +550,7 @@ final class Document
         );
 
         return (new PdfWriter())->write(
-            [$catalog, $pages, ...$pageAndContentObjects, ...$outlineObjects, ...$scriptObjects],
+            [$catalog, $pages, ...$pageAndContentObjects, ...$outlineObjects],
             $catalog->reference(),
         );
     }
@@ -578,7 +578,7 @@ final class Document
 
         $nextObjectNumber = 5 + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        [$catalogDict, $scriptObjects] = $this->withDocumentScripts($catalogDict, $nextObjectNumber);
+        $catalogDict = $this->withDocumentScripts($catalogDict);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -596,7 +596,7 @@ final class Document
         $xmpXml = (new XmpWriter())->write($effective);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$scriptObjects];
+        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects];
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
@@ -660,7 +660,7 @@ final class Document
 
         $nextObjectNumber = $firstPageObjectNumber + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        [$catalogDict, $scriptObjects] = $this->withDocumentScripts($catalogDict, $nextObjectNumber);
+        $catalogDict = $this->withDocumentScripts($catalogDict);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
@@ -698,7 +698,7 @@ final class Document
         $encryptObject = IndirectObject::of($encryptObjectNumber, 0, $encryptDict);
         $objects[] = $encryptObject;
 
-        $objects = array_merge($objects, $pageAndContentObjects, $outlineObjects, $scriptObjects);
+        $objects = array_merge($objects, $pageAndContentObjects, $outlineObjects);
 
         $documentId = $metadata !== null
             ? ($metadata->documentId ?? $this->deriveDocumentId($effectiveMetadata))
@@ -1045,42 +1045,36 @@ final class Document
 
     /**
      * Adds a /Names /JavaScript name tree to the catalog for document-level
-     * scripts, mirroring withOutlines(). Keys are emitted in sorted order per
-     * PDF 32000-1 7.9.6. Returns the (possibly updated) catalog dict and any new
-     * indirect objects to append. No-op when no document script is registered.
+     * scripts, keys sorted per PDF 32000-1 7.9.6. Returns the catalog unchanged
+     * when no document script is registered.
      *
-     * @return array{0: Dictionary, 1: list<IndirectObject>}
+     * The whole structure is inlined directly into the catalog (the name tree is
+     * small by nature), so no extra indirect objects are allocated. In the
+     * encrypted path the inline /JS strings are encrypted with the catalog
+     * object's key like any other string.
      */
-    private function withDocumentScripts(Dictionary $catalogDict, int &$nextObjectNumber): array
+    private function withDocumentScripts(Dictionary $catalogDict): Dictionary
     {
         if ($this->documentScripts === []) {
-            return [$catalogDict, []];
+            return $catalogDict;
         }
         $scripts = $this->documentScripts;
         ksort($scripts, SORT_STRING);
 
-        $objects = [];
         $nameArrayItems = [];
         foreach ($scripts as $name => $js) {
-            $jsId = $nextObjectNumber++;
-            $objects[] = IndirectObject::of($jsId, 0, Dictionary::empty()
+            $nameArrayItems[] = PdfString::of($name);
+            $nameArrayItems[] = Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Action'))
                 ->withEntry(Name::of('S'), Name::of('JavaScript'))
-                ->withEntry(Name::of('JS'), PdfString::of($js)));
-            $nameArrayItems[] = PdfString::of($name);
-            $nameArrayItems[] = PdfReference::to($jsId, 0);
+                ->withEntry(Name::of('JS'), PdfString::of($js));
         }
 
-        $jsTreeId = $nextObjectNumber++;
-        $objects[] = IndirectObject::of($jsTreeId, 0, Dictionary::empty()
-            ->withEntry(Name::of('Names'), PdfArray::of(...$nameArrayItems)));
-
-        $namesId = $nextObjectNumber++;
-        $objects[] = IndirectObject::of($namesId, 0, Dictionary::empty()
-            ->withEntry(Name::of('JavaScript'), PdfReference::to($jsTreeId, 0)));
-
-        $catalogDict = $catalogDict->withEntry(Name::of('Names'), PdfReference::to($namesId, 0));
-        return [$catalogDict, $objects];
+        $namesDict = Dictionary::empty()->withEntry(
+            Name::of('JavaScript'),
+            Dictionary::empty()->withEntry(Name::of('Names'), PdfArray::of(...$nameArrayItems)),
+        );
+        return $catalogDict->withEntry(Name::of('Names'), $namesDict);
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
