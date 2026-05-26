@@ -710,8 +710,41 @@ final readonly class AcroFormEmitter
         if ($da !== null) {
             $dict = $dict->withEntry(Name::of('DA'), PdfString::of($da));
         }
+        $ap = $f->appearance();
+        if ($ap?->noExport === true) {
+            $flags |= 1 << 2;   // NoExport (field flag bit 3, value 4)
+        }
         if ($flags !== 0) {
             $dict = $dict->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags));
+        }
+        if ($ap?->hidden === true) {
+            $dict = $dict->withEntry(Name::of('F'), PdfNumber::ofInt(2)); // Hidden (annotation flag bit 2)
+        }
+        if ($ap !== null && $ap->borderStyle !== null) {
+            $dict = $dict->withEntry(Name::of('BS'), $this->buildBorderStyleDict($ap));
+        }
+        return $dict;
+    }
+
+    private function buildBorderStyleDict(FieldAppearance $ap): Dictionary
+    {
+        $width = $ap->borderWidth ?? 1.0;
+        $widthEntry = ((float) (int) $width === $width)
+            ? PdfNumber::ofInt((int) $width)
+            : PdfNumber::ofFloat($width);
+        $style = match ($ap->borderStyle) {
+            FieldBorderStyle::SOLID => 'S',
+            FieldBorderStyle::DASHED => 'D',
+            FieldBorderStyle::BEVELED => 'B',
+            FieldBorderStyle::INSET => 'I',
+            FieldBorderStyle::UNDERLINE => 'U',
+            null => 'S',
+        };
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('W'), $widthEntry)
+            ->withEntry(Name::of('S'), Name::of($style));
+        if ($ap->borderStyle === FieldBorderStyle::DASHED) {
+            $dict = $dict->withEntry(Name::of('D'), PdfArray::of(PdfNumber::ofInt(3)));
         }
         return $dict;
     }

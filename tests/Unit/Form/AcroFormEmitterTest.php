@@ -11,6 +11,8 @@ use DragonOfMercy\PhpPdf\Form\Action\FieldActions;
 use DragonOfMercy\PhpPdf\Form\Action\Format;
 use DragonOfMercy\PhpPdf\Form\ButtonAction;
 use DragonOfMercy\PhpPdf\Form\Checkbox;
+use DragonOfMercy\PhpPdf\Form\FieldAppearance;
+use DragonOfMercy\PhpPdf\Form\FieldBorderStyle;
 use DragonOfMercy\PhpPdf\Form\PushButton;
 use DragonOfMercy\PhpPdf\Form\SignatureField;
 use DragonOfMercy\PhpPdf\Form\SubmitFormat;
@@ -947,5 +949,65 @@ final class AcroFormEmitterTest extends TestCase
 
         self::assertStringContainsString('/AA', $serialized);
         self::assertStringContainsString('/V << /Type /Action /S /JavaScript /JS (AFRange_Validate\(true, 0, true, 100\);) >>', $serialized);
+    }
+
+    public function testHiddenAppearanceEmitsAnnotationFlagF(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'h', appearance: new FieldAppearance(hidden: true));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/F 2', $serialized);
+    }
+
+    public function testNoHiddenMeansNoAnnotationFlag(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'h');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringNotContainsString('/F 2', $serialized);
+    }
+
+    public function testNoExportSetsFfBitFour(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'n', appearance: new FieldAppearance(noExport: true));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        if (preg_match('~/Ff (\d+)~', $serialized, $m) !== 1) {
+            self::fail('/Ff entry must be present when noExport is set');
+        }
+        self::assertSame(4, ((int) $m[1]) & 4, 'NoExport bit (mask 4) must be set');
+    }
+
+    public function testBorderStyleBeveledEmitsBS(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'b',
+            appearance: new FieldAppearance(borderWidth: 2.0, borderStyle: FieldBorderStyle::BEVELED));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/BS << /W 2 /S /B >>', $serialized);
+    }
+
+    public function testBorderStyleDashedEmitsDashArray(): void
+    {
+        $field = new TextField(0.0, 0.0, 50.0, 8.0, name: 'd',
+            appearance: new FieldAppearance(borderWidth: 1.0, borderStyle: FieldBorderStyle::DASHED));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/BS << /W 1 /S /D /D [3] >>', $serialized);
     }
 }
