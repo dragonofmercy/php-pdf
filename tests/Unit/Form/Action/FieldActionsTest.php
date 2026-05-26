@@ -78,4 +78,26 @@ final class FieldActionsTest extends TestCase
         $this->expectExceptionMessage('FieldActions: keystroke JavaScript cannot be empty');
         FieldActions::new()->keystroke('');
     }
+
+    public function testAllMouseAndFocusSettersMapToTheirTriggers(): void
+    {
+        $a = FieldActions::new()
+            ->onMouseExit('x();')
+            ->onMouseDown('d();')
+            ->onMouseUp('u();')
+            ->onFocus('fo();');
+        $scripts = $a->scripts();
+        self::assertSame(['X', 'D', 'U', 'Fo'], array_keys($scripts));
+        self::assertSame('x();', $scripts['X']);
+        self::assertSame('d();', $scripts['D']);
+        self::assertSame('u();', $scripts['U']);
+        self::assertSame('fo();', $scripts['Fo']);
+    }
+
+    public function testEmptyMouseJsThrows(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('FieldActions: mouse-up JavaScript cannot be empty');
+        FieldActions::new()->onMouseUp('');
+    }
 }
