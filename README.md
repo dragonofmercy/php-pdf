@@ -17,13 +17,13 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
-- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, and push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format). Each field can be styled with border color and width, background color, text color, font, size, and alignment. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible placeholders to be signed later in a desktop reader). Each field can be styled with border color and width, background color, text color, font, size, and alignment. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Forms : signature fields, field linking (cross-name shared values) - later phases.
-- Digital signatures, Markdown rendering - later phases.
+- Forms : field linking (cross-name shared values) - later phases.
+- Digital signatures (programmatic PKCS#7 / CMS signing), Markdown rendering - later phases.
 
 ## Installation
 
@@ -268,6 +268,29 @@ Helper catalogue:
 - **Raw triggers** on `FieldActions` - `->keystroke(string $js)`, `->onMouseEnter(string $js)`, `->onMouseExit(string $js)`, `->onMouseDown(string $js)`, `->onMouseUp(string $js)`, `->onFocus(string $js)`, `->onBlur(string $js)`. The `->format()`, `->calculate()`, and `->validate()` methods take the `Format`, `Calculate`, and `Validate` value objects above (not raw strings); use `Calculate::custom()` / `Validate::custom()` / `Format::custom()` for arbitrary JavaScript.
 
 Value triggers (calculate, format, validate, keystroke) are only valid on text fields, comboboxes, and listboxes; applying them to checkboxes, radio buttons, or push buttons throws a `PdfException` at output time. Mouse and focus triggers are valid on any field.
+
+#### Signature fields
+
+A signature field is an unsigned placeholder: it marks the location (and optional appearance) where a human will later apply a cryptographic signature in a desktop reader such as Adobe Acrobat / Reader. The library generates the `/FT /Sig` widget annotation; it does NOT compute a PKCS#7 / CMS signature - programmatic cryptographic signing is a later phase and is not yet supported.
+
+A document that contains at least one signature field automatically emits `/SigFlags 3` in the AcroForm dictionary, which tells compatible readers to enable their signing UI.
+
+```php
+use DragonOfMercy\PhpPdf\Form\SignatureField;
+use DragonOfMercy\PhpPdf\Form\FieldAppearance;
+use DragonOfMercy\PhpPdf\Color;
+
+// A visible signing box (bordered). Left unsigned - the reader signs it.
+$page->field(SignatureField::visible(
+    x: 20, y: 20, width: 80, height: 30, name: 'signature',
+    appearance: new FieldAppearance(borderColor: Color::rgb(0, 0, 0), borderWidth: 0.5),
+));
+
+// An invisible signature field (no on-page rendering).
+$page->field(SignatureField::invisible(name: 'approval'));
+```
+
+`SignatureField::visible()` places a rectangle on the page at `(x, y)` with the given `width` and `height` (document unit). `SignatureField::invisible()` creates a zero-size annotation with no visual footprint - useful for metadata-level approval workflows. Both variants accept `required`, `readOnly`, and `tooltip` optional parameters.
 
 ### Graphics
 
