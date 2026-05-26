@@ -17,12 +17,12 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
-- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible placeholders to be signed later in a desktop reader). Each field can be styled with border color and width, background color, text color, font, size, and alignment - plus per-field visibility flags (`hidden`, `noExport`) and advanced border styles (SOLID / DASHED / BEVELED / INSET / UNDERLINE via `FieldBorderStyle`). Text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` decoupled from their display `value`, restored by a ResetForm button. Page tab order is settable via `Page::setTabOrder(TabOrder::ROW | COLUMN | STRUCTURE)`. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`. Several fields sharing the same name are automatically linked - they emit as one logical field and stay synchronized in the reader (field linking).
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible) that can be left as placeholders or signed programmatically with a real PKCS#7 / CMS signature via `Document::sign()` and a PKCS#12 credential. Each field can be styled with border color and width, background color, text color, font, size, and alignment - plus per-field visibility flags (`hidden`, `noExport`) and advanced border styles (SOLID / DASHED / BEVELED / INSET / UNDERLINE via `FieldBorderStyle`). Text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` decoupled from their display `value`, restored by a ResetForm button. Page tab order is settable via `Page::setTabOrder(TabOrder::ROW | COLUMN | STRUCTURE)`. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`. Several fields sharing the same name are automatically linked - they emit as one logical field and stay synchronized in the reader (field linking).
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Digital signatures (programmatic PKCS#7 / CMS signing), Markdown rendering - later phases.
+- Multiple signatures per document, RFC 3161 timestamps (TSA), PAdES; Markdown rendering - later phases.
 
 ## Installation
 
@@ -321,7 +321,7 @@ Value triggers (calculate, format, validate, keystroke) are only valid on text f
 
 #### Signature fields
 
-A signature field is an unsigned placeholder: it marks the location (and optional appearance) where a human will later apply a cryptographic signature in a desktop reader such as Adobe Acrobat / Reader. The library generates the `/FT /Sig` widget annotation; it does NOT compute a PKCS#7 / CMS signature - programmatic cryptographic signing is a later phase and is not yet supported.
+A signature field marks the location (and optional appearance) of a digital signature. Left on its own it is an unsigned placeholder a human can sign later in a desktop reader (Adobe Acrobat / Reader); combined with `Document::sign()` (see "Signing a document" below) the library applies a real PKCS#7 / CMS signature at output time. The library generates the `/FT /Sig` widget annotation either way.
 
 A document that contains at least one signature field automatically emits `/SigFlags 3` in the AcroForm dictionary, which tells compatible readers to enable their signing UI.
 
@@ -341,6 +341,33 @@ $page->field(SignatureField::invisible(name: 'approval'));
 ```
 
 `SignatureField::visible()` places a rectangle on the page at `(x, y)` with the given `width` and `height` (document unit). `SignatureField::invisible()` creates a zero-size annotation with no visual footprint - useful for metadata-level approval workflows. Both variants accept `required`, `readOnly`, and `tooltip` optional parameters.
+
+#### Signing a document
+
+`Document::sign()` applies a real cryptographic signature to a signature field. The library serializes the PDF with a `/ByteRange` and `/Contents` placeholder, then computes a detached PKCS#7 / CMS signature (`adbe.pkcs7.detached`, SHA-256) over the document bytes and patches it in - producing a file that validates in Adobe Acrobat / Reader. The signing credential is loaded from a PKCS#12 (`.p12` / `.pfx`) bundle. The `openssl` PHP extension is required.
+
+```php
+use DragonOfMercy\PhpPdf\Form\SignatureField;
+use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
+
+$page->field(SignatureField::visible(20, 20, 80, 20, name: 'signature'));
+
+$doc->sign(
+    SigningCertificate::fromPkcs12('cert.p12', 'password'),
+    field: 'signature',                  // name of the SignatureField to sign
+    reason: 'I approve this document',   // optional
+    location: 'Geneva',                  // optional
+    contactInfo: 'signer@example.com',   // optional
+);
+$doc->save('signed.pdf');
+```
+
+Notes and current limits:
+
+- One signature per document. The `field` must name an existing `SignatureField` (visible or invisible).
+- `signedAt` (defaults to now) and `maxSignatureBytes` (the `/Contents` placeholder size, default 16384) are optional. If the produced signature does not fit, raise `maxSignatureBytes`.
+- Signing and encryption cannot be combined; configuring both throws a `PdfException`.
+- Not yet supported: multiple signatures, RFC 3161 timestamps (TSA), and PAdES (`ETSI.CAdES.detached`).
 
 ### Graphics
 
