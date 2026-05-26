@@ -217,6 +217,22 @@ $page->field(new TextField(20, 20, 80, 8, name: 'amount', value: '0', defaultVal
 $page->field(new TextField(20, 40, 80, 8, name: 'token', appearance: new FieldAppearance(hidden: true)));
 ```
 
+#### Linked fields
+
+Add several fields with the **same name** and they become one logical field: typing in one widget updates every other, exactly as a viewer synchronizes linked fields (the same mechanism radio buttons already use to share a group value). The library emits a single parent `/Field` with one `/Kids` widget per placement.
+
+```php
+use DragonOfMercy\PhpPdf\Form\TextField;
+
+// One "customer" field shown at the top and repeated in the page footer.
+$page->field(new TextField(20, 20, 80, 8, name: 'customer', value: 'ACME'));
+$page->field(new TextField(20, 250, 80, 8, name: 'customer'));
+```
+
+- Linking applies to `TextField`, `Checkbox`, `Combobox`, and `Listbox`. Each placement keeps its own position and appearance (border, colors, hidden flag).
+- The field-level properties - value, default value, flags, options, max length, tooltip, and JavaScript actions - are taken from the **first** widget added (first-wins); later same-name widgets contribute only their placement and look.
+- Mixing types under one name, or repeating a `PushButton` or `SignatureField` name, throws a `PdfException`. Attaching `actions` to anything other than the first widget of a linked group also throws.
+
 #### Push buttons
 
 Push buttons trigger an action on click; they hold no value. Three actions are available:
