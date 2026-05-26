@@ -17,12 +17,12 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **SVG vector images** - inline `<svg>` or `.svg` file, fully vector (infinite zoom). Shapes, paths (all commands including arcs), transforms, groups, `<use>` references, `viewBox` + `preserveAspectRatio`, solid fills and strokes with opacity, dash patterns, 147 named CSS colors. Unsupported features (text, gradients, filters) are skipped silently.
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
-- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, and push buttons (resetForm and openUrl actions). Each field can be styled with border color and width, background color, text color, font, size, and alignment.
+- **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, and push buttons (resetForm and openUrl actions). Each field can be styled with border color and width, background color, text color, font, size, and alignment. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`.
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Forms : signature fields, JavaScript actions (calc / format / validate), field linking (cross-name shared values) - later phases.
+- Forms : signature fields, field linking (cross-name shared values) - later phases.
 - Digital signatures, Markdown rendering - later phases.
 
 ## Installation
@@ -214,6 +214,45 @@ $page->field(PushButton::of(
     ),
 ));
 ```
+
+#### Form JavaScript actions
+
+Fields can carry JavaScript behaviours via a `FieldActions` value object passed as the `actions:` parameter. Three categories of helpers are provided: `Format` (controls how a value is displayed after the user leaves the field), `Calculate` (computes a field value from other named fields), and `Validate` (rejects out-of-range input). All three expose predefined Adobe helpers (AFNumber_Format, AFSimple_Calculate, AFRange_Validate, etc.) plus a `custom(string $js)` escape hatch for arbitrary JavaScript. Document-level scripts - run once when the PDF opens - are registered with `$pdf->addDocumentScript(string $name, string $js)`.
+
+**Important:** these JavaScript behaviours are executed only by Adobe Acrobat / Adobe Reader. Browser PDF viewers (Chrome, Firefox PDF.js) and most mobile viewers ignore them entirely, so the field keeps its raw typed value. This is a hint, like the viewer preferences, not a guarantee.
+
+```php
+use DragonOfMercy\PhpPdf\Form\TextField;
+use DragonOfMercy\PhpPdf\Form\Action\{FieldActions, Format, Calculate, Validate};
+
+// Range-validated, integer-formatted quantity.
+$page->field(new TextField(20, 20, 40, 8, name: 'qty',
+    actions: FieldActions::new()
+        ->format(Format::number(0))
+        ->validate(Validate::range(0, 999))));
+
+// Currency-formatted unit price.
+$page->field(new TextField(20, 32, 40, 8, name: 'price',
+    actions: FieldActions::new()->format(Format::currency('EUR', 2))));
+
+// Read-only total = qty * price, shown as currency. Recalculated by Acrobat.
+$page->field(new TextField(20, 44, 40, 8, name: 'total', readOnly: true,
+    actions: FieldActions::new()
+        ->calculate(Calculate::product(['qty', 'price']))
+        ->format(Format::currency('EUR', 2))));
+
+// Script run when the document opens.
+$pdf->addDocumentScript('init', 'console.println("ready");');
+```
+
+Helper catalogue:
+
+- **Format** - `Format::number(int $decimals, ...)`, `Format::currency(string $symbol, int $decimals)`, `Format::percent(int $decimals)`, `Format::date(string $format)`, `Format::time(string $format)`, `Format::custom(string $jsKeystroke, string $jsFormat)`. Format helpers attach both the Keystroke and Format triggers simultaneously.
+- **Calculate** - `Calculate::sum(array $fields)`, `Calculate::product(array $fields)`, `Calculate::average(array $fields)`, `Calculate::min(array $fields)`, `Calculate::max(array $fields)`, `Calculate::custom(string $js)`. Calculate fields are re-evaluated in the order they appear in the document.
+- **Validate** - `Validate::range(float|int $min, float|int $max)`, `Validate::custom(string $js)`.
+- **Raw triggers** on `FieldActions` - `->keystroke(string $js)`, `->format(string $js)` (raw), `->calculate(string $js)` (raw), `->validate(string $js)` (raw), `->onMouseEnter(string $js)`, `->onMouseExit(string $js)`, `->onMouseDown(string $js)`, `->onMouseUp(string $js)`, `->onFocus(string $js)`, `->onBlur(string $js)`.
+
+Value triggers (calculate, format, validate, keystroke) are only meaningful on text fields, comboboxes, and listboxes; applying them to checkboxes, radio buttons, or push buttons has no effect in Acrobat.
 
 ### Graphics
 
