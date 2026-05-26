@@ -616,6 +616,11 @@ $doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormSubmitTest('test'))->buildDoc
 $doc->save($fixturesDir . '/form-submit.pdf');
 echo "Regenerated form-submit.pdf\n";
 
+// Fixture: signature fields (visible + invisible placeholder, /SigFlags)
+$doc = (new \DragonOfMercy\PhpPdf\Tests\Golden\FormSignatureTest('test'))->buildDocument();
+$doc->save($fixturesDir . '/form-signature.pdf');
+echo "Regenerated form-signature.pdf\n";
+
 // Fixture: Aztec Code - short ASCII URL, MEDIUM EC, default color
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
