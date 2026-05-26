@@ -84,10 +84,7 @@ final readonly class AcroFormEmitter
                 $this->emitSingleton($group[0], $objects, $topLevelRefs, $calculationOrder, $hasSignatureField, $nextId, $context);
                 continue;
             }
-            // TEMPORARY fallback (Task 3 replaces this with linked emission):
-            foreach ($group as $w) {
-                $this->emitSingleton($w, $objects, $topLevelRefs, $calculationOrder, $hasSignatureField, $nextId, $context);
-            }
+            $this->emitLinkedGroup($group, $objects, $topLevelRefs, $calculationOrder, $nextId, $context);
         }
 
         foreach ($radiosByGroup as $group => $radios) {
@@ -189,6 +186,350 @@ final readonly class AcroFormEmitter
             $field::class,
             $context,
         ));
+    }
+
+    /**
+     * Emits a linked group of same-name same-type non-radio widgets as one parent
+     * /Field object plus N annotation-only kid objects.
+     *
+     * Field-level entries (/FT /T /Ff /V /DV /Opt /MaxLen /TU /AA) come from the
+     * first widget only. Annotation-level entries (/Type /Annot /Subtype /Widget
+     * /Parent /Rect /Border /MK /DA /BS /F and, for Checkbox, /AP /AS) are emitted
+     * per kid from that kid's own appearance.
+     *
+     * @param list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $group
+     * @param list<IndirectObject> $objects
+     * @param list<PdfReference> $topLevelRefs
+     * @param list<PdfReference> $calculationOrder
+     */
+    private function emitLinkedGroup(array $group, array &$objects, array &$topLevelRefs, array &$calculationOrder, int &$nextId, string $context): void
+    {
+        $first = $group[0];
+        $firstName = $first['field']->name();
+
+        // Validate: no non-first widget may carry actions.
+        for ($i = 1; $i < count($group); $i++) {
+            if ($group[$i]['field']->actions() !== null) {
+                throw new PdfException(sprintf(
+                    "Linked field '%s': actions are only honored on the first widget of a linked group",
+                    $firstName,
+                ));
+            }
+        }
+
+        $parentId = $nextId++;
+        $parentRef = PdfReference::to($parentId, 0);
+
+        // Build kid refs array.
+        $kidRefs = [];
+        foreach ($group as $w) {
+            $kidRefs[] = $w['widgetRef'];
+        }
+
+        // Build the parent dict by type of the first widget.
+        $firstField = $first['field'];
+        if ($firstField instanceof TextField) {
+            $parentDict = $this->buildLinkedTextFieldParent($firstField, $kidRefs);
+            if ($firstField->actions()?->hasCalculate() === true) {
+                $calculationOrder[] = $parentRef;
+            }
+        } elseif ($firstField instanceof Checkbox) {
+            $parentDict = $this->buildLinkedCheckboxParent($firstField, $kidRefs);
+        } elseif ($firstField instanceof Combobox) {
+            $parentDict = $this->buildLinkedComboboxParent($firstField, $kidRefs);
+            if ($firstField->actions()?->hasCalculate() === true) {
+                $calculationOrder[] = $parentRef;
+            }
+        } elseif ($firstField instanceof Listbox) {
+            $parentDict = $this->buildLinkedListboxParent($firstField, $kidRefs);
+            if ($firstField->actions()?->hasCalculate() === true) {
+                $calculationOrder[] = $parentRef;
+            }
+        } else {
+            throw new PdfException(sprintf(
+                'AcroFormEmitter: unsupported linked field type %s for %s',
+                $firstField::class,
+                $context,
+            ));
+        }
+
+        $objects[] = IndirectObject::of($parentId, 0, $parentDict);
+
+        // Emit each kid as annotation-only.
+        foreach ($group as $w) {
+            $kidField = $w['field'];
+            $widgetRef = $w['widgetRef'];
+
+            $kidDict = Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Annot'))
+                ->withEntry(Name::of('Subtype'), Name::of('Widget'))
+                ->withEntry(Name::of('Parent'), $parentRef)
+                ->withEntry(Name::of('Rect'), $this->computeRect($kidField, $w['pageHeightPt']))
+                ->withEntry(Name::of('Border'), $this->borderArray($kidField->appearance()));
+
+            $mk = $this->buildMK($kidField->appearance());
+            if ($mk !== null) {
+                $kidDict = $kidDict->withEntry(Name::of('MK'), $mk);
+            }
+            $da = self::buildDA($kidField->appearance());
+            if ($da !== null) {
+                $kidDict = $kidDict->withEntry(Name::of('DA'), PdfString::of($da));
+            }
+            $ap = $kidField->appearance();
+            if ($ap?->hidden === true) {
+                $kidDict = $kidDict->withEntry(Name::of('F'), PdfNumber::ofInt(2));
+            }
+            if ($ap !== null && $ap->borderStyle !== null) {
+                $kidDict = $kidDict->withEntry(Name::of('BS'), $this->buildBorderStyleDict($ap));
+            }
+
+            // Checkbox kids each need their own /AP and /AS.
+            if ($kidField instanceof Checkbox) {
+                $onId = $nextId++;
+                $offId = $nextId++;
+                $d = $kidField->dimensions();
+                $wPt = $this->unit->toPoints($d['width']);
+                $hPt = $this->unit->toPoints($d['height']);
+                $textColor = $kidField->appearance !== null && $kidField->appearance->textColor !== null
+                    ? $kidField->appearance->textColor
+                    : Color::rgb(0, 0, 0);
+                $apContent = CheckboxAppearance::generate($wPt, $hPt, $textColor);
+                $onStream = $this->buildAppearanceStream($apContent['onContent'], $apContent['bbox']);
+                $offStream = $this->buildAppearanceStream($apContent['offContent'], $apContent['bbox']);
+                $objects[] = IndirectObject::of($onId, 0, $onStream);
+                $objects[] = IndirectObject::of($offId, 0, $offStream);
+
+                $apDict = Dictionary::empty()
+                    ->withEntry(Name::of('N'), Dictionary::empty()
+                        ->withEntry(Name::of('On'), PdfReference::to($onId, 0))
+                        ->withEntry(Name::of('Off'), PdfReference::to($offId, 0)));
+
+                $state = $kidField->checked ? 'On' : 'Off';
+                $kidDict = $kidDict
+                    ->withEntry(Name::of('AS'), Name::of($state))
+                    ->withEntry(Name::of('AP'), $apDict);
+            }
+
+            $objects[] = IndirectObject::of($widgetRef->objectNumber, 0, $kidDict);
+        }
+
+        $topLevelRefs[] = $parentRef;
+    }
+
+    /**
+     * Builds the parent /Field dictionary for a linked TextField group.
+     * Contains /FT /T /Ff /V /DV /Q /TU /MaxLen /AA; no /Type /Annot, no /Rect.
+     *
+     * @param list<PdfReference> $kidRefs
+     */
+    private function buildLinkedTextFieldParent(TextField $f, array $kidRefs): Dictionary
+    {
+        $flags = 0;
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+        if ($f->multiline) {
+            $flags |= 1 << 12;
+        }
+        if ($f->password) {
+            $flags |= 1 << 13;
+        }
+        if ($f->appearance?->noExport === true) {
+            $flags |= 1 << 2;
+        }
+
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('FT'), Name::of('Tx'))
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('Kids'), PdfArray::of(...$kidRefs));
+
+        if ($flags !== 0) {
+            $dict = $dict->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags));
+        }
+        if ($f->appearance !== null && $f->appearance->align !== TextAlign::LEFT) {
+            $q = $f->appearance->align === TextAlign::CENTER ? 1 : 2;
+            $dict = $dict->withEntry(Name::of('Q'), PdfNumber::ofInt($q));
+        }
+        if ($f->value !== '') {
+            $dict = $dict->withEntry(Name::of('V'), PdfString::of($f->value));
+        }
+        $dvText = $f->defaultValue ?? ($f->value !== '' ? $f->value : null);
+        if ($dvText !== null && $dvText !== '') {
+            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($dvText));
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+        if ($f->maxLength !== null) {
+            $dict = $dict->withEntry(Name::of('MaxLen'), PdfNumber::ofInt($f->maxLength));
+        }
+        $aa = $this->buildAdditionalActions($f->actions(), true, $f->name, 'TextField');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+        return $dict;
+    }
+
+    /**
+     * Builds the parent /Field dictionary for a linked Checkbox group.
+     * Contains /FT /T /Ff /V /DV /TU /AA; AP/AS live on kids.
+     *
+     * @param list<PdfReference> $kidRefs
+     */
+    private function buildLinkedCheckboxParent(Checkbox $f, array $kidRefs): Dictionary
+    {
+        $flags = 0;
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+        if ($f->appearance?->noExport === true) {
+            $flags |= 1 << 2;
+        }
+
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('FT'), Name::of('Btn'))
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('Kids'), PdfArray::of(...$kidRefs));
+
+        if ($flags !== 0) {
+            $dict = $dict->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags));
+        }
+        if ($f->checked) {
+            $dict = $dict->withEntry(Name::of('V'), Name::of('On'));
+        }
+        if ($f->defaultValue !== null) {
+            $dict = $dict->withEntry(Name::of('DV'), Name::of($f->defaultValue ? 'On' : 'Off'));
+        } elseif ($f->checked) {
+            $dict = $dict->withEntry(Name::of('DV'), Name::of('On'));
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+        $aa = $this->buildAdditionalActions($f->actions(), false, $f->name, 'Checkbox');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+        return $dict;
+    }
+
+    /**
+     * Builds the parent /Field dictionary for a linked Combobox group.
+     * Contains /FT /T /Ff /Opt /V /DV /TU /AA; no /Rect, no /Type /Annot.
+     *
+     * @param list<PdfReference> $kidRefs
+     */
+    private function buildLinkedComboboxParent(Combobox $f, array $kidRefs): Dictionary
+    {
+        $flags = 1 << 17; // Combo bit
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+        if ($f->editable) {
+            $flags |= 1 << 18;
+        }
+        if ($f->appearance?->noExport === true) {
+            $flags |= 1 << 2;
+        }
+
+        $normalized = self::normalizeOptions($f->options);
+
+        if ($f->value !== null && !self::optionsContainExport($normalized, $f->value)) {
+            throw new PdfException(sprintf(
+                "Combobox value '%s' not found in options for field '%s'",
+                $f->value,
+                $f->name,
+            ));
+        }
+
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('FT'), Name::of('Ch'))
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags))
+            ->withEntry(Name::of('Kids'), PdfArray::of(...$kidRefs))
+            ->withEntry(Name::of('Opt'), self::buildOptArray($normalized));
+
+        if ($f->value !== null) {
+            $dict = $dict->withEntry(Name::of('V'), PdfString::of($f->value));
+        }
+        $dvCombo = $f->defaultValue ?? $f->value;
+        if ($dvCombo !== null) {
+            if ($f->defaultValue !== null && !self::optionsContainExport($normalized, $f->defaultValue)) {
+                throw new PdfException(sprintf(
+                    "Combobox default value '%s' not found in options for field '%s'",
+                    $f->defaultValue,
+                    $f->name,
+                ));
+            }
+            $dict = $dict->withEntry(Name::of('DV'), PdfString::of($dvCombo));
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+        $aa = $this->buildAdditionalActions($f->actions(), true, $f->name, 'Combobox');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+        return $dict;
+    }
+
+    /**
+     * Builds the parent /Field dictionary for a linked Listbox group.
+     * Contains /FT /T /Ff /Opt /V /DV /TU /AA; no /Rect, no /Type /Annot.
+     *
+     * @param list<PdfReference> $kidRefs
+     */
+    private function buildLinkedListboxParent(Listbox $f, array $kidRefs): Dictionary
+    {
+        $flags = 0; // No Combo bit
+        if ($f->readOnly) {
+            $flags |= 1 << 0;
+        }
+        if ($f->required) {
+            $flags |= 1 << 1;
+        }
+        if ($f->multiSelect) {
+            $flags |= 1 << 21;
+        }
+        if ($f->appearance?->noExport === true) {
+            $flags |= 1 << 2;
+        }
+
+        $normalized = self::normalizeOptions($f->options);
+        $values = $this->normalizeListboxValue($f, $normalized);
+
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('FT'), Name::of('Ch'))
+            ->withEntry(Name::of('T'), PdfString::of($f->name))
+            ->withEntry(Name::of('Kids'), PdfArray::of(...$kidRefs))
+            ->withEntry(Name::of('Opt'), self::buildOptArray($normalized));
+
+        if ($flags !== 0) {
+            $dict = $dict->withEntry(Name::of('Ff'), PdfNumber::ofInt($flags));
+        }
+        if ($values !== []) {
+            $dict = $dict->withEntry(Name::of('V'), $this->listboxValueObject($values, $f->multiSelect));
+        }
+        $defaultValues = $this->resolveListboxDefault($f, $normalized, $values);
+        if ($defaultValues !== []) {
+            $dict = $dict->withEntry(Name::of('DV'), $this->listboxValueObject($defaultValues, $f->multiSelect));
+        }
+        if ($f->tooltip !== null) {
+            $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
+        }
+        $aa = $this->buildAdditionalActions($f->actions(), true, $f->name, 'Listbox');
+        if ($aa !== null) {
+            $dict = $dict->withEntry(Name::of('AA'), $aa);
+        }
+        return $dict;
     }
 
     /**

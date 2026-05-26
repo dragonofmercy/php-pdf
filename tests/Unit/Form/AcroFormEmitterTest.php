@@ -1152,4 +1152,97 @@ final class AcroFormEmitterTest extends TestCase
         // 2 widget objects + 1 AcroForm dict = 3 total
         self::assertCount(3, $emit['objects']);
     }
+
+    public function testLinkedTextEmitsParentWithKidsAndNoKidT(): void
+    {
+        // Two TextFields sharing name 'shared'; first has value 'hi'.
+        // Expects: /T (shared) exactly once (on the parent), /Kids present,
+        // /V (hi) on the parent, /Parent on each kid.
+        $a = new TextField(0.0, 0.0, 80.0, 8.0, name: 'shared', value: 'hi');
+        $b = new TextField(0.0, 20.0, 80.0, 8.0, name: 'shared');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        // /T appears exactly once (parent only; kids have no /T)
+        self::assertSame(1, substr_count($serialized, '/T (shared)'), '/T (shared) must appear exactly once (parent only)');
+        // Parent carries /Kids
+        self::assertStringContainsString('/Kids', $serialized);
+        // Parent carries /V (hi) from the first widget
+        self::assertStringContainsString('/V (hi)', $serialized);
+        // Each kid has a /Parent back-reference
+        self::assertGreaterThanOrEqual(2, substr_count($serialized, '/Parent '), '/Parent must appear on both kids');
+    }
+
+    public function testLinkedCheckboxKidsEachHaveOwnAP(): void
+    {
+        // Two Checkboxes sharing name 'agree'; first is checked.
+        // Expects: /AS appears twice (once per kid), /V /On on the parent.
+        $a = new Checkbox(0.0, 0.0, 5.0, 5.0, name: 'agree', checked: true);
+        $b = new Checkbox(0.0, 20.0, 5.0, 5.0, name: 'agree');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        // Each kid carries its own /AS entry
+        self::assertSame(2, substr_count($serialized, '/AS '), 'each kid must have its own /AS');
+        // Parent carries /V /On because first widget is checked
+        self::assertStringContainsString('/V /On', $serialized);
+    }
+
+    public function testLinkedComboboxOptOnParent(): void
+    {
+        // Two Comboboxes sharing name 'country', options ['FR','CH'], first value 'FR'.
+        // Expects: /Opt appears exactly once (parent), /V (FR) on the parent.
+        $a = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 60.0, 8.0, name: 'country', options: ['FR', 'CH'], value: 'FR');
+        $b = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 20.0, 60.0, 8.0, name: 'country', options: ['FR', 'CH']);
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        // /Opt must appear exactly once (on the parent, not on any kid)
+        self::assertSame(1, substr_count($serialized, '/Opt'), '/Opt must appear exactly once');
+        // Parent carries /V (FR) from the first widget
+        self::assertStringContainsString('/V (FR)', $serialized);
+    }
+
+    public function testActionsOnNonFirstLinkedWidgetThrows(): void
+    {
+        // First widget has no actions; second widget has a Format action.
+        // Expects PdfException with message containing "Linked field 'shared'".
+        $a = new TextField(0.0, 0.0, 80.0, 8.0, name: 'shared');
+        $b = new TextField(0.0, 20.0, 80.0, 8.0, name: 'shared', actions: FieldActions::new()->onFocus('app.beep(0);'));
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Linked field 'shared'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
 }
