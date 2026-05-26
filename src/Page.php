@@ -64,6 +64,8 @@ final class Page
 
     private ?int $pageNumber = null;
 
+    private ?TabOrder $tabOrder = null;
+
     /** @internal Set by Document while a header callback is running; suppresses auto-break recursion. */
     public bool $inHeaderRender = false;
 
@@ -186,6 +188,26 @@ final class Page
     public function setPageNumber(int $n): void
     {
         $this->pageNumber = $n;
+    }
+
+    /**
+     * Sets the tab order for this page's annotations and form fields. When set,
+     * emits /Tabs /R (ROW), /Tabs /C (COLUMN), or /Tabs /S (STRUCTURE) in the
+     * page dictionary. Null (the default) omits the entry, leaving it to the
+     * reader.
+     */
+    public function setTabOrder(?TabOrder $order): self
+    {
+        $this->tabOrder = $order;
+        return $this;
+    }
+
+    /**
+     * @internal Consumed by PageObjectsBuilder to emit /Tabs when set.
+     */
+    public function tabOrder(): ?TabOrder
+    {
+        return $this->tabOrder;
     }
 
     /**

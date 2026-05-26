@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\TabOrder;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -130,6 +131,15 @@ final readonly class PageObjectsBuilder
 
             if ($annotRefs !== []) {
                 $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...$annotRefs));
+            }
+
+            $tabOrder = $page->tabOrder();
+            if ($tabOrder !== null) {
+                $pageDict = $pageDict->withEntry(Name::of('Tabs'), Name::of(match ($tabOrder) {
+                    TabOrder::ROW => 'R',
+                    TabOrder::COLUMN => 'C',
+                    TabOrder::STRUCTURE => 'S',
+                }));
             }
 
             if ($contentNum !== null) {
