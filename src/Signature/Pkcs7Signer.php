@@ -52,7 +52,9 @@ final readonly class Pkcs7Signer
                 if ($extra === false) {
                     throw new PdfException('Failed to allocate chain temp file');
                 }
-                file_put_contents($extra, implode("\n", $certificate->extraCertificates));
+                if (file_put_contents($extra, implode("\n", $certificate->extraCertificates)) === false) {
+                    throw new PdfException('Failed to write certificate chain temp file');
+                }
                 $extraCertsFile = $extra;
             }
 
