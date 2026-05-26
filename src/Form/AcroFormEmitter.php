@@ -578,27 +578,11 @@ final readonly class AcroFormEmitter
             ->withEntry(Name::of('Opt'), self::buildOptArray($normalized));
 
         if ($values !== []) {
-            if (count($values) === 1 && !$f->multiSelect) {
-                $dict = $dict->withEntry(Name::of('V'), PdfString::of($values[0]));
-            } else {
-                $items = [];
-                foreach ($values as $v) {
-                    $items[] = PdfString::of($v);
-                }
-                $dict = $dict->withEntry(Name::of('V'), PdfArray::of(...$items));
-            }
+            $dict = $dict->withEntry(Name::of('V'), $this->listboxValueObject($values, $f->multiSelect));
         }
         $defaultValues = $this->resolveListboxDefault($f, $normalized, $values);
         if ($defaultValues !== []) {
-            if (count($defaultValues) === 1 && !$f->multiSelect) {
-                $dict = $dict->withEntry(Name::of('DV'), PdfString::of($defaultValues[0]));
-            } else {
-                $items = [];
-                foreach ($defaultValues as $v) {
-                    $items[] = PdfString::of($v);
-                }
-                $dict = $dict->withEntry(Name::of('DV'), PdfArray::of(...$items));
-            }
+            $dict = $dict->withEntry(Name::of('DV'), $this->listboxValueObject($defaultValues, $f->multiSelect));
         }
         if ($f->tooltip !== null) {
             $dict = $dict->withEntry(Name::of('TU'), PdfString::of($f->tooltip));
@@ -664,6 +648,24 @@ final readonly class AcroFormEmitter
             }
         }
         return $defaults;
+    }
+
+    /**
+     * Renders a listbox /V or /DV entry: a single PdfString for one value on a
+     * single-select field, otherwise a PdfArray of strings.
+     *
+     * @param list<string> $vals
+     */
+    private function listboxValueObject(array $vals, bool $multiSelect): PdfString|PdfArray
+    {
+        if (count($vals) === 1 && !$multiSelect) {
+            return PdfString::of($vals[0]);
+        }
+        $items = [];
+        foreach ($vals as $v) {
+            $items[] = PdfString::of($v);
+        }
+        return PdfArray::of(...$items);
     }
 
     /**
@@ -778,10 +780,7 @@ final readonly class AcroFormEmitter
 
     private function buildBorderStyleDict(FieldAppearance $ap): Dictionary
     {
-        $width = $ap->borderWidth ?? 1.0;
-        $widthEntry = ((float) (int) $width === $width)
-            ? PdfNumber::ofInt((int) $width)
-            : PdfNumber::ofFloat($width);
+        $widthEntry = self::numberEntry($ap->borderWidth ?? 1.0);
         $style = match ($ap->borderStyle) {
             FieldBorderStyle::SOLID => 'S',
             FieldBorderStyle::DASHED => 'D',
@@ -890,14 +889,20 @@ final readonly class AcroFormEmitter
     private function borderArray(?FieldAppearance $appearance): PdfArray
     {
         $width = ($appearance !== null && $appearance->borderWidth !== null) ? $appearance->borderWidth : 0.0;
-        $widthEntry = ((float) (int) $width === $width)
-            ? PdfNumber::ofInt((int) $width)
-            : PdfNumber::ofFloat($width);
         return PdfArray::of(
             PdfNumber::ofInt(0),
             PdfNumber::ofInt(0),
-            $widthEntry,
+            self::numberEntry($width),
         );
+    }
+
+    /**
+     * Emits a number as an integer when it has no fractional part, otherwise as
+     * a float - keeps widths compact and stable for byte-identity.
+     */
+    private static function numberEntry(float $v): PdfNumber
+    {
+        return ((float) (int) $v === $v) ? PdfNumber::ofInt((int) $v) : PdfNumber::ofFloat($v);
     }
 
     /**
