@@ -24,6 +24,9 @@ final readonly class FieldAppearance
         public ?Font $font = null,
         public ?float $fontSize = null,
         public TextAlign $align = TextAlign::LEFT,
+        public bool $hidden = false,
+        public bool $noExport = false,
+        public ?FieldBorderStyle $borderStyle = null,
     ) {
         if ($borderWidth !== null && $borderWidth < 0) {
             throw new PdfException(sprintf(

@@ -71,4 +71,21 @@ final class FieldAppearanceTest extends TestCase
         $this->expectExceptionMessage('Field appearance fontSize must be positive, got -5');
         new FieldAppearance(fontSize: -5.0);
     }
+
+    public function testNewFlagsDefaultAndRoundTrip(): void
+    {
+        $bare = new \DragonOfMercy\PhpPdf\Form\FieldAppearance();
+        self::assertFalse($bare->hidden);
+        self::assertFalse($bare->noExport);
+        self::assertNull($bare->borderStyle);
+
+        $set = new \DragonOfMercy\PhpPdf\Form\FieldAppearance(
+            hidden: true,
+            noExport: true,
+            borderStyle: \DragonOfMercy\PhpPdf\Form\FieldBorderStyle::BEVELED,
+        );
+        self::assertTrue($set->hidden);
+        self::assertTrue($set->noExport);
+        self::assertSame(\DragonOfMercy\PhpPdf\Form\FieldBorderStyle::BEVELED, $set->borderStyle);
+    }
 }
