@@ -380,6 +380,7 @@ final readonly class AcroFormEmitter
             ButtonActionType::ResetForm => Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Action'))
                 ->withEntry(Name::of('S'), Name::of('ResetForm')),
+            ButtonActionType::SubmitForm => throw new PdfException('SubmitForm action emission is not yet implemented'),
         };
     }
 
