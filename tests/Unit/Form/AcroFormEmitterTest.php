@@ -125,8 +125,9 @@ final class AcroFormEmitterTest extends TestCase
 
     public function testDuplicateNamesThrows(): void
     {
-        $a = new TextField(0.0, 0.0, 50.0, 8.0, name: 'dup');
-        $b = new TextField(0.0, 20.0, 50.0, 8.0, name: 'dup');
+        // PushButton is not a linkable type; two push buttons with the same name must still throw.
+        $a = new PushButton(0.0, 0.0, 50.0, 8.0, name: 'dup', caption: 'A', action: ButtonAction::resetForm());
+        $b = new PushButton(0.0, 20.0, 50.0, 8.0, name: 'dup', caption: 'B', action: ButtonAction::resetForm());
         $widgets = [
             ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
             ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
@@ -134,6 +135,47 @@ final class AcroFormEmitterTest extends TestCase
         $nextId = 12;
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage("Duplicate field name 'dup'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
+
+    public function testLinkedTextFieldsWithSameNameAreAllowed(): void
+    {
+        $a = new TextField(0.0, 0.0, 80.0, 8.0, name: 'shared');
+        $b = new TextField(0.0, 20.0, 80.0, 8.0, name: 'shared');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        self::assertNotEmpty($emit['objects']);
+    }
+
+    public function testDuplicatePushButtonNameThrows(): void
+    {
+        $a = new PushButton(0.0, 0.0, 60.0, 12.0, name: 'dup', caption: 'OK', action: ButtonAction::resetForm());
+        $b = new PushButton(0.0, 20.0, 60.0, 12.0, name: 'dup', caption: 'Cancel', action: ButtonAction::resetForm());
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Duplicate field name 'dup'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
+
+    public function testMixedTypesSameNameThrows(): void
+    {
+        $a = new TextField(0.0, 0.0, 80.0, 8.0, name: 'mix');
+        $b = new Checkbox(0.0, 20.0, 5.0, 5.0, name: 'mix');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Duplicate field name 'mix'");
         (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
 

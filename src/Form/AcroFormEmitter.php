@@ -276,6 +276,14 @@ final readonly class AcroFormEmitter
         return [$parentObj, $kidObjs, $apObjs, $parentRef];
     }
 
+    /** @var array<class-string, true> */
+    private const array LINKABLE = [
+        TextField::class => true,
+        Checkbox::class => true,
+        Combobox::class => true,
+        Listbox::class => true,
+    ];
+
     /**
      * @param list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $widgets
      */
@@ -292,17 +300,21 @@ final readonly class AcroFormEmitter
             if (count($kinds) === 1) {
                 continue;
             }
+            $unique = array_unique($kinds);
             // Allowed iff every entry is a Radio (grouped).
-            foreach ($kinds as $k) {
-                if ($k !== Radio::class) {
-                    throw new PdfException(sprintf(
-                        "Duplicate field name '%s' (kinds: %s) in %s",
-                        $name,
-                        implode(', ', array_unique($kinds)),
-                        $context,
-                    ));
-                }
+            if (count($unique) === 1 && $unique[0] === Radio::class) {
+                continue;
             }
+            // Allowed iff all entries share one linkable type.
+            if (count($unique) === 1 && isset(self::LINKABLE[$unique[0]])) {
+                continue;
+            }
+            throw new PdfException(sprintf(
+                "Duplicate field name '%s' (kinds: %s) in %s",
+                $name,
+                implode(', ', $unique),
+                $context,
+            ));
         }
     }
 
