@@ -70,4 +70,21 @@ final class DocumentJavaScriptTest extends TestCase
         self::assertStringContainsString('/Names', $bytes);
         self::assertStringContainsString('app.alert', $bytes);
     }
+
+    public function testDocumentScriptSurvivesEncryptedPath(): void
+    {
+        $doc = new Document();
+        $doc->addPage();
+        $doc->encryption()->userPassword('u')->ownerPassword('o');
+        $doc->addDocumentScript('init', 'app.alert("hi");');
+        $bytes = $doc->output();
+
+        // The document is encrypted, so the /JS literal string is itself encrypted
+        // and not present in cleartext. But the name-object tokens (/Encrypt, /Names,
+        // /JavaScript) stay in cleartext, proving the tree was emitted on this path.
+        self::assertStringContainsString('/Encrypt', $bytes);
+        self::assertStringContainsString('/Names', $bytes);
+        self::assertStringContainsString('/JavaScript', $bytes);
+        self::assertStringNotContainsString('app.alert', $bytes);
+    }
 }
