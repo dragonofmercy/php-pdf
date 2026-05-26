@@ -1134,4 +1134,22 @@ final class AcroFormEmitterTest extends TestCase
         $this->expectExceptionMessage("Listbox default value 'zzz' not found in options for field 'lb'");
         (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
+
+    public function testSingletonFieldsStillEmitOneObjectEach(): void
+    {
+        // Regression pin: two TextFields with DIFFERENT names 'a' and 'b' must each
+        // produce exactly one widget IndirectObject. The AcroForm dict is the third
+        // object. Total = 3. This pins the singleton-dispatch path so the grouping
+        // refactor cannot silently change allocation counts.
+        $a = new TextField(0.0, 0.0, 80.0, 8.0, name: 'a');
+        $b = new TextField(0.0, 20.0, 80.0, 8.0, name: 'b');
+        $widgets = [
+            ['field' => $a, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+            ['field' => $b, 'widgetRef' => PdfReference::to(11, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0],
+        ];
+        $nextId = 12;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        // 2 widget objects + 1 AcroForm dict = 3 total
+        self::assertCount(3, $emit['objects']);
+    }
 }

@@ -74,57 +74,20 @@ final readonly class AcroFormEmitter
         $calculationOrder = [];
         $hasSignatureField = false;
 
+        /** @var array<string, list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>> $byName */
+        $byName = [];
         foreach ($nonRadios as $w) {
-            $field = $w['field'];
-            if ($field instanceof TextField) {
-                $objects[] = $this->emitTextField($field, $w['widgetRef'], $w['pageHeightPt']);
-                $topLevelRefs[] = $w['widgetRef'];
-                if ($field->actions()?->hasCalculate() === true) {
-                    $calculationOrder[] = $w['widgetRef'];
-                }
+            $byName[$w['field']->name()][] = $w;
+        }
+        foreach ($byName as $group) {
+            if (count($group) === 1) {
+                $this->emitSingleton($group[0], $objects, $topLevelRefs, $calculationOrder, $hasSignatureField, $nextId, $context);
                 continue;
             }
-            if ($field instanceof Checkbox) {
-                [$widgetObj, $apObjs] = $this->emitCheckbox($field, $w['widgetRef'], $w['pageHeightPt'], $nextId);
-                $objects[] = $widgetObj;
-                foreach ($apObjs as $ap) {
-                    $objects[] = $ap;
-                }
-                $topLevelRefs[] = $w['widgetRef'];
-                continue;
+            // TEMPORARY fallback (Task 3 replaces this with linked emission):
+            foreach ($group as $w) {
+                $this->emitSingleton($w, $objects, $topLevelRefs, $calculationOrder, $hasSignatureField, $nextId, $context);
             }
-            if ($field instanceof Combobox) {
-                $objects[] = $this->emitCombobox($field, $w['widgetRef'], $w['pageHeightPt']);
-                $topLevelRefs[] = $w['widgetRef'];
-                if ($field->actions()?->hasCalculate() === true) {
-                    $calculationOrder[] = $w['widgetRef'];
-                }
-                continue;
-            }
-            if ($field instanceof Listbox) {
-                $objects[] = $this->emitListbox($field, $w['widgetRef'], $w['pageHeightPt']);
-                $topLevelRefs[] = $w['widgetRef'];
-                if ($field->actions()?->hasCalculate() === true) {
-                    $calculationOrder[] = $w['widgetRef'];
-                }
-                continue;
-            }
-            if ($field instanceof PushButton) {
-                $objects[] = $this->emitPushButton($field, $w['widgetRef'], $w['pageHeightPt']);
-                $topLevelRefs[] = $w['widgetRef'];
-                continue;
-            }
-            if ($field instanceof SignatureField) {
-                $objects[] = $this->emitSignatureField($field, $w['widgetRef'], $w['pageHeightPt']);
-                $topLevelRefs[] = $w['widgetRef'];
-                $hasSignatureField = true;
-                continue;
-            }
-            throw new PdfException(sprintf(
-                'AcroFormEmitter: unsupported field type %s for %s',
-                $field::class,
-                $context,
-            ));
         }
 
         foreach ($radiosByGroup as $group => $radios) {
@@ -162,6 +125,70 @@ final readonly class AcroFormEmitter
             'acroFormRef' => PdfReference::to($acroFormId, 0),
             'objects' => $objects,
         ];
+    }
+
+    /**
+     * Emits a single non-radio widget (one field, one widget annotation) and
+     * appends results to the by-ref accumulators. This is the unchanged
+     * per-type dispatch extracted from the old foreach loop.
+     *
+     * @param array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float} $w
+     * @param list<IndirectObject> $objects
+     * @param list<PdfReference> $topLevelRefs
+     * @param list<PdfReference> $calculationOrder
+     */
+    private function emitSingleton(array $w, array &$objects, array &$topLevelRefs, array &$calculationOrder, bool &$hasSignatureField, int &$nextId, string $context): void
+    {
+        $field = $w['field'];
+        if ($field instanceof TextField) {
+            $objects[] = $this->emitTextField($field, $w['widgetRef'], $w['pageHeightPt']);
+            $topLevelRefs[] = $w['widgetRef'];
+            if ($field->actions()?->hasCalculate() === true) {
+                $calculationOrder[] = $w['widgetRef'];
+            }
+            return;
+        }
+        if ($field instanceof Checkbox) {
+            [$widgetObj, $apObjs] = $this->emitCheckbox($field, $w['widgetRef'], $w['pageHeightPt'], $nextId);
+            $objects[] = $widgetObj;
+            foreach ($apObjs as $ap) {
+                $objects[] = $ap;
+            }
+            $topLevelRefs[] = $w['widgetRef'];
+            return;
+        }
+        if ($field instanceof Combobox) {
+            $objects[] = $this->emitCombobox($field, $w['widgetRef'], $w['pageHeightPt']);
+            $topLevelRefs[] = $w['widgetRef'];
+            if ($field->actions()?->hasCalculate() === true) {
+                $calculationOrder[] = $w['widgetRef'];
+            }
+            return;
+        }
+        if ($field instanceof Listbox) {
+            $objects[] = $this->emitListbox($field, $w['widgetRef'], $w['pageHeightPt']);
+            $topLevelRefs[] = $w['widgetRef'];
+            if ($field->actions()?->hasCalculate() === true) {
+                $calculationOrder[] = $w['widgetRef'];
+            }
+            return;
+        }
+        if ($field instanceof PushButton) {
+            $objects[] = $this->emitPushButton($field, $w['widgetRef'], $w['pageHeightPt']);
+            $topLevelRefs[] = $w['widgetRef'];
+            return;
+        }
+        if ($field instanceof SignatureField) {
+            $objects[] = $this->emitSignatureField($field, $w['widgetRef'], $w['pageHeightPt']);
+            $topLevelRefs[] = $w['widgetRef'];
+            $hasSignatureField = true;
+            return;
+        }
+        throw new PdfException(sprintf(
+            'AcroFormEmitter: unsupported field type %s for %s',
+            $field::class,
+            $context,
+        ));
     }
 
     /**
