@@ -68,6 +68,7 @@ final class Document
 
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
+    private ?\DragonOfMercy\PhpPdf\Signature\Signature $signature = null;
 
     private ?PageLayout $pageLayout = null;
     private ?PageMode $pageMode = null;
@@ -302,6 +303,33 @@ final class Document
     public function encryption(): Encryption
     {
         return $this->encryption ??= new Encryption();
+    }
+
+    public function sign(
+        \DragonOfMercy\PhpPdf\Signature\SigningCertificate $certificate,
+        string $field,
+        ?string $reason = null,
+        ?string $location = null,
+        ?string $contactInfo = null,
+        ?\DateTimeImmutable $signedAt = null,
+        int $maxSignatureBytes = 16384,
+    ): self {
+        $this->signature = new \DragonOfMercy\PhpPdf\Signature\Signature(
+            $certificate,
+            $field,
+            $reason,
+            $location,
+            $contactInfo,
+            $signedAt ?? new \DateTimeImmutable(),
+            $maxSignatureBytes,
+        );
+        return $this;
+    }
+
+    /** Returns the configured signature, or null when sign() was never called. */
+    public function getSignature(): ?\DragonOfMercy\PhpPdf\Signature\Signature
+    {
+        return $this->signature;
     }
 
     /**
