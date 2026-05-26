@@ -1056,4 +1056,40 @@ final class AcroFormEmitterTest extends TestCase
         $this->expectExceptionMessage("Combobox default value 'zzz' not found in options for field 'cb'");
         (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
     }
+
+    public function testUncheckedCheckboxWithNullDefaultEmitsNoDV(): void
+    {
+        // Byte-identity gotcha: an unchecked checkbox with no defaultValue must
+        // emit neither /V nor /DV, exactly as before the decoupling.
+        $field = new Checkbox(0.0, 0.0, 5.0, 5.0, name: 'c');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringNotContainsString('/DV', $serialized);
+        self::assertStringNotContainsString('/V /On', $serialized);
+    }
+
+    public function testComboboxNullDefaultMirrorsValueDV(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Combobox(0.0, 0.0, 50.0, 8.0, name: 'cb', options: ['fr' => 'France', 'ch' => 'Suisse'], value: 'ch');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) { $serialized .= $obj->toBytes(); }
+        self::assertStringContainsString('/V (ch)', $serialized);
+        self::assertStringContainsString('/DV (ch)', $serialized);
+    }
+
+    public function testListboxDefaultValueNotInOptionsThrows(): void
+    {
+        $field = new \DragonOfMercy\PhpPdf\Form\Listbox(0.0, 0.0, 50.0, 24.0, name: 'lb', options: ['a', 'b'], value: 'a', defaultValue: 'zzz');
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage("Listbox default value 'zzz' not found in options for field 'lb'");
+        (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+    }
 }
