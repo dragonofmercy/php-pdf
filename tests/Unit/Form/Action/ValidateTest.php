@@ -42,11 +42,23 @@ final class ValidateTest extends TestCase
         Validate::range(null, null);
     }
 
+    public function testRangeMinEqualsMaxIsAllowed(): void
+    {
+        self::assertSame('AFRange_Validate(true, 5, true, 5);', Validate::range(5.0, 5.0)->js());
+    }
+
     public function testRangeMinGreaterThanMaxThrows(): void
     {
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('Validate::range min (10) cannot exceed max (5)');
         Validate::range(10, 5);
+    }
+
+    public function testRangeMinGreaterThanMaxFloatMessage(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Validate::range min (10.5) cannot exceed max (5.5)');
+        Validate::range(10.5, 5.5);
     }
 
     public function testEmptyCustomThrows(): void
