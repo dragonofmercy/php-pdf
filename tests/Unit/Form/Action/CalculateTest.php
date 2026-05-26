@@ -41,6 +41,14 @@ final class CalculateTest extends TestCase
         );
     }
 
+    public function testFieldNameWithBackslashEscaped(): void
+    {
+        self::assertSame(
+            'AFSimple_Calculate("SUM", new Array("a\\\\b"));',
+            Calculate::sum(['a\\b'])->js(),
+        );
+    }
+
     public function testCustom(): void
     {
         self::assertSame('event.value = 1;', Calculate::custom('event.value = 1;')->js());
