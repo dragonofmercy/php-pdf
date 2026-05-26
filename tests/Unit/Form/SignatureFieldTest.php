@@ -25,7 +25,10 @@ final class SignatureFieldTest extends TestCase
     public function testInvisibleHasZeroDimensionsAndNoAppearance(): void
     {
         $f = SignatureField::invisible(name: 'sig2');
+        self::assertSame('sig2', $f->name());
         self::assertFalse($f->visible);
+        self::assertFalse($f->required);
+        self::assertFalse($f->readOnly);
         self::assertSame(['x' => 0.0, 'y' => 0.0, 'width' => 0.0, 'height' => 0.0], $f->dimensions());
         self::assertNull($f->appearance());
         self::assertNull($f->actions());
