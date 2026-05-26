@@ -12,6 +12,7 @@ use DragonOfMercy\PhpPdf\Form\Action\Format;
 use DragonOfMercy\PhpPdf\Form\ButtonAction;
 use DragonOfMercy\PhpPdf\Form\Checkbox;
 use DragonOfMercy\PhpPdf\Form\PushButton;
+use DragonOfMercy\PhpPdf\Form\SubmitFormat;
 use DragonOfMercy\PhpPdf\Form\TextField;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
@@ -828,6 +829,40 @@ final class AcroFormEmitterTest extends TestCase
         }
 
         self::assertStringNotContainsString('/CO', $serialized);
+    }
+
+    public function testSubmitFormActionEmitsUrlFileSpecAndFlags(): void
+    {
+        $field = PushButton::of(0.0, 0.0, 60.0, 12.0, name: 'send', caption: 'Send',
+            action: ButtonAction::submit('https://example.com/post', SubmitFormat::HTML));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/S /SubmitForm', $serialized);
+        self::assertStringContainsString('/F << /FS /URL /F (https://example.com/post) >>', $serialized);
+        self::assertStringContainsString('/Flags 4', $serialized);
+    }
+
+    public function testSubmitFormFdfEmitsFlagsZero(): void
+    {
+        $field = PushButton::of(0.0, 0.0, 60.0, 12.0, name: 'send', caption: 'Send',
+            action: ButtonAction::submit('https://example.com/post'));
+        $widgets = [['field' => $field, 'widgetRef' => PdfReference::to(10, 0), 'pageRef' => PdfReference::to(1, 0), 'pageHeightPt' => 800.0]];
+        $nextId = 11;
+        $emit = (new AcroFormEmitter(Unit::PT))->emit($widgets, ['Helv' => PdfReference::to(999, 0)], $nextId, 'test');
+
+        $serialized = '';
+        foreach ($emit['objects'] as $obj) {
+            $serialized .= $obj->toBytes();
+        }
+
+        self::assertStringContainsString('/Flags 0', $serialized);
     }
 
     public function testComboboxWithValidateEmitsAAWithVEntry(): void

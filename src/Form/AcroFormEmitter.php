@@ -380,7 +380,15 @@ final readonly class AcroFormEmitter
             ButtonActionType::ResetForm => Dictionary::empty()
                 ->withEntry(Name::of('Type'), Name::of('Action'))
                 ->withEntry(Name::of('S'), Name::of('ResetForm')),
-            ButtonActionType::SubmitForm => throw new PdfException('SubmitForm action emission is not yet implemented'),
+            ButtonActionType::SubmitForm => Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Action'))
+                ->withEntry(Name::of('S'), Name::of('SubmitForm'))
+                ->withEntry(Name::of('F'), Dictionary::empty()
+                    ->withEntry(Name::of('FS'), Name::of('URL'))
+                    ->withEntry(Name::of('F'), PdfString::of(
+                        $action->url() ?? throw new PdfException('SubmitForm action must carry a URL'),
+                    )))
+                ->withEntry(Name::of('Flags'), PdfNumber::ofInt($action->flags() ?? 0)),
         };
     }
 
