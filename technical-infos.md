@@ -137,7 +137,7 @@ This is the standard PDF way to express partial transparency.
 An SVG `<image>` element whose `href` attribute is a PNG or JPEG data URI (`data:image/png;base64,...` or `data:image/jpeg;base64,...`) is handled as follows:
 
 - The base64 payload is decoded at parse time and handed to `Image::fromBytes`, producing a raster XObject (Image + optional SMask for PNG alpha, same pipeline as standalone images).
-- Each distinct data URI is deduped by content hash within the SVG Form XObject. The resulting child XObject is registered in the form's `/Resources/XObject` dictionary as `/Im1`, `/Im2`, etc., and drawn with the PDF `Do` operator.
+- Each distinct data URI is deduped by content hash within the SVG Form XObject. The resulting child XObject is registered in the form's `/Resources/XObject` dictionary as `/Im0`, `/Im1`, etc. (0-based), and drawn with the PDF `Do` operator.
 - `objectCount` is recursive: form object + sum of each distinct child image's object count. A PNG with alpha contributes 2 objects (image + SMask); a JPEG contributes 1.
 - The placement matrix is `[fw 0 0 -fh fx fy+fh]`, where `fw`/`fh` are the rendered width/height in points and `fx`/`fy` are the top-left corner. The `-fh` flip accounts for PDF's top-row-first raster orientation within the renderer's y-down coordinate space.
 - `preserveAspectRatio` with `slice` installs a rectangular clip path around the viewport before the `Do` call, matching the clip behavior used for the top-level SVG.
