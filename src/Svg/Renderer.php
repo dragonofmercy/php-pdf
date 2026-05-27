@@ -21,26 +21,27 @@ use DragonOfMercy\PhpPdf\Svg\FillRule;
 final class Renderer
 {
     /**
-     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float}>}
+     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float}>, patterns: array<string, string>}
      */
     public function render(SvgMetadata $svg): array
     {
         $out = '';
         $registry = new ExtGStateRegistry();
+        $patterns = new PatternRegistry();
         $prologue = self::viewBoxToUnitMatrix($svg->viewBox, $svg->aspectRatio);
         if (!$prologue->isIdentity()) {
             $out .= "q\n" . self::cmFromMatrix($prologue) . "\n";
         }
 
         foreach ($svg->root->children as $child) {
-            $out .= $this->renderNode($child, $registry);
+            $out .= $this->renderNode($child, $registry, $patterns, $prologue);
         }
 
         if (!$prologue->isIdentity()) {
             $out .= "Q\n";
         }
 
-        return ['bytes' => $out, 'extGStates' => $registry->entries()];
+        return ['bytes' => $out, 'extGStates' => $registry->entries(), 'patterns' => $patterns->entries()];
     }
 
     public static function viewBoxToUnitMatrix(ViewBox $vb, PreserveAspectRatio $ar): SvgMatrix
@@ -67,25 +68,26 @@ final class Renderer
             ->compose(SvgMatrix::scale($s, $s));
     }
 
-    private function renderNode(SvgNode $node, ExtGStateRegistry $registry): string
+    private function renderNode(SvgNode $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
     {
         if ($node instanceof SvgGroup) {
-            return $this->renderGroup($node, $registry);
+            return $this->renderGroup($node, $registry, $patterns, $ctm);
         }
         if ($node instanceof SvgShape) {
-            return $this->renderShape($node, $registry);
+            return $this->renderShape($node, $registry, $patterns, $ctm);
         }
         return '';
     }
 
-    private function renderGroup(SvgGroup $group, ExtGStateRegistry $registry): string
+    private function renderGroup(SvgGroup $group, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
     {
         if ($group->children === []) {
             return '';
         }
+        $childCtm = $group->transform !== null ? $ctm->compose($group->transform) : $ctm;
         $body = '';
         foreach ($group->children as $child) {
-            $body .= $this->renderNode($child, $registry);
+            $body .= $this->renderNode($child, $registry, $patterns, $childCtm);
         }
         if ($body === '') {
             return '';
@@ -96,32 +98,43 @@ final class Renderer
         return "q\n" . $cm . $body . "Q\n";
     }
 
-    private function renderShape(SvgShape $shape, ExtGStateRegistry $registry): string
+    private function renderShape(SvgShape $shape, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
     {
         $geom = $this->emitGeometry($shape);
         if ($geom === '') {
             return '';
         }
-        $paint = $shape->paint();
-        $stateOps = $this->emitPaintState($paint, $registry);
-        $terminator = $this->paintTerminator($paint);
-        $cmLine = '';
         $tf = $shape->transform();
-        if ($tf !== null && !$tf->isIdentity()) {
-            $cmLine = self::cmFromMatrix($tf) . "\n";
-        }
+        $shapeCtm = $tf !== null ? $ctm->compose($tf) : $ctm;
+        $paint = $shape->paint();
+        $stateOps = $this->emitPaintState($paint, $registry, $patterns, $shape, $shapeCtm);
+        $terminator = $this->paintTerminator($paint);
+        $cmLine = ($tf !== null && !$tf->isIdentity()) ? self::cmFromMatrix($tf) . "\n" : '';
         return "q\n" . $cmLine . $stateOps . $geom . $terminator . "\nQ\n";
     }
 
-    private function emitPaintState(SvgPaint $paint, ExtGStateRegistry $registry): string
+    private function emitPaintState(SvgPaint $paint, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgShape $shape, SvgMatrix $shapeCtm): string
     {
         $out = '';
+        $fillOpacity = $paint->effectiveFillOpacity();
+        $strokeOpacity = $paint->effectiveStrokeOpacity();
+
         if ($paint->fill instanceof SvgColor) {
             $out .= sprintf("%s %s %s rg\n", self::fmt($paint->fill->r), self::fmt($paint->fill->g), self::fmt($paint->fill->b));
+        } elseif ($paint->fill instanceof SvgGradient) {
+            $resolved = $this->paintGradient($paint->fill, $shape, $shapeCtm, $patterns, $fillOpacity, false);
+            $out .= $resolved['ops'];
+            $fillOpacity = $resolved['opacity'];
         }
+
         if ($paint->stroke instanceof SvgColor) {
             $out .= sprintf("%s %s %s RG\n", self::fmt($paint->stroke->r), self::fmt($paint->stroke->g), self::fmt($paint->stroke->b));
+        } elseif ($paint->stroke instanceof SvgGradient) {
+            $resolved = $this->paintGradient($paint->stroke, $shape, $shapeCtm, $patterns, $strokeOpacity, true);
+            $out .= $resolved['ops'];
+            $strokeOpacity = $resolved['opacity'];
         }
+
         if ($paint->stroke !== null) {
             $out .= sprintf("%s w\n", self::fmt($paint->strokeWidth));
             $out .= sprintf("%d J\n", $paint->strokeLineCap->toPdfCode());
@@ -134,11 +147,42 @@ final class Renderer
                 $out .= sprintf("[%s] %s d\n", implode(' ', $parts), self::fmt($paint->strokeDashOffset));
             }
         }
-        $name = $registry->nameFor($paint->effectiveFillOpacity(), $paint->effectiveStrokeOpacity());
+
+        $name = $registry->nameFor($fillOpacity, $strokeOpacity);
         if ($name !== '') {
             $out .= '/' . $name . " gs\n";
         }
         return $out;
+    }
+
+    /**
+     * Registers the gradient pattern and returns the color-space ops plus the
+     * effective opacity (folding the gradient's uniform opacity in).
+     *
+     * @return array{ops: string, opacity: float}
+     */
+    private function paintGradient(SvgGradient $gradient, SvgShape $shape, SvgMatrix $shapeCtm, PatternRegistry $patterns, float $baseOpacity, bool $isStroke): array
+    {
+        $matrix = $shapeCtm;
+        if ($gradient->units() === GradientUnits::OBJECT_BOUNDING_BOX) {
+            $bbox = BoundingBox::of($shape);
+            if ($bbox->isDegenerate()) {
+                $c = $gradient->stops()[0]->color;
+                $op = $isStroke ? "%s %s %s RG\n" : "%s %s %s rg\n";
+                return ['ops' => sprintf($op, self::fmt($c->r), self::fmt($c->g), self::fmt($c->b)), 'opacity' => $baseOpacity];
+            }
+            $matrix = $matrix
+                ->compose(SvgMatrix::translate($bbox->x, $bbox->y))
+                ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+        }
+        $gt = $gradient->transform();
+        if ($gt !== null) {
+            $matrix = $matrix->compose($gt);
+        }
+        $dict = ShadingBuilder::patternDict($gradient, $matrix);
+        $name = $patterns->nameFor($dict);
+        $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
+        return ['ops' => $ops, 'opacity' => $baseOpacity * $gradient->uniformOpacity()];
     }
 
     private function paintTerminator(SvgPaint $paint): string
