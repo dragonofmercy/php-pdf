@@ -25,7 +25,7 @@ final class Parser
         'svg' => true, 'g' => true, 'defs' => true, 'use' => true,
         'path' => true, 'rect' => true, 'circle' => true, 'ellipse' => true,
         'line' => true, 'polygon' => true, 'polyline' => true,
-        'title' => true, 'desc' => true, 'image' => true,
+        'title' => true, 'desc' => true, 'image' => true, 'text' => true,
     ];
 
     /** @var array<string, DOMElement> */
@@ -92,7 +92,7 @@ final class Parser
 
         $children = [];
         foreach ($this->childElements($root) as $child) {
-            $node = $this->parseNode($child, $rootPaint, $rootCurrentColor, [], 0);
+            $node = $this->parseNode($child, $rootPaint, $rootCurrentColor, SvgTextStyle::initial(), [], 0);
             if ($node !== null) {
                 $children[] = $node;
             }
@@ -147,7 +147,7 @@ final class Parser
     /**
      * @param list<string> $useStack ids currently being resolved (for cycle detection)
      */
-    private function parseNode(DOMElement $el, SvgPaint $inherited, SvgColor $currentColor, array $useStack, int $depth): ?SvgNode
+    private function parseNode(DOMElement $el, SvgPaint $inherited, SvgColor $currentColor, SvgTextStyle $inheritedText, array $useStack, int $depth): ?SvgNode
     {
         if (++$this->nodeCounter > self::MAX_NODES) {
             throw new PdfException('SVG node count exceeded (' . self::MAX_NODES . ')');
@@ -173,6 +173,7 @@ final class Parser
             $this->gradients,
         );
         $transform = isset($attrs['transform']) ? TransformParser::parse($attrs['transform']) : null;
+        $textStyle = TextStyleResolver::resolve($inheritedText, $attrs, $attrs['style'] ?? '');
 
         switch ($local) {
             case 'g':
@@ -184,7 +185,7 @@ final class Parser
                 }
                 $children = [];
                 foreach ($this->childElements($el) as $child) {
-                    $node = $this->parseNode($child, $paint, $newCurrentColor, $useStack, $depth + 1);
+                    $node = $this->parseNode($child, $paint, $newCurrentColor, $textStyle, $useStack, $depth + 1);
                     if ($node !== null) {
                         $children[] = $node;
                     }
@@ -250,8 +251,11 @@ final class Parser
                 }
                 return new SvgPath($transform, $paint, $commands);
 
+            case 'text':
+                return $this->parseText($el, $paint, $textStyle, $transform);
+
             case 'use':
-                return $this->resolveUse($el, $attrs, $paint, $newCurrentColor, $transform, $useStack, $depth);
+                return $this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth);
 
             case 'image':
                 $w = (float) ($attrs['width'] ?? 0);
@@ -295,6 +299,7 @@ final class Parser
         array $attrs,
         SvgPaint $paint,
         SvgColor $currentColor,
+        SvgTextStyle $inheritedText,
         ?SvgMatrix $transform,
         array $useStack,
         int $depth,
@@ -323,6 +328,7 @@ final class Parser
             $target,
             $paint,
             $currentColor,
+            $inheritedText,
             [...$useStack, $id],
             $depth + 1,
         );
@@ -331,6 +337,108 @@ final class Parser
         }
 
         return new SvgGroup($useTransform, [$resolved]);
+    }
+
+    /**
+     * Flattens a <text> element (mixed text nodes + <tspan> children) into a
+     * list of positioned runs. Returns null when no visible text remains.
+     */
+    private function parseText(DOMElement $el, SvgPaint $paint, SvgTextStyle $style, ?SvgMatrix $transform): ?SvgText
+    {
+        /** @var list<SvgTextSpan> $spans */
+        $spans = [];
+        $this->collectTextSpans($el, $paint, $style, $spans);
+
+        if ($spans === []) {
+            return null;
+        }
+
+        $first = $spans[0];
+        if (str_starts_with($first->text, ' ')) {
+            $spans[0] = $this->withText($first, ltrim($first->text, ' '));
+        }
+        $lastIndex = count($spans) - 1;
+        $last = $spans[$lastIndex];
+        if (str_ends_with($last->text, ' ')) {
+            $spans[$lastIndex] = $this->withText($last, rtrim($last->text, ' '));
+        }
+
+        $spans = array_values(array_filter($spans, static fn (SvgTextSpan $s): bool => $s->text !== ''));
+        if ($spans === []) {
+            return null;
+        }
+
+        return new SvgText($transform, $spans);
+    }
+
+    /**
+     * @param list<SvgTextSpan> $spans accumulator
+     */
+    private function collectTextSpans(DOMElement $el, SvgPaint $inheritedPaint, SvgTextStyle $inheritedStyle, array &$spans): void
+    {
+        $attrs = $this->collectAttrs($el);
+        $currentColor = $this->resolveCurrentColor($attrs, SvgColor::black());
+        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $attrs['style'] ?? '', $currentColor, $this->gradients);
+        $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $attrs['style'] ?? '');
+
+        $font = SvgFontResolver::resolve($style->fontFamily, $style->bold, $style->italic);
+        $fill = $paint->fill instanceof SvgColor ? $paint->fill : ($paint->fill === null ? null : SvgColor::black());
+        $stroke = $paint->stroke instanceof SvgColor ? $paint->stroke : null;
+
+        $x = isset($attrs['x']) ? (float) $attrs['x'] : null;
+        $y = isset($attrs['y']) ? (float) $attrs['y'] : null;
+        $dx = isset($attrs['dx']) ? (float) $attrs['dx'] : 0.0;
+        $dy = isset($attrs['dy']) ? (float) $attrs['dy'] : 0.0;
+
+        $positionPending = true;
+
+        foreach ($el->childNodes ?? [] as $node) {
+            if ($node instanceof \DOMText) {
+                $text = preg_replace('/[\t\r\n ]+/', ' ', $node->data) ?? '';
+                if ($text === '') {
+                    continue;
+                }
+                $spans[] = new SvgTextSpan(
+                    text: $text,
+                    font: $font,
+                    fontSize: $style->fontSize,
+                    fill: $fill,
+                    fillOpacity: $paint->effectiveFillOpacity(),
+                    stroke: $stroke,
+                    strokeOpacity: $paint->effectiveStrokeOpacity(),
+                    strokeWidth: $paint->strokeWidth,
+                    anchor: $style->anchor,
+                    x: $positionPending ? $x : null,
+                    y: $positionPending ? $y : null,
+                    dx: $positionPending ? $dx : 0.0,
+                    dy: $positionPending ? $dy : 0.0,
+                );
+                $positionPending = false;
+            } elseif ($node instanceof DOMElement
+                && $node->namespaceURI === self::SVG_NS
+                && $node->localName === 'tspan') {
+                $this->collectTextSpans($node, $paint, $style, $spans);
+            }
+        }
+    }
+
+    private function withText(SvgTextSpan $span, string $text): SvgTextSpan
+    {
+        return new SvgTextSpan(
+            text: $text,
+            font: $span->font,
+            fontSize: $span->fontSize,
+            fill: $span->fill,
+            fillOpacity: $span->fillOpacity,
+            stroke: $span->stroke,
+            strokeOpacity: $span->strokeOpacity,
+            strokeWidth: $span->strokeWidth,
+            anchor: $span->anchor,
+            x: $span->x,
+            y: $span->y,
+            dx: $span->dx,
+            dy: $span->dy,
+        );
     }
 
     /**

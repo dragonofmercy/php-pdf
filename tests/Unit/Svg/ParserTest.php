@@ -12,6 +12,7 @@ use DragonOfMercy\PhpPdf\Svg\SvgCircle;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgPath;
 use DragonOfMercy\PhpPdf\Svg\SvgRect;
+use DragonOfMercy\PhpPdf\Svg\SvgText;
 use PHPUnit\Framework\TestCase;
 
 final class ParserTest extends TestCase
@@ -110,8 +111,10 @@ final class ParserTest extends TestCase
             '<rect width="5" height="5"/>' .
             '</svg>';
         $meta = Parser::parse($xml);
-        self::assertCount(1, $meta->root->children);
-        self::assertInstanceOf(SvgRect::class, $meta->root->children[0]);
+        // <text> is now supported; <linearGradient> (non-whitelisted) is still skipped.
+        self::assertCount(2, $meta->root->children);
+        self::assertInstanceOf(SvgText::class, $meta->root->children[0]);
+        self::assertInstanceOf(SvgRect::class, $meta->root->children[1]);
     }
 
     public function testThrowsOnMalformedXml(): void
