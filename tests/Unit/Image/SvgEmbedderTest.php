@@ -95,6 +95,16 @@ final class SvgEmbedderTest extends TestCase
         self::assertStringContainsString('/PatternType 2', $body);
     }
 
+    public function testGradientFreeSvgHasNoPatternResource(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#ff0000"/></svg>';
+        $image = Image::fromBytes($svg);
+        $objs = (new ImageEmbedder())->embed($image, 100);
+        self::assertCount(1, $objs);
+        $body = $objs[0]->toBytes();
+        self::assertStringNotContainsString('/Pattern', $body);
+    }
+
     public function testEncryptedSvgPreservesFormXObjectKeys(): void
     {
         $doc = new Document(Unit::PT);
