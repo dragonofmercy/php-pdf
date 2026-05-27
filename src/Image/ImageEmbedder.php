@@ -17,6 +17,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\RawValue;
 
 /**
  * Produces the IndirectObjects for a single image.
@@ -138,6 +139,7 @@ final class ImageEmbedder
         $rendered = (new Renderer())->render($meta);
         $bytes = $rendered['bytes'];
         $extGStates = $rendered['extGStates'];
+        $patterns = $rendered['patterns'];
 
         $resources = Dictionary::empty()
             ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
@@ -151,6 +153,14 @@ final class ImageEmbedder
                 $extGStateDict = $extGStateDict->withEntry(Name::of($name), $gsDict);
             }
             $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+        }
+
+        if ($patterns !== []) {
+            $patternDict = Dictionary::empty();
+            foreach ($patterns as $name => $dict) {
+                $patternDict = $patternDict->withEntry(Name::of($name), RawValue::of($dict));
+            }
+            $resources = $resources->withEntry(Name::of('Pattern'), $patternDict);
         }
 
         $extra = Dictionary::empty()
