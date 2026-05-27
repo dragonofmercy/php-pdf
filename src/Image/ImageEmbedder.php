@@ -46,6 +46,13 @@ final class ImageEmbedder
     public static function objectCount(Image $image): int
     {
         $meta = $image->metadata;
+        if ($meta instanceof SvgMetadata) {
+            $count = 1;
+            foreach ($meta->embeddedImages as $child) {
+                $count += self::objectCount($child);
+            }
+            return $count;
+        }
         if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
             return 2;
         }
@@ -163,6 +170,20 @@ final class ImageEmbedder
             $resources = $resources->withEntry(Name::of('Pattern'), $patternDict);
         }
 
+        $childObjects = [];
+        if ($meta->embeddedImages !== []) {
+            $xobjectDict = Dictionary::empty();
+            $childNum = $objectNumber + 1;
+            foreach ($meta->embeddedImages as $i => $child) {
+                foreach ($this->embed($child, $childNum) as $obj) {
+                    $childObjects[] = $obj;
+                }
+                $xobjectDict = $xobjectDict->withEntry(Name::of('Im' . $i), PdfReference::to($childNum, 0));
+                $childNum += self::objectCount($child);
+            }
+            $resources = $resources->withEntry(Name::of('XObject'), $xobjectDict);
+        }
+
         $extra = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('XObject'))
             ->withEntry(Name::of('Subtype'), Name::of('Form'))
@@ -175,7 +196,7 @@ final class ImageEmbedder
 
         $stream = CompressedStream::of($bytes, $extra);
 
-        return [IndirectObject::of($objectNumber, 0, $stream)];
+        return array_merge([IndirectObject::of($objectNumber, 0, $stream)], $childObjects);
     }
 
     private function pngImageDictionary(PngMetadata $meta, ?PdfReference $smaskRef): Dictionary
