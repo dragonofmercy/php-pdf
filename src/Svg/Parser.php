@@ -391,19 +391,12 @@ final class Parser
             return null;
         }
         $comma = strpos($href, ',');
-        if ($comma === false) {
-            return null;
-        }
-        $meta = substr($href, 5, $comma - 5);
-        if (!str_contains($meta, ';base64')) {
-            return null;
-        }
-        $decoded = base64_decode(substr($href, $comma + 1), true);
-        if ($decoded === false || $decoded === '') {
+        if ($comma === false || stripos(substr($href, 5, $comma - 5), ';base64') === false) {
             return null;
         }
         try {
-            $image = Image::fromBytes($decoded);
+            // Image::fromBase64 strips the data: prefix and strictly base64-decodes.
+            $image = Image::fromBase64($href);
         } catch (PdfException) {
             return null;
         }

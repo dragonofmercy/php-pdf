@@ -175,11 +175,12 @@ final class ImageEmbedder
             $xobjectDict = Dictionary::empty();
             $childNum = $objectNumber + 1;
             foreach ($meta->embeddedImages as $i => $child) {
-                foreach ($this->embed($child, $childNum) as $obj) {
+                $emitted = $this->embed($child, $childNum);
+                foreach ($emitted as $obj) {
                     $childObjects[] = $obj;
                 }
                 $xobjectDict = $xobjectDict->withEntry(Name::of('Im' . $i), PdfReference::to($childNum, 0));
-                $childNum += self::objectCount($child);
+                $childNum += count($emitted);
             }
             $resources = $resources->withEntry(Name::of('XObject'), $xobjectDict);
         }
