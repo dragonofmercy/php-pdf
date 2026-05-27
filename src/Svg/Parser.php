@@ -8,7 +8,9 @@ use DOMDocument;
 use DOMElement;
 use DOMNode;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
+use DragonOfMercy\PhpPdf\ImageFormat;
 
 final class Parser
 {
@@ -23,7 +25,7 @@ final class Parser
         'svg' => true, 'g' => true, 'defs' => true, 'use' => true,
         'path' => true, 'rect' => true, 'circle' => true, 'ellipse' => true,
         'line' => true, 'polygon' => true, 'polyline' => true,
-        'title' => true, 'desc' => true,
+        'title' => true, 'desc' => true, 'image' => true,
     ];
 
     /** @var array<string, DOMElement> */
@@ -33,6 +35,12 @@ final class Parser
     private array $gradientDefs = [];
 
     private ?GradientResolver $gradients = null;
+
+    /** @var list<Image> */
+    private array $embeddedImages = [];
+
+    /** @var array<string, int> contentHash => index in $embeddedImages */
+    private array $imageIndexByHash = [];
 
     private int $nodeCounter = 0;
 
@@ -90,7 +98,7 @@ final class Parser
             }
         }
 
-        return new SvgMetadata($viewBox, $aspectRatio, new SvgGroup(null, $children));
+        return new SvgMetadata($viewBox, $aspectRatio, new SvgGroup(null, $children), $this->embeddedImages);
     }
 
     private function resolveViewBox(DOMElement $root): ViewBox
@@ -245,6 +253,32 @@ final class Parser
             case 'use':
                 return $this->resolveUse($el, $attrs, $paint, $newCurrentColor, $transform, $useStack, $depth);
 
+            case 'image':
+                $w = (float) ($attrs['width'] ?? 0);
+                $h = (float) ($attrs['height'] ?? 0);
+                if ($w <= 0.0 || $h <= 0.0) {
+                    return null;
+                }
+                $href = $attrs['href'] ?? $attrs['xlink:href'] ?? '';
+                $raster = $this->decodeDataUriRaster($href);
+                if ($raster === null) {
+                    return null;
+                }
+                $hash = $raster->contentHash;
+                if (isset($this->imageIndexByHash[$hash])) {
+                    $index = $this->imageIndexByHash[$hash];
+                } else {
+                    $index = count($this->embeddedImages);
+                    $this->embeddedImages[] = $raster;
+                    $this->imageIndexByHash[$hash] = $index;
+                }
+                $x = (float) ($attrs['x'] ?? 0);
+                $y = (float) ($attrs['y'] ?? 0);
+                $ar = isset($attrs['preserveAspectRatio'])
+                    ? PreserveAspectRatio::parse($attrs['preserveAspectRatio'])
+                    : PreserveAspectRatio::default();
+                return new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height);
+
             case 'title':
             case 'desc':
             default:
@@ -343,6 +377,40 @@ final class Parser
             $points[] = [(float) $parts[$i], (float) $parts[$i + 1]];
         }
         return $points;
+    }
+
+    /**
+     * Decodes a data: URI to a PNG or JPEG Image. Returns null for non-data
+     * URIs, non-base64 data URIs, undecodable base64, unparseable rasters, or
+     * a decoded SVG (svg+xml data URIs are out of scope). Never touches the
+     * network or filesystem.
+     */
+    private function decodeDataUriRaster(string $href): ?Image
+    {
+        if (!str_starts_with($href, 'data:')) {
+            return null;
+        }
+        $comma = strpos($href, ',');
+        if ($comma === false) {
+            return null;
+        }
+        $meta = substr($href, 5, $comma - 5);
+        if (!str_contains($meta, ';base64')) {
+            return null;
+        }
+        $decoded = base64_decode(substr($href, $comma + 1), true);
+        if ($decoded === false || $decoded === '') {
+            return null;
+        }
+        try {
+            $image = Image::fromBytes($decoded);
+        } catch (PdfException) {
+            return null;
+        }
+        if ($image->format === ImageFormat::SVG) {
+            return null;
+        }
+        return $image;
     }
 
     /**
