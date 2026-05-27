@@ -481,9 +481,27 @@ final class Renderer
     private function renderClipped(SvgClipped $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
     {
         $clip = $node->clip;
+
+        // Clip-space transform: objectBoundingBox maps the unit box to the
+        // child's bounding box; the <clipPath> element transform applies on top.
+        // These must affect ONLY the clip geometry (baked into coordinates), not
+        // the child - so they are NOT emitted as a cm that would leak onto the
+        // child's painting.
+        $clipTransform = null;
+        if ($clip->units === ClipPathUnits::OBJECT_BOUNDING_BOX) {
+            $bbox = BoundingBox::ofNode($node->child);
+            if ($bbox->isDegenerate()) {
+                return '';
+            }
+            $clipTransform = SvgMatrix::translate($bbox->x, $bbox->y)->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+        }
+        if ($clip->transform !== null && !$clip->transform->isIdentity()) {
+            $clipTransform = $clipTransform === null ? $clip->transform : $clipTransform->compose($clip->transform);
+        }
+
         $geometry = '';
         foreach ($clip->nodes as $clipNode) {
-            $geometry .= $this->emitClipGeometry($clipNode);
+            $geometry .= $this->emitClipGeometry($clipNode, $clipTransform);
         }
         // Empty clipPath (or only non-contributing content) clips everything
         // away: the child is not rendered.
@@ -491,28 +509,12 @@ final class Renderer
             return '';
         }
 
-        $clipCtm = $ctm;
-        $prefix = '';
-        if ($clip->units === ClipPathUnits::OBJECT_BOUNDING_BOX) {
-            $bbox = BoundingBox::ofNode($node->child);
-            if ($bbox->isDegenerate()) {
-                return '';
-            }
-            $bboxMatrix = SvgMatrix::translate($bbox->x, $bbox->y)->compose(SvgMatrix::scale($bbox->width, $bbox->height));
-            $prefix .= self::cmFromMatrix($bboxMatrix) . "\n";
-            $clipCtm = $clipCtm->compose($bboxMatrix);
-        }
-        if ($clip->transform !== null && !$clip->transform->isIdentity()) {
-            $prefix .= self::cmFromMatrix($clip->transform) . "\n";
-            $clipCtm = $clipCtm->compose($clip->transform);
-        }
-
         $terminator = $clip->clipRule === FillRule::EVENODD ? "W* n\n" : "W n\n";
-        $child = $this->renderNode($node->child, $registry, $patterns, $clipCtm);
+        $child = $this->renderNode($node->child, $registry, $patterns, $ctm);
         if ($child === '') {
             return '';
         }
-        return "q\n" . $prefix . $geometry . $terminator . $child . "Q\n";
+        return "q\n" . $geometry . $terminator . $child . "Q\n";
     }
 
     /**
