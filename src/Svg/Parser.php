@@ -36,6 +36,9 @@ final class Parser
     /** @var array<string, DOMElement> */
     private array $gradientDefs = [];
 
+    /** @var array<string, DOMElement> */
+    private array $clipPathDefs = [];
+
     private ?GradientResolver $gradients = null;
 
     private CssStylesheet $stylesheet;
@@ -89,6 +92,7 @@ final class Parser
 
         $this->collectDefs($doc);
         $this->collectGradientDefs($doc);
+        $this->collectClipPaths($doc);
         $this->gradients = new GradientResolver($this->gradientDefs);
         $this->stylesheet = $this->collectStyleSheet($doc);
 
@@ -164,6 +168,15 @@ final class Parser
         }
     }
 
+    private function collectClipPaths(DOMDocument $doc): void
+    {
+        foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'clipPath') as $node) {
+            if ($node->hasAttribute('id')) {
+                $this->clipPathDefs[$node->getAttribute('id')] = $node;
+            }
+        }
+    }
+
     private function collectStyleSheet(DOMDocument $doc): CssStylesheet
     {
         $styleNodes = $doc->getElementsByTagNameNS(self::SVG_NS, 'style');
@@ -180,7 +193,7 @@ final class Parser
     /**
      * @param list<string> $useStack ids currently being resolved (for cycle detection)
      */
-    private function parseNode(DOMElement $el, SvgPaint $inherited, SvgColor $currentColor, SvgTextStyle $inheritedText, array $useStack, int $depth): ?SvgNode
+    private function parseNode(DOMElement $el, SvgPaint $inherited, SvgColor $currentColor, SvgTextStyle $inheritedText, array $useStack, int $depth, bool $allowClip = true): ?SvgNode
     {
         if (++$this->nodeCounter > self::MAX_NODES) {
             throw new PdfException('SVG node count exceeded (' . self::MAX_NODES . ')');
@@ -225,7 +238,7 @@ final class Parser
                         $children[] = $node;
                     }
                 }
-                return new SvgGroup($transform, $children);
+                return $this->wrapClip(new SvgGroup($transform, $children), $allowClip, $attrs, $css);
 
             case 'rect':
                 $x = (float) ($attrs['x'] ?? 0);
@@ -237,7 +250,7 @@ final class Parser
                 }
                 $rx = (float) ($attrs['rx'] ?? 0);
                 $ry = (float) ($attrs['ry'] ?? 0);
-                return new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry);
+                return $this->wrapClip(new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry), $allowClip, $attrs, $css);
 
             case 'circle':
                 $cx = (float) ($attrs['cx'] ?? 0);
@@ -246,7 +259,7 @@ final class Parser
                 if ($r <= 0.0) {
                     return null;
                 }
-                return new SvgCircle($transform, $paint, $cx, $cy, $r);
+                return $this->wrapClip(new SvgCircle($transform, $paint, $cx, $cy, $r), $allowClip, $attrs, $css);
 
             case 'ellipse':
                 $cx = (float) ($attrs['cx'] ?? 0);
@@ -256,14 +269,14 @@ final class Parser
                 if ($rx <= 0.0 || $ry <= 0.0) {
                     return null;
                 }
-                return new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry);
+                return $this->wrapClip(new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry), $allowClip, $attrs, $css);
 
             case 'line':
                 $x1 = (float) ($attrs['x1'] ?? 0);
                 $y1 = (float) ($attrs['y1'] ?? 0);
                 $x2 = (float) ($attrs['x2'] ?? 0);
                 $y2 = (float) ($attrs['y2'] ?? 0);
-                return new SvgLine($transform, $paint, $x1, $y1, $x2, $y2);
+                return $this->wrapClip(new SvgLine($transform, $paint, $x1, $y1, $x2, $y2), $allowClip, $attrs, $css);
 
             case 'polygon':
             case 'polyline':
@@ -271,9 +284,14 @@ final class Parser
                 if ($points === []) {
                     return null;
                 }
-                return $local === 'polygon'
-                    ? new SvgPolygon($transform, $paint, $points)
-                    : new SvgPolyline($transform, $paint, $points);
+                return $this->wrapClip(
+                    $local === 'polygon'
+                        ? new SvgPolygon($transform, $paint, $points)
+                        : new SvgPolyline($transform, $paint, $points),
+                    $allowClip,
+                    $attrs,
+                    $css,
+                );
 
             case 'path':
                 $d = $attrs['d'] ?? '';
@@ -284,13 +302,13 @@ final class Parser
                 if ($commands === []) {
                     return null;
                 }
-                return new SvgPath($transform, $paint, $commands);
+                return $this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css);
 
             case 'text':
-                return $this->parseText($el, $paint, $textStyle, $transform);
+                return $this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css);
 
             case 'use':
-                return $this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth);
+                return $this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css);
 
             case 'image':
                 $w = (float) ($attrs['width'] ?? 0);
@@ -316,7 +334,7 @@ final class Parser
                 $ar = isset($attrs['preserveAspectRatio'])
                     ? PreserveAspectRatio::parse($attrs['preserveAspectRatio'])
                     : PreserveAspectRatio::default();
-                return new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height);
+                return $this->wrapClip(new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height), $allowClip, $attrs, $css);
 
             case 'title':
             case 'desc':
@@ -338,6 +356,7 @@ final class Parser
         ?SvgMatrix $transform,
         array $useStack,
         int $depth,
+        bool $allowClip = true,
     ): ?SvgNode {
         $href = $attrs['href'] ?? $attrs['xlink:href'] ?? '';
         if ($href === '' || $href[0] !== '#') {
@@ -366,6 +385,7 @@ final class Parser
             $inheritedText,
             [...$useStack, $id],
             $depth + 1,
+            $allowClip,
         );
         if ($resolved === null) {
             return null;
@@ -566,6 +586,98 @@ final class Parser
             return null;
         }
         return $image;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param array<string, string> $css
+     */
+    private function wrapClip(?SvgNode $node, bool $allowClip, array $attrs, array $css): ?SvgNode
+    {
+        if ($node === null || !$allowClip) {
+            return $node;
+        }
+        $clip = $this->resolveClip($attrs, $css);
+        return $clip !== null ? new SvgClipped($clip, $node) : $node;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param array<string, string> $css
+     */
+    private function resolveClip(array $attrs, array $css): ?SvgClip
+    {
+        $value = $this->styleProp($attrs['style'] ?? '', 'clip-path')
+            ?? ($css['clip-path'] ?? null)
+            ?? ($attrs['clip-path'] ?? null);
+        if ($value === null) {
+            return null;
+        }
+        $id = $this->clipUrlId($value);
+        if ($id === null) {
+            return null;
+        }
+        $el = $this->clipPathDefs[$id] ?? null;
+        if ($el === null) {
+            return null;
+        }
+
+        $units = ClipPathUnits::tryFrom($el->getAttribute('clipPathUnits')) ?? ClipPathUnits::USER_SPACE_ON_USE;
+        $transform = $el->hasAttribute('transform') ? TransformParser::parse($el->getAttribute('transform')) : null;
+
+        $nodes = [];
+        $clipRule = FillRule::NONZERO;
+        $ruleFound = false;
+        foreach ($this->childElements($el) as $child) {
+            $node = $this->parseNode($child, SvgPaint::default(), SvgColor::black(), SvgTextStyle::initial(), [], 0, allowClip: false);
+            if ($node === null) {
+                continue;
+            }
+            $nodes[] = $node;
+            if (!$ruleFound) {
+                $rule = $this->clipRuleOf($child);
+                if ($rule !== null) {
+                    $clipRule = $rule;
+                    $ruleFound = true;
+                }
+            }
+        }
+
+        return new SvgClip($units, $transform, $nodes, $clipRule);
+    }
+
+    private function styleProp(string $style, string $name): ?string
+    {
+        foreach (explode(';', $style) as $decl) {
+            $colon = strpos($decl, ':');
+            if ($colon === false) {
+                continue;
+            }
+            if (strtolower(trim(substr($decl, 0, $colon))) === $name) {
+                $v = trim(substr($decl, $colon + 1));
+                return $v !== '' ? $v : null;
+            }
+        }
+        return null;
+    }
+
+    private function clipUrlId(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === 'none' || $value === '') {
+            return null;
+        }
+        if (preg_match('/^url\(\s*#([^)\s]+)\s*\)/i', $value, $m) !== 1) {
+            return null;
+        }
+        return $m[1];
+    }
+
+    private function clipRuleOf(DOMElement $el): ?FillRule
+    {
+        $attrs = $this->collectAttrs($el);
+        $value = $this->styleProp($attrs['style'] ?? '', 'clip-rule') ?? ($attrs['clip-rule'] ?? null);
+        return $value !== null ? FillRule::tryFrom(trim($value)) : null;
     }
 
     /**
