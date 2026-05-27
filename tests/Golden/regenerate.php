@@ -503,6 +503,12 @@ $svgGoldens = [
     'svg-image-aspect-slice.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageAspectSliceTest::class, 'buildPdfBytes'],
     'svg-image-opacity-transform.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageOpacityTransformTest::class, 'buildPdfBytes'],
     'svg-image-dedup.pdf'                => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageDedupTest::class, 'buildPdfBytes'],
+    'svg-text-simple.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextSimpleTest::class, 'buildPdfBytes'],
+    'svg-text-bold-italic.pdf'        => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextBoldItalicTest::class, 'buildPdfBytes'],
+    'svg-text-anchor.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextAnchorTest::class, 'buildPdfBytes'],
+    'svg-text-multiline.pdf'          => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextMultilineTest::class, 'buildPdfBytes'],
+    'svg-text-stroke.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextStrokeTest::class, 'buildPdfBytes'],
+    'svg-text-opacity-transform.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextOpacityTransformTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
