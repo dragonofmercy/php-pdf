@@ -11,6 +11,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\ImageFormat;
+use DragonOfMercy\PhpPdf\Svg\Css\CssParser;
+use DragonOfMercy\PhpPdf\Svg\Css\CssStylesheet;
 
 final class Parser
 {
@@ -35,6 +37,8 @@ final class Parser
     private array $gradientDefs = [];
 
     private ?GradientResolver $gradients = null;
+
+    private CssStylesheet $stylesheet;
 
     /** @var list<Image> */
     private array $embeddedImages = [];
@@ -86,13 +90,29 @@ final class Parser
         $this->collectDefs($doc);
         $this->collectGradientDefs($doc);
         $this->gradients = new GradientResolver($this->gradientDefs);
+        $this->stylesheet = $this->collectStyleSheet($doc);
 
-        $rootCurrentColor = SvgColor::black();
-        $rootPaint = SvgPaint::default();
+        $rootAttrs = $this->collectAttrs($root);
+        $rootCurrentColor = $this->resolveCurrentColor($rootAttrs, SvgColor::black());
+        $rootCss = $this->stylesheet->declarationsFor('svg', $this->classList($rootAttrs), $rootAttrs['id'] ?? null);
+        $rootPaint = StyleResolver::resolve(
+            SvgPaint::default(),
+            $rootAttrs,
+            $rootCss,
+            $rootAttrs['style'] ?? '',
+            $rootCurrentColor,
+            $this->gradients,
+        );
+        $rootText = TextStyleResolver::resolve(
+            SvgTextStyle::initial(),
+            $rootAttrs,
+            $rootCss,
+            $rootAttrs['style'] ?? '',
+        );
 
         $children = [];
         foreach ($this->childElements($root) as $child) {
-            $node = $this->parseNode($child, $rootPaint, $rootCurrentColor, SvgTextStyle::initial(), [], 0);
+            $node = $this->parseNode($child, $rootPaint, $rootCurrentColor, $rootText, [], 0);
             if ($node !== null) {
                 $children[] = $node;
             }
@@ -144,6 +164,19 @@ final class Parser
         }
     }
 
+    private function collectStyleSheet(DOMDocument $doc): CssStylesheet
+    {
+        $styleNodes = $doc->getElementsByTagNameNS(self::SVG_NS, 'style');
+        if ($styleNodes->length === 0) {
+            return CssStylesheet::empty();
+        }
+        $css = '';
+        foreach ($styleNodes as $node) {
+            $css .= $node->textContent . "\n";
+        }
+        return CssParser::parse($css);
+    }
+
     /**
      * @param list<string> $useStack ids currently being resolved (for cycle detection)
      */
@@ -165,15 +198,17 @@ final class Parser
 
         $attrs = $this->collectAttrs($el);
         $newCurrentColor = $this->resolveCurrentColor($attrs, $currentColor);
+        $css = $this->stylesheet->declarationsFor($local, $this->classList($attrs), $attrs['id'] ?? null);
         $paint = StyleResolver::resolve(
             $inherited,
             $attrs,
+            $css,
             $attrs['style'] ?? '',
             $newCurrentColor,
             $this->gradients,
         );
         $transform = isset($attrs['transform']) ? TransformParser::parse($attrs['transform']) : null;
-        $textStyle = TextStyleResolver::resolve($inheritedText, $attrs, $attrs['style'] ?? '');
+        $textStyle = TextStyleResolver::resolve($inheritedText, $attrs, $css, $attrs['style'] ?? '');
 
         switch ($local) {
             case 'g':
@@ -378,8 +413,9 @@ final class Parser
     {
         $attrs = $this->collectAttrs($el);
         $currentColor = $this->resolveCurrentColor($attrs, SvgColor::black());
-        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $attrs['style'] ?? '', $currentColor, $this->gradients);
-        $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $attrs['style'] ?? '');
+        $css = $this->stylesheet->declarationsFor($el->localName ?? '', $this->classList($attrs), $attrs['id'] ?? null);
+        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $css, $attrs['style'] ?? '', $currentColor, $this->gradients);
+        $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $css, $attrs['style'] ?? '');
 
         $font = SvgFontResolver::resolve($style->fontFamily, $style->bold, $style->italic);
         // Gradient/pattern fills on text are not supported; fall back to black.
@@ -444,6 +480,19 @@ final class Parser
             dx: $span->dx,
             dy: $span->dy,
         );
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @return list<string>
+     */
+    private function classList(array $attrs): array
+    {
+        $class = trim($attrs['class'] ?? '');
+        if ($class === '') {
+            return [];
+        }
+        return preg_split('/\s+/', $class) ?: [];
     }
 
     /**
