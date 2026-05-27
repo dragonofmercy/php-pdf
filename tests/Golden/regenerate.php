@@ -515,6 +515,12 @@ $svgGoldens = [
     'svg-css-inline-wins.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssInlineWinsTest::class, 'buildPdfBytes'],
     'svg-css-text-class.pdf'     => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssTextClassTest::class, 'buildPdfBytes'],
     'svg-css-root-inherit.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssRootInheritTest::class, 'buildPdfBytes'],
+    'svg-clip-basic.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipBasicTest::class, 'buildPdfBytes'],
+    'svg-clip-group.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipGroupTest::class, 'buildPdfBytes'],
+    'svg-clip-objectbbox.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipObjectBBoxTest::class, 'buildPdfBytes'],
+    'svg-clip-union.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipUnionTest::class, 'buildPdfBytes'],
+    'svg-clip-evenodd.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipEvenoddTest::class, 'buildPdfBytes'],
+    'svg-clip-css.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipCssTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
