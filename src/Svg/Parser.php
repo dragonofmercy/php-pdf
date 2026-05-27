@@ -626,6 +626,8 @@ final class Parser
         $transform = $el->hasAttribute('transform') ? TransformParser::parse($el->getAttribute('transform')) : null;
 
         $nodes = [];
+        // Simplified: one clip-rule per clipPath, taken from the first child that
+        // declares one. Per-child mixed clip-rules are uncommon and out of scope.
         $clipRule = FillRule::NONZERO;
         $ruleFound = false;
         foreach ($this->childElements($el) as $child) {
