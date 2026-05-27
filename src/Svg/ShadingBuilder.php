@@ -40,7 +40,12 @@ final class ShadingBuilder
         return '<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 1 0] /Function ' . $fn . ' /Extend [true true] >>';
     }
 
-    /** @param list<GradientStop> $stops */
+    /**
+     * Precondition: at least 2 stops (GradientResolver normalizes single/zero
+     * stops away before a gradient reaches here).
+     *
+     * @param list<GradientStop> $stops
+     */
     private static function functionDict(array $stops): string
     {
         if (count($stops) === 2) {
