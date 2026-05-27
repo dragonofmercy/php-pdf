@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg;
 
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
-use DragonOfMercy\PhpPdf\Svg\Align;
-use DragonOfMercy\PhpPdf\Svg\MeetOrSlice;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\Arc;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\ClosePath;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
@@ -29,63 +27,54 @@ use PHPUnit\Framework\TestCase;
 
 final class RendererGeometryTest extends TestCase
 {
-    public function testViewBoxToUnitIdentityForUnitBox(): void
+    public function testViewBoxToUnitFillsAndFlipsUnitBox(): void
     {
-        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(0.0, 0.0, 1.0, 1.0), PreserveAspectRatio::default());
-        self::assertEqualsWithDelta([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], $m->toArray(), 1e-9);
+        // Fill both axes + flip Y: the unit box maps to a vertical mirror about
+        // v = 0.5, i.e. [1 0 0 -1 0 1].
+        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(0.0, 0.0, 1.0, 1.0));
+        self::assertEqualsWithDelta([1.0, 0.0, 0.0, -1.0, 0.0, 1.0], $m->toArray(), 1e-9);
     }
 
-    public function testViewBoxToUnitScalesUniformlyMeet(): void
+    public function testViewBoxToUnitFillsBothAxesNonUniformly(): void
     {
-        // viewBox 0 0 100 50 -> unit square. meet -> uniform scale = min(1/100, 1/50) = 1/100.
-        // After scaling: vw = 1, vh = 0.5. xMidYMid -> dx = 0, dy = (1 - 0.5)/2 = 0.25.
-        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(0.0, 0.0, 100.0, 50.0), PreserveAspectRatio::default());
+        // viewBox 0 0 100 50 fills the unit square: sx = 1/100, sy = 1/50, with
+        // the Y axis flipped (negative d). No letterboxing, no centering.
+        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(0.0, 0.0, 100.0, 50.0));
         self::assertEqualsWithDelta(0.01, $m->a, 1e-9);
-        self::assertEqualsWithDelta(0.01, $m->d, 1e-9);
+        self::assertEqualsWithDelta(-0.02, $m->d, 1e-9);
         self::assertEqualsWithDelta(0.0, $m->e, 1e-9);
-        self::assertEqualsWithDelta(0.25, $m->f, 1e-9);
+        self::assertEqualsWithDelta(1.0, $m->f, 1e-9);
     }
 
-    public function testViewBoxToUnitSliceCovers(): void
+    public function testViewBoxToUnitFlipsYSoTopMapsToOne(): void
     {
-        // viewBox 0 0 100 50 -> slice -> uniform scale = max(1/100, 1/50) = 0.02.
-        // After: vw = 2, vh = 1. xMidYMid -> dx = (1 - 2)/2 = -0.5, dy = 0.
-        $m = Renderer::viewBoxToUnitMatrix(
-            new ViewBox(0.0, 0.0, 100.0, 50.0),
-            new PreserveAspectRatio(Align::X_MID_Y_MID, MeetOrSlice::SLICE),
-        );
-        self::assertEqualsWithDelta(0.02, $m->a, 1e-9);
-        self::assertEqualsWithDelta(0.02, $m->d, 1e-9);
-        self::assertEqualsWithDelta(-0.5, $m->e, 1e-9);
-    }
-
-    public function testViewBoxToUnitNoneStretches(): void
-    {
-        $m = Renderer::viewBoxToUnitMatrix(
-            new ViewBox(0.0, 0.0, 100.0, 50.0),
-            new PreserveAspectRatio(Align::NONE, MeetOrSlice::MEET),
-        );
-        self::assertEqualsWithDelta(0.01, $m->a, 1e-9);
-        self::assertEqualsWithDelta(0.02, $m->d, 1e-9);
+        // SVG top (y = 0) maps to unit v = 1; SVG bottom (y = 50) maps to v = 0.
+        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(0.0, 0.0, 100.0, 50.0));
+        [$x0, $top] = $m->apply(0.0, 0.0);
+        [, $bottom] = $m->apply(0.0, 50.0);
+        self::assertEqualsWithDelta(0.0, $x0, 1e-9);
+        self::assertEqualsWithDelta(1.0, $top, 1e-9);
+        self::assertEqualsWithDelta(0.0, $bottom, 1e-9);
     }
 
     public function testViewBoxOffsetOrigin(): void
     {
-        // viewBox -50 -25 100 50 with xMidYMid meet: scale = 0.01, dx = 0, dy = 0.25.
-        // After scaling, the viewBox origin (-50, -25) maps to (-50*0.01, -25*0.01) = (-0.5, -0.25).
-        // To put it at (0, 0.25) in the unit, translate by (0.5, 0.5).
-        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(-50.0, -25.0, 100.0, 50.0), PreserveAspectRatio::default());
+        // viewBox -50 -25 100 50: the top-left corner (-50, -25) maps to unit
+        // (0, 1) under the fill + Y-flip mapping.
+        $m = Renderer::viewBoxToUnitMatrix(new ViewBox(-50.0, -25.0, 100.0, 50.0));
         [$x0, $y0] = $m->apply(-50.0, -25.0);
         self::assertEqualsWithDelta(0.0, $x0, 1e-9);
-        self::assertEqualsWithDelta(0.25, $y0, 1e-9);
+        self::assertEqualsWithDelta(1.0, $y0, 1e-9);
     }
 
-    public function testRenderEmptyDocumentProducesPrologueOnly(): void
+    public function testRenderEmptyDocumentEmitsOnlyThePrologue(): void
     {
         $svg = new SvgMetadata(new ViewBox(0.0, 0.0, 1.0, 1.0), PreserveAspectRatio::default(), new SvgGroup(null, []));
         $bytes = (new Renderer())->render($svg)['bytes'];
-        // Identity viewBox -> no cm needed. With no shapes, the stream is empty (or only whitespace).
-        self::assertSame('', trim($bytes));
+        // The fill+flip prologue is always non-identity, so it is emitted, but
+        // with no shapes there are no drawing operators.
+        self::assertStringContainsString('1 0 0 -1 0 1 cm', $bytes);
+        self::assertStringNotContainsString(' re', $bytes);
     }
 
     public function testRenderRectEmitsReOperator(): void

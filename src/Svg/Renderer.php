@@ -50,7 +50,7 @@ final class Renderer
         $out = '';
         $registry = new ExtGStateRegistry();
         $patterns = new PatternRegistry();
-        $prologue = self::viewBoxToUnitMatrix($svg->viewBox, $svg->aspectRatio);
+        $prologue = self::viewBoxToUnitMatrix($svg->viewBox);
         if (!$prologue->isIdentity()) {
             $out .= "q\n" . self::cmFromMatrix($prologue) . "\n";
         }
@@ -71,28 +71,27 @@ final class Renderer
         ];
     }
 
-    public static function viewBoxToUnitMatrix(ViewBox $vb, PreserveAspectRatio $ar): SvgMatrix
+    /**
+     * Maps the viewBox onto the Form's unit square, filling both axes and
+     * flipping the Y axis.
+     *
+     * The page places this Form's unit square at the image's effective width
+     * and height, which already carry the viewBox aspect ratio, so filling
+     * both axes here keeps the net (prologue then placement) transform uniform
+     * and undistorted. The Y flip is required because the page places every
+     * image XObject with a vertical-flip matrix (designed for top-row-first
+     * rasters); without it the SVG's top-down content would render upside down.
+     *
+     * The root preserveAspectRatio (meet / slice / align) is intentionally not
+     * applied here: it can only be resolved against the placement viewport,
+     * which lives at the Page::image layer, not in this Form-local prologue.
+     */
+    public static function viewBoxToUnitMatrix(ViewBox $vb): SvgMatrix
     {
         $sx = 1.0 / $vb->width;
         $sy = 1.0 / $vb->height;
-        if ($ar->align === Align::NONE) {
-            return SvgMatrix::translate(-$vb->x * $sx, -$vb->y * $sy)->compose(SvgMatrix::scale($sx, $sy));
-        }
-        $s = $ar->meetOrSlice === MeetOrSlice::MEET ? min($sx, $sy) : max($sx, $sy);
-        $vw = $vb->width * $s;
-        $vh = $vb->height * $s;
-        $dx = match ($ar->align) {
-            Align::X_MIN_Y_MIN, Align::X_MIN_Y_MID, Align::X_MIN_Y_MAX => 0.0,
-            Align::X_MID_Y_MIN, Align::X_MID_Y_MID, Align::X_MID_Y_MAX => (1.0 - $vw) / 2.0,
-            default => 1.0 - $vw, // X_MAX_*
-        };
-        $dy = match ($ar->align) {
-            Align::X_MIN_Y_MIN, Align::X_MID_Y_MIN, Align::X_MAX_Y_MIN => 0.0,
-            Align::X_MIN_Y_MID, Align::X_MID_Y_MID, Align::X_MAX_Y_MID => (1.0 - $vh) / 2.0,
-            default => 1.0 - $vh, // *_Y_MAX
-        };
-        return SvgMatrix::translate($dx - $vb->x * $s, $dy - $vb->y * $s)
-            ->compose(SvgMatrix::scale($s, $s));
+        return SvgMatrix::translate(-$vb->x * $sx, 1.0 + $vb->y * $sy)
+            ->compose(SvgMatrix::scale($sx, -$sy));
     }
 
     private function renderNode(SvgNode $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
