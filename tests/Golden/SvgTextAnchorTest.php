@@ -15,7 +15,7 @@ final class SvgTextAnchorTest extends TestCase
 {
     private const string FIXTURE = 'svg-text-anchor.pdf';
 
-    public function testMatchesFixtureBytes(): void
+    public function testSvgTextAnchorMatchesFixtureBytes(): void
     {
         $expected = file_get_contents(__DIR__ . '/fixtures/' . self::FIXTURE);
         self::assertIsString($expected);
@@ -26,7 +26,7 @@ final class SvgTextAnchorTest extends TestCase
         );
     }
 
-    public function testPassesQpdfCheck(): void
+    public function testSvgTextAnchorPassesQpdfCheck(): void
     {
         $qpdf = (new ExecutableFinder())->find('qpdf');
         if ($qpdf === null) {

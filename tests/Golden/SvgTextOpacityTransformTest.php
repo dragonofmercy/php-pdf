@@ -15,7 +15,7 @@ final class SvgTextOpacityTransformTest extends TestCase
 {
     private const string FIXTURE = 'svg-text-opacity-transform.pdf';
 
-    public function testMatchesFixtureBytes(): void
+    public function testSvgTextOpacityTransformMatchesFixtureBytes(): void
     {
         $expected = file_get_contents(__DIR__ . '/fixtures/' . self::FIXTURE);
         self::assertIsString($expected);
@@ -26,7 +26,7 @@ final class SvgTextOpacityTransformTest extends TestCase
         );
     }
 
-    public function testPassesQpdfCheck(): void
+    public function testSvgTextOpacityTransformPassesQpdfCheck(): void
     {
         $qpdf = (new ExecutableFinder())->find('qpdf');
         if ($qpdf === null) {

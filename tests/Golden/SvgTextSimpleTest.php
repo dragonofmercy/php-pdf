@@ -15,7 +15,7 @@ final class SvgTextSimpleTest extends TestCase
 {
     private const string FIXTURE = 'svg-text-simple.pdf';
 
-    public function testMatchesFixtureBytes(): void
+    public function testSvgTextSimpleMatchesFixtureBytes(): void
     {
         $expected = file_get_contents(__DIR__ . '/fixtures/' . self::FIXTURE);
         self::assertIsString($expected);
@@ -26,7 +26,7 @@ final class SvgTextSimpleTest extends TestCase
         );
     }
 
-    public function testPassesQpdfCheck(): void
+    public function testSvgTextSimplePassesQpdfCheck(): void
     {
         $qpdf = (new ExecutableFinder())->find('qpdf');
         if ($qpdf === null) {

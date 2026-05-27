@@ -15,7 +15,7 @@ final class SvgTextMultilineTest extends TestCase
 {
     private const string FIXTURE = 'svg-text-multiline.pdf';
 
-    public function testMatchesFixtureBytes(): void
+    public function testSvgTextMultilineMatchesFixtureBytes(): void
     {
         $expected = file_get_contents(__DIR__ . '/fixtures/' . self::FIXTURE);
         self::assertIsString($expected);
@@ -26,7 +26,7 @@ final class SvgTextMultilineTest extends TestCase
         );
     }
 
-    public function testPassesQpdfCheck(): void
+    public function testSvgTextMultilinePassesQpdfCheck(): void
     {
         $qpdf = (new ExecutableFinder())->find('qpdf');
         if ($qpdf === null) {

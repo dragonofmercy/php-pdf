@@ -15,7 +15,7 @@ final class SvgTextStrokeTest extends TestCase
 {
     private const string FIXTURE = 'svg-text-stroke.pdf';
 
-    public function testMatchesFixtureBytes(): void
+    public function testSvgTextStrokeMatchesFixtureBytes(): void
     {
         $expected = file_get_contents(__DIR__ . '/fixtures/' . self::FIXTURE);
         self::assertIsString($expected);
@@ -26,7 +26,7 @@ final class SvgTextStrokeTest extends TestCase
         );
     }
 
-    public function testPassesQpdfCheck(): void
+    public function testSvgTextStrokePassesQpdfCheck(): void
     {
         $qpdf = (new ExecutableFinder())->find('qpdf');
         if ($qpdf === null) {

@@ -15,7 +15,7 @@ final class SvgTextBoldItalicTest extends TestCase
 {
     private const string FIXTURE = 'svg-text-bold-italic.pdf';
 
-    public function testMatchesFixtureBytes(): void
+    public function testSvgTextBoldItalicMatchesFixtureBytes(): void
     {
         $expected = file_get_contents(__DIR__ . '/fixtures/' . self::FIXTURE);
         self::assertIsString($expected);
@@ -26,7 +26,7 @@ final class SvgTextBoldItalicTest extends TestCase
         );
     }
 
-    public function testPassesQpdfCheck(): void
+    public function testSvgTextBoldItalicPassesQpdfCheck(): void
     {
         $qpdf = (new ExecutableFinder())->find('qpdf');
         if ($qpdf === null) {
