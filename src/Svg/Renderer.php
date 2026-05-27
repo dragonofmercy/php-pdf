@@ -340,11 +340,6 @@ final class Renderer
      */
     private static function fmt(float $v): string
     {
-        if ($v == (int) $v && abs($v) < 1e15) {
-            return (string) (int) $v;
-        }
-        $s = number_format($v, 6, '.', '');
-        $s = rtrim($s, '0');
-        return rtrim($s, '.');
+        return Format::num($v);
     }
 }
