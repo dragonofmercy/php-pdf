@@ -20,10 +20,17 @@ final class SvgPaintSourceTest extends TestCase
         self::assertSame($g, $paint->fill);
     }
 
-    public function testWithFillStillAcceptsColor(): void
+    public function testWithStrokeStillAcceptsColor(): void
     {
         $c = SvgColor::fromBytes(1, 2, 3);
         $paint = SvgPaint::default()->withStroke($c);
         self::assertSame($c, $paint->stroke);
+    }
+
+    public function testWithFillStillAcceptsColor(): void
+    {
+        $c = SvgColor::fromBytes(4, 5, 6);
+        $paint = SvgPaint::default()->withFill($c);
+        self::assertSame($c, $paint->fill);
     }
 }
