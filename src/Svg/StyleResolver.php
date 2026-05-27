@@ -21,6 +21,7 @@ final class StyleResolver
         array $presentationAttrs,
         string $styleAttr,
         SvgColor $currentColor,
+        ?GradientResolver $gradients = null,
     ): SvgPaint {
         $merged = $presentationAttrs;
         foreach (self::parseStyle($styleAttr) as $key => $value) {
@@ -29,7 +30,7 @@ final class StyleResolver
 
         $paint = $inherited;
         foreach ($merged as $key => $value) {
-            $paint = self::applyOne($paint, $key, $value, $currentColor);
+            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients);
         }
         return $paint;
     }
@@ -58,12 +59,20 @@ final class StyleResolver
         return $out;
     }
 
-    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current): SvgPaint
+    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients): SvgPaint
     {
         switch ($key) {
             case 'fill':
                 if ($value === 'none') {
                     return $paint->withFillNone();
+                }
+                $g = self::resolvePaintRef($value, $current, $gradients);
+                if ($g !== null) {
+                    return $paint->withFill($g);
+                }
+                if (self::isUnresolvedUrl($value)) {
+                    $fallback = self::urlFallbackColor($value, $current);
+                    return $fallback !== null ? $paint->withFill($fallback) : $paint;
                 }
                 $c = ColorParser::parse($value, $current);
                 if ($c === null) {
@@ -79,6 +88,14 @@ final class StyleResolver
             case 'stroke':
                 if ($value === 'none') {
                     return $paint->withStrokeNone();
+                }
+                $g = self::resolvePaintRef($value, $current, $gradients);
+                if ($g !== null) {
+                    return $paint->withStroke($g);
+                }
+                if (self::isUnresolvedUrl($value)) {
+                    $fallback = self::urlFallbackColor($value, $current);
+                    return $fallback !== null ? $paint->withStroke($fallback) : $paint;
                 }
                 $c = ColorParser::parse($value, $current);
                 if ($c === null) {
@@ -147,6 +164,37 @@ final class StyleResolver
             default:
                 return $paint;
         }
+    }
+
+    private static function resolvePaintRef(string $value, SvgColor $current, ?GradientResolver $gradients): ?SvgGradient
+    {
+        $id = self::urlId($value);
+        if ($id === null || $gradients === null) {
+            return null;
+        }
+        return $gradients->resolve($id, $current);
+    }
+
+    private static function isUnresolvedUrl(string $value): bool
+    {
+        return self::urlId($value) !== null;
+    }
+
+    private static function urlId(string $value): ?string
+    {
+        if (preg_match('/^url\(\s*#([^)\s]+)\s*\)/i', trim($value), $m) !== 1) {
+            return null;
+        }
+        return $m[1];
+    }
+
+    /** Optional fallback color after url(#id), e.g. "url(#x) red". */
+    private static function urlFallbackColor(string $value, SvgColor $current): ?SvgColor
+    {
+        if (preg_match('/^url\(\s*#[^)\s]+\s*\)\s+(.+)$/i', trim($value), $m) !== 1) {
+            return null;
+        }
+        return ColorParser::parse(trim($m[1]), $current);
     }
 
     private static function parseAlphaValue(string $value): float

@@ -29,6 +29,11 @@ final class Parser
     /** @var array<string, DOMElement> */
     private array $defs = [];
 
+    /** @var array<string, DOMElement> */
+    private array $gradientDefs = [];
+
+    private ?GradientResolver $gradients = null;
+
     private int $nodeCounter = 0;
 
     public static function parse(string $xml): SvgMetadata
@@ -71,6 +76,8 @@ final class Parser
             : PreserveAspectRatio::default();
 
         $this->collectDefs($doc);
+        $this->collectGradientDefs($doc);
+        $this->gradients = new GradientResolver($this->gradientDefs);
 
         $rootCurrentColor = SvgColor::black();
         $rootPaint = SvgPaint::default();
@@ -118,6 +125,17 @@ final class Parser
         }
     }
 
+    private function collectGradientDefs(DOMDocument $doc): void
+    {
+        foreach (['linearGradient', 'radialGradient'] as $tag) {
+            foreach ($doc->getElementsByTagNameNS(self::SVG_NS, $tag) as $node) {
+                if ($node->hasAttribute('id')) {
+                    $this->gradientDefs[$node->getAttribute('id')] = $node;
+                }
+            }
+        }
+    }
+
     /**
      * @param list<string> $useStack ids currently being resolved (for cycle detection)
      */
@@ -144,6 +162,7 @@ final class Parser
             $attrs,
             $attrs['style'] ?? '',
             $newCurrentColor,
+            $this->gradients,
         );
         $transform = isset($attrs['transform']) ? TransformParser::parse($attrs['transform']) : null;
 
