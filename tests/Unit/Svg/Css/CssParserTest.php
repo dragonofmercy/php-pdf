@@ -29,6 +29,13 @@ final class CssParserTest extends TestCase
         self::assertSame([], $sheet->declarationsFor('circle', ['hl'], null));
     }
 
+    public function testCompoundMultipleClassesRequiresAll(): void
+    {
+        $sheet = CssParser::parse('.a.b { fill: red }');
+        self::assertSame(['fill' => 'red'], $sheet->declarationsFor('rect', ['a', 'b'], null));
+        self::assertSame([], $sheet->declarationsFor('rect', ['a'], null));
+    }
+
     public function testCommaGroupExpandsToMultipleSelectors(): void
     {
         $sheet = CssParser::parse('.a, .b { fill: red }');

@@ -41,6 +41,8 @@ final class CssParser
                 continue;
             }
 
+            // Flat rule sets only: the first '}' closes the body. SVG presentation
+            // values never contain braces, so this is safe for the supported scope.
             $close = strpos($css, '}', $brace);
             if ($close === false) {
                 break;
