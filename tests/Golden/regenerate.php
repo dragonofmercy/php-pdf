@@ -496,6 +496,13 @@ $svgGoldens = [
     'svg-gradient-multistop.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientMultistopTest::class, 'buildPdfBytes'],
     'svg-gradient-on-stroke.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientOnStrokeTest::class, 'buildPdfBytes'],
     'svg-gradient-opacity.pdf'      => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientOpacityTest::class, 'buildPdfBytes'],
+    'svg-image-png.pdf'                  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImagePngTest::class, 'buildPdfBytes'],
+    'svg-image-jpeg.pdf'                 => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageJpegTest::class, 'buildPdfBytes'],
+    'svg-image-png-alpha.pdf'            => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImagePngAlphaTest::class, 'buildPdfBytes'],
+    'svg-image-aspect-meet.pdf'          => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageAspectMeetTest::class, 'buildPdfBytes'],
+    'svg-image-aspect-slice.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageAspectSliceTest::class, 'buildPdfBytes'],
+    'svg-image-opacity-transform.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageOpacityTransformTest::class, 'buildPdfBytes'],
+    'svg-image-dedup.pdf'                => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgImageDedupTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
