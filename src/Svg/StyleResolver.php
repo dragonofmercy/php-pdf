@@ -15,15 +15,20 @@ final class StyleResolver
 {
     /**
      * @param array<string, string> $presentationAttrs
+     * @param array<string, string> $cssDeclarations stylesheet declarations, cascade-collapsed
      */
     public static function resolve(
         SvgPaint $inherited,
         array $presentationAttrs,
+        array $cssDeclarations,
         string $styleAttr,
         SvgColor $currentColor,
         ?GradientResolver $gradients = null,
     ): SvgPaint {
         $merged = $presentationAttrs;
+        foreach ($cssDeclarations as $key => $value) {
+            $merged[$key] = $value;
+        }
         foreach (self::parseStyle($styleAttr) as $key => $value) {
             $merged[$key] = $value;
         }

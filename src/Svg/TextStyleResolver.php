@@ -16,10 +16,18 @@ final class TextStyleResolver
 {
     /**
      * @param array<string, string> $presentationAttrs
+     * @param array<string, string> $cssDeclarations stylesheet declarations, cascade-collapsed
      */
-    public static function resolve(SvgTextStyle $inherited, array $presentationAttrs, string $styleAttr): SvgTextStyle
-    {
+    public static function resolve(
+        SvgTextStyle $inherited,
+        array $presentationAttrs,
+        array $cssDeclarations,
+        string $styleAttr,
+    ): SvgTextStyle {
         $merged = $presentationAttrs;
+        foreach ($cssDeclarations as $key => $value) {
+            $merged[$key] = $value;
+        }
         foreach (self::parseStyle($styleAttr) as $key => $value) {
             $merged[$key] = $value;
         }
