@@ -73,4 +73,16 @@ final class SvgImageEmbedTest extends TestCase
         $numbers = array_map(static fn ($o) => $o->objectNumber, $objs);
         self::assertSame([10, 11, 12, 13], $numbers);
     }
+
+    public function testEmbedNoXObjectWhenNoImages(): void
+    {
+        $svg = $this->svgWith('<rect width="10" height="10" fill="red"/>');
+        $objs = (new ImageEmbedder())->embed($svg, 5);
+        self::assertCount(1, $objs);
+        $body = '';
+        foreach ($objs as $o) {
+            $body .= $o->toBytes();
+        }
+        self::assertStringNotContainsString('/XObject <<', $body);
+    }
 }
