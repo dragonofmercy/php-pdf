@@ -76,6 +76,9 @@ final class Renderer
         if ($node instanceof SvgShape) {
             return $this->renderShape($node, $registry, $patterns, $ctm);
         }
+        if ($node instanceof SvgImage) {
+            return $this->renderImage($node, $registry);
+        }
         return '';
     }
 
@@ -367,6 +370,60 @@ final class Renderer
             }
         }
         return $out;
+    }
+
+    private function renderImage(SvgImage $img, ExtGStateRegistry $registry): string
+    {
+        [$fx, $fy, $fw, $fh] = self::fittedRect(
+            $img->x, $img->y, $img->width, $img->height,
+            $img->intrinsicWidth, $img->intrinsicHeight, $img->aspectRatio,
+        );
+
+        $out = "q\n";
+        if ($img->transform !== null && !$img->transform->isIdentity()) {
+            $out .= self::cmFromMatrix($img->transform) . "\n";
+        }
+        $name = $registry->nameFor($img->opacity, $img->opacity);
+        if ($name !== '') {
+            $out .= '/' . $name . " gs\n";
+        }
+        if ($img->aspectRatio->align !== Align::NONE && $img->aspectRatio->meetOrSlice === MeetOrSlice::SLICE) {
+            $out .= sprintf("%s %s %s %s re\nW n\n", self::fmt($img->x), self::fmt($img->y), self::fmt($img->width), self::fmt($img->height));
+        }
+        $out .= sprintf("%s 0 0 %s %s %s cm\n", self::fmt($fw), self::fmt(-$fh), self::fmt($fx), self::fmt($fy + $fh));
+        $out .= '/Im' . $img->imageIndex . " Do\n";
+        $out .= "Q\n";
+        return $out;
+    }
+
+    /**
+     * Fits an intrinsic raster size into a viewport rect per preserveAspectRatio.
+     *
+     * @return array{0: float, 1: float, 2: float, 3: float} fx, fy, fw, fh
+     */
+    private static function fittedRect(
+        float $vx, float $vy, float $vw, float $vh,
+        int $iw, int $ih, PreserveAspectRatio $ar,
+    ): array {
+        if ($ar->align === Align::NONE || $iw <= 0 || $ih <= 0) {
+            return [$vx, $vy, $vw, $vh];
+        }
+        $sx = $vw / $iw;
+        $sy = $vh / $ih;
+        $s = $ar->meetOrSlice === MeetOrSlice::MEET ? min($sx, $sy) : max($sx, $sy);
+        $fw = $iw * $s;
+        $fh = $ih * $s;
+        $dx = match ($ar->align) {
+            Align::X_MIN_Y_MIN, Align::X_MIN_Y_MID, Align::X_MIN_Y_MAX => 0.0,
+            Align::X_MID_Y_MIN, Align::X_MID_Y_MID, Align::X_MID_Y_MAX => ($vw - $fw) / 2.0,
+            default => $vw - $fw,
+        };
+        $dy = match ($ar->align) {
+            Align::X_MIN_Y_MIN, Align::X_MID_Y_MIN, Align::X_MAX_Y_MIN => 0.0,
+            Align::X_MIN_Y_MID, Align::X_MID_Y_MID, Align::X_MAX_Y_MID => ($vh - $fh) / 2.0,
+            default => $vh - $fh,
+        };
+        return [$vx + $dx, $vy + $dy, $fw, $fh];
     }
 
     private static function cmFromMatrix(SvgMatrix $m): string
