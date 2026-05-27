@@ -509,6 +509,12 @@ $svgGoldens = [
     'svg-text-multiline.pdf'          => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextMultilineTest::class, 'buildPdfBytes'],
     'svg-text-stroke.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextStrokeTest::class, 'buildPdfBytes'],
     'svg-text-opacity-transform.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgTextOpacityTransformTest::class, 'buildPdfBytes'],
+    'svg-css-type-selector.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssTypeSelectorTest::class, 'buildPdfBytes'],
+    'svg-css-class-override.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssClassOverrideTest::class, 'buildPdfBytes'],
+    'svg-css-specificity.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssSpecificityTest::class, 'buildPdfBytes'],
+    'svg-css-inline-wins.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssInlineWinsTest::class, 'buildPdfBytes'],
+    'svg-css-text-class.pdf'     => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssTextClassTest::class, 'buildPdfBytes'],
+    'svg-css-root-inherit.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgCssRootInheritTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
