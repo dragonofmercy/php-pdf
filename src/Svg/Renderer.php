@@ -243,24 +243,48 @@ final class Renderer
         return 'n';
     }
 
-    private function emitGeometry(SvgShape $shape): string
+    private function emitGeometry(SvgShape $shape, ?SvgMatrix $transform = null): string
     {
         return match (true) {
-            $shape instanceof SvgRect     => $this->emitRect($shape),
-            $shape instanceof SvgCircle   => $this->emitCircle($shape),
-            $shape instanceof SvgEllipse  => $this->emitEllipse($shape),
-            $shape instanceof SvgLine     => $this->emitLine($shape),
-            $shape instanceof SvgPolygon  => $this->emitPolygon($shape, closed: true),
-            $shape instanceof SvgPolyline => $this->emitPolygon($shape, closed: false),
-            $shape instanceof SvgPath     => $this->emitPath($shape),
+            $shape instanceof SvgRect     => $this->emitRect($shape, $transform),
+            $shape instanceof SvgCircle   => $this->emitCircle($shape, $transform),
+            $shape instanceof SvgEllipse  => $this->emitEllipse($shape, $transform),
+            $shape instanceof SvgLine     => $this->emitLine($shape, $transform),
+            $shape instanceof SvgPolygon  => $this->emitPolygon($shape, closed: true, transform: $transform),
+            $shape instanceof SvgPolyline => $this->emitPolygon($shape, closed: false, transform: $transform),
+            $shape instanceof SvgPath     => $this->emitPath($shape, $transform),
             default                       => '',
         };
     }
 
-    private function emitRect(SvgRect $r): string
+    /**
+     * Maps an optional transform over a point. Returns the raw coordinates when
+     * no transform is present so the null path is byte-identical to the original.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private function pt(?SvgMatrix $t, float $x, float $y): array
+    {
+        return $t !== null ? $t->apply($x, $y) : [$x, $y];
+    }
+
+    private function emitRect(SvgRect $r, ?SvgMatrix $transform = null): string
     {
         if (!$r->hasRoundedCorners()) {
-            return sprintf("%s %s %s %s re\n", self::fmt($r->x), self::fmt($r->y), self::fmt($r->width), self::fmt($r->height));
+            if ($transform === null) {
+                // Byte-identical output for non-clip path (null transform).
+                return sprintf("%s %s %s %s re\n", self::fmt($r->x), self::fmt($r->y), self::fmt($r->width), self::fmt($r->height));
+            }
+            // `re` cannot encode rotation/skew; emit the four transformed corners as m/l/l/l/h.
+            [$ax, $ay] = $transform->apply($r->x, $r->y);
+            [$bx, $by] = $transform->apply($r->x + $r->width, $r->y);
+            [$cx, $cy] = $transform->apply($r->x + $r->width, $r->y + $r->height);
+            [$dx, $dy] = $transform->apply($r->x, $r->y + $r->height);
+            return sprintf("%s %s m\n", self::fmt($ax), self::fmt($ay))
+                . sprintf("%s %s l\n", self::fmt($bx), self::fmt($by))
+                . sprintf("%s %s l\n", self::fmt($cx), self::fmt($cy))
+                . sprintf("%s %s l\n", self::fmt($dx), self::fmt($dy))
+                . "h\n";
         }
         // Clamp radii per SVG spec: rx <= width/2, ry <= height/2.
         $rx = min($r->rx > 0.0 ? $r->rx : $r->ry, $r->width / 2.0);
@@ -270,86 +294,119 @@ final class Renderer
         $w = $r->width;
         $h = $r->height;
         $out = '';
-        $out .= sprintf("%s %s m\n", self::fmt($x + $w - $rx), self::fmt($y));
+        [$sx, $sy] = $this->pt($transform, $x + $w - $rx, $y);
+        $out .= sprintf("%s %s m\n", self::fmt($sx), self::fmt($sy));
         // Top-right corner arc (quarter circle from (x+w-rx, y) to (x+w, y+ry))
         foreach (ArcToBezier::approximate($x + $w - $rx, $y, $rx, $ry, 0.0, false, true, $x + $w, $y + $ry) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
-            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+            [$tc1x, $tc1y] = $this->pt($transform, $c1x, $c1y);
+            [$tc2x, $tc2y] = $this->pt($transform, $c2x, $c2y);
+            [$tex, $tey]   = $this->pt($transform, $ex, $ey);
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($tc1x), self::fmt($tc1y), self::fmt($tc2x), self::fmt($tc2y), self::fmt($tex), self::fmt($tey));
         }
         // Right edge
-        $out .= sprintf("%s %s l\n", self::fmt($x + $w), self::fmt($y + $h - $ry));
+        [$rx2, $ry2] = $this->pt($transform, $x + $w, $y + $h - $ry);
+        $out .= sprintf("%s %s l\n", self::fmt($rx2), self::fmt($ry2));
         // Bottom-right corner arc
         foreach (ArcToBezier::approximate($x + $w, $y + $h - $ry, $rx, $ry, 0.0, false, true, $x + $w - $rx, $y + $h) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
-            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+            [$tc1x, $tc1y] = $this->pt($transform, $c1x, $c1y);
+            [$tc2x, $tc2y] = $this->pt($transform, $c2x, $c2y);
+            [$tex, $tey]   = $this->pt($transform, $ex, $ey);
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($tc1x), self::fmt($tc1y), self::fmt($tc2x), self::fmt($tc2y), self::fmt($tex), self::fmt($tey));
         }
         // Bottom edge
-        $out .= sprintf("%s %s l\n", self::fmt($x + $rx), self::fmt($y + $h));
+        [$bex, $bey] = $this->pt($transform, $x + $rx, $y + $h);
+        $out .= sprintf("%s %s l\n", self::fmt($bex), self::fmt($bey));
         // Bottom-left corner arc
         foreach (ArcToBezier::approximate($x + $rx, $y + $h, $rx, $ry, 0.0, false, true, $x, $y + $h - $ry) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
-            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+            [$tc1x, $tc1y] = $this->pt($transform, $c1x, $c1y);
+            [$tc2x, $tc2y] = $this->pt($transform, $c2x, $c2y);
+            [$tex, $tey]   = $this->pt($transform, $ex, $ey);
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($tc1x), self::fmt($tc1y), self::fmt($tc2x), self::fmt($tc2y), self::fmt($tex), self::fmt($tey));
         }
         // Left edge
-        $out .= sprintf("%s %s l\n", self::fmt($x), self::fmt($y + $ry));
+        [$lex, $ley] = $this->pt($transform, $x, $y + $ry);
+        $out .= sprintf("%s %s l\n", self::fmt($lex), self::fmt($ley));
         // Top-left corner arc
         foreach (ArcToBezier::approximate($x, $y + $ry, $rx, $ry, 0.0, false, true, $x + $rx, $y) as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
-            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($c1x), self::fmt($c1y), self::fmt($c2x), self::fmt($c2y), self::fmt($ex), self::fmt($ey));
+            [$tc1x, $tc1y] = $this->pt($transform, $c1x, $c1y);
+            [$tc2x, $tc2y] = $this->pt($transform, $c2x, $c2y);
+            [$tex, $tey]   = $this->pt($transform, $ex, $ey);
+            $out .= sprintf("%s %s %s %s %s %s c\n", self::fmt($tc1x), self::fmt($tc1y), self::fmt($tc2x), self::fmt($tc2y), self::fmt($tex), self::fmt($tey));
         }
         $out .= "h\n";
         return $out;
     }
 
-    private function emitCircle(SvgCircle $c): string
+    private function emitCircle(SvgCircle $c, ?SvgMatrix $transform = null): string
     {
-        return $this->emitEllipsoid($c->cx, $c->cy, $c->r, $c->r);
+        return $this->emitEllipsoid($c->cx, $c->cy, $c->r, $c->r, $transform);
     }
 
-    private function emitEllipse(SvgEllipse $e): string
+    private function emitEllipse(SvgEllipse $e, ?SvgMatrix $transform = null): string
     {
-        return $this->emitEllipsoid($e->cx, $e->cy, $e->rx, $e->ry);
+        return $this->emitEllipsoid($e->cx, $e->cy, $e->rx, $e->ry, $transform);
     }
 
     /**
      * Four-cubic Bezier-kappa approximation of an ellipse, matching the
      * algorithm already used by Page::circle().
      */
-    private function emitEllipsoid(float $cx, float $cy, float $rx, float $ry): string
+    private function emitEllipsoid(float $cx, float $cy, float $rx, float $ry, ?SvgMatrix $transform = null): string
     {
         $k = 0.5522847498;
         $kx = $rx * $k;
         $ky = $ry * $k;
-        return sprintf("%s %s m\n", self::fmt($cx + $rx), self::fmt($cy))
+        [$p0x, $p0y]   = $this->pt($transform, $cx + $rx, $cy);
+        [$p1ax, $p1ay] = $this->pt($transform, $cx + $rx, $cy + $ky);
+        [$p1bx, $p1by] = $this->pt($transform, $cx + $kx, $cy + $ry);
+        [$p1cx, $p1cy] = $this->pt($transform, $cx, $cy + $ry);
+        [$p2ax, $p2ay] = $this->pt($transform, $cx - $kx, $cy + $ry);
+        [$p2bx, $p2by] = $this->pt($transform, $cx - $rx, $cy + $ky);
+        [$p2cx, $p2cy] = $this->pt($transform, $cx - $rx, $cy);
+        [$p3ax, $p3ay] = $this->pt($transform, $cx - $rx, $cy - $ky);
+        [$p3bx, $p3by] = $this->pt($transform, $cx - $kx, $cy - $ry);
+        [$p3cx, $p3cy] = $this->pt($transform, $cx, $cy - $ry);
+        [$p4ax, $p4ay] = $this->pt($transform, $cx + $kx, $cy - $ry);
+        [$p4bx, $p4by] = $this->pt($transform, $cx + $rx, $cy - $ky);
+        [$p4cx, $p4cy] = $this->pt($transform, $cx + $rx, $cy);
+        return sprintf("%s %s m\n", self::fmt($p0x), self::fmt($p0y))
             . sprintf("%s %s %s %s %s %s c\n",
-                self::fmt($cx + $rx), self::fmt($cy + $ky),
-                self::fmt($cx + $kx), self::fmt($cy + $ry),
-                self::fmt($cx), self::fmt($cy + $ry))
+                self::fmt($p1ax), self::fmt($p1ay),
+                self::fmt($p1bx), self::fmt($p1by),
+                self::fmt($p1cx), self::fmt($p1cy))
             . sprintf("%s %s %s %s %s %s c\n",
-                self::fmt($cx - $kx), self::fmt($cy + $ry),
-                self::fmt($cx - $rx), self::fmt($cy + $ky),
-                self::fmt($cx - $rx), self::fmt($cy))
+                self::fmt($p2ax), self::fmt($p2ay),
+                self::fmt($p2bx), self::fmt($p2by),
+                self::fmt($p2cx), self::fmt($p2cy))
             . sprintf("%s %s %s %s %s %s c\n",
-                self::fmt($cx - $rx), self::fmt($cy - $ky),
-                self::fmt($cx - $kx), self::fmt($cy - $ry),
-                self::fmt($cx), self::fmt($cy - $ry))
+                self::fmt($p3ax), self::fmt($p3ay),
+                self::fmt($p3bx), self::fmt($p3by),
+                self::fmt($p3cx), self::fmt($p3cy))
             . sprintf("%s %s %s %s %s %s c\n",
-                self::fmt($cx + $kx), self::fmt($cy - $ry),
-                self::fmt($cx + $rx), self::fmt($cy - $ky),
-                self::fmt($cx + $rx), self::fmt($cy))
+                self::fmt($p4ax), self::fmt($p4ay),
+                self::fmt($p4bx), self::fmt($p4by),
+                self::fmt($p4cx), self::fmt($p4cy))
             . "h\n";
     }
 
-    private function emitLine(SvgLine $l): string
+    private function emitLine(SvgLine $l, ?SvgMatrix $transform = null): string
     {
-        return sprintf("%s %s m\n", self::fmt($l->x1), self::fmt($l->y1))
-            . sprintf("%s %s l\n", self::fmt($l->x2), self::fmt($l->y2));
+        [$x1, $y1] = $this->pt($transform, $l->x1, $l->y1);
+        [$x2, $y2] = $this->pt($transform, $l->x2, $l->y2);
+        return sprintf("%s %s m\n", self::fmt($x1), self::fmt($y1))
+            . sprintf("%s %s l\n", self::fmt($x2), self::fmt($y2));
     }
 
-    private function emitPolygon(SvgPolygon|SvgPolyline $p, bool $closed): string
+    private function emitPolygon(SvgPolygon|SvgPolyline $p, bool $closed, ?SvgMatrix $transform = null): string
     {
         if ($p->points === []) {
             return '';
         }
-        $out = sprintf("%s %s m\n", self::fmt($p->points[0][0]), self::fmt($p->points[0][1]));
+        [$fx, $fy] = $this->pt($transform, $p->points[0][0], $p->points[0][1]);
+        $out = sprintf("%s %s m\n", self::fmt($fx), self::fmt($fy));
         for ($i = 1, $n = count($p->points); $i < $n; $i++) {
-            $out .= sprintf("%s %s l\n", self::fmt($p->points[$i][0]), self::fmt($p->points[$i][1]));
+            [$lx, $ly] = $this->pt($transform, $p->points[$i][0], $p->points[$i][1]);
+            $out .= sprintf("%s %s l\n", self::fmt($lx), self::fmt($ly));
         }
         if ($closed) {
             $out .= "h\n";
@@ -357,25 +414,30 @@ final class Renderer
         return $out;
     }
 
-    private function emitPath(SvgPath $p): string
+    private function emitPath(SvgPath $p, ?SvgMatrix $transform = null): string
     {
         $out = '';
         $cx = 0.0;
         $cy = 0.0;
         foreach ($p->commands as $cmd) {
             if ($cmd instanceof MoveTo) {
-                $out .= sprintf("%s %s m\n", self::fmt($cmd->x), self::fmt($cmd->y));
+                [$tx, $ty] = $this->pt($transform, $cmd->x, $cmd->y);
+                $out .= sprintf("%s %s m\n", self::fmt($tx), self::fmt($ty));
                 $cx = $cmd->x;
                 $cy = $cmd->y;
             } elseif ($cmd instanceof LineTo) {
-                $out .= sprintf("%s %s l\n", self::fmt($cmd->x), self::fmt($cmd->y));
+                [$tx, $ty] = $this->pt($transform, $cmd->x, $cmd->y);
+                $out .= sprintf("%s %s l\n", self::fmt($tx), self::fmt($ty));
                 $cx = $cmd->x;
                 $cy = $cmd->y;
             } elseif ($cmd instanceof CubicBezier) {
+                [$tc1x, $tc1y] = $this->pt($transform, $cmd->c1x, $cmd->c1y);
+                [$tc2x, $tc2y] = $this->pt($transform, $cmd->c2x, $cmd->c2y);
+                [$tex, $tey]   = $this->pt($transform, $cmd->x, $cmd->y);
                 $out .= sprintf("%s %s %s %s %s %s c\n",
-                    self::fmt($cmd->c1x), self::fmt($cmd->c1y),
-                    self::fmt($cmd->c2x), self::fmt($cmd->c2y),
-                    self::fmt($cmd->x), self::fmt($cmd->y));
+                    self::fmt($tc1x), self::fmt($tc1y),
+                    self::fmt($tc2x), self::fmt($tc2y),
+                    self::fmt($tex), self::fmt($tey));
                 $cx = $cmd->x;
                 $cy = $cmd->y;
             } elseif ($cmd instanceof QuadraticBezier) {
@@ -384,10 +446,13 @@ final class Renderer
                 $c1y = $cy + (2.0 / 3.0) * ($cmd->cy - $cy);
                 $c2x = $cmd->x + (2.0 / 3.0) * ($cmd->cx - $cmd->x);
                 $c2y = $cmd->y + (2.0 / 3.0) * ($cmd->cy - $cmd->y);
+                [$tc1x, $tc1y] = $this->pt($transform, $c1x, $c1y);
+                [$tc2x, $tc2y] = $this->pt($transform, $c2x, $c2y);
+                [$tex, $tey]   = $this->pt($transform, $cmd->x, $cmd->y);
                 $out .= sprintf("%s %s %s %s %s %s c\n",
-                    self::fmt($c1x), self::fmt($c1y),
-                    self::fmt($c2x), self::fmt($c2y),
-                    self::fmt($cmd->x), self::fmt($cmd->y));
+                    self::fmt($tc1x), self::fmt($tc1y),
+                    self::fmt($tc2x), self::fmt($tc2y),
+                    self::fmt($tex), self::fmt($tey));
                 $cx = $cmd->x;
                 $cy = $cmd->y;
             } elseif ($cmd instanceof Arc) {
@@ -396,10 +461,13 @@ final class Renderer
                     $cmd->largeArc, $cmd->sweep, $cmd->x, $cmd->y,
                 );
                 foreach ($beziers as [$c1x, $c1y, $c2x, $c2y, $ex, $ey]) {
+                    [$tc1x, $tc1y] = $this->pt($transform, $c1x, $c1y);
+                    [$tc2x, $tc2y] = $this->pt($transform, $c2x, $c2y);
+                    [$tex, $tey]   = $this->pt($transform, $ex, $ey);
                     $out .= sprintf("%s %s %s %s %s %s c\n",
-                        self::fmt($c1x), self::fmt($c1y),
-                        self::fmt($c2x), self::fmt($c2y),
-                        self::fmt($ex), self::fmt($ey));
+                        self::fmt($tc1x), self::fmt($tc1y),
+                        self::fmt($tc2x), self::fmt($tc2y),
+                        self::fmt($tex), self::fmt($tey));
                 }
                 $cx = $cmd->x;
                 $cy = $cmd->y;
@@ -419,7 +487,7 @@ final class Renderer
         }
         // Empty clipPath (or only non-contributing content) clips everything
         // away: the child is not rendered.
-        if (trim($geometry) === '') {
+        if ($geometry === '') {
             return '';
         }
 
@@ -449,41 +517,39 @@ final class Renderer
 
     /**
      * Emits path-construction operators only (no paint, no terminator) for a
-     * clip child. Shapes contribute their geometry; groups recurse under their
-     * transform; per-shape transforms are applied via q/cm/Q. The PDF current
-     * path survives q/Q, so subpaths accumulate into one clip path.
+     * clip child. Clip children are emitted as the subpaths of a single path
+     * (no q/Q/cm inside the path object, per the PDF content-stream grammar);
+     * per-child transforms are baked into the coordinates.
      */
-    private function emitClipGeometry(SvgNode $node): string
+    private function emitClipGeometry(SvgNode $node, ?SvgMatrix $accumulated = null): string
     {
         if ($node instanceof SvgShape) {
-            $geom = $this->emitGeometry($node);
-            if ($geom === '') {
-                return '';
-            }
-            $tf = $node->transform();
-            if ($tf !== null && !$tf->isIdentity()) {
-                return "q\n" . self::cmFromMatrix($tf) . "\n" . $geom . "Q\n";
-            }
-            return $geom;
+            $combined = $this->composeOptional($accumulated, $node->transform());
+            return $this->emitGeometry($node, $combined);
         }
         if ($node instanceof SvgGroup) {
+            $combined = $this->composeOptional($accumulated, $node->transform);
             $body = '';
             foreach ($node->children as $child) {
-                $body .= $this->emitClipGeometry($child);
-            }
-            if ($body === '') {
-                return '';
-            }
-            if ($node->transform !== null && !$node->transform->isIdentity()) {
-                return "q\n" . self::cmFromMatrix($node->transform) . "\n" . $body . "Q\n";
+                $body .= $this->emitClipGeometry($child, $combined);
             }
             return $body;
         }
         if ($node instanceof SvgClipped) {
-            return $this->emitClipGeometry($node->child);
+            // Nested clip-on-clip is out of scope: use the child's silhouette
+            // only (the inner clip is not applied to the outer clip region).
+            return $this->emitClipGeometry($node->child, $accumulated);
         }
         // Images and text contribute no clip silhouette.
         return '';
+    }
+
+    private function composeOptional(?SvgMatrix $base, ?SvgMatrix $next): ?SvgMatrix
+    {
+        if ($next === null || $next->isIdentity()) {
+            return $base;
+        }
+        return $base === null ? $next : $base->compose($next);
     }
 
     private function renderImage(SvgImage $img, ExtGStateRegistry $registry): string

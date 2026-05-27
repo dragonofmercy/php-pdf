@@ -18,6 +18,7 @@ final class ClipPathUnitsTest extends TestCase
     public function testFromValue(): void
     {
         self::assertSame(ClipPathUnits::OBJECT_BOUNDING_BOX, ClipPathUnits::from('objectBoundingBox'));
-        self::assertNull(ClipPathUnits::tryFrom('nonsense'));
+        $unknown = bin2hex(random_bytes(4)); // runtime string, not a foldable constant
+        self::assertNull(ClipPathUnits::tryFrom($unknown));
     }
 }
