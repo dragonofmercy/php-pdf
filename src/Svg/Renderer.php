@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Svg;
 
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
+use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
+use DragonOfMercy\PhpPdf\Page\Operators;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\ClosePath;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
@@ -20,11 +26,27 @@ use DragonOfMercy\PhpPdf\Svg\FillRule;
  */
 final class Renderer
 {
-    /**
-     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float}>, patterns: array<string, string>}
-     */
-    public function render(SvgMetadata $svg): array
+    private FontRegistry $fontRegistry;
+    private MetricsRegistry $metricsRegistry;
+
+    /** @var array<string, true> short names of fonts used by text in this render */
+    private array $usedFonts = [];
+
+    /** @var array<string, StandardFontEngine> engine cache keyed by pdfName */
+    private array $engines = [];
+
+    public function __construct()
     {
+        $this->metricsRegistry = new MetricsRegistry();
+    }
+
+    /**
+     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float}>, patterns: array<string, string>, fonts: list<string>}
+     */
+    public function render(SvgMetadata $svg, ?FontRegistry $fontRegistry = null): array
+    {
+        $this->fontRegistry = $fontRegistry ?? new FontRegistry();
+        $this->usedFonts = [];
         $out = '';
         $registry = new ExtGStateRegistry();
         $patterns = new PatternRegistry();
@@ -41,7 +63,12 @@ final class Renderer
             $out .= "Q\n";
         }
 
-        return ['bytes' => $out, 'extGStates' => $registry->entries(), 'patterns' => $patterns->entries()];
+        return [
+            'bytes' => $out,
+            'extGStates' => $registry->entries(),
+            'patterns' => $patterns->entries(),
+            'fonts' => array_keys($this->usedFonts),
+        ];
     }
 
     public static function viewBoxToUnitMatrix(ViewBox $vb, PreserveAspectRatio $ar): SvgMatrix
@@ -78,6 +105,9 @@ final class Renderer
         }
         if ($node instanceof SvgImage) {
             return $this->renderImage($node, $registry);
+        }
+        if ($node instanceof SvgText) {
+            return $this->renderText($node, $registry);
         }
         return '';
     }
@@ -394,6 +424,124 @@ final class Renderer
         $out .= '/Im' . $img->imageIndex . " Do\n";
         $out .= "Q\n";
         return $out;
+    }
+
+    private function renderText(SvgText $text, ExtGStateRegistry $registry): string
+    {
+        if ($text->spans === []) {
+            return '';
+        }
+
+        $placed = $this->layoutSpans($text->spans);
+        $body = '';
+        foreach ($placed as [$span, $px, $py]) {
+            $body .= $this->emitSpan($span, $px, $py, $registry);
+        }
+        if ($body === '') {
+            return '';
+        }
+
+        $out = "q\n";
+        if ($text->transform !== null && !$text->transform->isIdentity()) {
+            $out .= self::cmFromMatrix($text->transform) . "\n";
+        }
+        $out .= "BT\n" . $body . "ET\n" . "Q\n";
+        return $out;
+    }
+
+    /**
+     * Walks spans into absolute (x, y) baseline positions, applying the chunk
+     * anchor model: a chunk is a maximal run of spans where only the first
+     * carries an absolute x. text-anchor shifts each chunk's start by 0, -w/2,
+     * or -w of the chunk's total advance.
+     *
+     * @param list<SvgTextSpan> $spans
+     * @return list<array{0: SvgTextSpan, 1: float, 2: float}>
+     */
+    private function layoutSpans(array $spans): array
+    {
+        $placed = [];
+        $penX = 0.0;
+        $penY = 0.0;
+        $n = count($spans);
+        $i = 0;
+        while ($i < $n) {
+            if ($spans[$i]->x !== null) {
+                $penX = $spans[$i]->x;
+            }
+            if ($spans[$i]->y !== null) {
+                $penY = $spans[$i]->y;
+            }
+            $originX = $penX;
+            $chunk = [];
+            $j = $i;
+            while ($j < $n && ($j === $i || $spans[$j]->x === null)) {
+                $span = $spans[$j];
+                if ($span->y !== null) {
+                    $penY = $span->y;
+                }
+                $penX += $span->dx;
+                $penY += $span->dy;
+                $width = $this->engineFor($span->font)->measure($span->text, $span->fontSize);
+                $chunk[] = [$span, $penX, $penY];
+                $penX += $width;
+                $j++;
+            }
+            $chunkWidth = $penX - $originX;
+            $offset = match ($spans[$i]->anchor) {
+                TextAnchor::MIDDLE => -$chunkWidth / 2.0,
+                TextAnchor::END => -$chunkWidth,
+                TextAnchor::START => 0.0,
+            };
+            foreach ($chunk as [$span, $sx, $sy]) {
+                $placed[] = [$span, $sx + $offset, $sy];
+            }
+            $i = $j;
+        }
+        return $placed;
+    }
+
+    private function emitSpan(SvgTextSpan $span, float $px, float $py, ExtGStateRegistry $registry): string
+    {
+        $hasFill = $span->fill !== null;
+        $hasStroke = $span->stroke !== null;
+        if (!$hasFill && !$hasStroke) {
+            return '';
+        }
+        $bytes = WinAnsiEncoder::encode($span->text);
+        if ($bytes === '') {
+            return '';
+        }
+
+        $shortName = $this->fontRegistry->shortName($span->font);
+        $this->usedFonts[$shortName] = true;
+
+        $out = sprintf("/%s %s Tf\n", $shortName, self::fmt($span->fontSize));
+
+        $gs = $registry->nameFor($span->fillOpacity, $span->strokeOpacity);
+        if ($gs !== '') {
+            $out .= '/' . $gs . " gs\n";
+        }
+
+        if ($hasFill) {
+            $out .= sprintf("%s %s %s rg\n", self::fmt($span->fill->r), self::fmt($span->fill->g), self::fmt($span->fill->b));
+        }
+        if ($hasStroke) {
+            $out .= sprintf("%s %s %s RG\n", self::fmt($span->stroke->r), self::fmt($span->stroke->g), self::fmt($span->stroke->b));
+            $out .= sprintf("%s w\n", self::fmt($span->strokeWidth));
+        }
+
+        $mode = ($hasFill && $hasStroke) ? 2 : ($hasStroke ? 1 : 0);
+        $out .= $mode . " Tr\n";
+        $out .= sprintf("1 0 0 -1 %s %s Tm\n", self::fmt($px), self::fmt($py));
+        $out .= Operators::showText($bytes);
+        return $out;
+    }
+
+    private function engineFor(Font $font): StandardFontEngine
+    {
+        $key = $font->pdfName();
+        return $this->engines[$key] ??= new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
     }
 
     /**

@@ -43,9 +43,9 @@ final class SvgSkipUnsupportedTest extends TestCase
     {
         $doc = new Document(Unit::PT);
         $doc->addPage();
-        // text and linearGradient are unsupported and should be silently skipped; only the rect renders
+        // filter is unsupported and skipped; the empty linearGradient def has no stops and is referenced by nothing, so only the rect renders
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
-            . '<text x="10" y="20">Ignored</text>'
+            . '<filter id="f"><feGaussianBlur stdDeviation="2"/></filter>'
             . '<linearGradient id="g"/>'
             . '<rect width="50" height="50" fill="cyan"/>'
             . '</svg>';
