@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Image;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\ImageFormat;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
@@ -32,14 +33,15 @@ use DragonOfMercy\PhpPdf\Writer\Object\RawValue;
 final class ImageEmbedder
 {
     /**
+     * @param array<string, PdfReference> $fontRefs short name => font object reference
      * @return list<IndirectObject>
      */
-    public function embed(Image $image, int $firstObjectNumber): array
+    public function embed(Image $image, int $firstObjectNumber, ?FontRegistry $fontRegistry = null, array $fontRefs = []): array
     {
         return match ($image->format) {
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
             ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber),
-            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber),
+            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs),
         };
     }
 
@@ -134,22 +136,38 @@ final class ImageEmbedder
     }
 
     /**
+     * @param array<string, PdfReference> $fontRefs
      * @return list<IndirectObject>
      */
-    private function embedSvg(Image $image, int $objectNumber): array
+    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs): array
     {
         $meta = $image->metadata;
         if (!$meta instanceof SvgMetadata) {
             throw new PdfException('Embedder received non-SVG metadata for SVG format');
         }
 
-        $rendered = (new Renderer())->render($meta);
+        $rendered = (new Renderer())->render($meta, $fontRegistry);
         $bytes = $rendered['bytes'];
         $extGStates = $rendered['extGStates'];
         $patterns = $rendered['patterns'];
+        $fonts = $rendered['fonts'];
 
+        $procSet = $fonts !== []
+            ? PdfArray::of(Name::of('PDF'), Name::of('Text'))
+            : PdfArray::of(Name::of('PDF'));
         $resources = Dictionary::empty()
-            ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
+            ->withEntry(Name::of('ProcSet'), $procSet);
+
+        if ($fonts !== []) {
+            $fontDict = Dictionary::empty();
+            foreach ($fonts as $shortName) {
+                if (!isset($fontRefs[$shortName])) {
+                    throw new PdfException("SVG text references unregistered font '{$shortName}'");
+                }
+                $fontDict = $fontDict->withEntry(Name::of($shortName), $fontRefs[$shortName]);
+            }
+            $resources = $resources->withEntry(Name::of('Font'), $fontDict);
+        }
 
         if ($extGStates !== []) {
             $extGStateDict = Dictionary::empty();
@@ -175,7 +193,7 @@ final class ImageEmbedder
             $xobjectDict = Dictionary::empty();
             $childNum = $objectNumber + 1;
             foreach ($meta->embeddedImages as $i => $child) {
-                $emitted = $this->embed($child, $childNum);
+                $emitted = $this->embed($child, $childNum, $fontRegistry, $fontRefs);
                 foreach ($emitted as $obj) {
                     $childObjects[] = $obj;
                 }
