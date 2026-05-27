@@ -17,7 +17,13 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\Arc;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
+use DragonOfMercy\PhpPdf\Svg\BoundingBox;
+use DragonOfMercy\PhpPdf\Svg\ClipPathUnits;
 use DragonOfMercy\PhpPdf\Svg\FillRule;
+use DragonOfMercy\PhpPdf\Svg\SvgClip;
+use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\SvgShape;
 
 /**
  * Translates an SvgMetadata tree into a PDF content-stream byte string.
@@ -107,6 +113,9 @@ final class Renderer
         }
         if ($node instanceof SvgText) {
             return $this->renderText($node, $registry);
+        }
+        if ($node instanceof SvgClipped) {
+            return $this->renderClipped($node, $registry, $patterns, $ctm);
         }
         return '';
     }
@@ -399,6 +408,82 @@ final class Renderer
             }
         }
         return $out;
+    }
+
+    private function renderClipped(SvgClipped $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
+    {
+        $clip = $node->clip;
+        $geometry = '';
+        foreach ($clip->nodes as $clipNode) {
+            $geometry .= $this->emitClipGeometry($clipNode);
+        }
+        // Empty clipPath (or only non-contributing content) clips everything
+        // away: the child is not rendered.
+        if (trim($geometry) === '') {
+            return '';
+        }
+
+        $clipCtm = $ctm;
+        $prefix = '';
+        if ($clip->units === ClipPathUnits::OBJECT_BOUNDING_BOX) {
+            $bbox = BoundingBox::ofNode($node->child);
+            if ($bbox->isDegenerate()) {
+                return '';
+            }
+            $bboxMatrix = SvgMatrix::translate($bbox->x, $bbox->y)->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+            $prefix .= self::cmFromMatrix($bboxMatrix) . "\n";
+            $clipCtm = $clipCtm->compose($bboxMatrix);
+        }
+        if ($clip->transform !== null && !$clip->transform->isIdentity()) {
+            $prefix .= self::cmFromMatrix($clip->transform) . "\n";
+            $clipCtm = $clipCtm->compose($clip->transform);
+        }
+
+        $terminator = $clip->clipRule === FillRule::EVENODD ? "W* n\n" : "W n\n";
+        $child = $this->renderNode($node->child, $registry, $patterns, $clipCtm);
+        if ($child === '') {
+            return '';
+        }
+        return "q\n" . $prefix . $geometry . $terminator . $child . "Q\n";
+    }
+
+    /**
+     * Emits path-construction operators only (no paint, no terminator) for a
+     * clip child. Shapes contribute their geometry; groups recurse under their
+     * transform; per-shape transforms are applied via q/cm/Q. The PDF current
+     * path survives q/Q, so subpaths accumulate into one clip path.
+     */
+    private function emitClipGeometry(SvgNode $node): string
+    {
+        if ($node instanceof SvgShape) {
+            $geom = $this->emitGeometry($node);
+            if ($geom === '') {
+                return '';
+            }
+            $tf = $node->transform();
+            if ($tf !== null && !$tf->isIdentity()) {
+                return "q\n" . self::cmFromMatrix($tf) . "\n" . $geom . "Q\n";
+            }
+            return $geom;
+        }
+        if ($node instanceof SvgGroup) {
+            $body = '';
+            foreach ($node->children as $child) {
+                $body .= $this->emitClipGeometry($child);
+            }
+            if ($body === '') {
+                return '';
+            }
+            if ($node->transform !== null && !$node->transform->isIdentity()) {
+                return "q\n" . self::cmFromMatrix($node->transform) . "\n" . $body . "Q\n";
+            }
+            return $body;
+        }
+        if ($node instanceof SvgClipped) {
+            return $this->emitClipGeometry($node->child);
+        }
+        // Images and text contribute no clip silhouette.
+        return '';
     }
 
     private function renderImage(SvgImage $img, ExtGStateRegistry $registry): string
