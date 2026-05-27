@@ -356,6 +356,7 @@ Supported:
 - Paint state: solid fill / stroke (147 named CSS colors, `#abc` / `#aabbcc`, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative).
 - Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, with uniform stop-opacity.
 - Presentation attributes AND inline `style="..."` (inline > direct > inherited precedence).
+- Embedded raster `<image>` via PNG / JPEG data URI: x / y / width / height, preserveAspectRatio (meet / slice / none), transform, opacity, intra-SVG dedup of identical data URIs.
 
 Not supported (skipped silently per SVG spec fallback):
 
@@ -363,9 +364,10 @@ Not supported (skipped silently per SVG spec fallback):
 - `<pattern>` and mesh gradients. `fill="url(#x)"` referencing an unsupported paint server falls back to black per spec.
 - Gradient `spreadMethod` reflect / repeat are approximated as pad. Per-stop varying opacity (fade-to-transparent) is not rendered (stops are treated as opaque); a uniform stop-opacity is honored.
 - `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
-- `<mask>`, `<clipPath>`, embedded `<image>`, `<symbol>`, `<marker>`.
+- `<mask>`, `<clipPath>`, `<symbol>`, `<marker>`.
 - External CSS via `<style>` blocks or external sheets.
 - Scripts, animations, foreignObject.
+- `<image>` is supported only for PNG / JPEG data URIs. An external `href` (local file path or http(s) URL) is ignored - no network or filesystem access. Other data URI formats (GIF, WebP, nested SVG) are ignored, as are images with non-positive width or height.
 
 Hard limits (raise `PdfException`):
 

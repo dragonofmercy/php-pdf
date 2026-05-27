@@ -132,14 +132,27 @@ This is the standard PDF way to express partial transparency.
 - Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, with uniform stop-opacity.
 - Presentation attributes AND inline `style="..."`. Precedence: inline style > direct attribute > inherited.
 
+### SVG embedded images
+
+An SVG `<image>` element whose `href` attribute is a PNG or JPEG data URI (`data:image/png;base64,...` or `data:image/jpeg;base64,...`) is handled as follows:
+
+- The base64 payload is decoded at parse time and handed to `Image::fromBytes`, producing a raster XObject (Image + optional SMask for PNG alpha, same pipeline as standalone images).
+- Each distinct data URI is deduped by content hash within the SVG Form XObject. The resulting child XObject is registered in the form's `/Resources/XObject` dictionary as `/Im1`, `/Im2`, etc., and drawn with the PDF `Do` operator.
+- `objectCount` is recursive: form object + sum of each distinct child image's object count. A PNG with alpha contributes 2 objects (image + SMask); a JPEG contributes 1.
+- The placement matrix is `[fw 0 0 -fh fx fy+fh]`, where `fw`/`fh` are the rendered width/height in points and `fx`/`fy` are the top-left corner. The `-fh` flip accounts for PDF's top-row-first raster orientation within the renderer's y-down coordinate space.
+- `preserveAspectRatio` with `slice` installs a rectangular clip path around the viewport before the `Do` call, matching the clip behavior used for the top-level SVG.
+- `transform` and `opacity` on the `<image>` element go through the same matrix-concat and ExtGState mechanisms used for other SVG elements.
+- External `href` values (local file paths or http(s) URLs) are silently ignored - the renderer has no network or filesystem access at emit time. Other data URI formats (GIF, WebP, `svg+xml`) are also ignored, as are images with non-positive computed width or height.
+
 ### Not supported (skipped silently per SVG fallback spec)
 
 - `<text>`, `<tspan>`, `<textPath>`. Workaround for logos: convert text to paths in your authoring tool.
 - `<pattern>` and mesh gradients. `fill="url(#x)"` referencing an unsupported paint server falls back to black.
 - `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
-- `<mask>`, `<clipPath>`, embedded `<image>`, `<symbol>`, `<marker>`.
+- `<mask>`, `<clipPath>`, `<symbol>`, `<marker>`.
 - External CSS via `<style>` blocks or external sheets.
 - Scripts, animations, foreignObject.
+- `<image>` is supported only for PNG / JPEG data URIs (see subsection above). External href and other data URI formats are ignored.
 
 ## Outlines and hyperlinks
 
