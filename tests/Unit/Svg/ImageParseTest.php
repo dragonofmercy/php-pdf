@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg;
 
+use DragonOfMercy\PhpPdf\Svg\Align;
+use DragonOfMercy\PhpPdf\Svg\MeetOrSlice;
 use DragonOfMercy\PhpPdf\Svg\Parser;
 use DragonOfMercy\PhpPdf\Svg\SvgImage;
 use DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory;
@@ -115,5 +117,26 @@ final class ImageParseTest extends TestCase
         self::assertInstanceOf(SvgImage::class, $node);
         self::assertSame(0.5, $node->opacity);
         self::assertNotNull($node->transform);
+    }
+
+    public function testPreserveAspectRatioParsed(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<image width="40" height="40" preserveAspectRatio="xMinYMax slice" href="' . $this->pngDataUri() . '"/></svg>';
+        $meta = Parser::parse($svg);
+        $node = $meta->root->children[0];
+        self::assertInstanceOf(SvgImage::class, $node);
+        self::assertSame(Align::X_MIN_Y_MAX, $node->aspectRatio->align);
+        self::assertSame(MeetOrSlice::SLICE, $node->aspectRatio->meetOrSlice);
+    }
+
+    public function testNonImageBase64PayloadSkipped(): void
+    {
+        // Valid base64, but the decoded bytes are not a PNG/JPEG/SVG -> Image::fromBytes throws -> node skipped.
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<image width="40" height="40" href="data:text/plain;base64,' . base64_encode('hello world not an image at all') . '"/></svg>';
+        $meta = Parser::parse($svg);
+        self::assertSame([], $meta->root->children);
+        self::assertSame([], $meta->embeddedImages);
     }
 }
