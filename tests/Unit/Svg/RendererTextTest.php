@@ -40,7 +40,6 @@ final class RendererTextTest extends TestCase
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
             . '<text x="50" y="20" font-size="10" text-anchor="middle">Hello</text></svg>';
         $r = $this->render($svg);
-        self::assertMatchesRegularExpression('/1 0 0 -1 (\d+(\.\d+)?) 20 Tm/', $r['bytes']);
         $matched = (bool) preg_match('/1 0 0 -1 (\d+(\.\d+)?) 20 Tm/', $r['bytes'], $m);
         self::assertTrue($matched, 'text matrix not found');
         self::assertLessThan(50.0, (float) $m[1]);
@@ -60,5 +59,15 @@ final class RendererTextTest extends TestCase
             . '<text x="0" y="10" font-size="10">a(b)</text></svg>';
         $r = $this->render($svg);
         self::assertStringContainsString('(a\\(b\\)) Tj', $r['bytes']);
+    }
+
+    public function testFillAndStrokeUsesRenderModeTwo(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<text x="0" y="10" fill="#ff0000" stroke="#000000" stroke-width="1" font-size="10">x</text></svg>';
+        $r = $this->render($svg);
+        self::assertStringContainsString("2 Tr\n", $r['bytes']);
+        self::assertStringContainsString("1 0 0 rg\n", $r['bytes']);
+        self::assertStringContainsString("0 0 0 RG\n", $r['bytes']);
     }
 }
