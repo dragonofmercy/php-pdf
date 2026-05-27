@@ -358,6 +358,7 @@ Supported:
 - Presentation attributes AND inline `style="..."` (inline > direct > inherited precedence).
 - Embedded raster `<image>` via PNG / JPEG data URI: x / y / width / height, preserveAspectRatio (meet / slice / none), transform, opacity, intra-SVG dedup of identical data URIs.
 - Text: `<text>` and `<tspan>` rendered as real, selectable PDF text using the 14 standard fonts. font-family (generic families `serif` / `sans-serif` / `monospace` and the standard family names) with font-weight (bold) and font-style (italic), font-size (unitless / px / pt / em / %), text-anchor (start / middle / end), x / y / dx / dy positioning, fill and stroke (solid colors), opacity, and transforms. Inherits font properties through `<g>`.
+- CSS: internal `<style>` stylesheets with type, class, id, universal, and compound selectors (comma-separated groups), cascaded by specificity then source order; inline `style=""` keeps precedence. Limited to the presentation properties listed above plus the `font-*` / `text-anchor` text properties.
 
 Not supported (skipped silently per SVG spec fallback):
 
@@ -367,7 +368,8 @@ Not supported (skipped silently per SVG spec fallback):
 - `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
 - `<mask>`, `<clipPath>`, `<symbol>`, `<marker>`.
 - `preserveAspectRatio` (meet / slice / align) on the root `<svg>` element: the SVG always fills its placement rectangle. (preserveAspectRatio on `<image>` elements is supported.)
-- External CSS via `<style>` blocks or external sheets.
+- CSS combinators (`g rect`, `g > rect`), pseudo-classes/elements, and attribute selectors in `<style>`: only simple and compound selectors are matched.
+- CSS `!important` priority (the token is ignored), the CSS `transform` property (use the SVG `transform` attribute), at-rules (`@media`, `@import`, `@font-face`), and external stylesheets.
 - Scripts, animations, foreignObject.
 - `<image>` is supported only for PNG / JPEG data URIs. An external `href` (local file path or http(s) URL) is ignored - no network or filesystem access. Other data URI formats (GIF, WebP, nested SVG) are ignored, as are images with non-positive width or height.
 
