@@ -95,4 +95,23 @@ final class ParserTextTest extends TestCase
         }
         self::assertEmpty($meta->root->children);
     }
+
+    public function testTextNodeAfterTspanIsAContinuationNotRepositioned(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<text x="5" y="10"><tspan dx="2">A</tspan>B</text></svg>';
+        $text = $this->firstText($svg);
+        self::assertCount(2, $text->spans);
+        // The tspan is the first child. The tspan's own collectTextSpans finds no x/y on the
+        // tspan element itself, so span[0] ('A') has x=null from the tspan's scope.
+        // The parent's x=5/y=10 are "pending" on the parent, but the tspan element is a
+        // separate collectTextSpans call that does not consume the parent's position anchor.
+        self::assertSame('A', $text->spans[0]->text);
+        self::assertNull($text->spans[0]->x);
+        // The key regression: the trailing 'B' (a DOMText sibling after the tspan) must be a
+        // continuation - no absolute x reset, no dx carry-over.
+        self::assertSame('B', $text->spans[1]->text);
+        self::assertNull($text->spans[1]->x);
+        self::assertSame(0.0, $text->spans[1]->dx);
+    }
 }

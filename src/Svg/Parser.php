@@ -382,6 +382,7 @@ final class Parser
         $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $attrs['style'] ?? '');
 
         $font = SvgFontResolver::resolve($style->fontFamily, $style->bold, $style->italic);
+        // Gradient/pattern fills on text are not supported; fall back to black.
         $fill = $paint->fill instanceof SvgColor ? $paint->fill : ($paint->fill === null ? null : SvgColor::black());
         $stroke = $paint->stroke instanceof SvgColor ? $paint->stroke : null;
 
@@ -417,7 +418,11 @@ final class Parser
             } elseif ($node instanceof DOMElement
                 && $node->namespaceURI === self::SVG_NS
                 && $node->localName === 'tspan') {
+                $before = count($spans);
                 $this->collectTextSpans($node, $paint, $style, $spans);
+                if (count($spans) > $before) {
+                    $positionPending = false;
+                }
             }
         }
     }
