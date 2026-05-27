@@ -351,7 +351,7 @@ Supported:
 - All path commands: M, L, H, V, C, S, Q, T, A, Z and their lowercase relative variants.
 - Basic shapes: rect (with optional rx / ry rounded corners), circle, ellipse, line, polyline, polygon.
 - Transforms: matrix(), translate(), scale(), rotate() with optional center, skewX(), skewY(); composition left-to-right.
-- viewBox + preserveAspectRatio (xMinYMin to xMaxYMax x meet | slice; `none` stretches).
+- viewBox: the SVG fills its placement rectangle. When you pass only `w` or only `h` to `$page->image()`, the other side is derived from the viewBox aspect, so output is undistorted; passing both can stretch. (The root `<svg preserveAspectRatio>` meet / slice / align is not applied - see Not supported.)
 - Groups (`<g>`), `<defs>` + `<use>` references with cycle detection.
 - Paint state: solid fill / stroke (147 named CSS colors, `#abc` / `#aabbcc`, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative).
 - Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, with uniform stop-opacity.
@@ -366,6 +366,7 @@ Not supported (skipped silently per SVG spec fallback):
 - Gradient `spreadMethod` reflect / repeat are approximated as pad. Per-stop varying opacity (fade-to-transparent) is not rendered (stops are treated as opaque); a uniform stop-opacity is honored.
 - `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
 - `<mask>`, `<clipPath>`, `<symbol>`, `<marker>`.
+- `preserveAspectRatio` (meet / slice / align) on the root `<svg>` element: the SVG always fills its placement rectangle. (preserveAspectRatio on `<image>` elements is supported.)
 - External CSS via `<style>` blocks or external sheets.
 - Scripts, animations, foreignObject.
 - `<image>` is supported only for PNG / JPEG data URIs. An external `href` (local file path or http(s) URL) is ignored - no network or filesystem access. Other data URI formats (GIF, WebP, nested SVG) are ignored, as are images with non-positive width or height.
