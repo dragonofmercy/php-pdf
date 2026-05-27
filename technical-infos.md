@@ -109,6 +109,18 @@ SVG `fill-opacity`, `stroke-opacity`, and `opacity` (which multiplies both) are 
 
 This is the standard PDF way to express partial transparency.
 
+### SVG gradients
+
+`<linearGradient>` and `<radialGradient>` are painted as **PDF Shading Patterns** (`/PatternType 2`, shading type 2 for linear and type 3 for radial), each registered in the document's pattern registry and named `/Pn`. The content stream switches the color space to `/Pattern` before painting: `/Pattern cs ... /Pn scn` for fill and `/Pattern CS ... /Pn SCN` for stroke, so the existing path terminators (`f`, `S`, `B`, `f*`, `B*`) are reused unchanged.
+
+**Pattern matrix.** A PDF pattern's `/Matrix` is relative to the form XObject's base coordinate system, not the current painting CTM. The renderer accumulates the full chain: viewBox prologue `cm` + group and shape transforms, then for `gradientUnits="objectBoundingBox"` the shape bounding-box affine map, then the gradient's own `gradientTransform`. The result is written as the pattern's `/Matrix`, giving correct placement regardless of nesting depth.
+
+**Color function.** Two-stop gradients use a single FunctionType 2 (exponential, N=1) interpolating between the two endpoint RGB triples. Three or more stops use a stitching FunctionType 3 wrapping one FunctionType 2 per adjacent pair, with `Bounds` and `Encode` derived from the stop offsets. `Extend [true true]` on the shading dictionary implements the `pad` spread (colors clamp beyond the gradient ends).
+
+**Stop opacity.** When all stops share the same `stop-opacity`, that value is folded into the existing ExtGState `ca` / `CA` mechanism (the same per-pair alpha dictionaries used for `fill-opacity` / `stroke-opacity`). Per-stop varying opacity is not supported; stops are treated as fully opaque if opacities differ across stops.
+
+**href stop inheritance.** A gradient element that has `href` (or `xlink:href`) pointing to another gradient inherits its `<stop>` children from the target. Inheritance is resolved before rendering with cycle detection; a cycle causes the gradient to be skipped silently.
+
 ### Supported
 
 - All path commands: M, L, H, V, C, S, Q, T, A, Z and their lowercase (relative) variants. Arcs are converted to cubic Bezier curves.
@@ -117,12 +129,13 @@ This is the standard PDF way to express partial transparency.
 - viewBox + preserveAspectRatio (all 9 alignments x meet | slice; `none` stretches).
 - Groups (`<g>`), `<defs>` + `<use>` references with cycle detection.
 - Paint state: solid fill / stroke (147 named CSS colors, hex, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative).
+- Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, with uniform stop-opacity.
 - Presentation attributes AND inline `style="..."`. Precedence: inline style > direct attribute > inherited.
 
 ### Not supported (skipped silently per SVG fallback spec)
 
 - `<text>`, `<tspan>`, `<textPath>`. Workaround for logos: convert text to paths in your authoring tool.
-- `<linearGradient>`, `<radialGradient>`, `<pattern>`. `fill="url(#x)"` falls back to black.
+- `<pattern>` and mesh gradients. `fill="url(#x)"` referencing an unsupported paint server falls back to black.
 - `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
 - `<mask>`, `<clipPath>`, embedded `<image>`, `<symbol>`, `<marker>`.
 - External CSS via `<style>` blocks or external sheets.
