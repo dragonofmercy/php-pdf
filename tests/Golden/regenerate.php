@@ -486,9 +486,16 @@ $svgGoldens = [
     'svg-fill-rule-evenodd.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFillRuleEvenoddTest::class, 'buildPdfBytes'],
     'svg-dasharray.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgDasharrayTest::class, 'buildPdfBytes'],
     'svg-use-defs.pdf'          => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgUseDefsTest::class, 'buildPdfBytes'],
-    'svg-skip-unsupported.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgSkipUnsupportedTest::class, 'buildPdfBytes'],
-    'svg-real-world-icon.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgRealWorldIconTest::class, 'buildPdfBytes'],
-    'svg-multi-placement.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMultiPlacementTest::class, 'buildPdfBytes'],
+    'svg-skip-unsupported.pdf'      => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgSkipUnsupportedTest::class, 'buildPdfBytes'],
+    'svg-real-world-icon.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgRealWorldIconTest::class, 'buildPdfBytes'],
+    'svg-multi-placement.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMultiPlacementTest::class, 'buildPdfBytes'],
+    'svg-gradient-linear.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientLinearTest::class, 'buildPdfBytes'],
+    'svg-gradient-radial.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientRadialTest::class, 'buildPdfBytes'],
+    'svg-gradient-userspace.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientUserspaceTest::class, 'buildPdfBytes'],
+    'svg-gradient-href-inherit.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientHrefInheritTest::class, 'buildPdfBytes'],
+    'svg-gradient-multistop.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientMultistopTest::class, 'buildPdfBytes'],
+    'svg-gradient-on-stroke.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientOnStrokeTest::class, 'buildPdfBytes'],
+    'svg-gradient-opacity.pdf'      => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientOpacityTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
