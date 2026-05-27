@@ -233,7 +233,7 @@ final class Parser
                 }
                 $children = [];
                 foreach ($this->childElements($el) as $child) {
-                    $node = $this->parseNode($child, $paint, $newCurrentColor, $textStyle, $useStack, $depth + 1);
+                    $node = $this->parseNode($child, $paint, $newCurrentColor, $textStyle, $useStack, $depth + 1, $allowClip);
                     if ($node !== null) {
                         $children[] = $node;
                     }

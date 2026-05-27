@@ -521,6 +521,7 @@ $svgGoldens = [
     'svg-clip-union.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipUnionTest::class, 'buildPdfBytes'],
     'svg-clip-evenodd.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipEvenoddTest::class, 'buildPdfBytes'],
     'svg-clip-css.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipCssTest::class, 'buildPdfBytes'],
+    'svg-clip-use.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipUseTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {

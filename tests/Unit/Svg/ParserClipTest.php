@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Svg\ClipPathUnits;
 use DragonOfMercy\PhpPdf\Svg\FillRule;
 use DragonOfMercy\PhpPdf\Svg\Parser;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
 use PHPUnit\Framework\TestCase;
 
@@ -96,5 +97,21 @@ final class ParserClipTest extends TestCase
         self::assertInstanceOf(SvgClipped::class, $children[0]);
         self::assertCount(1, $children[0]->clip->nodes);
         self::assertNotInstanceOf(SvgClipped::class, $children[0]->clip->nodes[0]);
+    }
+
+    public function testClipChildGroupDescendantClipPathIgnored(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<clipPath id="inner"><rect x="0" y="0" width="5" height="5"/></clipPath>'
+            . '<clipPath id="c"><g><rect x="0" y="0" width="40" height="40" clip-path="url(#inner)"/></g></clipPath>'
+            . '<rect x="0" y="0" width="100" height="100" clip-path="url(#c)"/>'
+            . '</svg>';
+        $children = Parser::parse($svg)->root->children;
+        self::assertInstanceOf(SvgClipped::class, $children[0]);
+        // The clip content is a group; its descendant shape must NOT be wrapped in SvgClipped.
+        $clipNodes = $children[0]->clip->nodes;
+        self::assertCount(1, $clipNodes);
+        self::assertInstanceOf(SvgGroup::class, $clipNodes[0]);
+        self::assertNotInstanceOf(SvgClipped::class, $clipNodes[0]->children[0]);
     }
 }
