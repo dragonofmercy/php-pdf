@@ -14,6 +14,6 @@ interface SvgGradient extends SvgPaintSource
     /** @return list<GradientStop> non-empty after resolution */
     public function stops(): array;
 
-    /** Uniform opacity foldable into ca/CA; 1.0 when stop opacities differ. */
+    /** Common stop opacity foldable into ca/CA; 1.0 when stop opacities are not all equal. */
     public function uniformOpacity(): float;
 }

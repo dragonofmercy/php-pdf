@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Svg;
 
 /** @internal */
-enum GradientUnits
+enum GradientUnits: string
 {
-    case OBJECT_BOUNDING_BOX;
-    case USER_SPACE_ON_USE;
+    case OBJECT_BOUNDING_BOX = 'objectBoundingBox';
+    case USER_SPACE_ON_USE = 'userSpaceOnUse';
 }
