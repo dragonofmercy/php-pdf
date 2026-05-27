@@ -17,8 +17,8 @@ final readonly class SvgPaint
      * @param list<float> $strokeDashArray
      */
     public function __construct(
-        public ?SvgColor $fill,
-        public ?SvgColor $stroke,
+        public ?SvgPaintSource $fill,
+        public ?SvgPaintSource $stroke,
         public float $strokeWidth,
         public StrokeLineCap $strokeLineCap,
         public StrokeLineJoin $strokeLineJoin,
@@ -59,7 +59,7 @@ final readonly class SvgPaint
         return $this->opacity * $this->strokeOpacity;
     }
 
-    public function withFill(SvgColor $color): self
+    public function withFill(SvgPaintSource $color): self
     {
         return $this->with(fill: $color);
     }
@@ -69,7 +69,7 @@ final readonly class SvgPaint
         return $this->with(fillIsNone: true);
     }
 
-    public function withStroke(SvgColor $color): self
+    public function withStroke(SvgPaintSource $color): self
     {
         return $this->with(stroke: $color);
     }
@@ -136,9 +136,9 @@ final readonly class SvgPaint
      * @param list<float>|null $strokeDashArray
      */
     private function with(
-        ?SvgColor $fill = null,
+        ?SvgPaintSource $fill = null,
         bool $fillIsNone = false,
-        ?SvgColor $stroke = null,
+        ?SvgPaintSource $stroke = null,
         bool $strokeIsNone = false,
         ?float $strokeWidth = null,
         ?StrokeLineCap $strokeLineCap = null,

@@ -116,11 +116,13 @@ final class Renderer
     private function emitPaintState(SvgPaint $paint, ExtGStateRegistry $registry): string
     {
         $out = '';
-        if ($paint->fill !== null) {
+        if ($paint->fill instanceof SvgColor) {
             $out .= sprintf("%s %s %s rg\n", self::fmt($paint->fill->r), self::fmt($paint->fill->g), self::fmt($paint->fill->b));
         }
-        if ($paint->stroke !== null) {
+        if ($paint->stroke instanceof SvgColor) {
             $out .= sprintf("%s %s %s RG\n", self::fmt($paint->stroke->r), self::fmt($paint->stroke->g), self::fmt($paint->stroke->b));
+        }
+        if ($paint->stroke !== null) {
             $out .= sprintf("%s w\n", self::fmt($paint->strokeWidth));
             $out .= sprintf("%d J\n", $paint->strokeLineCap->toPdfCode());
             $out .= sprintf("%d j\n", $paint->strokeLineJoin->toPdfCode());
