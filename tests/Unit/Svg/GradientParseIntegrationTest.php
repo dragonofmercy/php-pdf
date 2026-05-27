@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg;
 
 use DragonOfMercy\PhpPdf\Svg\Parser;
+use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use DragonOfMercy\PhpPdf\Svg\SvgGradient;
 use DragonOfMercy\PhpPdf\Svg\SvgPath;
 use DragonOfMercy\PhpPdf\Svg\SvgRect;
@@ -42,7 +43,10 @@ final class GradientParseIntegrationTest extends TestCase
         $path = $meta->root->children[0];
         self::assertInstanceOf(SvgPath::class, $path);
         $fill = $path->paint()->fill;
-        self::assertNotInstanceOf(SvgGradient::class, $fill);
+        self::assertInstanceOf(SvgColor::class, $fill);
+        self::assertEqualsWithDelta(0.0, $fill->r, 1e-9);
+        self::assertEqualsWithDelta(1.0, $fill->g, 1e-9);
+        self::assertEqualsWithDelta(0.0, $fill->b, 1e-9);
     }
 
     public function testStrokeGradientResolves(): void
