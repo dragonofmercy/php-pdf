@@ -6,7 +6,6 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Image;
-use DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
@@ -44,7 +43,9 @@ final class SvgImageDedupTest extends TestCase
     {
         $doc = new Document(Unit::PT);
         $doc->addPage();
-        $uri = 'data:image/png;base64,' . base64_encode(TestImageFactory::pngRgb(4, 2));
+        $pngBytes = file_get_contents(__DIR__ . '/assets/png-opaque-rgb-24x12.png');
+        assert(is_string($pngBytes));
+        $uri = 'data:image/png;base64,' . base64_encode($pngBytes);
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><image x="5" y="5" width="40" height="40" href="' . $uri . '"/><image x="55" y="55" width="40" height="40" href="' . $uri . '"/></svg>';
         $img = Image::fromBytes($svg);
         $doc->getCurrentPage()->image($img, x: 50.0, y: 50.0, w: 200.0);
