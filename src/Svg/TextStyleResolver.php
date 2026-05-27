@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Svg;
 
 /**
- * Merges font-* and text-anchor presentation attributes plus inline style=
- * declarations onto an inherited SvgTextStyle. Precedence: inline style >
- * presentation attribute > inherited. Malformed values fall back to the
- * inherited value silently.
+ * Merges font-* and text-anchor presentation attributes, matched stylesheet
+ * declarations, and inline style= declarations onto an inherited SvgTextStyle.
+ * Precedence: inline style > stylesheet > presentation attribute > inherited.
+ * Malformed values fall back to the inherited value silently.
  *
  * @internal
  */

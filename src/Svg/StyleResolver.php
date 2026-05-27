@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Svg;
 
 /**
- * Merges presentation attributes and inline style="..." declarations onto an
- * inherited SvgPaint. Precedence: inline style > direct attribute > inherited.
+ * Merges presentation attributes, matched stylesheet declarations, and inline
+ * style="..." declarations onto an inherited SvgPaint. Precedence: inline style
+ * > stylesheet > presentation attribute > inherited.
  * Unknown property names are ignored. Malformed numeric values fall back to
  * SVG defaults silently (per the project's "skip unsupported, fail loudly
  * only on structural errors" stance).
