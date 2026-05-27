@@ -10,6 +10,11 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
+use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\SvgImage;
+use DragonOfMercy\PhpPdf\Svg\SvgNode;
+use DragonOfMercy\PhpPdf\Svg\SvgText;
 
 /**
  * Tight geometric bounding box of a shape in its own local coordinate space
@@ -44,6 +49,81 @@ final readonly class BoundingBox
             $shape instanceof SvgPath     => self::fromPath($shape),
             default                       => new self(0.0, 0.0, 0.0, 0.0),
         };
+    }
+
+    /**
+     * Bounding box of any node in its own (pre-transform) coordinate space.
+     * Groups union their children, each transformed by that child's local
+     * transform. Text contributes nothing (degenerate). Used to map the unit
+     * box for objectBoundingBox clips.
+     */
+    public static function ofNode(SvgNode $node): self
+    {
+        if ($node instanceof SvgShape) {
+            return self::of($node);
+        }
+        if ($node instanceof SvgImage) {
+            return new self($node->x, $node->y, $node->width, $node->height);
+        }
+        if ($node instanceof SvgClipped) {
+            return self::ofNode($node->child);
+        }
+        if ($node instanceof SvgGroup) {
+            return self::union($node);
+        }
+        // SvgText and anything else: degenerate.
+        return new self(0.0, 0.0, 0.0, 0.0);
+    }
+
+    private static function union(SvgGroup $group): self
+    {
+        $minX = null;
+        $minY = null;
+        $maxX = null;
+        $maxY = null;
+        foreach ($group->children as $child) {
+            $bb = self::ofNode($child);
+            if ($bb->isDegenerate()) {
+                continue;
+            }
+            $t = self::nodeTransform($child);
+            $corners = [
+                [$bb->x, $bb->y],
+                [$bb->x + $bb->width, $bb->y],
+                [$bb->x, $bb->y + $bb->height],
+                [$bb->x + $bb->width, $bb->y + $bb->height],
+            ];
+            foreach ($corners as [$px, $py]) {
+                if ($t !== null) {
+                    [$px, $py] = $t->apply($px, $py);
+                }
+                $minX = $minX === null ? $px : min($minX, $px);
+                $maxX = $maxX === null ? $px : max($maxX, $px);
+                $minY = $minY === null ? $py : min($minY, $py);
+                $maxY = $maxY === null ? $py : max($maxY, $py);
+            }
+        }
+        if ($minX === null || $minY === null || $maxX === null || $maxY === null) {
+            return new self(0.0, 0.0, 0.0, 0.0);
+        }
+        return new self($minX, $minY, $maxX - $minX, $maxY - $minY);
+    }
+
+    private static function nodeTransform(SvgNode $node): ?SvgMatrix
+    {
+        if ($node instanceof SvgShape) {
+            return $node->transform();
+        }
+        if ($node instanceof SvgGroup) {
+            return $node->transform;
+        }
+        if ($node instanceof SvgImage) {
+            return $node->transform;
+        }
+        if ($node instanceof SvgText) {
+            return $node->transform;
+        }
+        return null;
     }
 
     /**
