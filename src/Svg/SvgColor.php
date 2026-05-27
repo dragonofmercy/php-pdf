@@ -10,7 +10,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * RGB color in 0..1 unit range (matches PDF's `rg` / `RG` operands).
  * Alpha is NOT carried here; it lives on SvgPaint as fillOpacity / strokeOpacity / opacity.
  */
-final readonly class SvgColor
+final readonly class SvgColor implements SvgPaintSource
 {
     public function __construct(
         public float $r,
