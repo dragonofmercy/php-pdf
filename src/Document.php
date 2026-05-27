@@ -30,6 +30,7 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
@@ -778,6 +779,7 @@ final class Document
         $allocator = new PdfObjectAllocator($firstObjectNumber);
 
         $this->preregisterFormFonts();
+        $this->preregisterSvgTextFonts();
 
         $alloc = $this->allocateObjectNumbers($allocator);
         $pending = $alloc['pending'];
@@ -871,7 +873,7 @@ final class Document
 
         $embedder = new ImageEmbedder();
         foreach ($imageEmissions as [$image, $imageNum]) {
-            foreach ($embedder->embed($image, $imageNum) as $obj) {
+            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $fontRefs) as $obj) {
                 $objects[] = $obj;
             }
         }
@@ -926,6 +928,25 @@ final class Document
         }
         foreach ($standardFontsToRegister as $font) {
             $this->fontRegistry->shortName($font);
+        }
+    }
+
+    /**
+     * Registers every standard font referenced by SVG <text> in any embedded
+     * image, before object-number allocation, so each gets a stable font object
+     * (emitted via the standard Type1/WinAnsi path) that the SVG Form can then
+     * reference by short name.
+     */
+    private function preregisterSvgTextFonts(): void
+    {
+        foreach ($this->imageRegistry->registeredImages() as $image) {
+            $meta = $image->metadata;
+            if (!$meta instanceof SvgMetadata) {
+                continue;
+            }
+            foreach ($meta->textFonts() as $font) {
+                $this->fontRegistry->shortName($font);
+            }
         }
     }
 
