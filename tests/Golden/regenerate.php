@@ -530,6 +530,12 @@ $svgGoldens = [
     'svg-pattern-objectbbox.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternObjectBBoxTest::class, 'buildPdfBytes'],
     'svg-pattern-transform.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternTransformTest::class, 'buildPdfBytes'],
     'svg-pattern-viewbox.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternViewBoxTest::class, 'buildPdfBytes'],
+    'svg-symbol-basic.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgSymbolBasicTest::class, 'buildPdfBytes'],
+    'svg-symbol-preserve-aspect.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgSymbolPreserveAspectTest::class, 'buildPdfBytes'],
+    'svg-marker-line.pdf'            => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerLineTest::class, 'buildPdfBytes'],
+    'svg-marker-polyline-auto.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerPolylineAutoTest::class, 'buildPdfBytes'],
+    'svg-marker-strokewidth.pdf'     => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerStrokeWidthTest::class, 'buildPdfBytes'],
+    'svg-marker-path-bezier.pdf'     => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerPathBezierTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
