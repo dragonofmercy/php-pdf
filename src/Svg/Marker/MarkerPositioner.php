@@ -162,20 +162,28 @@ final class MarkerPositioner
                 continue;
             }
             if ($cmd instanceof Arc) {
-                $startX = $cx;
-                $startY = $cy;
-                $arcSegs = ArcToBezier::approximate($startX, $startY, $cmd->rx, $cmd->ry, $cmd->xAxisRotationDeg, $cmd->largeArc, $cmd->sweep, $cmd->x, $cmd->y);
-                foreach ($arcSegs as $i => [$b1x, $b1y, $b2x, $b2y, $ex, $ey]) {
-                    if ($i === 0 && $kx !== []) {
-                        $kOut[count($kOut) - 1] = self::angleDeg($b1x - $startX, $b1y - $startY);
+                $arcSegs = ArcToBezier::approximate($cx, $cy, $cmd->rx, $cmd->ry, $cmd->xAxisRotationDeg, $cmd->largeArc, $cmd->sweep, $cmd->x, $cmd->y);
+                if ($arcSegs !== []) {
+                    // Set outAngle of previous knot to direction at start of first sub-bezier.
+                    [$b1x, $b1y] = $arcSegs[0];
+                    if ($kx !== []) {
+                        $kOut[count($kOut) - 1] = self::angleDeg($b1x - $cx, $b1y - $cy);
                     }
-                    $kx[] = $ex;
-                    $ky[] = $ey;
-                    $kIn[] = self::angleDeg($ex - $b2x, $ey - $b2y);
-                    $kOut[] = null;
-                    $startX = $ex;
-                    $startY = $ey;
+                    // Compute inAngle from the LAST sub-bezier's c2 -> endpoint direction.
+                    $last = $arcSegs[count($arcSegs) - 1];
+                    $inAngle = self::angleDeg($cmd->x - $last[2], $cmd->y - $last[3]);
+                } else {
+                    // Degenerate arc (zero-length): use direction from current pen to endpoint.
+                    $inAngle = self::angleDeg($cmd->x - $cx, $cmd->y - $cy);
+                    if ($kx !== []) {
+                        $kOut[count($kOut) - 1] = $inAngle;
+                    }
                 }
+                // Push exactly ONE knot at the arc's endpoint (one command = one knot).
+                $kx[] = $cmd->x;
+                $ky[] = $cmd->y;
+                $kIn[] = $inAngle;
+                $kOut[] = null;
                 $cx = $cmd->x;
                 $cy = $cmd->y;
                 continue;

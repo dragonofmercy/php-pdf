@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg\Marker;
 
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerKind;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerPositioner;
+use DragonOfMercy\PhpPdf\Svg\PathCommand\Arc;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
@@ -81,5 +82,24 @@ final class MarkerPositionerTest extends TestCase
         ]);
         $positions = MarkerPositioner::positionsFor($path);
         self::assertEqualsWithDelta(0.0, $positions[1]->angleDeg, self::EPS);
+    }
+
+    public function testPathArcEmitsOnlyOneKnotAtEndpoint(): void
+    {
+        // A 90-degree arc from (10,0) to (0,10) with r=10 produces 1 bezier segment;
+        // a 270-degree arc would produce 3 segments and previously emitted 3 knots (1 END + 2 spurious MIDs).
+        // After the fix, both arcs emit exactly 1 endpoint knot.
+        $path = new SvgPath(null, SvgPaint::default(), commands: [
+            new MoveTo(10.0, 0.0),
+            new Arc(rx: 10.0, ry: 10.0, xAxisRotationDeg: 0.0, largeArc: true, sweep: false, x: 0.0, y: 10.0),
+        ]);
+        $positions = MarkerPositioner::positionsFor($path);
+        // Expect 2 positions total: START at MoveTo, END at arc endpoint. No MIDs.
+        self::assertCount(2, $positions);
+        self::assertSame(MarkerKind::START, $positions[0]->kind);
+        self::assertSame(MarkerKind::END, $positions[1]->kind);
+        // Endpoint coords.
+        self::assertEqualsWithDelta(0.0, $positions[1]->x, 1e-9);
+        self::assertEqualsWithDelta(10.0, $positions[1]->y, 1e-9);
     }
 }
