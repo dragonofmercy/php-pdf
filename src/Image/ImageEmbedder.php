@@ -8,7 +8,13 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\ImageFormat;
+use DragonOfMercy\PhpPdf\Svg\EmbeddedPattern;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
+use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\SvgNode;
+use DragonOfMercy\PhpPdf\Svg\SvgPattern;
+use DragonOfMercy\PhpPdf\Svg\SvgShape;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -53,12 +59,45 @@ final class ImageEmbedder
             foreach ($meta->embeddedImages as $child) {
                 $count += self::objectCount($child);
             }
+            // Tiling patterns are allocated at render time (the /Matrix depends on
+            // the painted shape's CTM and bbox). Detect pattern usage cheaply, then
+            // pre-render to get the exact count.
+            if (self::svgHasPatternPaint($meta)) {
+                $rendered = (new Renderer())->render($meta);
+                $count += count($rendered['embeddedPatterns']);
+            }
             return $count;
         }
         if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
             return 2;
         }
         return 1;
+    }
+
+    private static function svgHasPatternPaint(SvgMetadata $meta): bool
+    {
+        return self::nodeHasPatternPaint($meta->root);
+    }
+
+    private static function nodeHasPatternPaint(SvgNode $node): bool
+    {
+        if ($node instanceof SvgGroup) {
+            foreach ($node->children as $c) {
+                if (self::nodeHasPatternPaint($c)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if ($node instanceof SvgClipped) {
+            return self::nodeHasPatternPaint($node->child);
+        }
+        if ($node instanceof SvgShape) {
+            $paint = $node->paint();
+            return $paint->fill instanceof SvgPattern
+                || $paint->stroke instanceof SvgPattern;
+        }
+        return false;
     }
 
     /**
@@ -150,6 +189,8 @@ final class ImageEmbedder
         $bytes = $rendered['bytes'];
         $extGStates = $rendered['extGStates'];
         $patterns = $rendered['patterns'];
+        $patternRefs = $rendered['patternRefs'];
+        $embeddedPatterns = $rendered['embeddedPatterns'];
         $fonts = $rendered['fonts'];
 
         $procSet = $fonts !== []
@@ -180,14 +221,7 @@ final class ImageEmbedder
             $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
         }
 
-        if ($patterns !== []) {
-            $patternDict = Dictionary::empty();
-            foreach ($patterns as $name => $dict) {
-                $patternDict = $patternDict->withEntry(Name::of($name), RawValue::of($dict));
-            }
-            $resources = $resources->withEntry(Name::of('Pattern'), $patternDict);
-        }
-
+        // (1) Embedded images loop: child Form/image objects for raster <image> children.
         $childObjects = [];
         if ($meta->embeddedImages !== []) {
             $xobjectDict = Dictionary::empty();
@@ -201,6 +235,30 @@ final class ImageEmbedder
                 $childNum += count($emitted);
             }
             $resources = $resources->withEntry(Name::of('XObject'), $xobjectDict);
+        } else {
+            $childNum = $objectNumber + 1;
+        }
+
+        // (2) Tiling patterns become child indirect objects allocated after embedded images.
+        $patternChildNumbers = []; // embeddedIndex -> child object number
+        foreach ($patternRefs as $refEntry) {
+            $emb = $embeddedPatterns[$refEntry['embeddedIndex']];
+            $childObjects[] = $this->buildTilingPatternObject($childNum, $emb);
+            $patternChildNumbers[$refEntry['embeddedIndex']] = $childNum;
+            $childNum++;
+        }
+
+        // (3) Build /Resources/Pattern combining inline shading-pattern dicts AND tiling-pattern refs.
+        if ($patterns !== [] || $patternRefs !== []) {
+            $patternDict = Dictionary::empty();
+            foreach ($patterns as $name => $dict) {
+                $patternDict = $patternDict->withEntry(Name::of($name), RawValue::of($dict));
+            }
+            foreach ($patternRefs as $refEntry) {
+                $childNumForThis = $patternChildNumbers[$refEntry['embeddedIndex']];
+                $patternDict = $patternDict->withEntry(Name::of($refEntry['name']), PdfReference::to($childNumForThis, 0));
+            }
+            $resources = $resources->withEntry(Name::of('Pattern'), $patternDict);
         }
 
         $extra = Dictionary::empty()
@@ -216,6 +274,40 @@ final class ImageEmbedder
         $stream = CompressedStream::of($bytes, $extra);
 
         return array_merge([IndirectObject::of($objectNumber, 0, $stream)], $childObjects);
+    }
+
+    private function buildTilingPatternObject(int $childNum, EmbeddedPattern $emb): IndirectObject
+    {
+        $tileResources = Dictionary::empty()
+            ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
+        if ($emb->extGStates !== []) {
+            $extGStateDict = Dictionary::empty();
+            foreach ($emb->extGStates as $gsName => $entry) {
+                $gsDict = Dictionary::empty()
+                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
+                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
+                $extGStateDict = $extGStateDict->withEntry(Name::of($gsName), $gsDict);
+            }
+            $tileResources = $tileResources->withEntry(Name::of('ExtGState'), $extGStateDict);
+        }
+        $extras = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Pattern'))
+            ->withEntry(Name::of('PatternType'), PdfNumber::ofInt(1))
+            ->withEntry(Name::of('PaintType'), PdfNumber::ofInt(1))
+            ->withEntry(Name::of('TilingType'), PdfNumber::ofInt(1))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($emb->bbox[0]), PdfNumber::ofFloat($emb->bbox[1]),
+                PdfNumber::ofFloat($emb->bbox[2]), PdfNumber::ofFloat($emb->bbox[3]),
+            ))
+            ->withEntry(Name::of('XStep'), PdfNumber::ofFloat($emb->xStep))
+            ->withEntry(Name::of('YStep'), PdfNumber::ofFloat($emb->yStep))
+            ->withEntry(Name::of('Matrix'), PdfArray::of(
+                PdfNumber::ofFloat($emb->matrix[0]), PdfNumber::ofFloat($emb->matrix[1]),
+                PdfNumber::ofFloat($emb->matrix[2]), PdfNumber::ofFloat($emb->matrix[3]),
+                PdfNumber::ofFloat($emb->matrix[4]), PdfNumber::ofFloat($emb->matrix[5]),
+            ))
+            ->withEntry(Name::of('Resources'), $tileResources);
+        return IndirectObject::of($childNum, 0, CompressedStream::of($emb->contentBytes, $extras));
     }
 
     private function pngImageDictionary(PngMetadata $meta, ?PdfReference $smaskRef): Dictionary
