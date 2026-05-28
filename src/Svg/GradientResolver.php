@@ -90,6 +90,7 @@ final class GradientResolver
             ? TransformParser::parse($attrs['gradientTransform'])
             : null;
         $uniformOpacity = $this->uniformOpacity($stops);
+        $spread = SpreadMethod::tryFromName($attrs['spreadMethod'] ?? null);
 
         if ($type === 'radialGradient') {
             $cx = $this->coord($attrs['cx'] ?? null, 0.5);
@@ -97,14 +98,14 @@ final class GradientResolver
             $r = $this->coord($attrs['r'] ?? null, 0.5);
             $fx = $this->coord($attrs['fx'] ?? null, $cx);
             $fy = $this->coord($attrs['fy'] ?? null, $cy);
-            return new RadialGradient($cx, $cy, $r, $fx, $fy, $units, $transform, $stops, $uniformOpacity);
+            return new RadialGradient($cx, $cy, $r, $fx, $fy, $units, $transform, $stops, $uniformOpacity, $spread);
         }
 
         $x1 = $this->coord($attrs['x1'] ?? null, 0.0);
         $y1 = $this->coord($attrs['y1'] ?? null, 0.0);
         $x2 = $this->coord($attrs['x2'] ?? null, 1.0);
         $y2 = $this->coord($attrs['y2'] ?? null, 0.0);
-        return new LinearGradient($x1, $y1, $x2, $y2, $units, $transform, $stops, $uniformOpacity);
+        return new LinearGradient($x1, $y1, $x2, $y2, $units, $transform, $stops, $uniformOpacity, $spread);
     }
 
     private function hrefTarget(DOMElement $el): ?string

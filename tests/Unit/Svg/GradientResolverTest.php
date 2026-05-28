@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\Svg\GradientResolver;
 use DragonOfMercy\PhpPdf\Svg\GradientUnits;
 use DragonOfMercy\PhpPdf\Svg\LinearGradient;
 use DragonOfMercy\PhpPdf\Svg\RadialGradient;
+use DragonOfMercy\PhpPdf\Svg\SpreadMethod;
 use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use PHPUnit\Framework\TestCase;
 
@@ -109,5 +110,45 @@ final class GradientResolverTest extends TestCase
         self::assertInstanceOf(RadialGradient::class, $g);
         self::assertSame(0.2, $g->fx);
         self::assertSame(0.3, $g->fy);
+    }
+
+    public function testSpreadMethodDefaultsToPad(): void
+    {
+        $defs = $this->defsFrom('<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient></svg>');
+        $g = (new GradientResolver($defs))->resolve('g', SvgColor::black());
+        self::assertNotNull($g);
+        self::assertSame(SpreadMethod::PAD, $g->spreadMethod());
+    }
+
+    public function testSpreadMethodReflectParsed(): void
+    {
+        $defs = $this->defsFrom('<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="g" spreadMethod="reflect" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient></svg>');
+        $g = (new GradientResolver($defs))->resolve('g', SvgColor::black());
+        self::assertNotNull($g);
+        self::assertSame(SpreadMethod::REFLECT, $g->spreadMethod());
+    }
+
+    public function testSpreadMethodRepeatParsedOnRadial(): void
+    {
+        $defs = $this->defsFrom('<svg xmlns="http://www.w3.org/2000/svg"><radialGradient id="g" spreadMethod="repeat" cx="0.5" cy="0.5" r="0.25"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></radialGradient></svg>');
+        $g = (new GradientResolver($defs))->resolve('g', SvgColor::black());
+        self::assertNotNull($g);
+        self::assertSame(SpreadMethod::REPEAT, $g->spreadMethod());
+    }
+
+    public function testSpreadMethodUnknownFallsBackToPad(): void
+    {
+        $defs = $this->defsFrom('<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="g" spreadMethod="rebound" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient></svg>');
+        $g = (new GradientResolver($defs))->resolve('g', SvgColor::black());
+        self::assertNotNull($g);
+        self::assertSame(SpreadMethod::PAD, $g->spreadMethod());
+    }
+
+    public function testSpreadMethodInheritedViaHref(): void
+    {
+        $defs = $this->defsFrom('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><linearGradient id="base" spreadMethod="repeat"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient><linearGradient id="g" xlink:href="#base" x1="0" y1="0" x2="1" y2="0"/></svg>');
+        $g = (new GradientResolver($defs))->resolve('g', SvgColor::black());
+        self::assertNotNull($g);
+        self::assertSame(SpreadMethod::REPEAT, $g->spreadMethod());
     }
 }
