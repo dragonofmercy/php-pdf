@@ -354,7 +354,7 @@ Supported:
 - viewBox: the SVG fills its placement rectangle. When you pass only `w` or only `h` to `$page->image()`, the other side is derived from the viewBox aspect, so output is undistorted; passing both can stretch. (The root `<svg preserveAspectRatio>` meet / slice / align is not applied - see Not supported.)
 - Groups (`<g>`), `<defs>` + `<use>` references with cycle detection.
 - Paint state: solid fill / stroke (147 named CSS colors, `#abc` / `#aabbcc`, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative).
-- Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, with uniform stop-opacity.
+- Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance (including spreadMethod), multi-stop, on fill and stroke, with uniform stop-opacity. `spreadMethod` pad (default) / reflect / repeat are all honored by rewriting non-pad gradients into an equivalent pad-mode gradient with extended coords and replicated stops.
 - Presentation attributes AND inline `style="..."` (inline > direct > inherited precedence).
 - Embedded raster `<image>` via PNG / JPEG data URI: x / y / width / height, preserveAspectRatio (meet / slice / none), transform, opacity, intra-SVG dedup of identical data URIs.
 - Text: `<text>` and `<tspan>` rendered as real, selectable PDF text using the 14 standard fonts. font-family (generic families `serif` / `sans-serif` / `monospace` and the standard family names) with font-weight (bold) and font-style (italic), font-size (unitless / px / pt / em / %), text-anchor (start / middle / end), x / y / dx / dy positioning, fill and stroke (solid colors), opacity, and transforms. Inherits font properties through `<g>`.
@@ -365,7 +365,7 @@ Not supported (skipped silently per SVG spec fallback):
 
 - `<textPath>` (text on a path), custom registered TTF families in text (they fall back to a standard font), per-character positioning (`x="10 20 30"` lists), `letter-spacing` / `word-spacing`, `dominant-baseline` / `baseline-shift`, and `xml:space="preserve"`. Characters outside WinAnsi encoding render as `?`.
 - `<pattern>` and mesh gradients. `fill="url(#x)"` referencing an unsupported paint server falls back to black per spec.
-- Gradient `spreadMethod` reflect / repeat are approximated as pad. Per-stop varying opacity (fade-to-transparent) is not rendered (stops are treated as opaque); a uniform stop-opacity is honored.
+- Per-stop varying opacity (fade-to-transparent) is not rendered (stops are treated as opaque); a uniform stop-opacity is honored.
 - `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
 - `<mask>` (luminance / alpha soft masks), `<text>` as clip content, and nested `clip-path` on the children of a `<clipPath>`.
 - A `transform` on the same element that carries `clip-path`: the transform applies to the element's content but not to the clip region (the clip is resolved in the element's parent user space). CSS `clip-path` shape functions (`inset()`, `circle()`, `polygon()`); only `url(#id)` references are honored.
