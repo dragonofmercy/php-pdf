@@ -297,7 +297,21 @@ final class Renderer
         $colorDict = ShadingBuilder::patternDict($colorGradient, $matrix);
         $colorName = $patterns->nameFor($colorDict);
 
-        $alphaDict = ShadingBuilder::alphaPatternDict($gradient, $matrix);
+        // Alpha pattern matrix omits $shapeCtm. The SMask Form has its own
+        // local coord system (per /BBox in user-space) and pattern matrices
+        // inside are interpreted relative to that. Baking $shapeCtm in would
+        // double-apply the viewBox-to-unit projection and collapse the
+        // gradient to a tiny strip in the top-left.
+        $alphaMatrix = SvgMatrix::identity();
+        if ($gradient->units() === GradientUnits::OBJECT_BOUNDING_BOX) {
+            $alphaBbox = BoundingBox::of($shape);
+            $alphaMatrix = SvgMatrix::translate($alphaBbox->x, $alphaBbox->y)
+                ->compose(SvgMatrix::scale($alphaBbox->width, $alphaBbox->height));
+        }
+        if ($gt !== null) {
+            $alphaMatrix = $alphaMatrix->compose($gt);
+        }
+        $alphaDict = ShadingBuilder::alphaPatternDict($gradient, $alphaMatrix);
         $innerPatterns = new PatternRegistry();
         $alphaName = $innerPatterns->nameFor($alphaDict);
 
