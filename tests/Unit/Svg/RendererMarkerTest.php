@@ -45,4 +45,22 @@ final class RendererMarkerTest extends TestCase
         $rendered = (new Renderer())->render($meta);
         self::assertStringContainsString('4 0 0 4', $rendered['bytes']);
     }
+
+    public function testMarkerAngleNegatedForYFlip(): void
+    {
+        // Vertical-down line: MarkerPositioner returns angle=90 (math CCW from +X).
+        // After fix, the rendered marker rotation is -90 (visual CW = pointing down).
+        // The cm matrix for rotate(-90) is: cos(-90)=0, sin(-90)=-1 -> [0 -1 1 0 tx ty cm].
+        // We check for the "-1" and "0 -1" signature which only appears under rotate(-90).
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<defs><marker id="m" markerWidth="3" markerHeight="3" orient="auto"><rect width="3" height="3"/></marker></defs>'
+            . '<line x1="50" y1="10" x2="50" y2="90" stroke="#000" stroke-width="1" marker-end="url(#m)"/>'
+            . '</svg>';
+        $meta = Parser::parse($svg);
+        $rendered = (new \DragonOfMercy\PhpPdf\Svg\Renderer())->render($meta);
+        // For a vertical-down line, atan2(80, 0) = +90 deg. After the negation fix:
+        // rotate(-90) produces matrix [cos(-90) sin(-90) -sin(-90) cos(-90)] = [0 -1 1 0].
+        // The cm line in the marker block should contain "0 -1 1 0" pattern.
+        self::assertMatchesRegularExpression('/0 -1 1 0 [\d.\-]+ [\d.\-]+ cm/', $rendered['bytes']);
+    }
 }
