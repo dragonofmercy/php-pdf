@@ -20,6 +20,12 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
 use DragonOfMercy\PhpPdf\Svg\BoundingBox;
 use DragonOfMercy\PhpPdf\Svg\ClipPathUnits;
 use DragonOfMercy\PhpPdf\Svg\FillRule;
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerKind;
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerOrientMode;
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerPosition;
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerPositioner;
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerUnits;
+use DragonOfMercy\PhpPdf\Svg\Marker\SvgMarker;
 use DragonOfMercy\PhpPdf\Svg\SvgClip;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
@@ -164,7 +170,8 @@ final class Renderer
         $stateOps = $this->emitPaintState($paint, $registry, $patterns, $shape, $shapeCtm);
         $terminator = $this->paintTerminator($paint);
         $cmLine = ($tf !== null && !$tf->isIdentity()) ? self::cmFromMatrix($tf) . "\n" : '';
-        return "q\n" . $cmLine . $stateOps . $geom . $terminator . "\nQ\n";
+        $markerOps = $this->emitMarkersFor($shape, $paint, $registry, $patterns, $shapeCtm);
+        return "q\n" . $cmLine . $stateOps . $geom . $terminator . "\n" . $markerOps . "Q\n";
     }
 
     private function emitPaintState(SvgPaint $paint, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgShape $shape, SvgMatrix $shapeCtm): string
@@ -324,6 +331,67 @@ final class Renderer
 
         $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
         return ['ops' => $ops, 'opacity' => $baseOpacity];
+    }
+
+    /**
+     * Renders the markers attached to a shape's paint as inline q/cm/.../Q
+     * blocks. Marker children paint in their own paint state; the shape's
+     * stroke/fill state is implicitly overridden when the children set their
+     * own. Marker position is in the shape's local space (post shape transform
+     * via the surrounding q/Q wrapping).
+     */
+    private function emitMarkersFor(SvgShape $shape, SvgPaint $paint, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $shapeCtm): string
+    {
+        $set = $paint->markers;
+        if ($set === null) {
+            return '';
+        }
+        $positions = MarkerPositioner::positionsFor($shape);
+        if ($positions === []) {
+            return '';
+        }
+
+        $strokeWidth = $paint->strokeWidth;
+        $out = '';
+        foreach ($positions as $pos) {
+            $marker = match ($pos->kind) {
+                MarkerKind::START => $set->start,
+                MarkerKind::MID   => $set->mid,
+                MarkerKind::END   => $set->end,
+            };
+            if ($marker === null) {
+                continue;
+            }
+            $out .= $this->emitOneMarker($marker, $pos, $strokeWidth, $registry, $patterns, $shapeCtm);
+        }
+        return $out;
+    }
+
+    private function emitOneMarker(SvgMarker $marker, MarkerPosition $pos, float $strokeWidth, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $shapeCtm): string
+    {
+        $angle = match ($marker->orient->mode) {
+            MarkerOrientMode::NUMBER             => $marker->orient->angleDeg,
+            MarkerOrientMode::AUTO               => $pos->angleDeg,
+            MarkerOrientMode::AUTO_START_REVERSE => $pos->angleDeg + ($pos->kind === MarkerKind::START ? 180.0 : 0.0),
+        };
+        $scale = $marker->units === MarkerUnits::STROKE_WIDTH ? $strokeWidth : 1.0;
+
+        $m = SvgMatrix::translate($pos->x, $pos->y)
+            ->compose(SvgMatrix::rotate($angle))
+            ->compose(SvgMatrix::scale($scale, $scale));
+        if ($marker->viewBox !== null) {
+            $vbMatrix = PreserveAspectRatio::matrixFor($marker->viewBox, $marker->markerWidth, $marker->markerHeight, $marker->aspectRatio);
+            $m = $m->compose($vbMatrix);
+        }
+        $m = $m->compose(SvgMatrix::translate(-$marker->refX, -$marker->refY));
+
+        $childCtm = $shapeCtm->compose($m);
+        $out = "q\n" . self::cmFromMatrix($m) . "\n";
+        foreach ($marker->nodes as $node) {
+            $out .= $this->renderNode($node, $registry, $patterns, $childCtm);
+        }
+        $out .= "Q\n";
+        return $out;
     }
 
     private function paintTerminator(SvgPaint $paint): string
