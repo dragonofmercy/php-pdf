@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Svg\GradientStop;
 use DragonOfMercy\PhpPdf\Svg\GradientUnits;
 use DragonOfMercy\PhpPdf\Svg\LinearGradient;
 use DragonOfMercy\PhpPdf\Svg\RadialGradient;
+use DragonOfMercy\PhpPdf\Svg\SpreadMethod;
 use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use DragonOfMercy\PhpPdf\Svg\SvgGradient;
 use DragonOfMercy\PhpPdf\Svg\SvgMatrix;
@@ -56,20 +57,20 @@ final class GradientValueObjectTest extends TestCase
     {
         $stops = [new GradientStop(0.0, SvgColor::black(), 1.0), new GradientStop(1.0, SvgColor::black(), 1.0)];
         $g = new LinearGradient(0.0, 0.0, 1.0, 0.0, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0);
-        self::assertSame(\DragonOfMercy\PhpPdf\Svg\SpreadMethod::PAD, $g->spreadMethod());
+        self::assertSame(SpreadMethod::PAD, $g->spreadMethod());
     }
 
     public function testLinearGradientCarriesSpread(): void
     {
         $stops = [new GradientStop(0.0, SvgColor::black(), 1.0), new GradientStop(1.0, SvgColor::black(), 1.0)];
-        $g = new LinearGradient(0.0, 0.0, 1.0, 0.0, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0, \DragonOfMercy\PhpPdf\Svg\SpreadMethod::REPEAT);
-        self::assertSame(\DragonOfMercy\PhpPdf\Svg\SpreadMethod::REPEAT, $g->spreadMethod());
+        $g = new LinearGradient(0.0, 0.0, 1.0, 0.0, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0, SpreadMethod::REPEAT);
+        self::assertSame(SpreadMethod::REPEAT, $g->spreadMethod());
     }
 
     public function testRadialGradientCarriesSpread(): void
     {
         $stops = [new GradientStop(0.0, SvgColor::black(), 1.0), new GradientStop(1.0, SvgColor::black(), 1.0)];
-        $g = new RadialGradient(0.5, 0.5, 0.5, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0, \DragonOfMercy\PhpPdf\Svg\SpreadMethod::REFLECT);
-        self::assertSame(\DragonOfMercy\PhpPdf\Svg\SpreadMethod::REFLECT, $g->spreadMethod());
+        $g = new RadialGradient(0.5, 0.5, 0.5, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0, SpreadMethod::REFLECT);
+        self::assertSame(SpreadMethod::REFLECT, $g->spreadMethod());
     }
 }
