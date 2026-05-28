@@ -29,6 +29,7 @@ use DragonOfMercy\PhpPdf\Svg\Marker\SvgMarker;
 use DragonOfMercy\PhpPdf\Svg\SvgClip;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgShape;
 
 /**
@@ -135,6 +136,9 @@ final class Renderer
         }
         if ($node instanceof SvgClipped) {
             return $this->renderClipped($node, $registry, $patterns, $ctm);
+        }
+        if ($node instanceof SvgMasked) {
+            return $this->renderMasked($node, $registry, $patterns, $ctm);
         }
         return '';
     }
@@ -683,6 +687,12 @@ final class Renderer
             return '';
         }
         return "q\n" . $geometry . $terminator . $child . "Q\n";
+    }
+
+    private function renderMasked(SvgMasked $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
+    {
+        // Implemented in Task 9 (full sub-render + /SMask emission).
+        return $this->renderNode($node->child, $registry, $patterns, $ctm);
     }
 
     /**
