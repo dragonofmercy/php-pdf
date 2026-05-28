@@ -16,7 +16,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * EAN-13 layout (first digit detached on the left, 6+6 below the two halves).
  * Disable the text with {@see self::withoutText()}.
  */
-final readonly class Ean13 implements OrientableBarcode
+final readonly class Ean13 implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
     /** Total module count including quiet zones: 11 (left quiet) + 95 (bars) + 7 (right quiet). */
@@ -27,6 +27,7 @@ final readonly class Ean13 implements OrientableBarcode
         public Color $color,
         public bool $showText,
         public Orientation $orientation = Orientation::Horizontal,
+        public ?float $moduleSize = null,
     ) {}
 
     public static function of(string $digits): self
@@ -56,17 +57,17 @@ final readonly class Ean13 implements OrientableBarcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText, $this->orientation);
+        return new self($this->digits, $color, $this->showText, $this->orientation, $this->moduleSize);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false, $this->orientation);
+        return new self($this->digits, $this->color, false, $this->orientation, $this->moduleSize);
     }
 
     public function withOrientation(Orientation $orientation): self
     {
-        return new self($this->digits, $this->color, $this->showText, $orientation);
+        return new self($this->digits, $this->color, $this->showText, $orientation, $this->moduleSize);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -75,6 +76,19 @@ final readonly class Ean13 implements OrientableBarcode
             throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
         }
         return self::TOTAL_MODULES * $moduleSize;
+    }
+
+    public function withModuleSize(float $moduleSize): self
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("Module size must be positive, got {$moduleSize}");
+        }
+        return new self($this->digits, $this->color, $this->showText, $this->orientation, $moduleSize);
+    }
+
+    public function intrinsicWidth(): ?float
+    {
+        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     public function encode(): EncodedBarcode
@@ -193,6 +207,7 @@ final readonly class Ean13 implements OrientableBarcode
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
+        $fontState = $page->captureFontState();
         $page->setFillColor($this->color);
         $page->setFont(Font::helvetica(), $fontSize);
 
@@ -213,6 +228,7 @@ final readonly class Ean13 implements OrientableBarcode
         $rightX = $rightStartX + ($halfWidthUnit - $rightWidth) / 2;
         $page->text($rightX, $textYUnit, $right);
 
+        $page->restoreFontState($fontState);
         $page->restore();
     }
 

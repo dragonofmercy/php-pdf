@@ -114,6 +114,7 @@ final class Linear1d
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
+        $fontState = $page->captureFontState();
         $page->setFillColor($color);
         $page->setFont(Font::helvetica(), $fontSize);
 
@@ -123,6 +124,7 @@ final class Linear1d
         $textX = $startXUnit + ($fullWidthUnit - $textWidth) / 2;
         $page->text($textX, $textYUnit, $text);
 
+        $page->restoreFontState($fontState);
         $page->restore();
     }
 }

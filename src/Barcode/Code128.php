@@ -13,7 +13,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * Default rendering: black bars + human-readable text below.
  */
-final readonly class Code128 implements OrientableBarcode
+final readonly class Code128 implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
 
@@ -22,6 +22,7 @@ final readonly class Code128 implements OrientableBarcode
         public Color $color,
         public bool $showText,
         public Orientation $orientation = Orientation::Horizontal,
+        public ?float $moduleSize = null,
     ) {}
 
     public static function of(string $data): self
@@ -46,17 +47,17 @@ final readonly class Code128 implements OrientableBarcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->data, $color, $this->showText, $this->orientation);
+        return new self($this->data, $color, $this->showText, $this->orientation, $this->moduleSize);
     }
 
     public function withoutText(): self
     {
-        return new self($this->data, $this->color, false, $this->orientation);
+        return new self($this->data, $this->color, false, $this->orientation, $this->moduleSize);
     }
 
     public function withOrientation(Orientation $orientation): self
     {
-        return new self($this->data, $this->color, $this->showText, $orientation);
+        return new self($this->data, $this->color, $this->showText, $orientation, $this->moduleSize);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -66,6 +67,19 @@ final readonly class Code128 implements OrientableBarcode
         }
         $modules = $this->encodeModules();
         return (count($modules) + 2 * self::QUIET_MODULES) * $moduleSize;
+    }
+
+    public function withModuleSize(float $moduleSize): self
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("Module size must be positive, got {$moduleSize}");
+        }
+        return new self($this->data, $this->color, $this->showText, $this->orientation, $moduleSize);
+    }
+
+    public function intrinsicWidth(): ?float
+    {
+        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     public function encode(): EncodedBarcode
@@ -137,11 +151,13 @@ final readonly class Code128 implements OrientableBarcode
                 $textYUnit = $page->unit->fromPoints($textY);
 
                 $page->save();
+                $fontState = $page->captureFontState();
                 $page->setFillColor($this->color);
                 $page->setFont(Font::helvetica(), $fontSize);
                 $textWidth = $page->stringWidth($this->data);
                 $textX = $page->unit->fromPoints($xPt + $wPt / 2) - $textWidth / 2;
                 $page->text($textX, $textYUnit, $this->data);
+                $page->restoreFontState($fontState);
                 $page->restore();
             }
         });

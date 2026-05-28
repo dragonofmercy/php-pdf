@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf;
 
-use DragonOfMercy\PhpPdf\Barcode\{Barcode, Orientation, OrientableBarcode};
+use DragonOfMercy\PhpPdf\Barcode\{Barcode, Orientation, OrientableBarcode, SizedBarcode};
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Document;
@@ -645,6 +645,11 @@ final class Page
      * unconstrained (need not equal `w`); when null it is derived from the
      * symbol's row count.
      *
+     * `w` may be omitted when the barcode implements {@see SizedBarcode} and
+     * has had {@see SizedBarcode::withModuleSize()} called on it: the width is
+     * then taken from {@see SizedBarcode::intrinsicWidth()}. Otherwise `w` is
+     * required.
+     *
      * After drawing, the cursor advances to the right edge of the barcode's
      * visual bounding box: by `w` for a horizontal barcode, or by `h` for a
      * vertical OrientableBarcode (whose visual width is the bar height).
@@ -656,8 +661,11 @@ final class Page
         ?float $w = null,
         ?float $h = null,
     ): self {
+        if ($w === null && $code instanceof SizedBarcode) {
+            $w = $code->intrinsicWidth();
+        }
         if ($w === null) {
-            throw new PdfException('Barcode width is required');
+            throw new PdfException('Barcode width is required (pass w or set a module size via withModuleSize())');
         }
         $x = $this->cursor->resolveX($x, 'Barcode');
         $y = $this->cursor->resolveY($y, 'Barcode');

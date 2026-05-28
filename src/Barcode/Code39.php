@@ -16,7 +16,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal
  */
-final readonly class Code39 implements OrientableBarcode
+final readonly class Code39 implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
     private const int QUIET_MODULES = 10;
@@ -55,6 +55,7 @@ final readonly class Code39 implements OrientableBarcode
         public bool $showText,
         public bool $hasCheckDigit,
         public Orientation $orientation = Orientation::Horizontal,
+        public ?float $moduleSize = null,
     ) {}
 
     public static function of(string $data): self
@@ -78,22 +79,22 @@ final readonly class Code39 implements OrientableBarcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->data, $color, $this->showText, $this->hasCheckDigit, $this->orientation);
+        return new self($this->data, $color, $this->showText, $this->hasCheckDigit, $this->orientation, $this->moduleSize);
     }
 
     public function withoutText(): self
     {
-        return new self($this->data, $this->color, false, $this->hasCheckDigit, $this->orientation);
+        return new self($this->data, $this->color, false, $this->hasCheckDigit, $this->orientation, $this->moduleSize);
     }
 
     public function withCheckDigit(): self
     {
-        return new self($this->data, $this->color, $this->showText, true, $this->orientation);
+        return new self($this->data, $this->color, $this->showText, true, $this->orientation, $this->moduleSize);
     }
 
     public function withOrientation(Orientation $orientation): self
     {
-        return new self($this->data, $this->color, $this->showText, $this->hasCheckDigit, $orientation);
+        return new self($this->data, $this->color, $this->showText, $this->hasCheckDigit, $orientation, $this->moduleSize);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -103,6 +104,19 @@ final readonly class Code39 implements OrientableBarcode
         }
         $modules = $this->encodeModules();
         return (count($modules) + 2 * self::QUIET_MODULES) * $moduleSize;
+    }
+
+    public function withModuleSize(float $moduleSize): self
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("Module size must be positive, got {$moduleSize}");
+        }
+        return new self($this->data, $this->color, $this->showText, $this->hasCheckDigit, $this->orientation, $moduleSize);
+    }
+
+    public function intrinsicWidth(): ?float
+    {
+        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     /**

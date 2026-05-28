@@ -18,7 +18,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal Quiet zone is 9 modules each side per the symbology.
  */
-final readonly class Upca implements OrientableBarcode
+final readonly class Upca implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
     /** 9 (left quiet) + 95 (bars) + 9 (right quiet). */
@@ -30,6 +30,7 @@ final readonly class Upca implements OrientableBarcode
         public Color $color,
         public bool $showText,
         public Orientation $orientation = Orientation::Horizontal,
+        public ?float $moduleSize = null,
     ) {}
 
     public static function of(string $digits): self
@@ -59,17 +60,17 @@ final readonly class Upca implements OrientableBarcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText, $this->orientation);
+        return new self($this->digits, $color, $this->showText, $this->orientation, $this->moduleSize);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false, $this->orientation);
+        return new self($this->digits, $this->color, false, $this->orientation, $this->moduleSize);
     }
 
     public function withOrientation(Orientation $orientation): self
     {
-        return new self($this->digits, $this->color, $this->showText, $orientation);
+        return new self($this->digits, $this->color, $this->showText, $orientation, $this->moduleSize);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -78,6 +79,19 @@ final readonly class Upca implements OrientableBarcode
             throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
         }
         return self::TOTAL_MODULES * $moduleSize;
+    }
+
+    public function withModuleSize(float $moduleSize): self
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("Module size must be positive, got {$moduleSize}");
+        }
+        return new self($this->digits, $this->color, $this->showText, $this->orientation, $moduleSize);
+    }
+
+    public function intrinsicWidth(): ?float
+    {
+        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     /**
@@ -260,6 +274,7 @@ final readonly class Upca implements OrientableBarcode
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
+        $fontState = $page->captureFontState();
         $page->setFillColor($this->color);
         $page->setFont(Font::helvetica(), $fontSize);
 
@@ -282,6 +297,7 @@ final readonly class Upca implements OrientableBarcode
         $lastX = $page->unit->fromPoints($xPt + 105 * $moduleW);
         $page->text($lastX, $textYUnit, $last);
 
+        $page->restoreFontState($fontState);
         $page->restore();
     }
 }

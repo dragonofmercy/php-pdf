@@ -16,7 +16,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  *
  * @internal
  */
-final readonly class Itf implements OrientableBarcode
+final readonly class Itf implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
     private const int QUIET_MODULES = 10;
@@ -33,6 +33,7 @@ final readonly class Itf implements OrientableBarcode
         public bool $showText,
         public ?float $bearerBarModules = null,
         public Orientation $orientation = Orientation::Horizontal,
+        public ?float $moduleSize = null,
     ) {}
 
     public static function of(string $digits): self
@@ -74,12 +75,12 @@ final readonly class Itf implements OrientableBarcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText, $this->bearerBarModules, $this->orientation);
+        return new self($this->digits, $color, $this->showText, $this->bearerBarModules, $this->orientation, $this->moduleSize);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false, $this->bearerBarModules, $this->orientation);
+        return new self($this->digits, $this->color, false, $this->bearerBarModules, $this->orientation, $this->moduleSize);
     }
 
     /**
@@ -92,12 +93,12 @@ final readonly class Itf implements OrientableBarcode
         if ($thickness <= 0) {
             throw new PdfException("ITF bearer bar thickness must be positive, got {$thickness}");
         }
-        return new self($this->digits, $this->color, $this->showText, $thickness, $this->orientation);
+        return new self($this->digits, $this->color, $this->showText, $thickness, $this->orientation, $this->moduleSize);
     }
 
     public function withOrientation(Orientation $orientation): self
     {
-        return new self($this->digits, $this->color, $this->showText, $this->bearerBarModules, $orientation);
+        return new self($this->digits, $this->color, $this->showText, $this->bearerBarModules, $orientation, $this->moduleSize);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -107,6 +108,19 @@ final readonly class Itf implements OrientableBarcode
         }
         $modules = $this->encodeModules();
         return (count($modules) + 2 * self::QUIET_MODULES) * $moduleSize;
+    }
+
+    public function withModuleSize(float $moduleSize): self
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("Module size must be positive, got {$moduleSize}");
+        }
+        return new self($this->digits, $this->color, $this->showText, $this->bearerBarModules, $this->orientation, $moduleSize);
+    }
+
+    public function intrinsicWidth(): ?float
+    {
+        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     /**

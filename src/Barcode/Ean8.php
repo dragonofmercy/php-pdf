@@ -15,7 +15,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * Default rendering: black bars + human-readable text below (4+4 layout).
  * Disable the text with {@see self::withoutText()}.
  */
-final readonly class Ean8 implements OrientableBarcode
+final readonly class Ean8 implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
     /** Total module count including 7+7 quiet zones (7 + 3+28+5+28+3 + 7 = 81). */
@@ -26,6 +26,7 @@ final readonly class Ean8 implements OrientableBarcode
         public Color $color,
         public bool $showText,
         public Orientation $orientation = Orientation::Horizontal,
+        public ?float $moduleSize = null,
     ) {}
 
     public static function of(string $digits): self
@@ -55,17 +56,17 @@ final readonly class Ean8 implements OrientableBarcode
 
     public function withColor(Color $color): self
     {
-        return new self($this->digits, $color, $this->showText, $this->orientation);
+        return new self($this->digits, $color, $this->showText, $this->orientation, $this->moduleSize);
     }
 
     public function withoutText(): self
     {
-        return new self($this->digits, $this->color, false, $this->orientation);
+        return new self($this->digits, $this->color, false, $this->orientation, $this->moduleSize);
     }
 
     public function withOrientation(Orientation $orientation): self
     {
-        return new self($this->digits, $this->color, $this->showText, $orientation);
+        return new self($this->digits, $this->color, $this->showText, $orientation, $this->moduleSize);
     }
 
     public function widthForModule(float $moduleSize): float
@@ -74,6 +75,19 @@ final readonly class Ean8 implements OrientableBarcode
             throw new PdfException("widthForModule expects a positive module size, got {$moduleSize}");
         }
         return self::TOTAL_MODULES * $moduleSize;
+    }
+
+    public function withModuleSize(float $moduleSize): self
+    {
+        if ($moduleSize <= 0) {
+            throw new PdfException("Module size must be positive, got {$moduleSize}");
+        }
+        return new self($this->digits, $this->color, $this->showText, $this->orientation, $moduleSize);
+    }
+
+    public function intrinsicWidth(): ?float
+    {
+        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     /**
@@ -220,6 +234,7 @@ final readonly class Ean8 implements OrientableBarcode
         $textYUnit = $page->unit->fromPoints($textY);
 
         $page->save();
+        $fontState = $page->captureFontState();
         $page->setFillColor($this->color);
         $page->setFont(Font::helvetica(), $fontSize);
 
@@ -234,6 +249,7 @@ final readonly class Ean8 implements OrientableBarcode
         $rightWidth = $page->stringWidth($right);
         $page->text($rightStartXUnit + ($halfWidthUnit - $rightWidth) / 2, $textYUnit, $right);
 
+        $page->restoreFontState($fontState);
         $page->restore();
     }
 }
