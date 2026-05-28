@@ -707,23 +707,28 @@ final class Renderer
             return $this->renderNode($node->child, $registry, $patterns, $ctm);
         }
 
-        // Compose the mask -> page matrix.
-        // userSpaceOnUse: mask region coords (x,y,w,h) are in current user space.
-        // objectBoundingBox: coords are unit fractions of the child bbox; we
-        // prepend translate(bbox.x, bbox.y) . scale(bbox.w, bbox.h).
-        $maskMatrix = $ctm;
+        // Project the mask region to user space (Form initial coord space).
+        // userSpaceOnUse: region is already in user space.
+        // objectBoundingBox: region (x,y,w,h) are unit fractions of the child bbox.
         if ($node->mask->units === MaskUnits::OBJECT_BOUNDING_BOX) {
-            $maskMatrix = $maskMatrix
-                ->compose(SvgMatrix::translate($bbox->x, $bbox->y))
-                ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+            $regionX = $bbox->x + $node->mask->x * $bbox->width;
+            $regionY = $bbox->y + $node->mask->y * $bbox->height;
+            $regionW = $node->mask->width * $bbox->width;
+            $regionH = $node->mask->height * $bbox->height;
+        } else {
+            $regionX = $node->mask->x;
+            $regionY = $node->mask->y;
+            $regionW = $node->mask->width;
+            $regionH = $node->mask->height;
         }
 
         // Sub-render the mask's children with isolated registries.
+        // maskContentUnits=objectBoundingBox bakes a unit->user-space cm wrap so
+        // child raw coords are interpreted as unit fractions of the bbox; either
+        // way the resulting Form content stream is in user space.
         $innerRegistry = new ExtGStateRegistry();
         $innerPatterns = new PatternRegistry();
 
-        // maskContentUnits=objectBoundingBox prepends a unit->bbox mapping for
-        // the children's coordinate space.
         $childCtm = SvgMatrix::identity();
         if ($node->mask->contentUnits === MaskUnits::OBJECT_BOUNDING_BOX) {
             $childCtm = SvgMatrix::translate($bbox->x, $bbox->y)
@@ -746,13 +751,12 @@ final class Renderer
             return $this->renderNode($node->child, $registry, $patterns, $ctm);
         }
 
-        // Compute the Form XObject bbox in mask coordinate space.
-        $maskBbox = [
-            $node->mask->x,
-            $node->mask->y,
-            $node->mask->x + $node->mask->width,
-            $node->mask->y + $node->mask->height,
-        ];
+        // /BBox in user space (Form initial coord space). Form.Matrix = identity
+        // because the Form is composed with the CTM at the moment /gs fires; the
+        // PDF spec concatenates Form.Matrix onto that CTM, so baking $ctm again
+        // would apply it twice and shrink the mask to a dot.
+        $maskBbox = [$regionX, $regionY, $regionX + $regionW, $regionY + $regionH];
+        $maskMatrix = SvgMatrix::identity();
 
         $embeddedIndex = count($this->embeddedMasks);
         $this->embeddedMasks[] = new EmbeddedMask(
