@@ -377,7 +377,7 @@ final class Renderer
         $scale = $marker->units === MarkerUnits::STROKE_WIDTH ? $strokeWidth : 1.0;
 
         $m = SvgMatrix::translate($pos->x, $pos->y)
-            ->compose(SvgMatrix::rotate(-$angle))
+            ->compose(SvgMatrix::rotate($angle))
             ->compose(SvgMatrix::scale($scale, $scale));
         if ($marker->viewBox !== null) {
             $vbMatrix = PreserveAspectRatio::matrixFor($marker->viewBox, $marker->markerWidth, $marker->markerHeight, $marker->aspectRatio);
