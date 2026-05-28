@@ -25,6 +25,7 @@ final class Parser
 
     private const array WHITELIST = [
         'svg' => true, 'g' => true, 'defs' => true, 'use' => true,
+        'symbol' => true,
         'path' => true, 'rect' => true, 'circle' => true, 'ellipse' => true,
         'line' => true, 'polygon' => true, 'polyline' => true,
         'title' => true, 'desc' => true, 'image' => true, 'text' => true,
@@ -256,8 +257,9 @@ final class Parser
             case 'g':
             case 'svg':
             case 'defs':
-                if ($local === 'defs') {
-                    // <defs> contents are only reachable via <use>; do not render directly.
+            case 'symbol':
+                if ($local === 'defs' || $local === 'symbol') {
+                    // <defs> and <symbol> contents are only reachable via <use>; do not render directly.
                     return null;
                 }
                 $children = [];
@@ -406,6 +408,10 @@ final class Parser
             return null;
         }
 
+        if ($target->localName === 'symbol') {
+            return $this->resolveSymbolUse($target, $attrs, $paint, $currentColor, $inheritedText, $useStack, $depth, $allowClip);
+        }
+
         $x = (float) ($attrs['x'] ?? 0);
         $y = (float) ($attrs['y'] ?? 0);
         $useTransform = SvgMatrix::translate($x, $y);
@@ -427,6 +433,81 @@ final class Parser
         }
 
         return new SvgGroup($useTransform, [$resolved]);
+    }
+
+    /**
+     * Resolves a <use> whose target is a <symbol> element.
+     * The resulting SvgGroup transform is (use translate) . (viewBox->useBox mapping).
+     * Symbol children are parsed directly; the symbol itself never renders.
+     *
+     * @param array<string, string> $useAttrs
+     * @param list<string> $useStack
+     */
+    private function resolveSymbolUse(
+        DOMElement $symbolEl,
+        array $useAttrs,
+        SvgPaint $paint,
+        SvgColor $currentColor,
+        SvgTextStyle $inheritedText,
+        array $useStack,
+        int $depth,
+        bool $allowClip,
+    ): SvgNode {
+        $useX = (float) ($useAttrs['x'] ?? 0);
+        $useY = (float) ($useAttrs['y'] ?? 0);
+
+        $symbolViewBoxAttr = $symbolEl->getAttribute('viewBox');
+        $viewBox = $symbolViewBoxAttr !== '' ? $this->parseViewBoxString($symbolViewBoxAttr) : null;
+
+        $useWidth = isset($useAttrs['width']) ? (float) $useAttrs['width'] : ($viewBox !== null ? $viewBox->width : 0.0);
+        $useHeight = isset($useAttrs['height']) ? (float) $useAttrs['height'] : ($viewBox !== null ? $viewBox->height : 0.0);
+
+        $par = $symbolEl->hasAttribute('preserveAspectRatio')
+            ? PreserveAspectRatio::parse($symbolEl->getAttribute('preserveAspectRatio'))
+            : PreserveAspectRatio::default();
+
+        $children = [];
+        $symbolId = $symbolEl->getAttribute('id');
+        foreach ($this->childElements($symbolEl) as $child) {
+            $node = $this->parseNode(
+                $child,
+                $paint,
+                $currentColor,
+                $inheritedText,
+                $symbolId !== '' ? [...$useStack, $symbolId] : $useStack,
+                $depth + 1,
+                $allowClip,
+            );
+            if ($node !== null) {
+                $children[] = $node;
+            }
+        }
+
+        $useTransform = SvgMatrix::translate($useX, $useY);
+        if ($viewBox !== null && $useWidth > 0.0 && $useHeight > 0.0) {
+            $vbMatrix = PreserveAspectRatio::matrixFor($viewBox, $useWidth, $useHeight, $par);
+            $useTransform = $useTransform->compose($vbMatrix);
+        }
+
+        return new SvgGroup($useTransform, $children);
+    }
+
+    /**
+     * Parses a viewBox attribute string into a ViewBox value object.
+     * Returns null for malformed or zero-dimension values.
+     */
+    private function parseViewBoxString(string $raw): ?ViewBox
+    {
+        $parts = preg_split('/[\s,]+/', trim($raw)) ?: [];
+        if (count($parts) !== 4) {
+            return null;
+        }
+        $w = (float) $parts[2];
+        $h = (float) $parts[3];
+        if ($w <= 0.0 || $h <= 0.0) {
+            return null;
+        }
+        return new ViewBox(x: (float) $parts[0], y: (float) $parts[1], width: $w, height: $h);
     }
 
     /**
