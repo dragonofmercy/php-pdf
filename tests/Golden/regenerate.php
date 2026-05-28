@@ -929,18 +929,9 @@ if (!is_dir($svgFixturesDir)) {
 }
 
 $svgBarcodeGoldens = [
-    'barcode-svg-code128.svg'          => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgCode128Test::class,          'buildSvgBytes'],
-    'barcode-svg-ean13.svg'            => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgEan13Test::class,            'buildSvgBytes'],
-    'barcode-svg-ean8.svg'             => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgEan8Test::class,             'buildSvgBytes'],
-    'barcode-svg-upca.svg'             => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgUpcaTest::class,             'buildSvgBytes'],
-    'barcode-svg-code39.svg'           => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgCode39Test::class,           'buildSvgBytes'],
-    'barcode-svg-code93.svg'           => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgCode93Test::class,           'buildSvgBytes'],
-    'barcode-svg-itf-bearer.svg'       => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgItfBearerTest::class,        'buildSvgBytes'],
-    'barcode-svg-qr.svg'               => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgQrTest::class,               'buildSvgBytes'],
-    'barcode-svg-datamatrix.svg'       => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgDataMatrixTest::class,       'buildSvgBytes'],
-    'barcode-svg-aztec.svg'            => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgAztecTest::class,            'buildSvgBytes'],
-    'barcode-svg-pdf417.svg'           => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgPdf417Test::class,           'buildSvgBytes'],
-    'barcode-svg-code128-vertical.svg' => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgCode128VerticalTest::class,  'buildSvgBytes'],
+    'barcode-svg-qr.svg'         => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgQrTest::class,         'buildSvgBytes'],
+    'barcode-svg-datamatrix.svg' => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgDataMatrixTest::class, 'buildSvgBytes'],
+    'barcode-svg-aztec.svg'      => [\DragonOfMercy\PhpPdf\Tests\Golden\Svg\BarcodeSvgAztecTest::class,      'buildSvgBytes'],
 ];
 
 foreach ($svgBarcodeGoldens as $name => [$class, $method]) {
