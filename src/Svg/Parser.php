@@ -51,6 +51,13 @@ final class Parser
 
     private int $nodeCounter = 0;
 
+    private bool $inPattern = false;
+
+    public function __construct()
+    {
+        $this->stylesheet = CssStylesheet::empty();
+    }
+
     public static function parse(string $xml): SvgMetadata
     {
         return (new self())->doParse($xml);
@@ -166,6 +173,24 @@ final class Parser
                 }
             }
         }
+    }
+
+    /**
+     * Indexes all <pattern> elements by id for PatternResolver construction.
+     * Called by the consumer that builds the PatternResolver (Task 3 wires this
+     * into doParse; the method is also used directly in unit tests).
+     *
+     * @return array<string, DOMElement>
+     */
+    public function collectPatternDefs(DOMDocument $doc): array
+    {
+        $map = [];
+        foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'pattern') as $node) {
+            if ($node->hasAttribute('id')) {
+                $map[$node->getAttribute('id')] = $node;
+            }
+        }
+        return $map;
     }
 
     private function collectClipPaths(DOMDocument $doc): void
@@ -305,12 +330,18 @@ final class Parser
                 return $this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css);
 
             case 'text':
+                if ($this->inPattern) {
+                    return null;
+                }
                 return $this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css);
 
             case 'use':
                 return $this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css);
 
             case 'image':
+                if ($this->inPattern) {
+                    return null;
+                }
                 $w = (float) ($attrs['width'] ?? 0);
                 $h = (float) ($attrs['height'] ?? 0);
                 if ($w <= 0.0 || $h <= 0.0) {
@@ -680,6 +711,38 @@ final class Parser
         $attrs = $this->collectAttrs($el);
         $value = $this->styleProp($attrs['style'] ?? '', 'clip-rule') ?? ($attrs['clip-rule'] ?? null);
         return $value !== null ? FillRule::tryFrom(trim($value)) : null;
+    }
+
+    /**
+     * Parses the children of a <pattern> element into SvgNode instances.
+     * Toggles the inPattern flag so <text> and <image> elements are stripped.
+     *
+     * @return list<SvgNode>
+     */
+    public function parseChildrenAsPattern(DOMElement $patternEl, SvgColor $currentColor): array
+    {
+        $previous = $this->inPattern;
+        $this->inPattern = true;
+        try {
+            $nodes = [];
+            foreach ($this->childElements($patternEl) as $child) {
+                $node = $this->parseNode(
+                    $child,
+                    SvgPaint::default(),
+                    $currentColor,
+                    SvgTextStyle::initial(),
+                    [],
+                    0,
+                    allowClip: false,
+                );
+                if ($node !== null) {
+                    $nodes[] = $node;
+                }
+            }
+            return $nodes;
+        } finally {
+            $this->inPattern = $previous;
+        }
     }
 
     /**
