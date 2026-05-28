@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Svg;
 
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerSet;
+use DragonOfMercy\PhpPdf\Svg\Mask\SvgMask;
 
 /**
  * Fully resolved paint state for a single shape. The parser computes inherited
@@ -32,6 +33,7 @@ final readonly class SvgPaint
         public float $strokeOpacity,
         public float $opacity,
         public ?MarkerSet $markers = null,
+        public ?SvgMask $mask = null,
     ) {}
 
     public static function default(): self
@@ -140,6 +142,11 @@ final readonly class SvgPaint
         return $this->with(markers: $markers, markersProvided: true);
     }
 
+    public function withMask(?SvgMask $mask): self
+    {
+        return $this->with(mask: $mask, maskProvided: true);
+    }
+
     /**
      * @param list<float>|null $strokeDashArray
      */
@@ -160,6 +167,8 @@ final readonly class SvgPaint
         ?float $opacity = null,
         ?MarkerSet $markers = null,
         bool $markersProvided = false,
+        ?SvgMask $mask = null,
+        bool $maskProvided = false,
     ): self {
         return new self(
             fill: $fillIsNone ? null : ($fill ?? $this->fill),
@@ -175,6 +184,7 @@ final readonly class SvgPaint
             strokeOpacity: $strokeOpacity ?? $this->strokeOpacity,
             opacity: $opacity ?? $this->opacity,
             markers: $markersProvided ? $markers : $this->markers,
+            mask: $maskProvided ? $mask : $this->mask,
         );
     }
 }
