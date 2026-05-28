@@ -536,6 +536,11 @@ $svgGoldens = [
     'svg-marker-polyline-auto.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerPolylineAutoTest::class, 'buildPdfBytes'],
     'svg-marker-strokewidth.pdf'     => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerStrokeWidthTest::class, 'buildPdfBytes'],
     'svg-marker-path-bezier.pdf'     => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMarkerPathBezierTest::class, 'buildPdfBytes'],
+    'svg-mask-basic.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskBasicTest::class, 'buildPdfBytes'],
+    'svg-mask-text.pdf'              => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskTextTest::class, 'buildPdfBytes'],
+    'svg-mask-userspace.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskUserspaceTest::class, 'buildPdfBytes'],
+    'svg-mask-group.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskGroupTest::class, 'buildPdfBytes'],
+    'svg-mask-bbox-content.pdf'      => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskBBoxContentTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
