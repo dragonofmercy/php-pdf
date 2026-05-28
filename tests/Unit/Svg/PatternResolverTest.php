@@ -110,4 +110,75 @@ final class PatternResolverTest extends TestCase
         self::assertSame(0.25, $p->width);
         self::assertSame(0.5, $p->height);
     }
+
+    public function testParserWiresPatternIntoFillResolution(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">'
+            . '<defs>'
+            . '<pattern id="p" patternUnits="userSpaceOnUse" width="10" height="10"><rect width="5" height="5" fill="#f00"/></pattern>'
+            . '</defs>'
+            . '<rect width="50" height="50" fill="url(#p)"/>'
+            . '</svg>';
+        $meta = Parser::parse($svg);
+        $rootChildren = $meta->root->children;
+        self::assertCount(1, $rootChildren);
+        $rect = $rootChildren[0];
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgRect::class, $rect);
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgPattern::class, $rect->paint()->fill);
+    }
+
+    public function testParserWiresPatternIntoStrokeResolution(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">'
+            . '<defs>'
+            . '<pattern id="p" patternUnits="userSpaceOnUse" width="10" height="10"><rect width="5" height="5" fill="#f00"/></pattern>'
+            . '</defs>'
+            . '<rect width="50" height="50" fill="none" stroke="url(#p)" stroke-width="2"/>'
+            . '</svg>';
+        $meta = Parser::parse($svg);
+        $rect = $meta->root->children[0];
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgRect::class, $rect);
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgPattern::class, $rect->paint()->stroke);
+    }
+
+    public function testGradientStillResolvesWhenBothGradientAndPatternExist(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">'
+            . '<defs>'
+            . '<linearGradient id="g"><stop offset="0" stop-color="#f00"/><stop offset="1" stop-color="#00f"/></linearGradient>'
+            . '<pattern id="p" patternUnits="userSpaceOnUse" width="10" height="10"><rect width="5" height="5"/></pattern>'
+            . '</defs>'
+            . '<rect width="50" height="50" fill="url(#g)"/>'
+            . '</svg>';
+        $meta = Parser::parse($svg);
+        $rect = $meta->root->children[0];
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgRect::class, $rect);
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgGradient::class, $rect->paint()->fill);
+    }
+
+    public function testNestedUrlInsidePatternFallsBackToColor(): void
+    {
+        // A pattern child has fill="url(#g)" - inside a pattern, this should
+        // NOT resolve to the gradient (would recurse / break tile rendering),
+        // it falls back to default color (black per spec).
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">'
+            . '<defs>'
+            . '<linearGradient id="g"><stop offset="0" stop-color="#f00"/><stop offset="1" stop-color="#00f"/></linearGradient>'
+            . '<pattern id="p" patternUnits="userSpaceOnUse" width="10" height="10">'
+            . '<rect width="5" height="5" fill="url(#g)"/>'
+            . '</pattern>'
+            . '</defs>'
+            . '<rect width="50" height="50" fill="url(#p)"/>'
+            . '</svg>';
+        $meta = Parser::parse($svg);
+        $rect = $meta->root->children[0];
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgRect::class, $rect);
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgPattern::class, $rect->paint()->fill);
+        $patternRect = $rect->paint()->fill->nodes[0];
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgRect::class, $patternRect);
+        // The inner rect's fill must NOT be the gradient. The exact value
+        // depends on the fallback path (inherited black, or SvgColor::black),
+        // but it must NOT be an SvgGradient.
+        self::assertNotInstanceOf(\DragonOfMercy\PhpPdf\Svg\SvgGradient::class, $patternRect->paint()->fill);
+    }
 }

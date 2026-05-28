@@ -41,6 +41,8 @@ final class Parser
 
     private ?GradientResolver $gradients = null;
 
+    private ?PatternResolver $patterns = null;
+
     private CssStylesheet $stylesheet;
 
     /** @var list<Image> */
@@ -101,6 +103,7 @@ final class Parser
         $this->collectGradientDefs($doc);
         $this->collectClipPaths($doc);
         $this->gradients = new GradientResolver($this->gradientDefs);
+        $this->patterns = new PatternResolver($this->collectPatternDefs($doc), $this);
         $this->stylesheet = $this->collectStyleSheet($doc);
 
         $rootAttrs = $this->collectAttrs($root);
@@ -112,7 +115,8 @@ final class Parser
             $rootCss,
             $rootAttrs['style'] ?? '',
             $rootCurrentColor,
-            $this->gradients,
+            $this->inPattern ? null : $this->gradients,
+            $this->inPattern ? null : $this->patterns,
         );
         $rootText = TextStyleResolver::resolve(
             SvgTextStyle::initial(),
@@ -243,7 +247,8 @@ final class Parser
             $css,
             $attrs['style'] ?? '',
             $newCurrentColor,
-            $this->gradients,
+            $this->inPattern ? null : $this->gradients,
+            $this->inPattern ? null : $this->patterns,
         );
         $transform = isset($attrs['transform']) ? TransformParser::parse($attrs['transform']) : null;
         $textStyle = TextStyleResolver::resolve($inheritedText, $attrs, $css, $attrs['style'] ?? '');
@@ -465,7 +470,7 @@ final class Parser
         $attrs = $this->collectAttrs($el);
         $currentColor = $this->resolveCurrentColor($attrs, SvgColor::black());
         $css = $this->stylesheet->declarationsFor($el->localName ?? '', $this->classList($attrs), $attrs['id'] ?? null);
-        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $css, $attrs['style'] ?? '', $currentColor, $this->gradients);
+        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $css, $attrs['style'] ?? '', $currentColor, $this->inPattern ? null : $this->gradients, $this->inPattern ? null : $this->patterns);
         $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $css, $attrs['style'] ?? '');
 
         $font = SvgFontResolver::resolve($style->fontFamily, $style->bold, $style->italic);

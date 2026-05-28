@@ -25,6 +25,7 @@ final class StyleResolver
         string $styleAttr,
         SvgColor $currentColor,
         ?GradientResolver $gradients = null,
+        ?PatternResolver $patterns = null,
     ): SvgPaint {
         $merged = $presentationAttrs;
         foreach ($cssDeclarations as $key => $value) {
@@ -36,7 +37,7 @@ final class StyleResolver
 
         $paint = $inherited;
         foreach ($merged as $key => $value) {
-            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients);
+            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients, $patterns);
         }
         return $paint;
     }
@@ -65,14 +66,14 @@ final class StyleResolver
         return $out;
     }
 
-    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients): SvgPaint
+    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns): SvgPaint
     {
         switch ($key) {
             case 'fill':
                 if ($value === 'none') {
                     return $paint->withFillNone();
                 }
-                $g = self::resolvePaintRef($value, $current, $gradients);
+                $g = self::resolvePaintRef($value, $current, $gradients, $patterns);
                 if ($g !== null) {
                     return $paint->withFill($g);
                 }
@@ -95,7 +96,7 @@ final class StyleResolver
                 if ($value === 'none') {
                     return $paint->withStrokeNone();
                 }
-                $g = self::resolvePaintRef($value, $current, $gradients);
+                $g = self::resolvePaintRef($value, $current, $gradients, $patterns);
                 if ($g !== null) {
                     return $paint->withStroke($g);
                 }
@@ -172,13 +173,25 @@ final class StyleResolver
         }
     }
 
-    private static function resolvePaintRef(string $value, SvgColor $current, ?GradientResolver $gradients): ?SvgGradient
+    private static function resolvePaintRef(string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns): ?SvgPaintSource
     {
         $id = self::urlId($value);
-        if ($id === null || $gradients === null) {
+        if ($id === null) {
             return null;
         }
-        return $gradients->resolve($id, $current);
+        if ($gradients !== null) {
+            $g = $gradients->resolve($id, $current);
+            if ($g !== null) {
+                return $g;
+            }
+        }
+        if ($patterns !== null) {
+            $p = $patterns->resolve($id, $current);
+            if ($p !== null) {
+                return $p;
+            }
+        }
+        return null;
     }
 
     private static function isUnresolvedUrl(string $value): bool
