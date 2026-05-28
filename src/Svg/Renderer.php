@@ -38,6 +38,9 @@ final class Renderer
     /** @var array<string, true> short names of fonts used by text in this render */
     private array $usedFonts = [];
 
+    /** @var list<EmbeddedPattern> tiling pattern records accumulated during render */
+    private array $embeddedPatterns = [];
+
     /** @var array<string, StandardFontEngine> engine cache keyed by pdfName */
     private array $engines = [];
 
@@ -47,12 +50,20 @@ final class Renderer
     }
 
     /**
-     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float}>, patterns: array<string, string>, fonts: list<string>}
+     * @return array{
+     *     bytes: string,
+     *     extGStates: array<string, array{ca: float, CA: float}>,
+     *     patterns: array<string, string>,
+     *     patternRefs: list<array{name: string, embeddedIndex: int}>,
+     *     embeddedPatterns: list<EmbeddedPattern>,
+     *     fonts: list<string>,
+     * }
      */
     public function render(SvgMetadata $svg, ?FontRegistry $fontRegistry = null): array
     {
         $this->fontRegistry = $fontRegistry ?? new FontRegistry();
         $this->usedFonts = [];
+        $this->embeddedPatterns = [];
         $out = '';
         $registry = new ExtGStateRegistry();
         $patterns = new PatternRegistry();
@@ -73,6 +84,8 @@ final class Renderer
             'bytes' => $out,
             'extGStates' => $registry->entries(),
             'patterns' => $patterns->entries(),
+            'patternRefs' => $patterns->refEntries(),
+            'embeddedPatterns' => $this->embeddedPatterns,
             'fonts' => array_keys($this->usedFonts),
         ];
     }
@@ -166,12 +179,20 @@ final class Renderer
             $resolved = $this->paintGradient($paint->fill, $shape, $shapeCtm, $patterns, $fillOpacity, false);
             $out .= $resolved['ops'];
             $fillOpacity = $resolved['opacity'];
+        } elseif ($paint->fill instanceof SvgPattern) {
+            $resolved = $this->paintTilingPattern($paint->fill, $shape, $shapeCtm, $patterns, $fillOpacity, false);
+            $out .= $resolved['ops'];
+            $fillOpacity = $resolved['opacity'];
         }
 
         if ($paint->stroke instanceof SvgColor) {
             $out .= sprintf("%s %s %s RG\n", self::fmt($paint->stroke->r), self::fmt($paint->stroke->g), self::fmt($paint->stroke->b));
         } elseif ($paint->stroke instanceof SvgGradient) {
             $resolved = $this->paintGradient($paint->stroke, $shape, $shapeCtm, $patterns, $strokeOpacity, true);
+            $out .= $resolved['ops'];
+            $strokeOpacity = $resolved['opacity'];
+        } elseif ($paint->stroke instanceof SvgPattern) {
+            $resolved = $this->paintTilingPattern($paint->stroke, $shape, $shapeCtm, $patterns, $strokeOpacity, true);
             $out .= $resolved['ops'];
             $strokeOpacity = $resolved['opacity'];
         }
@@ -230,6 +251,71 @@ final class Renderer
         $name = $patterns->nameFor($dict);
         $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
         return ['ops' => $ops, 'opacity' => $baseOpacity * $gradient->uniformOpacity()];
+    }
+
+    /**
+     * Renders the tile children into a sub-stream with its own ExtGStateRegistry,
+     * records an EmbeddedPattern, and returns the painting ops that select the
+     * tiling pattern as the current color. ImageEmbedder will allocate the
+     * child indirect object using the recorded EmbeddedPattern.
+     *
+     * @return array{ops: string, opacity: float}
+     */
+    private function paintTilingPattern(SvgPattern $pattern, SvgShape $shape, SvgMatrix $shapeCtm, PatternRegistry $patterns, float $baseOpacity, bool $isStroke): array
+    {
+        // Compute the pattern dict /Matrix mapping pattern space -> page space.
+        $matrix = $shapeCtm;
+        if ($pattern->units === PatternUnits::OBJECT_BOUNDING_BOX) {
+            $bbox = BoundingBox::of($shape);
+            if ($bbox->isDegenerate()) {
+                $op = $isStroke ? "0 0 0 RG\n" : "0 0 0 rg\n";
+                return ['ops' => $op, 'opacity' => $baseOpacity];
+            }
+            $matrix = $matrix
+                ->compose(SvgMatrix::translate($bbox->x, $bbox->y))
+                ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+        }
+        if ($pattern->transform !== null) {
+            $matrix = $matrix->compose($pattern->transform);
+        }
+
+        // Sub-render the tile content with its own ExtGStateRegistry and pattern registry.
+        // The nested PatternRegistry is unused (pattern children scrubbed at parse time)
+        // but the renderNode API requires one.
+        $innerRegistry = new ExtGStateRegistry();
+        $innerPatterns = new PatternRegistry();
+        $ctmForChildren = SvgMatrix::identity();
+        if ($pattern->viewBox !== null) {
+            $sx = $pattern->width / $pattern->viewBox->width;
+            $sy = $pattern->height / $pattern->viewBox->height;
+            $ctmForChildren = SvgMatrix::translate(-$pattern->viewBox->x * $sx, -$pattern->viewBox->y * $sy)
+                ->compose(SvgMatrix::scale($sx, $sy));
+        }
+        $contentBytes = '';
+        if (!$ctmForChildren->isIdentity()) {
+            $contentBytes .= "q\n" . self::cmFromMatrix($ctmForChildren) . "\n";
+        }
+        foreach ($pattern->nodes as $childNode) {
+            $contentBytes .= $this->renderNode($childNode, $innerRegistry, $innerPatterns, $ctmForChildren);
+        }
+        if (!$ctmForChildren->isIdentity()) {
+            $contentBytes .= "Q\n";
+        }
+
+        // Record structured fields; ImageEmbedder builds the PDF dict.
+        $embeddedIndex = count($this->embeddedPatterns);
+        $this->embeddedPatterns[] = new EmbeddedPattern(
+            bbox: [$pattern->x, $pattern->y, $pattern->x + $pattern->width, $pattern->y + $pattern->height],
+            xStep: $pattern->width,
+            yStep: $pattern->height,
+            matrix: $matrix->toArray(),
+            extGStates: $innerRegistry->entries(),
+            contentBytes: $contentBytes,
+        );
+        $name = $patterns->nameForTiling($embeddedIndex);
+
+        $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
+        return ['ops' => $ops, 'opacity' => $baseOpacity];
     }
 
     private function paintTerminator(SvgPaint $paint): string
