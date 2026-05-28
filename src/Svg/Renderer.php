@@ -195,7 +195,7 @@ final class Renderer
         if ($paint->fill instanceof SvgColor) {
             $out .= sprintf("%s %s %s rg\n", self::fmt($paint->fill->r), self::fmt($paint->fill->g), self::fmt($paint->fill->b));
         } elseif ($paint->fill instanceof SvgGradient) {
-            $resolved = $this->paintGradient($paint->fill, $shape, $shapeCtm, $patterns, $fillOpacity, false);
+            $resolved = $this->paintGradient($paint->fill, $shape, $shapeCtm, $patterns, $registry, $fillOpacity, false);
             $out .= $resolved['ops'];
             $fillOpacity = $resolved['opacity'];
         } elseif ($paint->fill instanceof SvgPattern) {
@@ -207,7 +207,7 @@ final class Renderer
         if ($paint->stroke instanceof SvgColor) {
             $out .= sprintf("%s %s %s RG\n", self::fmt($paint->stroke->r), self::fmt($paint->stroke->g), self::fmt($paint->stroke->b));
         } elseif ($paint->stroke instanceof SvgGradient) {
-            $resolved = $this->paintGradient($paint->stroke, $shape, $shapeCtm, $patterns, $strokeOpacity, true);
+            $resolved = $this->paintGradient($paint->stroke, $shape, $shapeCtm, $patterns, $registry, $strokeOpacity, true);
             $out .= $resolved['ops'];
             $strokeOpacity = $resolved['opacity'];
         } elseif ($paint->stroke instanceof SvgPattern) {
@@ -238,11 +238,14 @@ final class Renderer
 
     /**
      * Registers the gradient pattern and returns the color-space ops plus the
-     * effective opacity (folding the gradient's uniform opacity in).
+     * effective opacity. When the gradient's stops vary in opacity, additionally
+     * emits a grayscale alpha shading wrapped in a soft-mask Form (registered as
+     * an EmbeddedMask), and prepends /gs to the returned ops so the SMask wraps
+     * the color paint.
      *
      * @return array{ops: string, opacity: float}
      */
-    private function paintGradient(SvgGradient $gradient, SvgShape $shape, SvgMatrix $shapeCtm, PatternRegistry $patterns, float $baseOpacity, bool $isStroke): array
+    private function paintGradient(SvgGradient $gradient, SvgShape $shape, SvgMatrix $shapeCtm, PatternRegistry $patterns, ExtGStateRegistry $registry, float $baseOpacity, bool $isStroke): array
     {
         $matrix = $shapeCtm;
         if ($gradient->units() === GradientUnits::OBJECT_BOUNDING_BOX) {
@@ -266,9 +269,57 @@ final class Renderer
                 : BoundingBox::of($shape);
             $gradient = GradientSpread::expand($gradient, $localBbox);
         }
-        $dict = ShadingBuilder::patternDict($gradient, $matrix);
-        $name = $patterns->nameFor($dict);
-        $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
+
+        $varying = GradientResolver::hasVaryingAlpha($gradient->stops());
+        if (!$varying) {
+            $dict = ShadingBuilder::patternDict($gradient, $matrix);
+            $name = $patterns->nameFor($dict);
+            $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
+            return ['ops' => $ops, 'opacity' => $baseOpacity * $gradient->uniformOpacity()];
+        }
+
+        // Varying alpha path: emit a soft-mask Form whose content paints an alpha
+        // shading sized to the shape's bbox. The color shading uses opacity=1.0
+        // stops (the alpha is already provided by the SMask).
+        $opaqueStops = [];
+        foreach ($gradient->stops() as $s) {
+            $opaqueStops[] = new GradientStop($s->offset, $s->color, 1.0);
+        }
+        $colorGradient = $gradient instanceof RadialGradient
+            ? new RadialGradient($gradient->cx, $gradient->cy, $gradient->r, $gradient->fx, $gradient->fy, $gradient->units(), $gradient->transform(), $opaqueStops, 1.0, $gradient->spreadMethod())
+            : new LinearGradient(
+                $gradient instanceof LinearGradient ? $gradient->x1 : 0.0,
+                $gradient instanceof LinearGradient ? $gradient->y1 : 0.0,
+                $gradient instanceof LinearGradient ? $gradient->x2 : 1.0,
+                $gradient instanceof LinearGradient ? $gradient->y2 : 0.0,
+                $gradient->units(), $gradient->transform(), $opaqueStops, 1.0, $gradient->spreadMethod());
+
+        $colorDict = ShadingBuilder::patternDict($colorGradient, $matrix);
+        $colorName = $patterns->nameFor($colorDict);
+
+        $alphaDict = ShadingBuilder::alphaPatternDict($gradient, $matrix);
+        $innerPatterns = new PatternRegistry();
+        $alphaName = $innerPatterns->nameFor($alphaDict);
+
+        $shapeBbox = BoundingBox::of($shape);
+        $contentBytes = "/Pattern cs\n/$alphaName scn\n"
+            . sprintf("%s %s %s %s re f\n", self::fmt($shapeBbox->x), self::fmt($shapeBbox->y), self::fmt($shapeBbox->width), self::fmt($shapeBbox->height));
+
+        $maskBbox = [$shapeBbox->x, $shapeBbox->y, $shapeBbox->x + $shapeBbox->width, $shapeBbox->y + $shapeBbox->height];
+
+        $embeddedIndex = count($this->embeddedMasks);
+        $this->embeddedMasks[] = new EmbeddedMask(
+            bbox: $maskBbox,
+            matrix: SvgMatrix::identity()->toArray(),
+            extGStates: [],
+            patterns: $innerPatterns->entries(),
+            contentBytes: $contentBytes,
+        );
+
+        $smaskName = $registry->nameForWithMask(1.0, 1.0, $embeddedIndex);
+        $colorOps = $isStroke ? "/Pattern CS\n/$colorName SCN\n" : "/Pattern cs\n/$colorName scn\n";
+        $ops = "/$smaskName gs\n" . $colorOps;
+
         return ['ops' => $ops, 'opacity' => $baseOpacity * $gradient->uniformOpacity()];
     }
 

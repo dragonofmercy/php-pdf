@@ -50,4 +50,26 @@ final class ImageEmbedderMaskTest extends TestCase
         // The mask Form must declare DeviceRGB as its blending colorspace.
         self::assertStringContainsString('/DeviceRGB', $pdf);
     }
+
+    public function testMaskFormCarriesPatternResourceWhenContentUsesShading(): void
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            . '<defs>'
+            . '<linearGradient id="g" x1="0" y1="0" x2="1" y2="0">'
+            .   '<stop offset="0" stop-color="red" stop-opacity="1"/>'
+            .   '<stop offset="1" stop-color="red" stop-opacity="0"/>'
+            . '</linearGradient>'
+            . '</defs>'
+            . '<rect x="0" y="0" width="100" height="100" fill="url(#g)"/>'
+            . '</svg>';
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
+        $doc->addPage();
+        $doc->getCurrentPage()->image(\DragonOfMercy\PhpPdf\Image::fromBytes($svg), x: 50.0, y: 50.0, w: 100.0);
+        $pdf = $doc->output();
+        self::assertStringContainsString('/SMask', $pdf);
+        self::assertStringContainsString('/Luminosity', $pdf);
+        // /Pattern occurs in the parent and in the mask Form's resources.
+        $patternHits = substr_count($pdf, '/Pattern ');
+        self::assertGreaterThanOrEqual(2, $patternHits, 'parent + mask form should each declare /Pattern resource');
+    }
 }
