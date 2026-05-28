@@ -13,6 +13,7 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\ImageFormat;
 use DragonOfMercy\PhpPdf\Svg\Css\CssParser;
 use DragonOfMercy\PhpPdf\Svg\Css\CssStylesheet;
+use DragonOfMercy\PhpPdf\Svg\Mask\MaskResolver;
 
 final class Parser
 {
@@ -25,7 +26,7 @@ final class Parser
 
     private const array WHITELIST = [
         'svg' => true, 'g' => true, 'defs' => true, 'use' => true,
-        'symbol' => true, 'marker' => true,
+        'symbol' => true, 'marker' => true, 'mask' => true,
         'path' => true, 'rect' => true, 'circle' => true, 'ellipse' => true,
         'line' => true, 'polygon' => true, 'polyline' => true,
         'title' => true, 'desc' => true, 'image' => true, 'text' => true,
@@ -46,6 +47,8 @@ final class Parser
 
     private ?Marker\MarkerResolver $markers = null;
 
+    private ?MaskResolver $masks = null;
+
     private CssStylesheet $stylesheet;
 
     /** @var list<Image> */
@@ -59,6 +62,8 @@ final class Parser
     private bool $inPattern = false;
 
     private bool $inMarker = false;
+
+    private bool $inMask = false;
 
     public function __construct()
     {
@@ -110,6 +115,7 @@ final class Parser
         $this->gradients = new GradientResolver($this->gradientDefs);
         $this->patterns = new PatternResolver($this->collectPatternDefs($doc), $this);
         $this->markers = new Marker\MarkerResolver($this->collectMarkerDefs($doc), $this);
+        $this->masks = new MaskResolver($this->collectMaskDefs($doc), $this);
         $this->stylesheet = $this->collectStyleSheet($doc);
 
         $rootAttrs = $this->collectAttrs($root);
@@ -124,6 +130,7 @@ final class Parser
             $this->inPattern || $this->inMarker ? null : $this->gradients,
             $this->inPattern || $this->inMarker ? null : $this->patterns,
             $this->inPattern || $this->inMarker ? null : $this->markers,
+            $this->inPattern || $this->inMarker || $this->inMask ? null : $this->masks,
         );
         $rootText = TextStyleResolver::resolve(
             SvgTextStyle::initial(),
@@ -219,6 +226,20 @@ final class Parser
         return $map;
     }
 
+    /**
+     * @return array<string, DOMElement>
+     */
+    private function collectMaskDefs(DOMDocument $doc): array
+    {
+        $map = [];
+        foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'mask') as $el) {
+            if ($el->hasAttribute('id')) {
+                $map[$el->getAttribute('id')] = $el;
+            }
+        }
+        return $map;
+    }
+
     private function collectClipPaths(DOMDocument $doc): void
     {
         foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'clipPath') as $node) {
@@ -272,6 +293,7 @@ final class Parser
             $this->inPattern || $this->inMarker ? null : $this->gradients,
             $this->inPattern || $this->inMarker ? null : $this->patterns,
             $this->inPattern || $this->inMarker ? null : $this->markers,
+            $this->inPattern || $this->inMarker || $this->inMask ? null : $this->masks,
         );
         $transform = isset($attrs['transform']) ? TransformParser::parse($attrs['transform']) : null;
         $textStyle = TextStyleResolver::resolve($inheritedText, $attrs, $css, $attrs['style'] ?? '');
@@ -282,8 +304,9 @@ final class Parser
             case 'defs':
             case 'symbol':
             case 'marker':
-                if ($local === 'defs' || $local === 'symbol' || $local === 'marker') {
-                    // <defs>, <symbol>, and <marker> contents are only reachable via reference; do not render directly.
+            case 'mask':
+                if ($local === 'defs' || $local === 'symbol' || $local === 'marker' || $local === 'mask') {
+                    // <defs>, <symbol>, <marker>, and <mask> contents are only reachable via reference; do not render directly.
                     return null;
                 }
                 $children = [];
@@ -293,7 +316,7 @@ final class Parser
                         $children[] = $node;
                     }
                 }
-                return $this->wrapClip(new SvgGroup($transform, $children), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgGroup($transform, $children), $allowClip, $attrs, $css), $paint);
 
             case 'rect':
                 $x = (float) ($attrs['x'] ?? 0);
@@ -305,7 +328,7 @@ final class Parser
                 }
                 $rx = (float) ($attrs['rx'] ?? 0);
                 $ry = (float) ($attrs['ry'] ?? 0);
-                return $this->wrapClip(new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry), $allowClip, $attrs, $css), $paint);
 
             case 'circle':
                 $cx = (float) ($attrs['cx'] ?? 0);
@@ -314,7 +337,7 @@ final class Parser
                 if ($r <= 0.0) {
                     return null;
                 }
-                return $this->wrapClip(new SvgCircle($transform, $paint, $cx, $cy, $r), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgCircle($transform, $paint, $cx, $cy, $r), $allowClip, $attrs, $css), $paint);
 
             case 'ellipse':
                 $cx = (float) ($attrs['cx'] ?? 0);
@@ -324,14 +347,14 @@ final class Parser
                 if ($rx <= 0.0 || $ry <= 0.0) {
                     return null;
                 }
-                return $this->wrapClip(new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry), $allowClip, $attrs, $css), $paint);
 
             case 'line':
                 $x1 = (float) ($attrs['x1'] ?? 0);
                 $y1 = (float) ($attrs['y1'] ?? 0);
                 $x2 = (float) ($attrs['x2'] ?? 0);
                 $y2 = (float) ($attrs['y2'] ?? 0);
-                return $this->wrapClip(new SvgLine($transform, $paint, $x1, $y1, $x2, $y2), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgLine($transform, $paint, $x1, $y1, $x2, $y2), $allowClip, $attrs, $css), $paint);
 
             case 'polygon':
             case 'polyline':
@@ -339,13 +362,16 @@ final class Parser
                 if ($points === []) {
                     return null;
                 }
-                return $this->wrapClip(
-                    $local === 'polygon'
-                        ? new SvgPolygon($transform, $paint, $points)
-                        : new SvgPolyline($transform, $paint, $points),
-                    $allowClip,
-                    $attrs,
-                    $css,
+                return $this->wrapMask(
+                    $this->wrapClip(
+                        $local === 'polygon'
+                            ? new SvgPolygon($transform, $paint, $points)
+                            : new SvgPolyline($transform, $paint, $points),
+                        $allowClip,
+                        $attrs,
+                        $css,
+                    ),
+                    $paint,
                 );
 
             case 'path':
@@ -357,16 +383,16 @@ final class Parser
                 if ($commands === []) {
                     return null;
                 }
-                return $this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css), $paint);
 
             case 'text':
                 if ($this->inPattern || $this->inMarker) {
                     return null;
                 }
-                return $this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css), $paint);
 
             case 'use':
-                return $this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css), $paint);
 
             case 'image':
                 if ($this->inPattern || $this->inMarker) {
@@ -395,7 +421,7 @@ final class Parser
                 $ar = isset($attrs['preserveAspectRatio'])
                     ? PreserveAspectRatio::parse($attrs['preserveAspectRatio'])
                     : PreserveAspectRatio::default();
-                return $this->wrapClip(new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height), $allowClip, $attrs, $css);
+                return $this->wrapMask($this->wrapClip(new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height), $allowClip, $attrs, $css), $paint);
 
             case 'title':
             case 'desc':
@@ -578,7 +604,7 @@ final class Parser
         $attrs = $this->collectAttrs($el);
         $currentColor = $this->resolveCurrentColor($attrs, SvgColor::black());
         $css = $this->stylesheet->declarationsFor($el->localName ?? '', $this->classList($attrs), $attrs['id'] ?? null);
-        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $css, $attrs['style'] ?? '', $currentColor, $this->inPattern || $this->inMarker ? null : $this->gradients, $this->inPattern || $this->inMarker ? null : $this->patterns, $this->inPattern || $this->inMarker ? null : $this->markers);
+        $paint = StyleResolver::resolve($inheritedPaint, $attrs, $css, $attrs['style'] ?? '', $currentColor, $this->inPattern || $this->inMarker ? null : $this->gradients, $this->inPattern || $this->inMarker ? null : $this->patterns, $this->inPattern || $this->inMarker ? null : $this->markers, $this->inPattern || $this->inMarker || $this->inMask ? null : $this->masks);
         $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $css, $attrs['style'] ?? '');
 
         $font = SvgFontResolver::resolve($style->fontFamily, $style->bold, $style->italic);
@@ -746,6 +772,23 @@ final class Parser
     }
 
     /**
+     * Wraps a node in SvgMasked if its paint carries a mask. Called next to
+     * wrapClip at every renderable shape/group/text/image return point.
+     * The wrap order is mask-outside-clip: SvgMasked(SvgClipped(child)) so
+     * clipping happens inside the mask region in the rendered q/Q nesting.
+     */
+    private function wrapMask(?SvgNode $node, SvgPaint $paint): ?SvgNode
+    {
+        if ($node === null) {
+            return null;
+        }
+        if ($paint->mask === null || $this->inMask) {
+            return $node;
+        }
+        return new SvgMasked($paint->mask, $node);
+    }
+
+    /**
      * @param array<string, string> $attrs
      * @param array<string, string> $css
      */
@@ -888,6 +931,40 @@ final class Parser
             return $nodes;
         } finally {
             $this->inMarker = $previous;
+        }
+    }
+
+    /**
+     * Parses the children of a <mask> element into SvgNode instances.
+     * Toggles the inMask flag so nested mask=url() refs inside the mask are
+     * silently ignored (handled by StyleResolver receiving masks=null), while
+     * gradient/pattern paint servers remain available for the mask's children.
+     *
+     * @return list<SvgNode>
+     */
+    public function parseChildrenAsMask(DOMElement $maskEl, SvgColor $currentColor): array
+    {
+        $previous = $this->inMask;
+        $this->inMask = true;
+        try {
+            $nodes = [];
+            foreach ($this->childElements($maskEl) as $child) {
+                $node = $this->parseNode(
+                    $child,
+                    SvgPaint::default(),
+                    $currentColor,
+                    SvgTextStyle::initial(),
+                    [],
+                    0,
+                    allowClip: true,
+                );
+                if ($node !== null) {
+                    $nodes[] = $node;
+                }
+            }
+            return $nodes;
+        } finally {
+            $this->inMask = $previous;
         }
     }
 

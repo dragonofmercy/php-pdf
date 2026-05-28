@@ -7,6 +7,8 @@ namespace DragonOfMercy\PhpPdf\Svg;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerResolver;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerSet;
 use DragonOfMercy\PhpPdf\Svg\Marker\SvgMarker;
+use DragonOfMercy\PhpPdf\Svg\Mask\MaskResolver;
+use DragonOfMercy\PhpPdf\Svg\Mask\SvgMask;
 
 /**
  * Merges presentation attributes, matched stylesheet declarations, and inline
@@ -31,6 +33,7 @@ final class StyleResolver
         ?GradientResolver $gradients = null,
         ?PatternResolver $patterns = null,
         ?MarkerResolver $markers = null,
+        ?MaskResolver $masks = null,
     ): SvgPaint {
         $merged = $presentationAttrs;
         foreach ($cssDeclarations as $key => $value) {
@@ -42,7 +45,7 @@ final class StyleResolver
 
         $paint = $inherited;
         foreach ($merged as $key => $value) {
-            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients, $patterns, $markers);
+            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients, $patterns, $markers, $masks);
         }
         return $paint;
     }
@@ -71,7 +74,7 @@ final class StyleResolver
         return $out;
     }
 
-    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns, ?MarkerResolver $markers): SvgPaint
+    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns, ?MarkerResolver $markers, ?MaskResolver $masks): SvgPaint
     {
         switch ($key) {
             case 'fill':
@@ -190,9 +193,28 @@ final class StyleResolver
                 $set = MarkerSet::empty()->withStart($m)->withMid($m)->withEnd($m);
                 return $paint->withMarkers($set);
 
+            case 'mask':
+                if ($value === 'none' || trim($value) === '') {
+                    return $paint->withMask(null);
+                }
+                $m = self::resolveMaskRef($value, $current, $masks);
+                return $m !== null ? $paint->withMask($m) : $paint;
+
             default:
                 return $paint;
         }
+    }
+
+    private static function resolveMaskRef(string $value, SvgColor $current, ?MaskResolver $masks): ?SvgMask
+    {
+        if ($masks === null) {
+            return null;
+        }
+        $id = self::urlId($value);
+        if ($id === null) {
+            return null;
+        }
+        return $masks->resolve($id, $current);
     }
 
     private static function resolveMarkerRef(string $value, SvgColor $current, ?MarkerResolver $markers): ?SvgMarker
