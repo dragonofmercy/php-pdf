@@ -25,7 +25,7 @@ final class Parser
 
     private const array WHITELIST = [
         'svg' => true, 'g' => true, 'defs' => true, 'use' => true,
-        'symbol' => true,
+        'symbol' => true, 'marker' => true,
         'path' => true, 'rect' => true, 'circle' => true, 'ellipse' => true,
         'line' => true, 'polygon' => true, 'polyline' => true,
         'title' => true, 'desc' => true, 'image' => true, 'text' => true,
@@ -44,6 +44,8 @@ final class Parser
 
     private ?PatternResolver $patterns = null;
 
+    private ?Marker\MarkerResolver $markers = null;
+
     private CssStylesheet $stylesheet;
 
     /** @var list<Image> */
@@ -55,6 +57,8 @@ final class Parser
     private int $nodeCounter = 0;
 
     private bool $inPattern = false;
+
+    private bool $inMarker = false;
 
     public function __construct()
     {
@@ -105,6 +109,7 @@ final class Parser
         $this->collectClipPaths($doc);
         $this->gradients = new GradientResolver($this->gradientDefs);
         $this->patterns = new PatternResolver($this->collectPatternDefs($doc), $this);
+        $this->markers = new Marker\MarkerResolver($this->collectMarkerDefs($doc), $this);
         $this->stylesheet = $this->collectStyleSheet($doc);
 
         $rootAttrs = $this->collectAttrs($root);
@@ -197,6 +202,22 @@ final class Parser
         return $map;
     }
 
+    /**
+     * Indexes all <marker> elements by id for MarkerResolver construction.
+     *
+     * @return array<string, DOMElement>
+     */
+    private function collectMarkerDefs(DOMDocument $doc): array
+    {
+        $map = [];
+        foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'marker') as $el) {
+            if ($el->hasAttribute('id')) {
+                $map[$el->getAttribute('id')] = $el;
+            }
+        }
+        return $map;
+    }
+
     private function collectClipPaths(DOMDocument $doc): void
     {
         foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'clipPath') as $node) {
@@ -258,8 +279,9 @@ final class Parser
             case 'svg':
             case 'defs':
             case 'symbol':
-                if ($local === 'defs' || $local === 'symbol') {
-                    // <defs> and <symbol> contents are only reachable via <use>; do not render directly.
+            case 'marker':
+                if ($local === 'defs' || $local === 'symbol' || $local === 'marker') {
+                    // <defs>, <symbol>, and <marker> contents are only reachable via reference; do not render directly.
                     return null;
                 }
                 $children = [];
@@ -336,7 +358,7 @@ final class Parser
                 return $this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css);
 
             case 'text':
-                if ($this->inPattern) {
+                if ($this->inPattern || $this->inMarker) {
                     return null;
                 }
                 return $this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css);
@@ -345,7 +367,7 @@ final class Parser
                 return $this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css);
 
             case 'image':
-                if ($this->inPattern) {
+                if ($this->inPattern || $this->inMarker) {
                     return null;
                 }
                 $w = (float) ($attrs['width'] ?? 0);
@@ -832,6 +854,48 @@ final class Parser
         } finally {
             $this->inPattern = $previous;
         }
+    }
+
+    /**
+     * Parses the children of a <marker> element into SvgNode instances.
+     * Toggles the inMarker flag so <text> and <image> are stripped and
+     * nested paint-server url() refs degrade to inherited color.
+     *
+     * @return list<SvgNode>
+     */
+    public function parseChildrenAsMarker(DOMElement $markerEl, SvgColor $currentColor): array
+    {
+        $previous = $this->inMarker;
+        $this->inMarker = true;
+        try {
+            $nodes = [];
+            foreach ($this->childElements($markerEl) as $child) {
+                $node = $this->parseNode(
+                    $child,
+                    SvgPaint::default(),
+                    $currentColor,
+                    SvgTextStyle::initial(),
+                    [],
+                    0,
+                    allowClip: false,
+                );
+                if ($node !== null) {
+                    $nodes[] = $node;
+                }
+            }
+            return $nodes;
+        } finally {
+            $this->inMarker = $previous;
+        }
+    }
+
+    /**
+     * Returns the MarkerResolver built during doParse, or null when called
+     * before parsing (unit-test construction without doParse).
+     */
+    public function markerResolver(): ?Marker\MarkerResolver
+    {
+        return $this->markers;
     }
 
     /**
