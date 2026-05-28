@@ -361,6 +361,13 @@ final class ImageEmbedder
     {
         // Nested smask refs inside a mask are out of scope; only ca/CA emitted.
         $resources = $this->resourcesWithExtGStates($emb->extGStates);
+        if ($emb->patterns !== []) {
+            $patternDict = Dictionary::empty();
+            foreach ($emb->patterns as $patName => $dictStr) {
+                $patternDict = $patternDict->withEntry(Name::of($patName), RawValue::of($dictStr));
+            }
+            $resources = $resources->withEntry(Name::of('Pattern'), $patternDict);
+        }
         $groupDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Group'))
             ->withEntry(Name::of('S'), Name::of('Transparency'))

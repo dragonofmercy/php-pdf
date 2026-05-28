@@ -762,6 +762,7 @@ final class Renderer
             bbox: [$regionX, $regionY, $regionX + $regionW, $regionY + $regionH],
             matrix: SvgMatrix::identity()->toArray(),
             extGStates: $innerRegistry->entries(),
+            patterns: [],
             contentBytes: $contentBytes,
         );
 
