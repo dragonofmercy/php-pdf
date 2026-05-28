@@ -541,6 +541,10 @@ $svgGoldens = [
     'svg-mask-userspace.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskUserspaceTest::class, 'buildPdfBytes'],
     'svg-mask-group.pdf'             => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskGroupTest::class, 'buildPdfBytes'],
     'svg-mask-bbox-content.pdf'      => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgMaskBBoxContentTest::class, 'buildPdfBytes'],
+    'svg-gradient-stop-alpha-linear.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaLinearTest::class, 'buildPdfBytes'],
+    'svg-gradient-stop-alpha-radial.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaRadialTest::class, 'buildPdfBytes'],
+    'svg-gradient-stop-alpha-multistop.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaMultistopTest::class, 'buildPdfBytes'],
+    'svg-gradient-stop-alpha-stroke.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaStrokeTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
