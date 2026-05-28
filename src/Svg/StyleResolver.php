@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Svg;
 
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerResolver;
+use DragonOfMercy\PhpPdf\Svg\Marker\MarkerSet;
+use DragonOfMercy\PhpPdf\Svg\Marker\SvgMarker;
+
 /**
  * Merges presentation attributes, matched stylesheet declarations, and inline
  * style="..." declarations onto an inherited SvgPaint. Precedence: inline style
@@ -26,6 +30,7 @@ final class StyleResolver
         SvgColor $currentColor,
         ?GradientResolver $gradients = null,
         ?PatternResolver $patterns = null,
+        ?MarkerResolver $markers = null,
     ): SvgPaint {
         $merged = $presentationAttrs;
         foreach ($cssDeclarations as $key => $value) {
@@ -37,7 +42,7 @@ final class StyleResolver
 
         $paint = $inherited;
         foreach ($merged as $key => $value) {
-            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients, $patterns);
+            $paint = self::applyOne($paint, $key, $value, $currentColor, $gradients, $patterns, $markers);
         }
         return $paint;
     }
@@ -66,7 +71,7 @@ final class StyleResolver
         return $out;
     }
 
-    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns): SvgPaint
+    private static function applyOne(SvgPaint $paint, string $key, string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns, ?MarkerResolver $markers): SvgPaint
     {
         switch ($key) {
             case 'fill':
@@ -168,9 +173,38 @@ final class StyleResolver
             case 'opacity':
                 return $paint->withOpacity(self::parseAlphaValue($value));
 
+            case 'marker-start':
+                $m = self::resolveMarkerRef($value, $current, $markers);
+                return $paint->withMarkers(($paint->markers ?? MarkerSet::empty())->withStart($m));
+
+            case 'marker-mid':
+                $m = self::resolveMarkerRef($value, $current, $markers);
+                return $paint->withMarkers(($paint->markers ?? MarkerSet::empty())->withMid($m));
+
+            case 'marker-end':
+                $m = self::resolveMarkerRef($value, $current, $markers);
+                return $paint->withMarkers(($paint->markers ?? MarkerSet::empty())->withEnd($m));
+
+            case 'marker':
+                $m = self::resolveMarkerRef($value, $current, $markers);
+                $set = MarkerSet::empty()->withStart($m)->withMid($m)->withEnd($m);
+                return $paint->withMarkers($set);
+
             default:
                 return $paint;
         }
+    }
+
+    private static function resolveMarkerRef(string $value, SvgColor $current, ?MarkerResolver $markers): ?SvgMarker
+    {
+        if ($markers === null) {
+            return null;
+        }
+        $id = self::urlId($value);
+        if ($id === null) {
+            return null;
+        }
+        return $markers->resolve($id, $current);
     }
 
     private static function resolvePaintRef(string $value, SvgColor $current, ?GradientResolver $gradients, ?PatternResolver $patterns): ?SvgPaintSource
