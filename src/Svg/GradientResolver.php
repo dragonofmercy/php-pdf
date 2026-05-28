@@ -223,6 +223,26 @@ final class GradientResolver
         return $mono;
     }
 
+    /**
+     * True if at least two stops differ in opacity. Used by Renderer to decide
+     * whether to emit a soft-mask (alpha-only) Form alongside the color shading.
+     *
+     * @param list<GradientStop> $stops
+     */
+    public static function hasVaryingAlpha(array $stops): bool
+    {
+        if ($stops === []) {
+            return false;
+        }
+        $first = $stops[0]->opacity;
+        foreach ($stops as $s) {
+            if ($s->opacity !== $first) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @param list<GradientStop> $stops */
     private function uniformOpacity(array $stops): float
     {
