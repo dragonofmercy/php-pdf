@@ -100,4 +100,14 @@ final class PatternResolverTest extends TestCase
         // image stripped -> only the rect survives.
         self::assertCount(1, $p->nodes);
     }
+
+    public function testPercentageCoordinatesParsed(): void
+    {
+        // Inkscape commonly emits objectBoundingBox patterns with percentage widths.
+        $r = $this->resolver('<svg xmlns="http://www.w3.org/2000/svg"><pattern id="p" width="25%" height="50%"><rect width="1" height="1"/></pattern></svg>');
+        $p = $r->resolve('p', SvgColor::black());
+        self::assertNotNull($p);
+        self::assertSame(0.25, $p->width);
+        self::assertSame(0.5, $p->height);
+    }
 }

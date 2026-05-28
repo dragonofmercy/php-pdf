@@ -106,6 +106,9 @@ final class PatternResolver
             return $default;
         }
         $raw = trim($raw);
+        if (str_ends_with($raw, '%')) {
+            return ((float) rtrim($raw, '%')) / 100.0;
+        }
         if ($raw === '' || !is_numeric($raw)) {
             return $default;
         }
