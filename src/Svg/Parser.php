@@ -409,7 +409,7 @@ final class Parser
         }
 
         if ($target->localName === 'symbol') {
-            return $this->resolveSymbolUse($target, $attrs, $paint, $currentColor, $inheritedText, $useStack, $depth, $allowClip);
+            return $this->resolveSymbolUse($target, $attrs, $paint, $currentColor, $inheritedText, $transform, $useStack, $depth, $allowClip);
         }
 
         $x = (float) ($attrs['x'] ?? 0);
@@ -449,6 +449,7 @@ final class Parser
         SvgPaint $paint,
         SvgColor $currentColor,
         SvgTextStyle $inheritedText,
+        ?SvgMatrix $useElementTransform,
         array $useStack,
         int $depth,
         bool $allowClip,
@@ -487,6 +488,9 @@ final class Parser
         if ($viewBox !== null && $useWidth > 0.0 && $useHeight > 0.0) {
             $vbMatrix = PreserveAspectRatio::matrixFor($viewBox, $useWidth, $useHeight, $par);
             $useTransform = $useTransform->compose($vbMatrix);
+        }
+        if ($useElementTransform !== null) {
+            $useTransform = $useElementTransform->compose($useTransform);
         }
 
         return new SvgGroup($useTransform, $children);

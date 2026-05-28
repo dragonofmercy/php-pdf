@@ -56,4 +56,23 @@ final class ParserSymbolTest extends TestCase
         self::assertEqualsWithDelta(10.0, $g->transform->e, 1e-9);
         self::assertEqualsWithDelta(20.0, $g->transform->f, 1e-9);
     }
+
+    public function testSymbolUseTransformComposed(): void
+    {
+        // <use transform="translate(100, 0)"> on a symbol must apply the translate.
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">'
+            . '<defs><symbol id="ico" viewBox="0 0 10 10"><rect width="10" height="10"/></symbol></defs>'
+            . '<use href="#ico" x="0" y="0" width="20" height="20" transform="translate(100, 0)"/>'
+            . '</svg>';
+        $meta = Parser::parse($svg);
+        $g = $meta->root->children[0];
+        self::assertInstanceOf(SvgGroup::class, $g);
+        // viewBox 10x10 to use 20x20 -> scale 2. translate(100, 0) applied AFTER the local transform.
+        // Final: translate(100, 0) . translate(0, 0) . scale(2, 2) = a=2, d=2, e=100, f=0.
+        self::assertNotNull($g->transform);
+        self::assertEqualsWithDelta(2.0, $g->transform->a, 1e-9);
+        self::assertEqualsWithDelta(2.0, $g->transform->d, 1e-9);
+        self::assertEqualsWithDelta(100.0, $g->transform->e, 1e-9);
+        self::assertEqualsWithDelta(0.0, $g->transform->f, 1e-9);
+    }
 }
