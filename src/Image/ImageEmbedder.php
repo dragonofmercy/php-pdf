@@ -8,10 +8,12 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\ImageFormat;
+use DragonOfMercy\PhpPdf\Svg\EmbeddedMask;
 use DragonOfMercy\PhpPdf\Svg\EmbeddedPattern;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
 use DragonOfMercy\PhpPdf\Svg\SvgPattern;
 use DragonOfMercy\PhpPdf\Svg\SvgShape;
@@ -59,12 +61,13 @@ final class ImageEmbedder
             foreach ($meta->embeddedImages as $child) {
                 $count += self::objectCount($child);
             }
-            // Tiling patterns are allocated at render time (the /Matrix depends on
-            // the painted shape's CTM and bbox). Detect pattern usage cheaply, then
-            // pre-render to get the exact count.
-            if (self::svgHasPatternPaint($meta)) {
+            // Tiling patterns and masks are allocated at render time (the /Matrix
+            // depends on the painted shape's CTM and bbox). Detect usage cheaply,
+            // then pre-render to get the exact count.
+            if (self::svgHasPatternPaint($meta) || self::svgHasMaskPaint($meta)) {
                 $rendered = (new Renderer())->render($meta);
                 $count += count($rendered['embeddedPatterns']);
+                $count += count($rendered['embeddedMasks']);
             }
             return $count;
         }
@@ -92,10 +95,37 @@ final class ImageEmbedder
         if ($node instanceof SvgClipped) {
             return self::nodeHasPatternPaint($node->child);
         }
+        if ($node instanceof SvgMasked) {
+            return self::nodeHasPatternPaint($node->child);
+        }
         if ($node instanceof SvgShape) {
             $paint = $node->paint();
             return $paint->fill instanceof SvgPattern
                 || $paint->stroke instanceof SvgPattern;
+        }
+        return false;
+    }
+
+    private static function svgHasMaskPaint(SvgMetadata $meta): bool
+    {
+        return self::nodeHasMaskPaint($meta->root);
+    }
+
+    private static function nodeHasMaskPaint(SvgNode $node): bool
+    {
+        if ($node instanceof SvgMasked) {
+            return true;
+        }
+        if ($node instanceof SvgGroup) {
+            foreach ($node->children as $c) {
+                if (self::nodeHasMaskPaint($c)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if ($node instanceof SvgClipped) {
+            return self::nodeHasMaskPaint($node->child);
         }
         return false;
     }
@@ -191,6 +221,7 @@ final class ImageEmbedder
         $patterns = $rendered['patterns'];
         $patternRefs = $rendered['patternRefs'];
         $embeddedPatterns = $rendered['embeddedPatterns'];
+        $embeddedMasks = $rendered['embeddedMasks'];
         $fonts = $rendered['fonts'];
 
         $procSet = $fonts !== []
@@ -210,19 +241,12 @@ final class ImageEmbedder
             $resources = $resources->withEntry(Name::of('Font'), $fontDict);
         }
 
-        if ($extGStates !== []) {
-            $extGStateDict = Dictionary::empty();
-            foreach ($extGStates as $name => $entry) {
-                $gsDict = Dictionary::empty()
-                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
-                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
-                $extGStateDict = $extGStateDict->withEntry(Name::of($name), $gsDict);
-            }
-            $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
-        }
-
-        // (1) Embedded images loop: child Form/image objects for raster <image> children.
+        // (1) Embedded images loop: allocate child Form/image objects for raster
+        // <image> children. /XObject dict is staged here but only attached to
+        // /Resources later to preserve the original entry order
+        // (ExtGState before XObject).
         $childObjects = [];
+        $xobjectDict = null;
         if ($meta->embeddedImages !== []) {
             $xobjectDict = Dictionary::empty();
             $childNum = $objectNumber + 1;
@@ -234,12 +258,11 @@ final class ImageEmbedder
                 $xobjectDict = $xobjectDict->withEntry(Name::of('Im' . $i), PdfReference::to($childNum, 0));
                 $childNum += count($emitted);
             }
-            $resources = $resources->withEntry(Name::of('XObject'), $xobjectDict);
         } else {
             $childNum = $objectNumber + 1;
         }
 
-        // (2) Tiling patterns become child indirect objects allocated after embedded images.
+        // (2) Tiling patterns become child indirect objects allocated next.
         $patternChildNumbers = []; // embeddedIndex -> child object number
         foreach ($patternRefs as $refEntry) {
             $emb = $embeddedPatterns[$refEntry['embeddedIndex']];
@@ -248,7 +271,41 @@ final class ImageEmbedder
             $childNum++;
         }
 
-        // (3) Build /Resources/Pattern combining inline shading-pattern dicts AND tiling-pattern refs.
+        // (3) Soft-mask Form XObjects: one indirect object per EmbeddedMask.
+        $maskChildNumbers = []; // embeddedMaskIndex -> child object number
+        foreach ($embeddedMasks as $maskIndex => $maskEmb) {
+            $childObjects[] = $this->buildMaskFormObject($childNum, $maskEmb);
+            $maskChildNumbers[$maskIndex] = $childNum;
+            $childNum++;
+        }
+
+        // (4) Build /Resources/ExtGState including /SMask entries. Added before
+        // /XObject and /Pattern to keep the historical entry order.
+        if ($extGStates !== []) {
+            $extGStateDict = Dictionary::empty();
+            foreach ($extGStates as $name => $entry) {
+                $gsDict = Dictionary::empty()
+                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
+                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
+                if ($entry['smaskEmbeddedIndex'] !== null) {
+                    $maskFormRef = PdfReference::to($maskChildNumbers[$entry['smaskEmbeddedIndex']], 0);
+                    $smaskDict = Dictionary::empty()
+                        ->withEntry(Name::of('Type'), Name::of('Mask'))
+                        ->withEntry(Name::of('S'), Name::of('Luminosity'))
+                        ->withEntry(Name::of('G'), $maskFormRef);
+                    $gsDict = $gsDict->withEntry(Name::of('SMask'), $smaskDict);
+                }
+                $extGStateDict = $extGStateDict->withEntry(Name::of($name), $gsDict);
+            }
+            $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+        }
+
+        // (5) Attach the staged /XObject dict now (after /ExtGState).
+        if ($xobjectDict !== null) {
+            $resources = $resources->withEntry(Name::of('XObject'), $xobjectDict);
+        }
+
+        // (6) Build /Resources/Pattern combining inline shading-pattern dicts AND tiling-pattern refs.
         if ($patterns !== [] || $patternRefs !== []) {
             $patternDict = Dictionary::empty();
             foreach ($patterns as $name => $dict) {
@@ -274,6 +331,43 @@ final class ImageEmbedder
         $stream = CompressedStream::of($bytes, $extra);
 
         return array_merge([IndirectObject::of($objectNumber, 0, $stream)], $childObjects);
+    }
+
+    private function buildMaskFormObject(int $childNum, EmbeddedMask $emb): IndirectObject
+    {
+        $resources = Dictionary::empty()
+            ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
+        if ($emb->extGStates !== []) {
+            $extGStateDict = Dictionary::empty();
+            foreach ($emb->extGStates as $gsName => $entry) {
+                $gsDict = Dictionary::empty()
+                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
+                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
+                // Nested smask refs inside a mask are out of scope.
+                $extGStateDict = $extGStateDict->withEntry(Name::of($gsName), $gsDict);
+            }
+            $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+        }
+        $groupDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Group'))
+            ->withEntry(Name::of('S'), Name::of('Transparency'))
+            ->withEntry(Name::of('CS'), Name::of('DeviceRGB'));
+        $extras = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('FormType'), PdfNumber::ofInt(1))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($emb->bbox[0]), PdfNumber::ofFloat($emb->bbox[1]),
+                PdfNumber::ofFloat($emb->bbox[2]), PdfNumber::ofFloat($emb->bbox[3]),
+            ))
+            ->withEntry(Name::of('Matrix'), PdfArray::of(
+                PdfNumber::ofFloat($emb->matrix[0]), PdfNumber::ofFloat($emb->matrix[1]),
+                PdfNumber::ofFloat($emb->matrix[2]), PdfNumber::ofFloat($emb->matrix[3]),
+                PdfNumber::ofFloat($emb->matrix[4]), PdfNumber::ofFloat($emb->matrix[5]),
+            ))
+            ->withEntry(Name::of('Group'), $groupDict)
+            ->withEntry(Name::of('Resources'), $resources);
+        return IndirectObject::of($childNum, 0, CompressedStream::of($emb->contentBytes, $extras));
     }
 
     private function buildTilingPatternObject(int $childNum, EmbeddedPattern $emb): IndirectObject
