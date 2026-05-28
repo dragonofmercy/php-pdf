@@ -59,7 +59,7 @@ final class Renderer
     /**
      * @return array{
      *     bytes: string,
-     *     extGStates: array<string, array{ca: float, CA: float}>,
+     *     extGStates: array<string, array{ca: float, CA: float, smaskEmbeddedIndex: ?int}>,
      *     patterns: array<string, string>,
      *     patternRefs: list<array{name: string, embeddedIndex: int}>,
      *     embeddedPatterns: list<EmbeddedPattern>,

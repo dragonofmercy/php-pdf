@@ -94,7 +94,7 @@ final class RendererGradientTest extends TestCase
     }
 
     /**
-     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float}>, patterns: array<string, string>}
+     * @return array{bytes: string, extGStates: array<string, array{ca: float, CA: float, smaskEmbeddedIndex: ?int}>, patterns: array<string, string>}
      */
     private function render100ViewBox(SvgGroup $root): array
     {

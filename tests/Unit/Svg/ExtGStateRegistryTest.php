@@ -41,8 +41,8 @@ final class ExtGStateRegistryTest extends TestCase
         $reg->nameFor(0.25, 0.75);
         $entries = $reg->entries();
         self::assertCount(2, $entries);
-        self::assertSame(['ca' => 0.5, 'CA' => 1.0], $entries['Gs0']);
-        self::assertSame(['ca' => 0.25, 'CA' => 0.75], $entries['Gs1']);
+        self::assertSame(['ca' => 0.5, 'CA' => 1.0, 'smaskEmbeddedIndex' => null], $entries['Gs0']);
+        self::assertSame(['ca' => 0.25, 'CA' => 0.75, 'smaskEmbeddedIndex' => null], $entries['Gs1']);
     }
 
     public function testFullyOpaqueDoesNotRegister(): void

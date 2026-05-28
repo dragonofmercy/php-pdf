@@ -16,7 +16,7 @@ final readonly class EmbeddedPattern
     /**
      * @param array{0: float, 1: float, 2: float, 3: float} $bbox tile bounds [llx lly urx ury]
      * @param array{0: float, 1: float, 2: float, 3: float, 4: float, 5: float} $matrix pattern->user matrix [a b c d e f]
-     * @param array<string, array{ca: float, CA: float}> $extGStates inner ExtGState entries for the tile's /Resources
+     * @param array<string, array{ca: float, CA: float, smaskEmbeddedIndex: ?int}> $extGStates inner ExtGState entries for the tile's /Resources
      */
     public function __construct(
         public array $bbox,
