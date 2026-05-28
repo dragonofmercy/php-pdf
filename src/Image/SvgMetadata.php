@@ -6,7 +6,9 @@ namespace DragonOfMercy\PhpPdf\Image;
 
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
+use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
+use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
 use DragonOfMercy\PhpPdf\Svg\SvgText;
 use DragonOfMercy\PhpPdf\Svg\ViewBox;
@@ -52,6 +54,20 @@ final readonly class SvgMetadata
         if ($node instanceof SvgGroup) {
             foreach ($node->children as $child) {
                 $this->walk($child, $fonts);
+            }
+            return;
+        }
+        if ($node instanceof SvgClipped) {
+            $this->walk($node->child, $fonts);
+            return;
+        }
+        if ($node instanceof SvgMasked) {
+            // <text> may live both inside the masked element and inside the
+            // mask definition itself; descend into both so the pre-pass sees
+            // every standard font referenced anywhere in the tree.
+            $this->walk($node->child, $fonts);
+            foreach ($node->mask->nodes as $maskNode) {
+                $this->walk($maskNode, $fonts);
             }
         }
     }
