@@ -447,6 +447,26 @@ Recommended sizes for reliable scanning: EAN-13 >= 25 mm wide, QR module >= 0.5 
 
 The quiet zone is **included** in the `w` / `h` you provide. The barcode wraps its rendering in a graphics state save / restore, so it does not alter your page's current font / fill color.
 
+### Standalone SVG export
+
+Every barcode can also be exported as a self-contained SVG string (no PDF involved), useful when the same app shows the code on screen and embeds it in a PDF without integrating a second barcode library:
+
+```php
+use DragonOfMercy\PhpPdf\Barcode\{Code128, QrCode};
+use DragonOfMercy\PhpPdf\Barcode\Svg\SvgBarcodeRenderer;
+
+$svg = (new SvgBarcodeRenderer())->render(Code128::of('HELLO'), 300, 100);
+// "<svg xmlns='...' width='300' height='100' viewBox='...'>...</svg>"
+
+// Base64 data URI for inline <img src=...> usage:
+$uri = SvgBarcodeRenderer::renderDataUri(QrCode::of('https://...'), 200, 200);
+
+// Without the white background rect (e.g., over a non-white canvas):
+$svg = (new SvgBarcodeRenderer())->withoutBackground()->render($code, 200, 100);
+```
+
+Covers all formats: Code128, EAN13, EAN8, UPC-A, Code39, Code93, ITF (with bearer bar), QR, DataMatrix, Aztec, PDF417. Vertical orientation (`->vertical()`) is reflected via an SVG `<g transform="rotate(-90)...">` wrapper. Foreground color comes from `Barcode::withColor()`. The SVG uses `viewBox` in module units and the requested pixel `width`/`height` attributes, so it scales responsively while keeping the bar aspect.
+
 ### Metadata + encryption
 
 ```php
