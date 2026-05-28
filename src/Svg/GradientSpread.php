@@ -81,8 +81,42 @@ final class GradientSpread
 
     private static function expandRadial(RadialGradient $g, BoundingBox $bbox): SvgGradient
     {
-        // Implemented in Task 5.
-        return $g;
+        if ($g->r <= 0.0) {
+            return $g;
+        }
+        $corners = [
+            [$bbox->x, $bbox->y],
+            [$bbox->x + $bbox->width, $bbox->y],
+            [$bbox->x, $bbox->y + $bbox->height],
+            [$bbox->x + $bbox->width, $bbox->y + $bbox->height],
+        ];
+        $maxD = 0.0;
+        foreach ($corners as [$cx, $cy]) {
+            $maxD = max($maxD, hypot($cx - $g->fx, $cy - $g->fy));
+        }
+        $n = max(1, (int) ceil($maxD / $g->r));
+        if ($n === 1) {
+            return $g;
+        }
+        if ($n > self::MAX_PERIODS) {
+            return $g;
+        }
+        // Radial only extends outward; original period is i=0, so reflect
+        // aligns by treating period 0 as forward (kBack = 0 in the alignment
+        // formula).
+        $stops = self::replicateStops($g->stops(), $n, 0, $g->spreadMethod());
+        return new RadialGradient(
+            $g->cx,
+            $g->cy,
+            $g->r * $n,
+            $g->fx,
+            $g->fy,
+            $g->units(),
+            $g->transform(),
+            $stops,
+            $g->uniformOpacity(),
+            SpreadMethod::PAD,
+        );
     }
 
     /**

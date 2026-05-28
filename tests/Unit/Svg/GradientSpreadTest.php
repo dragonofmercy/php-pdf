@@ -121,4 +121,49 @@ final class GradientSpreadTest extends TestCase
         $out = GradientSpread::expand($g, new BoundingBox(0.0, 0.0, 1.0, 1.0));
         self::assertSame($g, $out);
     }
+
+    public function testRadialPadIsIdentity(): void
+    {
+        $g = new \DragonOfMercy\PhpPdf\Svg\RadialGradient(0.5, 0.5, 0.5, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $this->blackWhiteStops(), 1.0, SpreadMethod::PAD);
+        $out = GradientSpread::expand($g, new BoundingBox(0.0, 0.0, 1.0, 1.0));
+        self::assertSame($g, $out);
+    }
+
+    public function testRadialDegenerateIsIdentity(): void
+    {
+        $g = new \DragonOfMercy\PhpPdf\Svg\RadialGradient(0.5, 0.5, 0.0, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $this->blackWhiteStops(), 1.0, SpreadMethod::REPEAT);
+        $out = GradientSpread::expand($g, new BoundingBox(0.0, 0.0, 1.0, 1.0));
+        self::assertSame($g, $out);
+    }
+
+    public function testRadialRepeatExtendsOuterRadius(): void
+    {
+        // Focal at center (0.5, 0.5), r = 0.25, bbox unit square -> max distance to corner = sqrt(0.5)/2 * 2 = ~0.707, N = ceil(0.707/0.25) = 3.
+        $g = new \DragonOfMercy\PhpPdf\Svg\RadialGradient(0.5, 0.5, 0.25, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $this->blackWhiteStops(), 1.0, SpreadMethod::REPEAT);
+        $out = GradientSpread::expand($g, new BoundingBox(0.0, 0.0, 1.0, 1.0));
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\RadialGradient::class, $out);
+        self::assertSame(SpreadMethod::PAD, $out->spreadMethod());
+        self::assertEqualsWithDelta(0.75, $out->r, self::EPS); // 0.25 * 3
+        self::assertEqualsWithDelta(0.5, $out->cx, self::EPS);
+        self::assertEqualsWithDelta(0.5, $out->cy, self::EPS);
+        self::assertEqualsWithDelta(0.5, $out->fx, self::EPS);
+        self::assertEqualsWithDelta(0.5, $out->fy, self::EPS);
+        // 3 periods x 2 stops = 6 stops at 0, 1/3, 1/3, 2/3, 2/3, 1.
+        self::assertCount(6, $out->stops());
+    }
+
+    public function testRadialReflectAlternates(): void
+    {
+        $g = new \DragonOfMercy\PhpPdf\Svg\RadialGradient(0.5, 0.5, 0.25, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $this->blackWhiteStops(), 1.0, SpreadMethod::REFLECT);
+        $out = GradientSpread::expand($g, new BoundingBox(0.0, 0.0, 1.0, 1.0));
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\RadialGradient::class, $out);
+        $stops = $out->stops();
+        // 3 periods x 2 stops = 6 entries. Period 0 forward (black, white),
+        // period 1 backward (white, black), period 2 forward (black, white).
+        self::assertCount(6, $stops);
+        $expectedR = [0.0, 1.0, 1.0, 0.0, 0.0, 1.0];
+        foreach ($expectedR as $i => $r) {
+            self::assertEqualsWithDelta($r, $stops[$i]->color->r, self::EPS, "stop $i red channel");
+        }
+    }
 }

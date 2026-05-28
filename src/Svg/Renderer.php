@@ -220,6 +220,12 @@ final class Renderer
         if ($gt !== null) {
             $matrix = $matrix->compose($gt);
         }
+        if ($gradient->spreadMethod() !== SpreadMethod::PAD) {
+            $localBbox = $gradient->units() === GradientUnits::OBJECT_BOUNDING_BOX
+                ? new BoundingBox(0.0, 0.0, 1.0, 1.0)
+                : BoundingBox::of($shape);
+            $gradient = GradientSpread::expand($gradient, $localBbox);
+        }
         $dict = ShadingBuilder::patternDict($gradient, $matrix);
         $name = $patterns->nameFor($dict);
         $ops = $isStroke ? "/Pattern CS\n/$name SCN\n" : "/Pattern cs\n/$name scn\n";
