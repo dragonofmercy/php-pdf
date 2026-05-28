@@ -19,7 +19,9 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
 use DragonOfMercy\PhpPdf\Svg\BoundingBox;
 use DragonOfMercy\PhpPdf\Svg\ClipPathUnits;
+use DragonOfMercy\PhpPdf\Svg\EmbeddedMask;
 use DragonOfMercy\PhpPdf\Svg\FillRule;
+use DragonOfMercy\PhpPdf\Svg\Mask\MaskUnits;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerKind;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerOrientMode;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerPosition;
@@ -48,6 +50,9 @@ final class Renderer
     /** @var list<EmbeddedPattern> tiling pattern records accumulated during render */
     private array $embeddedPatterns = [];
 
+    /** @var list<EmbeddedMask> soft-mask records accumulated during render */
+    private array $embeddedMasks = [];
+
     /** @var array<string, StandardFontEngine> engine cache keyed by pdfName */
     private array $engines = [];
 
@@ -63,6 +68,7 @@ final class Renderer
      *     patterns: array<string, string>,
      *     patternRefs: list<array{name: string, embeddedIndex: int}>,
      *     embeddedPatterns: list<EmbeddedPattern>,
+     *     embeddedMasks: list<EmbeddedMask>,
      *     fonts: list<string>,
      * }
      */
@@ -71,6 +77,7 @@ final class Renderer
         $this->fontRegistry = $fontRegistry ?? new FontRegistry();
         $this->usedFonts = [];
         $this->embeddedPatterns = [];
+        $this->embeddedMasks = [];
         $out = '';
         $registry = new ExtGStateRegistry();
         $patterns = new PatternRegistry();
@@ -93,6 +100,7 @@ final class Renderer
             'patterns' => $patterns->entries(),
             'patternRefs' => $patterns->refEntries(),
             'embeddedPatterns' => $this->embeddedPatterns,
+            'embeddedMasks' => $this->embeddedMasks,
             'fonts' => array_keys($this->usedFonts),
         ];
     }
@@ -691,8 +699,78 @@ final class Renderer
 
     private function renderMasked(SvgMasked $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
     {
-        // Implemented in Task 9 (full sub-render + /SMask emission).
-        return $this->renderNode($node->child, $registry, $patterns, $ctm);
+        // The mask applies in the child's own local space at the moment of paint.
+        // We honor the SVG semantics by computing the mask bbox and matrix in the
+        // unit space of the masked element (the current ctm is the path placed there).
+        $bbox = BoundingBox::ofNode($node->child);
+        if ($bbox->isDegenerate()) {
+            return $this->renderNode($node->child, $registry, $patterns, $ctm);
+        }
+
+        // Compose the mask -> page matrix.
+        // userSpaceOnUse: mask region coords (x,y,w,h) are in current user space.
+        // objectBoundingBox: coords are unit fractions of the child bbox; we
+        // prepend translate(bbox.x, bbox.y) . scale(bbox.w, bbox.h).
+        $maskMatrix = $ctm;
+        if ($node->mask->units === MaskUnits::OBJECT_BOUNDING_BOX) {
+            $maskMatrix = $maskMatrix
+                ->compose(SvgMatrix::translate($bbox->x, $bbox->y))
+                ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+        }
+
+        // Sub-render the mask's children with isolated registries.
+        $innerRegistry = new ExtGStateRegistry();
+        $innerPatterns = new PatternRegistry();
+
+        // maskContentUnits=objectBoundingBox prepends a unit->bbox mapping for
+        // the children's coordinate space.
+        $childCtm = SvgMatrix::identity();
+        if ($node->mask->contentUnits === MaskUnits::OBJECT_BOUNDING_BOX) {
+            $childCtm = SvgMatrix::translate($bbox->x, $bbox->y)
+                ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+        }
+
+        $contentBytes = '';
+        if (!$childCtm->isIdentity()) {
+            $contentBytes .= "q\n" . self::cmFromMatrix($childCtm) . "\n";
+        }
+        foreach ($node->mask->nodes as $maskChild) {
+            $contentBytes .= $this->renderNode($maskChild, $innerRegistry, $innerPatterns, $childCtm);
+        }
+        if (!$childCtm->isIdentity()) {
+            $contentBytes .= "Q\n";
+        }
+
+        if ($contentBytes === '') {
+            // Empty mask -> fall back to no-mask (silent degenerate handling).
+            return $this->renderNode($node->child, $registry, $patterns, $ctm);
+        }
+
+        // Compute the Form XObject bbox in mask coordinate space.
+        $maskBbox = [
+            $node->mask->x,
+            $node->mask->y,
+            $node->mask->x + $node->mask->width,
+            $node->mask->y + $node->mask->height,
+        ];
+
+        $embeddedIndex = count($this->embeddedMasks);
+        $this->embeddedMasks[] = new EmbeddedMask(
+            bbox: $maskBbox,
+            matrix: $maskMatrix->toArray(),
+            extGStates: $innerRegistry->entries(),
+            contentBytes: $contentBytes,
+        );
+
+        // Register the ExtGState entry with the smask index. Opacity stays 1.0
+        // for the mask wrapper itself (per-paint opacity is handled by the
+        // child's own paint state).
+        $name = $registry->nameForWithMask(1.0, 1.0, $embeddedIndex);
+        $childBytes = $this->renderNode($node->child, $registry, $patterns, $ctm);
+        if ($childBytes === '') {
+            return '';
+        }
+        return "q\n/" . $name . " gs\n" . $childBytes . "Q\n";
     }
 
     /**
