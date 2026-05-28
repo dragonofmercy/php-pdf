@@ -333,21 +333,34 @@ final class ImageEmbedder
         return array_merge([IndirectObject::of($objectNumber, 0, $stream)], $childObjects);
     }
 
-    private function buildMaskFormObject(int $childNum, EmbeddedMask $emb): IndirectObject
+    /**
+     * Builds a /Resources dict with /ProcSet [/PDF] and (when non-empty) a
+     * /ExtGState sub-dict of ca/CA-only entries. Used by tiling-pattern and
+     * soft-mask Form XObjects, whose inner ExtGState entries never carry /SMask.
+     *
+     * @param array<string, array{ca: float, CA: float, smaskEmbeddedIndex: ?int}> $extGStates
+     */
+    private function resourcesWithExtGStates(array $extGStates): Dictionary
     {
         $resources = Dictionary::empty()
             ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
-        if ($emb->extGStates !== []) {
-            $extGStateDict = Dictionary::empty();
-            foreach ($emb->extGStates as $gsName => $entry) {
-                $gsDict = Dictionary::empty()
-                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
-                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
-                // Nested smask refs inside a mask are out of scope.
-                $extGStateDict = $extGStateDict->withEntry(Name::of($gsName), $gsDict);
-            }
-            $resources = $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+        if ($extGStates === []) {
+            return $resources;
         }
+        $extGStateDict = Dictionary::empty();
+        foreach ($extGStates as $gsName => $entry) {
+            $gsDict = Dictionary::empty()
+                ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
+                ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
+            $extGStateDict = $extGStateDict->withEntry(Name::of($gsName), $gsDict);
+        }
+        return $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+    }
+
+    private function buildMaskFormObject(int $childNum, EmbeddedMask $emb): IndirectObject
+    {
+        // Nested smask refs inside a mask are out of scope; only ca/CA emitted.
+        $resources = $this->resourcesWithExtGStates($emb->extGStates);
         $groupDict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Group'))
             ->withEntry(Name::of('S'), Name::of('Transparency'))
@@ -372,18 +385,7 @@ final class ImageEmbedder
 
     private function buildTilingPatternObject(int $childNum, EmbeddedPattern $emb): IndirectObject
     {
-        $tileResources = Dictionary::empty()
-            ->withEntry(Name::of('ProcSet'), PdfArray::of(Name::of('PDF')));
-        if ($emb->extGStates !== []) {
-            $extGStateDict = Dictionary::empty();
-            foreach ($emb->extGStates as $gsName => $entry) {
-                $gsDict = Dictionary::empty()
-                    ->withEntry(Name::of('ca'), PdfNumber::ofFloat($entry['ca']))
-                    ->withEntry(Name::of('CA'), PdfNumber::ofFloat($entry['CA']));
-                $extGStateDict = $extGStateDict->withEntry(Name::of($gsName), $gsDict);
-            }
-            $tileResources = $tileResources->withEntry(Name::of('ExtGState'), $extGStateDict);
-        }
+        $tileResources = $this->resourcesWithExtGStates($emb->extGStates);
         $extras = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Pattern'))
             ->withEntry(Name::of('PatternType'), PdfNumber::ofInt(1))

@@ -707,19 +707,21 @@ final class Renderer
             return $this->renderNode($node->child, $registry, $patterns, $ctm);
         }
 
+        $mask = $node->mask;
+
         // Project the mask region to user space (Form initial coord space).
         // userSpaceOnUse: region is already in user space.
         // objectBoundingBox: region (x,y,w,h) are unit fractions of the child bbox.
-        if ($node->mask->units === MaskUnits::OBJECT_BOUNDING_BOX) {
-            $regionX = $bbox->x + $node->mask->x * $bbox->width;
-            $regionY = $bbox->y + $node->mask->y * $bbox->height;
-            $regionW = $node->mask->width * $bbox->width;
-            $regionH = $node->mask->height * $bbox->height;
+        if ($mask->units === MaskUnits::OBJECT_BOUNDING_BOX) {
+            $regionX = $bbox->x + $mask->x * $bbox->width;
+            $regionY = $bbox->y + $mask->y * $bbox->height;
+            $regionW = $mask->width * $bbox->width;
+            $regionH = $mask->height * $bbox->height;
         } else {
-            $regionX = $node->mask->x;
-            $regionY = $node->mask->y;
-            $regionW = $node->mask->width;
-            $regionH = $node->mask->height;
+            $regionX = $mask->x;
+            $regionY = $mask->y;
+            $regionW = $mask->width;
+            $regionH = $mask->height;
         }
 
         // Sub-render the mask's children with isolated registries.
@@ -730,7 +732,7 @@ final class Renderer
         $innerPatterns = new PatternRegistry();
 
         $childCtm = SvgMatrix::identity();
-        if ($node->mask->contentUnits === MaskUnits::OBJECT_BOUNDING_BOX) {
+        if ($mask->contentUnits === MaskUnits::OBJECT_BOUNDING_BOX) {
             $childCtm = SvgMatrix::translate($bbox->x, $bbox->y)
                 ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
         }
@@ -739,7 +741,7 @@ final class Renderer
         if (!$childCtm->isIdentity()) {
             $contentBytes .= "q\n" . self::cmFromMatrix($childCtm) . "\n";
         }
-        foreach ($node->mask->nodes as $maskChild) {
+        foreach ($mask->nodes as $maskChild) {
             $contentBytes .= $this->renderNode($maskChild, $innerRegistry, $innerPatterns, $childCtm);
         }
         if (!$childCtm->isIdentity()) {
@@ -755,13 +757,10 @@ final class Renderer
         // because the Form is composed with the CTM at the moment /gs fires; the
         // PDF spec concatenates Form.Matrix onto that CTM, so baking $ctm again
         // would apply it twice and shrink the mask to a dot.
-        $maskBbox = [$regionX, $regionY, $regionX + $regionW, $regionY + $regionH];
-        $maskMatrix = SvgMatrix::identity();
-
         $embeddedIndex = count($this->embeddedMasks);
         $this->embeddedMasks[] = new EmbeddedMask(
-            bbox: $maskBbox,
-            matrix: $maskMatrix->toArray(),
+            bbox: [$regionX, $regionY, $regionX + $regionW, $regionY + $regionH],
+            matrix: SvgMatrix::identity()->toArray(),
             extGStates: $innerRegistry->entries(),
             contentBytes: $contentBytes,
         );
