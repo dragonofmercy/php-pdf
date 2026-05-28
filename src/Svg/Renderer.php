@@ -263,6 +263,14 @@ final class Renderer
      */
     private function paintTilingPattern(SvgPattern $pattern, SvgShape $shape, SvgMatrix $shapeCtm, PatternRegistry $patterns, float $baseOpacity, bool $isStroke): array
     {
+        // PDF /XStep and /YStep must be non-zero. A malformed <pattern> with a
+        // zero dimension passes the resolver (which only checks for zero children)
+        // but would produce an invalid pattern dict. Fall back to solid black.
+        if ($pattern->width <= 0.0 || $pattern->height <= 0.0) {
+            $op = $isStroke ? "0 0 0 RG\n" : "0 0 0 rg\n";
+            return ['ops' => $op, 'opacity' => $baseOpacity];
+        }
+
         // Compute the pattern dict /Matrix mapping pattern space -> page space.
         $matrix = $shapeCtm;
         if ($pattern->units === PatternUnits::OBJECT_BOUNDING_BOX) {
