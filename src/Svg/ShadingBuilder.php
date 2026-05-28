@@ -21,6 +21,17 @@ final class ShadingBuilder
         return '<< /Type /Pattern /PatternType 2 /Matrix [' . self::matrix($matrix) . '] /Shading ' . $shading . ' >>';
     }
 
+    /**
+     * Like patternDict, but produces a grayscale (DeviceGray) shading where each
+     * stop's gray value equals its opacity. Used as a soft-mask Form's paint when
+     * the source gradient has stops with varying opacity.
+     */
+    public static function alphaPatternDict(SvgGradient $gradient, SvgMatrix $matrix): string
+    {
+        $shading = self::alphaShadingDict($gradient);
+        return '<< /Type /Pattern /PatternType 2 /Matrix [' . self::matrix($matrix) . '] /Shading ' . $shading . ' >>';
+    }
+
     private static function shadingDict(SvgGradient $gradient): string
     {
         $fn = self::functionDict($gradient->stops());
@@ -72,6 +83,56 @@ final class ShadingBuilder
             . Format::num($c0->r) . ' ' . Format::num($c0->g) . ' ' . Format::num($c0->b)
             . '] /C1 [' . Format::num($c1->r) . ' ' . Format::num($c1->g) . ' ' . Format::num($c1->b)
             . '] /N 1 >>';
+    }
+
+    private static function alphaShadingDict(SvgGradient $gradient): string
+    {
+        $fn = self::alphaFunctionDict($gradient->stops());
+        if ($gradient instanceof RadialGradient) {
+            return '<< /ShadingType 3 /ColorSpace /DeviceGray /Coords ['
+                . Format::num($gradient->fx) . ' ' . Format::num($gradient->fy) . ' 0 '
+                . Format::num($gradient->cx) . ' ' . Format::num($gradient->cy) . ' ' . Format::num($gradient->r)
+                . '] /Function ' . $fn . ' /Extend [true true] >>';
+        }
+        if ($gradient instanceof LinearGradient) {
+            return '<< /ShadingType 2 /ColorSpace /DeviceGray /Coords ['
+                . Format::num($gradient->x1) . ' ' . Format::num($gradient->y1) . ' '
+                . Format::num($gradient->x2) . ' ' . Format::num($gradient->y2)
+                . '] /Function ' . $fn . ' /Extend [true true] >>';
+        }
+        // Unreachable: only Linear/Radial implement SvgGradient. Fail safe with axial defaults.
+        return '<< /ShadingType 2 /ColorSpace /DeviceGray /Coords [0 0 1 0] /Function ' . $fn . ' /Extend [true true] >>';
+    }
+
+    /**
+     * Precondition: at least 2 stops (GradientResolver normalizes single/zero
+     * stops away before a gradient reaches here).
+     *
+     * @param list<GradientStop> $stops
+     */
+    private static function alphaFunctionDict(array $stops): string
+    {
+        if (count($stops) === 2) {
+            return self::alphaExponential($stops[0]->opacity, $stops[1]->opacity);
+        }
+        $fns = [];
+        $bounds = [];
+        $encode = [];
+        for ($i = 0, $n = count($stops); $i < $n - 1; $i++) {
+            $fns[] = self::alphaExponential($stops[$i]->opacity, $stops[$i + 1]->opacity);
+            if ($i > 0) {
+                $bounds[] = Format::num($stops[$i]->offset);
+            }
+            $encode[] = '0 1';
+        }
+        return '<< /FunctionType 3 /Domain [0 1] /Functions [' . implode(' ', $fns)
+            . '] /Bounds [' . implode(' ', $bounds)
+            . '] /Encode [' . implode(' ', $encode) . '] >>';
+    }
+
+    private static function alphaExponential(float $a0, float $a1): string
+    {
+        return '<< /FunctionType 2 /Domain [0 1] /C0 [' . Format::num($a0) . '] /C1 [' . Format::num($a1) . '] /N 1 >>';
     }
 
     private static function matrix(SvgMatrix $m): string
