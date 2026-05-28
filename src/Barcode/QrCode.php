@@ -44,6 +44,74 @@ final readonly class QrCode implements Barcode
         return new self($this->data, $ec, $this->color);
     }
 
+    public function encode(): EncodedBarcode
+    {
+        // Replicate the matrix-building pipeline from draw() so encode() can be
+        // called standalone. Encoder is fast; double-running is acceptable.
+        $encoded = Encoder::encode($this->data, $this->errorCorrection);
+        $bits = '';
+        foreach ($encoded->finalCodewords as $byte) {
+            $bits .= str_pad(decbin($byte), 8, '0', STR_PAD_LEFT);
+        }
+        $remainder = self::remainderBits($encoded->version);
+        $bits .= str_repeat('0', $remainder);
+        $matrix = Matrix::buildEmpty($encoded->version);
+        $matrix->placeData($bits);
+        $bestScore = PHP_INT_MAX;
+        $bestModules = $matrix->modules;
+        for ($m = 0; $m < 8; $m++) {
+            $candidate = Mask::apply($matrix->modules, $matrix->reserved, $m);
+            Mask::placeFormatBits($candidate, $this->errorCorrection, $m);
+            $score = Mask::score($candidate);
+            if ($score < $bestScore) {
+                $bestScore = $score;
+                $bestModules = $candidate;
+            }
+        }
+        if ($encoded->version >= 7) {
+            Mask::placeVersionBits($bestModules, $encoded->version);
+        }
+        /** @var list<list<bool>> $matrixList */
+        $matrixList = array_values(array_map('array_values', $bestModules));
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::MATRIX_2D,
+            modules: self::padMatrix($matrixList, 4),
+            humanTextSegments: [],
+            color: $this->color,
+            orientation: Orientation::Horizontal,
+        );
+    }
+
+    /**
+     * Symmetrically pads a 2D matrix with `false` modules on every side.
+     *
+     * @param list<list<bool>> $matrix
+     * @return list<list<bool>>
+     */
+    private static function padMatrix(array $matrix, int $quiet): array
+    {
+        $size = count($matrix);
+        $width = $size + 2 * $quiet;
+        $emptyRow = array_fill(0, $width, false);
+        $result = [];
+        for ($i = 0; $i < $quiet; $i++) {
+            $result[] = $emptyRow;
+        }
+        foreach ($matrix as $row) {
+            $padded = array_merge(
+                array_fill(0, $quiet, false),
+                $row,
+                array_fill(0, $quiet, false),
+            );
+            $result[] = $padded;
+        }
+        for ($i = 0; $i < $quiet; $i++) {
+            $result[] = $emptyRow;
+        }
+        return $result;
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         if ($h !== null && abs($h - $w) > 0.0001) {

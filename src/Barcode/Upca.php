@@ -138,6 +138,41 @@ final readonly class Upca implements OrientableBarcode
         return $modules;
     }
 
+    public function encode(): EncodedBarcode
+    {
+        $modules = $this->encodeModules();
+        $padded = array_merge(
+            array_fill(0, self::QUIET, false),
+            $modules,
+            array_fill(0, self::QUIET, false),
+        );
+
+        $segments = [];
+        if ($this->showText) {
+            $first       = $this->digits[0];
+            $middleLeft  = substr($this->digits, 1, 5);
+            $middleRight = substr($this->digits, 6, 5);
+            $last        = $this->digits[11];
+            // Per ISO 15420 UPC-A layout (matches the existing drawHumanText positions):
+            //   - number-system digit: anchor START at x=1 (inside left quiet zone)
+            //   - 5-digit middle-left block: anchor MIDDLE at x=36.5 (center of padded 19..54, width 35)
+            //   - 5-digit middle-right block: anchor MIDDLE at x=76.5 (center of padded 59..94, width 35)
+            //   - check digit: anchor START at x=105 (inside right quiet zone)
+            $segments[] = new HumanTextSegment($first, 1.0, 0.0, 1.5, TextAnchor::START);
+            $segments[] = new HumanTextSegment($middleLeft, 36.5, 0.0, 1.5, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($middleRight, 76.5, 0.0, 1.5, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($last, 105.0, 0.0, 1.5, TextAnchor::START);
+        }
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::LINEAR_1D,
+            modules: $padded,
+            humanTextSegments: $segments,
+            color: $this->color,
+            orientation: $this->orientation,
+        );
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         if ($h === null) {

@@ -43,4 +43,14 @@ interface Barcode
      * is unchanged after the call.
      */
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void;
+
+    /**
+     * Returns a render-agnostic representation of this barcode: modules
+     * pre-padded with the format's quiet zone, optional human-text segments
+     * with positions in module units, plus color and orientation.
+     *
+     * Consumed by both the PDF path (Page::barcode -> draw) and the standalone
+     * SVG path (SvgBarcodeRenderer::render).
+     */
+    public function encode(): EncodedBarcode;
 }

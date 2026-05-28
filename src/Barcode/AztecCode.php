@@ -55,6 +55,67 @@ final readonly class AztecCode implements Barcode
         return new self($this->data, $this->errorCorrection, $color);
     }
 
+    public function encode(): EncodedBarcode
+    {
+        // Replicate the matrix-building pipeline from draw() so encode() can be
+        // called standalone.
+        $result = Encoder::encode($this->data, $this->errorCorrection);
+        $symbolSize = $result->size();
+
+        $matrix = Matrix::buildBullseye($result->compact, $symbolSize);
+        $matrix->placeModeMessage($result->layers, count($result->dataCodewords), $result->compact);
+        $matrix->placeData(
+            array_merge($result->dataCodewords, $result->ecCodewords),
+            $result->codewordBits,
+            $result->layers,
+            $result->compact,
+        );
+        if (!$result->compact) {
+            $baseMatrixSize = 14 + $result->layers * 4;
+            $matrix->placeReferenceGrid($result->compact, $baseMatrixSize);
+        }
+
+        /** @var list<list<bool>> $matrixList */
+        $matrixList = array_values(array_map('array_values', $matrix->modules));
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::MATRIX_2D,
+            modules: self::padMatrix($matrixList, 2),
+            humanTextSegments: [],
+            color: $this->color,
+            orientation: Orientation::Horizontal,
+        );
+    }
+
+    /**
+     * Symmetrically pads a 2D matrix with `false` modules on every side.
+     *
+     * @param list<list<bool>> $matrix
+     * @return list<list<bool>>
+     */
+    private static function padMatrix(array $matrix, int $quiet): array
+    {
+        $size = count($matrix);
+        $width = $size + 2 * $quiet;
+        $emptyRow = array_fill(0, $width, false);
+        $result = [];
+        for ($i = 0; $i < $quiet; $i++) {
+            $result[] = $emptyRow;
+        }
+        foreach ($matrix as $row) {
+            $padded = array_merge(
+                array_fill(0, $quiet, false),
+                $row,
+                array_fill(0, $quiet, false),
+            );
+            $result[] = $padded;
+        }
+        for ($i = 0; $i < $quiet; $i++) {
+            $result[] = $emptyRow;
+        }
+        return $result;
+    }
+
     /**
      * Renders the Aztec code onto the page.
      *

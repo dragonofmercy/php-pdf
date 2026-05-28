@@ -77,6 +77,39 @@ final readonly class Ean13 implements OrientableBarcode
         return self::TOTAL_MODULES * $moduleSize;
     }
 
+    public function encode(): EncodedBarcode
+    {
+        $modules = $this->encodeModules();
+        // EAN-13 asymmetric quiet zones: 11 left + 95 bars + 7 right = 113.
+        $padded = array_merge(
+            array_fill(0, 11, false),
+            $modules,
+            array_fill(0, 7, false),
+        );
+
+        $segments = [];
+        if ($this->showText) {
+            $first = $this->digits[0];
+            $left  = substr($this->digits, 1, 6);
+            $right = substr($this->digits, 7, 6);
+            // Per ISO 15420 layout (matches the existing drawHumanText positions):
+            //   - leading digit: anchor START at x=1 (inside left quiet zone)
+            //   - 6-digit left block: anchor MIDDLE at x=35 (center of padded 14..56, width 42)
+            //   - 6-digit right block: anchor MIDDLE at x=82 (center of padded 61..103, width 42)
+            $segments[] = new HumanTextSegment($first, 1.0, 0.0, 1.5, TextAnchor::START);
+            $segments[] = new HumanTextSegment($left, 35.0, 0.0, 1.5, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($right, 82.0, 0.0, 1.5, TextAnchor::MIDDLE);
+        }
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::LINEAR_1D,
+            modules: $padded,
+            humanTextSegments: $segments,
+            color: $this->color,
+            orientation: $this->orientation,
+        );
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         if ($h === null) {

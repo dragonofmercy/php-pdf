@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Page;
 
 use DragonOfMercy\PhpPdf\Barcode\Barcode;
+use DragonOfMercy\PhpPdf\Barcode\BarcodeKind;
+use DragonOfMercy\PhpPdf\Barcode\EncodedBarcode;
+use DragonOfMercy\PhpPdf\Barcode\Orientation;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
@@ -26,6 +29,10 @@ final class BarcodeTest extends TestCase
             public ?float $seenW = null;
             public ?float $seenH = null;
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
             {
                 $this->seenPage = $page;
@@ -53,6 +60,10 @@ final class BarcodeTest extends TestCase
         $stub = new class implements Barcode {
             public mixed $seenH = 'unset';
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
             {
                 $this->seenH = $h;
@@ -72,6 +83,10 @@ final class BarcodeTest extends TestCase
             public ?float $seenX = null;
             public ?float $seenY = null;
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
             {
                 $this->seenX = $x;
@@ -92,6 +107,10 @@ final class BarcodeTest extends TestCase
     {
         $stub = new class implements Barcode {
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void {}
         };
 
@@ -109,6 +128,10 @@ final class BarcodeTest extends TestCase
     {
         $stub = new class implements Barcode {
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void {}
         };
 
@@ -123,6 +146,10 @@ final class BarcodeTest extends TestCase
     {
         $stub = new class implements Barcode {
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void {}
         };
 
@@ -136,6 +163,10 @@ final class BarcodeTest extends TestCase
     {
         $stub = new class implements Barcode {
             public function withColor(Color $color): self { return $this; }
+            public function encode(): EncodedBarcode
+            {
+                return new EncodedBarcode(BarcodeKind::LINEAR_1D, [], [], Color::rgb(0, 0, 0), Orientation::Horizontal);
+            }
             public function draw(Page $page, float $x, float $y, float $w, ?float $h): void {}
         };
 

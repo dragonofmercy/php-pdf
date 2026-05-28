@@ -165,6 +165,36 @@ final readonly class Code93 implements OrientableBarcode
         }
     }
 
+    public function encode(): EncodedBarcode
+    {
+        $modules = $this->encodeModules();
+        $padded = array_merge(
+            array_fill(0, self::QUIET_MODULES, false),
+            $modules,
+            array_fill(0, self::QUIET_MODULES, false),
+        );
+        $total = count($padded);
+
+        $segments = [];
+        if ($this->showText && $this->data !== '') {
+            $segments[] = new HumanTextSegment(
+                text: $this->data,
+                xModule: $total / 2.0,
+                yModule: 0.0,
+                fontSizeModule: 1.5,
+                anchor: TextAnchor::MIDDLE,
+            );
+        }
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::LINEAR_1D,
+            modules: $padded,
+            humanTextSegments: $segments,
+            color: $this->color,
+            orientation: $this->orientation,
+        );
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         $modules = $this->encodeModules();

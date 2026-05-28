@@ -162,6 +162,37 @@ final readonly class Itf implements OrientableBarcode
         return $modules;
     }
 
+    public function encode(): EncodedBarcode
+    {
+        $modules = $this->encodeModules();
+        $padded = array_merge(
+            array_fill(0, self::QUIET_MODULES, false),
+            $modules,
+            array_fill(0, self::QUIET_MODULES, false),
+        );
+        $total = count($padded);
+
+        $segments = [];
+        if ($this->showText && $this->digits !== '') {
+            $segments[] = new HumanTextSegment(
+                text: $this->digits,
+                xModule: $total / 2.0,
+                yModule: 0.0,
+                fontSizeModule: 1.5,
+                anchor: TextAnchor::MIDDLE,
+            );
+        }
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::LINEAR_1D,
+            modules: $padded,
+            humanTextSegments: $segments,
+            color: $this->color,
+            orientation: $this->orientation,
+            bearerBarModules: $this->bearerBarModules,
+        );
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         $modules = $this->encodeModules();

@@ -123,6 +123,36 @@ final readonly class Ean8 implements OrientableBarcode
         return $modules;
     }
 
+    public function encode(): EncodedBarcode
+    {
+        $modules = $this->encodeModules();
+        // EAN-8 quiet zones: 7 left + 67 bars + 7 right = 81.
+        $padded = array_merge(
+            array_fill(0, 7, false),
+            $modules,
+            array_fill(0, 7, false),
+        );
+
+        $segments = [];
+        if ($this->showText) {
+            $left  = substr($this->digits, 0, 4);
+            $right = substr($this->digits, 4, 4);
+            // Per ISO 15420 layout (matches the existing drawHumanText positions):
+            //   - 4-digit left block: anchor MIDDLE at x=24 (center of padded 10..38, width 28)
+            //   - 4-digit right block: anchor MIDDLE at x=57 (center of padded 43..71, width 28)
+            $segments[] = new HumanTextSegment($left, 24.0, 0.0, 1.5, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($right, 57.0, 0.0, 1.5, TextAnchor::MIDDLE);
+        }
+
+        return new EncodedBarcode(
+            kind: BarcodeKind::LINEAR_1D,
+            modules: $padded,
+            humanTextSegments: $segments,
+            color: $this->color,
+            orientation: $this->orientation,
+        );
+    }
+
     public function draw(Page $page, float $x, float $y, float $w, ?float $h): void
     {
         if ($h === null) {
