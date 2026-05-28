@@ -78,10 +78,14 @@ final class SvgBarcodeRenderer
         }
         $textBandH = $viewBoxH - $barsH;
         foreach ($encoded->humanTextSegments as $seg) {
-            $fontSize = $seg->fontSizeModule;
-            if ($textBandH > 0.0) {
-                $fontSize = min($fontSize, $textBandH);
-            }
+            // fontSizeModule = 0.0 is the "fill the text band" sentinel:
+            // the renderer picks ~70% of the available band height so the
+            // glyphs sit inside the band with breathing room above/below.
+            // A positive value is the encoder's explicit choice, capped at
+            // textBandH so it never overflows.
+            $fontSize = $seg->fontSizeModule > 0.0
+                ? ($textBandH > 0.0 ? min($seg->fontSizeModule, $textBandH) : $seg->fontSizeModule)
+                : ($textBandH > 0.0 ? $textBandH * 0.7 : 0.0);
             $yBaseline = $seg->yModule > 0.0
                 ? $seg->yModule
                 : $barsH + ($textBandH + $fontSize * 0.7) / 2.0;

@@ -84,7 +84,7 @@ final readonly class Code128 implements OrientableBarcode
                 text: $this->data,
                 xModule: $total / 2.0,
                 yModule: 0.0,
-                fontSizeModule: 1.5,
+                fontSizeModule: 0.0,
                 anchor: TextAnchor::MIDDLE,
             );
         }

@@ -158,10 +158,10 @@ final readonly class Upca implements OrientableBarcode
             //   - 5-digit middle-left block: anchor MIDDLE at x=36.5 (center of padded 19..54, width 35)
             //   - 5-digit middle-right block: anchor MIDDLE at x=76.5 (center of padded 59..94, width 35)
             //   - check digit: anchor START at x=105 (inside right quiet zone)
-            $segments[] = new HumanTextSegment($first, 1.0, 0.0, 1.5, TextAnchor::START);
-            $segments[] = new HumanTextSegment($middleLeft, 36.5, 0.0, 1.5, TextAnchor::MIDDLE);
-            $segments[] = new HumanTextSegment($middleRight, 76.5, 0.0, 1.5, TextAnchor::MIDDLE);
-            $segments[] = new HumanTextSegment($last, 105.0, 0.0, 1.5, TextAnchor::START);
+            $segments[] = new HumanTextSegment($first, 1.0, 0.0, 0.0, TextAnchor::START);
+            $segments[] = new HumanTextSegment($middleLeft, 36.5, 0.0, 0.0, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($middleRight, 76.5, 0.0, 0.0, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($last, 105.0, 0.0, 0.0, TextAnchor::START);
         }
 
         return new EncodedBarcode(

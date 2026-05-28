@@ -96,9 +96,9 @@ final readonly class Ean13 implements OrientableBarcode
             //   - leading digit: anchor START at x=1 (inside left quiet zone)
             //   - 6-digit left block: anchor MIDDLE at x=35 (center of padded 14..56, width 42)
             //   - 6-digit right block: anchor MIDDLE at x=82 (center of padded 61..103, width 42)
-            $segments[] = new HumanTextSegment($first, 1.0, 0.0, 1.5, TextAnchor::START);
-            $segments[] = new HumanTextSegment($left, 35.0, 0.0, 1.5, TextAnchor::MIDDLE);
-            $segments[] = new HumanTextSegment($right, 82.0, 0.0, 1.5, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($first, 1.0, 0.0, 0.0, TextAnchor::START);
+            $segments[] = new HumanTextSegment($left, 35.0, 0.0, 0.0, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($right, 82.0, 0.0, 0.0, TextAnchor::MIDDLE);
         }
 
         return new EncodedBarcode(

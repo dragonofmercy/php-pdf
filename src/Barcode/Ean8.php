@@ -140,8 +140,8 @@ final readonly class Ean8 implements OrientableBarcode
             // Per ISO 15420 layout (matches the existing drawHumanText positions):
             //   - 4-digit left block: anchor MIDDLE at x=24 (center of padded 10..38, width 28)
             //   - 4-digit right block: anchor MIDDLE at x=57 (center of padded 43..71, width 28)
-            $segments[] = new HumanTextSegment($left, 24.0, 0.0, 1.5, TextAnchor::MIDDLE);
-            $segments[] = new HumanTextSegment($right, 57.0, 0.0, 1.5, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($left, 24.0, 0.0, 0.0, TextAnchor::MIDDLE);
+            $segments[] = new HumanTextSegment($right, 57.0, 0.0, 0.0, TextAnchor::MIDDLE);
         }
 
         return new EncodedBarcode(

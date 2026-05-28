@@ -178,7 +178,7 @@ final readonly class Itf implements OrientableBarcode
                 text: $this->digits,
                 xModule: $total / 2.0,
                 yModule: 0.0,
-                fontSizeModule: 1.5,
+                fontSizeModule: 0.0,
                 anchor: TextAnchor::MIDDLE,
             );
         }
