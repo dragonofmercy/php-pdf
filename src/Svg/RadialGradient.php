@@ -18,6 +18,7 @@ final readonly class RadialGradient implements SvgGradient
         private ?SvgMatrix $transform,
         private array $stops,
         private float $uniformOpacity,
+        private SpreadMethod $spreadMethod = SpreadMethod::PAD,
     ) {}
 
     public function units(): GradientUnits
@@ -38,5 +39,10 @@ final readonly class RadialGradient implements SvgGradient
     public function uniformOpacity(): float
     {
         return $this->uniformOpacity;
+    }
+
+    public function spreadMethod(): SpreadMethod
+    {
+        return $this->spreadMethod;
     }
 }

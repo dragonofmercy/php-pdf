@@ -51,4 +51,25 @@ final class GradientValueObjectTest extends TestCase
         self::assertSame(0.75, $stop->opacity);
         self::assertEqualsWithDelta(10.0 / 255.0, $stop->color->r, 1e-9);
     }
+
+    public function testLinearGradientDefaultsSpreadToPad(): void
+    {
+        $stops = [new GradientStop(0.0, SvgColor::black(), 1.0), new GradientStop(1.0, SvgColor::black(), 1.0)];
+        $g = new LinearGradient(0.0, 0.0, 1.0, 0.0, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0);
+        self::assertSame(\DragonOfMercy\PhpPdf\Svg\SpreadMethod::PAD, $g->spreadMethod());
+    }
+
+    public function testLinearGradientCarriesSpread(): void
+    {
+        $stops = [new GradientStop(0.0, SvgColor::black(), 1.0), new GradientStop(1.0, SvgColor::black(), 1.0)];
+        $g = new LinearGradient(0.0, 0.0, 1.0, 0.0, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0, \DragonOfMercy\PhpPdf\Svg\SpreadMethod::REPEAT);
+        self::assertSame(\DragonOfMercy\PhpPdf\Svg\SpreadMethod::REPEAT, $g->spreadMethod());
+    }
+
+    public function testRadialGradientCarriesSpread(): void
+    {
+        $stops = [new GradientStop(0.0, SvgColor::black(), 1.0), new GradientStop(1.0, SvgColor::black(), 1.0)];
+        $g = new RadialGradient(0.5, 0.5, 0.5, 0.5, 0.5, GradientUnits::OBJECT_BOUNDING_BOX, null, $stops, 1.0, \DragonOfMercy\PhpPdf\Svg\SpreadMethod::REFLECT);
+        self::assertSame(\DragonOfMercy\PhpPdf\Svg\SpreadMethod::REFLECT, $g->spreadMethod());
+    }
 }
