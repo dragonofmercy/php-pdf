@@ -181,12 +181,11 @@ final class Parser
 
     /**
      * Indexes all <pattern> elements by id for PatternResolver construction.
-     * Called by the consumer that builds the PatternResolver (Task 3 wires this
-     * into doParse; the method is also used directly in unit tests).
+     * Called only by doParse(); mirrors the visibility of collectGradientDefs.
      *
      * @return array<string, DOMElement>
      */
-    public function collectPatternDefs(DOMDocument $doc): array
+    private function collectPatternDefs(DOMDocument $doc): array
     {
         $map = [];
         foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'pattern') as $node) {
