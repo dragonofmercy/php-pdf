@@ -166,4 +166,24 @@ final class GradientSpreadTest extends TestCase
             self::assertEqualsWithDelta($r, $stops[$i]->color->r, self::EPS, "stop $i red channel");
         }
     }
+
+    public function testRadialUsesCenterNotFocalForCoverage(): void
+    {
+        // Focal off-center at (0.9, 0.5); outer circle centered at (0.5, 0.5), r=0.25.
+        // max distance from CENTER (0.5, 0.5) to any bbox corner = hypot(0.5, 0.5) ~= 0.707.
+        // Expected N = ceil(0.707 / 0.25) = 3 -> new r = 0.75.
+        // If the buggy implementation measured from focal (0.9, 0.5), the farthest corner
+        // (0, 1) would be at hypot(0.9, 0.5) ~= 1.03, giving N = ceil(1.03 / 0.25) = 5
+        // and new r = 1.25 (wrong).
+        $g = new \DragonOfMercy\PhpPdf\Svg\RadialGradient(
+            0.5, 0.5, 0.25, 0.9, 0.5,
+            GradientUnits::OBJECT_BOUNDING_BOX, null, $this->blackWhiteStops(), 1.0, SpreadMethod::REPEAT,
+        );
+        $out = GradientSpread::expand($g, new BoundingBox(0.0, 0.0, 1.0, 1.0));
+        self::assertInstanceOf(\DragonOfMercy\PhpPdf\Svg\RadialGradient::class, $out);
+        self::assertEqualsWithDelta(0.75, $out->r, self::EPS);
+        // Focal preserved unchanged through the rewrite.
+        self::assertEqualsWithDelta(0.9, $out->fx, self::EPS);
+        self::assertEqualsWithDelta(0.5, $out->fy, self::EPS);
+    }
 }

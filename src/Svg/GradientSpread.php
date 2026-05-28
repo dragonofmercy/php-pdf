@@ -92,7 +92,7 @@ final class GradientSpread
         ];
         $maxD = 0.0;
         foreach ($corners as [$cx, $cy]) {
-            $maxD = max($maxD, hypot($cx - $g->fx, $cy - $g->fy));
+            $maxD = max($maxD, hypot($cx - $g->cx, $cy - $g->cy));
         }
         $n = max(1, (int) ceil($maxD / $g->r));
         if ($n === 1) {
