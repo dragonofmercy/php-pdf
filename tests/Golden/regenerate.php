@@ -526,6 +526,10 @@ $svgGoldens = [
     'svg-clip-evenodd.pdf'       => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipEvenoddTest::class, 'buildPdfBytes'],
     'svg-clip-css.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipCssTest::class, 'buildPdfBytes'],
     'svg-clip-use.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgClipUseTest::class, 'buildPdfBytes'],
+    'svg-pattern-basic.pdf'      => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternBasicTest::class, 'buildPdfBytes'],
+    'svg-pattern-objectbbox.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternObjectBBoxTest::class, 'buildPdfBytes'],
+    'svg-pattern-transform.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternTransformTest::class, 'buildPdfBytes'],
+    'svg-pattern-viewbox.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgPatternViewBoxTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
