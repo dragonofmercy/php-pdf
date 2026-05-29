@@ -923,6 +923,20 @@ $page->barcode(\DragonOfMercy\PhpPdf\Barcode\Pdf417::of('phppdf PDF417'), x: $la
 $doc->save($fixturesDir . '/barcode-gallery.pdf');
 echo "Regenerated barcode-gallery.pdf\n";
 
+// Markdown golden fixtures (cell surface, flowing surface, multi-page flow).
+// The build code is shared verbatim with the matching golden test classes via
+// their public static buildPdfBytes() helpers, so input never drifts.
+$markdownGoldens = [
+    'markdown-cell.pdf'      => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownCellTest::class,
+    'markdown-flow.pdf'      => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownFlowTest::class,
+    'markdown-multipage.pdf' => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownMultiPageTest::class,
+];
+
+foreach ($markdownGoldens as $name => $class) {
+    file_put_contents($fixturesDir . '/' . $name, $class::buildPdfBytes());
+    echo "Regenerated {$name}\n";
+}
+
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
     mkdir($svgFixturesDir, 0755, true);
