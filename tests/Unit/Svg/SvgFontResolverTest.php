@@ -61,4 +61,25 @@ final class SvgFontResolverTest extends TestCase
         self::assertFalse($font->isCustom());
         self::assertStringStartsWith('Helvetica', $font->pdfName());
     }
+
+    public function testMonospaceKeywordResolvesToCourier(): void
+    {
+        $font = SvgFontResolver::resolve('monospace', false, false, []);
+        self::assertFalse($font->isCustom());
+        self::assertStringStartsWith('Courier', $font->pdfName());
+    }
+
+    public function testBoldItalicCompositionOnStandardFamily(): void
+    {
+        $font = SvgFontResolver::resolve('Georgia', true, true, []);
+        self::assertFalse($font->isCustom());
+        self::assertSame('Times-BoldItalic', $font->pdfName());
+    }
+
+    public function testQuotedFirstRecognizedTokenWins(): void
+    {
+        $font = SvgFontResolver::resolve('"Foo Bar", Consolas, sans-serif', false, false, []);
+        self::assertFalse($font->isCustom());
+        self::assertStringStartsWith('Courier', $font->pdfName());
+    }
 }
