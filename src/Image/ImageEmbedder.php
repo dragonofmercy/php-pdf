@@ -43,6 +43,7 @@ final class ImageEmbedder
 {
     /**
      * @param array<string, PdfReference> $fontRefs short name => font object reference
+     * @param ?FontResolver $fontResolver custom font resolver for SVG text rendering
      * @param array<string, string> $fontAliases lowercased alias => actual alias
      * @return list<IndirectObject>
      */
@@ -73,6 +74,8 @@ final class ImageEmbedder
             // depends on the painted shape's CTM and bbox). Detect usage cheaply,
             // then pre-render to get the exact count.
             if (self::svgHasPatternPaint($meta) || self::svgHasMaskPaint($meta)) {
+                // Font context is intentionally omitted: it does not affect the pattern/mask count.
+                // This pre-render must produce the same embeddedPatterns/embeddedMasks counts as embedSvg() for object numbering to stay correct.
                 $rendered = (new Renderer())->render($meta);
                 $count += count($rendered['embeddedPatterns']);
                 $count += count($rendered['embeddedMasks']);
