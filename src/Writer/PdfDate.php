@@ -9,6 +9,8 @@ use DateTimeImmutable;
 /**
  * Formats a DateTimeImmutable as a PDF date string (ISO 32000-1 7.9.4):
  * "D:YYYYMMDDHHmmSS" with a trailing "Z" for UTC or "+HH'mm" / "-HH'mm".
+ *
+ * @internal
  */
 final class PdfDate
 {

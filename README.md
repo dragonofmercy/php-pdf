@@ -2,7 +2,7 @@
 
 Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime dependencies beyond the standard `mbstring`, `openssl`, and `zlib` extensions.
 
-> **Status:** work in progress, pre-1.0. The public API is reasonably stable for what is shipped but is not yet frozen.
+> **Status:** stable (1.0). The public API follows [semantic versioning](https://semver.org/); breaking changes are reserved for the next major version. See [CHANGELOG.md](CHANGELOG.md).
 
 ## What works today
 
