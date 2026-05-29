@@ -10,6 +10,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * An ordered (numbered) list with a start index.
  *
  * @property-read list<ListItem> $items
+ *
+ * @internal
  */
 final readonly class OrderedList implements BlockNode
 {

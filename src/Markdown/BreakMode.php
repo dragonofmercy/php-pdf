@@ -10,6 +10,8 @@ namespace DragonOfMercy\PhpPdf\Markdown;
  * (used to measure a block or to draw something that is known to fit); FLOW
  * splits content across page boundaries at line granularity, driven by a
  * page-break callback supplied to {@see BoxRenderer::render()}.
+ *
+ * @internal
  */
 enum BreakMode
 {

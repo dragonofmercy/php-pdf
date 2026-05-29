@@ -12,6 +12,8 @@ namespace DragonOfMercy\PhpPdf\Markdown;
  * segment. $run->text holds the text actually placed here; $xOffsetPt is the
  * segment's left edge measured from the line start; $widthPt its measured
  * width. All values are in POINTS.
+ *
+ * @internal
  */
 final readonly class PositionedSegment
 {

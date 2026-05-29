@@ -17,6 +17,8 @@ use DragonOfMercy\PhpPdf\Markdown\Node\TextRun;
  * (multibyte sequences never collide with the ASCII range). Full CommonMark
  * left/right-flanking emphasis rules are out of scope; a simple matched-pair
  * interpretation is used instead.
+ *
+ * @internal
  */
 final class InlineParser
 {

@@ -6,6 +6,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
 
 /**
  * An inline image reference.
+ *
+ * @internal
  */
 final readonly class ImageSpan implements InlineNode
 {

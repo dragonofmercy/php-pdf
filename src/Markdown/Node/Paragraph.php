@@ -8,6 +8,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
  * A paragraph block holding inline content.
  *
  * @property-read list<InlineNode> $inlines
+ *
+ * @internal
  */
 final readonly class Paragraph implements BlockNode
 {

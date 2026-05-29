@@ -6,6 +6,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
 
 /**
  * A fenced or indented code block with an optional language hint.
+ *
+ * @internal
  */
 final readonly class CodeBlock implements BlockNode
 {

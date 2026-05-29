@@ -47,6 +47,8 @@ use DragonOfMercy\PhpPdf\Page;
  * $onPageBreak callback) it breaks at LINE granularity: before drawing any line
  * whose bottom would cross the page's bottom limit it invokes the callback,
  * rebinds the active page, and resumes at the returned top Y.
+ *
+ * @internal
  */
 final class BoxRenderer
 {

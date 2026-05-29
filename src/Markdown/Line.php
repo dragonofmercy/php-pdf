@@ -8,6 +8,8 @@ namespace DragonOfMercy\PhpPdf\Markdown;
  * A single laid-out line of text: an ordered list of PositionedSegments plus
  * the line's height in POINTS (max segment size times a fixed 1.2 line-height
  * factor). Emitted by the LineBreaker.
+ *
+ * @internal
  */
 final readonly class Line
 {

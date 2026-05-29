@@ -10,6 +10,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * A heading block (levels 1 to 6) holding inline content.
  *
  * @property-read list<InlineNode> $inlines
+ *
+ * @internal
  */
 final readonly class Heading implements BlockNode
 {

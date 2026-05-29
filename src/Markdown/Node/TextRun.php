@@ -6,6 +6,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
 
 /**
  * A run of inline text carrying its formatting flags.
+ *
+ * @internal
  */
 final readonly class TextRun implements InlineNode
 {

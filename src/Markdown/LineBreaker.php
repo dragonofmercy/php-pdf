@@ -17,6 +17,8 @@ use DragonOfMercy\PhpPdf\Font;
  * Hard line breaks are NOT handled here: the caller must split its runs at
  * hard breaks (one layout() call per logical line/paragraph fragment) before
  * invoking layout(). Tokenisation splits on the ASCII space (0x20) only.
+ *
+ * @internal
  */
 final class LineBreaker
 {

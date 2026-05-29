@@ -14,6 +14,8 @@ use DragonOfMercy\PhpPdf\Font;
  * runs into PositionedSegments as it lays them into lines. Font sizes are in
  * POINTS (typographic convention). $isCode flags inline code spans; $url is
  * the link target when the run is part of a hyperlink, otherwise null.
+ *
+ * @internal
  */
 final readonly class StyledRun
 {

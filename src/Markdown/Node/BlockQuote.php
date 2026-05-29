@@ -8,6 +8,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
  * A block quote wrapping nested block-level nodes.
  *
  * @property-read list<BlockNode> $blocks
+ *
+ * @internal
  */
 final readonly class BlockQuote implements BlockNode
 {

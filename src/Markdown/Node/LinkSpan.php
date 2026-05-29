@@ -8,6 +8,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
  * An inline hyperlink wrapping inline children.
  *
  * @property-read list<InlineNode> $children
+ *
+ * @internal
  */
 final readonly class LinkSpan implements InlineNode
 {

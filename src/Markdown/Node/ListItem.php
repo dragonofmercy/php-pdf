@@ -8,6 +8,8 @@ namespace DragonOfMercy\PhpPdf\Markdown\Node;
  * A single list item, a container of block-level nodes.
  *
  * @property-read list<BlockNode> $blocks
+ *
+ * @internal
  */
 final readonly class ListItem
 {

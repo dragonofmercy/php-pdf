@@ -30,6 +30,8 @@ use DragonOfMercy\PhpPdf\Markdown\Node\ThematicBreak;
  * block quotes and thematic breaks. Full CommonMark edge cases (setext
  * headings, lazy continuation, link reference definitions, HTML blocks, list
  * marker tightness across loose nesting, etc.) are intentionally out of scope.
+ *
+ * @internal
  */
 final class MarkdownParser
 {
