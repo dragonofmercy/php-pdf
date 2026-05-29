@@ -52,8 +52,6 @@ use DragonOfMercy\PhpPdf\Page;
  */
 final class BoxRenderer
 {
-    private const float LINE_HEIGHT_FACTOR = 1.2;
-
     private const float DEFAULT_THEMATIC_LINE_WIDTH_PT = 0.5;
 
     /**
@@ -250,7 +248,7 @@ final class BoxRenderer
         bool $measureOnly,
     ): float {
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $code->text));
-        $lineHeightPt = $bodySizePt * self::LINE_HEIGHT_FACTOR;
+        $lineHeightPt = $bodySizePt * LineBreaker::LINE_HEIGHT_FACTOR;
         $paddingPt = $this->toPt($page, $style->codeBlockPadding);
         $blockHeightPt = count($lines) * $lineHeightPt + 2 * $paddingPt;
 
@@ -450,12 +448,7 @@ final class BoxRenderer
     ): float {
         $glyph = $style->bulletGlyphs[$depth % count($style->bulletGlyphs)];
 
-        foreach ($list->items as $item) {
-            $cursorYPt = $this->renderListItem($item, $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
-            $cursorYPt += $this->toPt($page, $style->listItemSpacing);
-        }
-
-        return $cursorYPt;
+        return $this->renderListItems($list->items, static fn (int $i): string => $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
     }
 
     private function renderOrderedList(
@@ -471,11 +464,39 @@ final class BoxRenderer
         int $depth,
         bool $measureOnly,
     ): float {
-        $number = $list->start;
-        foreach ($list->items as $item) {
-            $cursorYPt = $this->renderListItem($item, $number . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
+        $start = $list->start;
+
+        return $this->renderListItems($list->items, static fn (int $i): string => ($start + $i) . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
+    }
+
+    /**
+     * Shared list-item loop: renders each item with the marker produced by
+     * $markerFor (called with the zero-based item index) and adds inter-item
+     * spacing. Bullet lists pass a constant glyph; ordered lists number from
+     * their start.
+     *
+     * @param list<ListItem> $items
+     * @param callable(int): string $markerFor
+     */
+    private function renderListItems(
+        array $items,
+        callable $markerFor,
+        MarkdownStyle $style,
+        Font $bodyFont,
+        float $bodySizePt,
+        float $xPt,
+        float $cursorYPt,
+        float $widthPt,
+        Page $page,
+        LineBreaker $breaker,
+        int $depth,
+        bool $measureOnly,
+    ): float {
+        $index = 0;
+        foreach ($items as $item) {
+            $cursorYPt = $this->renderListItem($item, $markerFor($index), $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
             $cursorYPt += $this->toPt($page, $style->listItemSpacing);
-            $number++;
+            $index++;
         }
 
         return $cursorYPt;
@@ -503,7 +524,7 @@ final class BoxRenderer
         // FLOW mode, break BEFORE the marker if a single body line would not fit
         // here, so the marker and its first content line stay on the same page.
         if (!$measureOnly && $this->flow !== null) {
-            $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $bodySizePt * self::LINE_HEIGHT_FACTOR);
+            $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $bodySizePt * LineBreaker::LINE_HEIGHT_FACTOR);
         }
 
         if (!$measureOnly) {

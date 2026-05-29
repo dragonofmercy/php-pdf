@@ -24,7 +24,8 @@ final class LineBreaker
 {
     private const float EPSILON = 1e-9;
 
-    private const float LINE_HEIGHT_FACTOR = 1.2;
+    /** Line height as a multiple of the font size; shared with {@see BoxRenderer} so block layout and line layout agree. */
+    public const float LINE_HEIGHT_FACTOR = 1.2;
 
     /** @var callable(string, Font, float): float */
     private $measure;
