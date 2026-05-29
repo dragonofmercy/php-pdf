@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Image;
 
-use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
@@ -27,47 +26,49 @@ final readonly class SvgMetadata
     ) {}
 
     /**
-     * Every standard Font referenced by a text span anywhere in the tree.
-     * Duplicates are harmless: the FontRegistry dedupes by pdfName. Used by the
-     * Document pre-pass to allocate font objects before object numbering.
+     * Every text font spec (raw font-family list plus weight/style) referenced
+     * by a text span anywhere in the tree. Duplicates are harmless: the
+     * FontRegistry dedupes by pdfName. Used by the Document pre-pass to allocate
+     * font objects before object numbering. Resolution to a Font is deferred to
+     * the caller so registered custom families can be honored.
      *
-     * @return list<Font>
+     * @return list<array{family: string, bold: bool, italic: bool}>
      */
-    public function textFonts(): array
+    public function textFontSpecs(): array
     {
-        $fonts = [];
-        $this->walk($this->root, $fonts);
-        return $fonts;
+        $specs = [];
+        $this->walk($this->root, $specs);
+        return $specs;
     }
 
     /**
-     * @param list<Font> $fonts accumulator
+     * @param list<array{family: string, bold: bool, italic: bool}> $specs accumulator
      */
-    private function walk(SvgNode $node, array &$fonts): void
+    private function walk(SvgNode $node, array &$specs): void
     {
         if ($node instanceof SvgText) {
             foreach ($node->spans as $span) {
-                $fonts[] = $span->font;
+                $specs[] = ['family' => $span->fontFamily, 'bold' => $span->bold, 'italic' => $span->italic];
             }
             return;
         }
         if ($node instanceof SvgGroup) {
             foreach ($node->children as $child) {
-                $this->walk($child, $fonts);
+                $this->walk($child, $specs);
             }
             return;
         }
         if ($node instanceof SvgClipped) {
-            $this->walk($node->child, $fonts);
+            $this->walk($node->child, $specs);
             return;
         }
         if ($node instanceof SvgMasked) {
             // <text> may live both inside the masked element and inside the
             // mask definition itself; descend into both so the pre-pass sees
-            // every standard font referenced anywhere in the tree.
-            $this->walk($node->child, $fonts);
+            // every font referenced anywhere in the tree.
+            $this->walk($node->child, $specs);
             foreach ($node->mask->nodes as $maskNode) {
-                $this->walk($maskNode, $fonts);
+                $this->walk($maskNode, $specs);
             }
         }
     }

@@ -607,7 +607,6 @@ final class Parser
         $paint = StyleResolver::resolve($inheritedPaint, $attrs, $css, $attrs['style'] ?? '', $currentColor, $this->inPattern || $this->inMarker ? null : $this->gradients, $this->inPattern || $this->inMarker ? null : $this->patterns, $this->inPattern || $this->inMarker ? null : $this->markers, $this->inPattern || $this->inMarker || $this->inMask ? null : $this->masks);
         $style = TextStyleResolver::resolve($inheritedStyle, $attrs, $css, $attrs['style'] ?? '');
 
-        $font = SvgFontResolver::resolve($style->fontFamily, $style->bold, $style->italic);
         // Gradient/pattern fills on text are not supported; fall back to black.
         $fill = $paint->fill instanceof SvgColor ? $paint->fill : ($paint->fill === null ? null : SvgColor::black());
         $stroke = $paint->stroke instanceof SvgColor ? $paint->stroke : null;
@@ -627,7 +626,9 @@ final class Parser
                 }
                 $spans[] = new SvgTextSpan(
                     text: $text,
-                    font: $font,
+                    fontFamily: $style->fontFamily,
+                    bold: $style->bold,
+                    italic: $style->italic,
                     fontSize: $style->fontSize,
                     fill: $fill,
                     fillOpacity: $paint->effectiveFillOpacity(),
@@ -657,7 +658,9 @@ final class Parser
     {
         return new SvgTextSpan(
             text: $text,
-            font: $span->font,
+            fontFamily: $span->fontFamily,
+            bold: $span->bold,
+            italic: $span->italic,
             fontSize: $span->fontSize,
             fill: $span->fill,
             fillOpacity: $span->fillOpacity,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Image;
 
 use DragonOfMercy\PhpPdf\Svg\Parser;
+use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
 use PHPUnit\Framework\TestCase;
 
 final class SvgMetadataTextFontsTest extends TestCase
@@ -16,7 +17,10 @@ final class SvgMetadataTextFontsTest extends TestCase
             . '<g font-family="serif"><text x="0" y="30" font-weight="bold">b</text></g>'
             . '</svg>';
         $meta = Parser::parse($svg);
-        $names = array_map(static fn ($f) => $f->pdfName(), $meta->textFonts());
+        $names = array_map(
+            static fn (array $spec): string => SvgFontResolver::resolve($spec['family'], $spec['bold'], $spec['italic'], [])->pdfName(),
+            $meta->textFontSpecs(),
+        );
         sort($names);
         self::assertSame(['Helvetica', 'Times-Bold'], $names);
     }
@@ -24,6 +28,6 @@ final class SvgMetadataTextFontsTest extends TestCase
     public function testNoTextMeansNoFonts(): void
     {
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect x="0" y="0" width="5" height="5"/></svg>';
-        self::assertSame([], Parser::parse($svg)->textFonts());
+        self::assertSame([], Parser::parse($svg)->textFontSpecs());
     }
 }

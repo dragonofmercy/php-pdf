@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Svg;
 
-use DragonOfMercy\PhpPdf\Font;
-
 /**
- * One flattened text run with a fully resolved font, size, paint, anchor, and
- * position. A null $x/$y means "continue the current pen position"; a non-null
- * $x starts a new anchored chunk. $dx/$dy are relative offsets applied before
- * the run is drawn. Text is raw UTF-8; WinAnsi encoding happens at render time.
+ * One flattened text run with a raw font-family list plus weight/style
+ * (resolved to a Font at render time), size, paint, anchor, and position.
+ * A null $x/$y means "continue the current pen position"; a non-null $x starts
+ * a new anchored chunk. $dx/$dy are relative offsets applied before the run is
+ * drawn. Text is raw UTF-8; WinAnsi encoding happens at render time.
  *
  * @internal
  */
@@ -18,7 +17,9 @@ final readonly class SvgTextSpan
 {
     public function __construct(
         public string $text,
-        public Font $font,
+        public string $fontFamily,
+        public bool $bold,
+        public bool $italic,
         public float $fontSize,
         public ?SvgColor $fill,
         public float $fillOpacity,

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Svg;
 
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
-use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
-use DragonOfMercy\PhpPdf\Page\Operators;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\ClosePath;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\LineTo;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\MoveTo;
@@ -53,8 +53,13 @@ final class Renderer
     /** @var list<EmbeddedMask> soft-mask records accumulated during render */
     private array $embeddedMasks = [];
 
-    /** @var array<string, StandardFontEngine> engine cache keyed by pdfName */
+    /** @var array<string, FontEngine> engine cache keyed by pdfName (standard) or custom alias+variant */
     private array $engines = [];
+
+    /** @var array<string, string> lowercased registered alias => actual alias */
+    private array $fontAliases = [];
+
+    private ?FontResolver $fontResolver = null;
 
     public function __construct()
     {
@@ -71,10 +76,15 @@ final class Renderer
      *     embeddedMasks: list<EmbeddedMask>,
      *     fonts: list<string>,
      * }
+     *
+     * @param array<string, string> $fontAliases lowercased registered alias => actual alias
      */
-    public function render(SvgMetadata $svg, ?FontRegistry $fontRegistry = null): array
+    public function render(SvgMetadata $svg, ?FontRegistry $fontRegistry = null, ?FontResolver $fontResolver = null, array $fontAliases = []): array
     {
         $this->fontRegistry = $fontRegistry ?? new FontRegistry();
+        $this->fontResolver = $fontResolver;
+        $this->fontAliases = $fontAliases;
+        $this->engines = [];
         $this->usedFonts = [];
         $this->embeddedPatterns = [];
         $this->embeddedMasks = [];
@@ -959,7 +969,8 @@ final class Renderer
                 }
                 $penX += $span->dx;
                 $penY += $span->dy;
-                $width = $this->engineFor($span->font)->measure($span->text, $span->fontSize);
+                $font = $this->resolveSpanFont($span);
+                $width = $this->engineFor($font)->measure($span->text, $span->fontSize);
                 $chunk[] = [$span, $penX, $penY];
                 $penX += $width;
                 $j++;
@@ -985,12 +996,12 @@ final class Renderer
         if (!$hasFill && !$hasStroke) {
             return '';
         }
-        $bytes = WinAnsiEncoder::encode($span->text);
-        if ($bytes === '') {
+        $font = $this->resolveSpanFont($span);
+        $engine = $this->engineFor($font);
+        if ($span->text === '') {
             return '';
         }
-
-        $shortName = $this->fontRegistry->shortName($span->font);
+        $shortName = $engine->registerOn($this->fontRegistry);
         $this->usedFonts[$shortName] = true;
 
         $out = sprintf("/%s %s Tf\n", $shortName, self::fmt($span->fontSize));
@@ -1011,14 +1022,29 @@ final class Renderer
         $mode = ($hasFill && $hasStroke) ? 2 : ($hasStroke ? 1 : 0);
         $out .= $mode . " Tr\n";
         $out .= sprintf("1 0 0 -1 %s %s Tm\n", self::fmt($px), self::fmt($py));
-        $out .= Operators::showText($bytes);
+        $out .= $engine->encodeShowText($span->text);
         return $out;
     }
 
-    private function engineFor(Font $font): StandardFontEngine
+    private function resolveSpanFont(SvgTextSpan $span): Font
     {
-        $key = $font->pdfName();
-        return $this->engines[$key] ??= new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
+        return SvgFontResolver::resolve($span->fontFamily, $span->bold, $span->italic, $this->fontAliases);
+    }
+
+    private function engineFor(Font $font): FontEngine
+    {
+        $key = $font->isCustom()
+            ? ('custom:' . ($font->customAlias() ?? '') . ($font->isBold() ? 'b' : '') . ($font->isItalic() ? 'i' : ''))
+            : $font->pdfName();
+        if (isset($this->engines[$key])) {
+            return $this->engines[$key];
+        }
+        if ($font->isCustom() && $this->fontResolver !== null) {
+            $engine = $this->fontResolver->resolveEngine($font);
+        } else {
+            $engine = new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
+        }
+        return $this->engines[$key] = $engine;
     }
 
     /**

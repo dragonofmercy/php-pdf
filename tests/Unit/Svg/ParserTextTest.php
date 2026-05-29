@@ -49,7 +49,9 @@ final class ParserTextTest extends TestCase
         self::assertSame(10.0, $text->spans[0]->x);
         self::assertSame(20.0, $text->spans[0]->y);
         self::assertSame(14.0, $text->spans[0]->fontSize);
-        self::assertSame('Helvetica', $text->spans[0]->font->pdfName());
+        self::assertSame('sans-serif', $text->spans[0]->fontFamily);
+        self::assertFalse($text->spans[0]->bold);
+        self::assertFalse($text->spans[0]->italic);
     }
 
     public function testTspanInheritsAndOverrides(): void
@@ -60,11 +62,11 @@ final class ParserTextTest extends TestCase
         $text = $this->firstText($svg);
         self::assertCount(2, $text->spans);
         self::assertSame('A', $text->spans[0]->text);
-        self::assertSame('Helvetica', $text->spans[0]->font->pdfName());
+        self::assertFalse($text->spans[0]->bold);
         self::assertNotNull($text->spans[0]->fill);
         self::assertSame(1.0, $text->spans[0]->fill->r);
         self::assertSame('B', $text->spans[1]->text);
-        self::assertSame('Helvetica-Bold', $text->spans[1]->font->pdfName());
+        self::assertTrue($text->spans[1]->bold);
         self::assertSame(3.0, $text->spans[1]->dx);
         self::assertNull($text->spans[1]->x);
     }
@@ -82,7 +84,7 @@ final class ParserTextTest extends TestCase
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
             . '<g font-family="monospace"><text x="0" y="0">x</text></g></svg>';
         $text = $this->firstText($svg);
-        self::assertSame('Courier', $text->spans[0]->font->pdfName());
+        self::assertSame('monospace', $text->spans[0]->fontFamily);
     }
 
     public function testEmptyTextProducesNoSpansAndIsSkipped(): void

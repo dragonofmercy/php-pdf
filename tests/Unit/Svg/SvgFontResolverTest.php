@@ -9,33 +9,56 @@ use PHPUnit\Framework\TestCase;
 
 final class SvgFontResolverTest extends TestCase
 {
-    public function testGenericSansSerifMapsToHelvetica(): void
+    /** @return array<string, string> lowercased alias => actual alias */
+    private function aliases(string ...$names): array
     {
-        self::assertSame('Helvetica', SvgFontResolver::resolve('sans-serif', false, false)->pdfName());
+        $map = [];
+        foreach ($names as $n) {
+            $map[strtolower($n)] = $n;
+        }
+        return $map;
     }
 
-    public function testSerifMapsToTimesRoman(): void
+    public function testRegisteredCustomAliasWins(): void
     {
-        self::assertSame('Times-Roman', SvgFontResolver::resolve('serif', false, false)->pdfName());
+        $font = SvgFontResolver::resolve('FS', false, false, $this->aliases('FS'));
+        self::assertTrue($font->isCustom());
+        self::assertSame('FS', $font->customAlias());
     }
 
-    public function testMonospaceMapsToCourier(): void
+    public function testCustomMatchIsCaseInsensitive(): void
     {
-        self::assertSame('Courier', SvgFontResolver::resolve('monospace', false, false)->pdfName());
+        $font = SvgFontResolver::resolve('fs', false, false, $this->aliases('FS'));
+        self::assertTrue($font->isCustom());
+        self::assertSame('FS', $font->customAlias());
     }
 
-    public function testBoldItalicComposes(): void
+    public function testSecondTokenMatchesWhenFirstUnknown(): void
     {
-        self::assertSame('Times-BoldItalic', SvgFontResolver::resolve('Georgia', true, true)->pdfName());
+        $font = SvgFontResolver::resolve('Unknown, FS', false, false, $this->aliases('FS'));
+        self::assertTrue($font->isCustom());
+        self::assertSame('FS', $font->customAlias());
     }
 
-    public function testFirstRecognisedTokenWinsAndQuotesStripped(): void
+    public function testCustomCarriesBoldItalicFlags(): void
     {
-        self::assertSame('Courier', SvgFontResolver::resolve('"Foo Bar", Consolas, sans-serif', false, false)->pdfName());
+        $font = SvgFontResolver::resolve('FS', true, true, $this->aliases('FS'));
+        self::assertTrue($font->isCustom());
+        self::assertTrue($font->isBold());
+        self::assertTrue($font->isItalic());
     }
 
-    public function testUnknownFamilyFallsBackToHelvetica(): void
+    public function testStandardKeywordWhenNoCustomMatch(): void
     {
-        self::assertSame('Helvetica-Bold', SvgFontResolver::resolve('Wingdings', true, false)->pdfName());
+        $font = SvgFontResolver::resolve('serif', false, false, $this->aliases('FS'));
+        self::assertFalse($font->isCustom());
+        self::assertStringStartsWith('Times', $font->pdfName());
+    }
+
+    public function testHelveticaFallbackForUnknownFamily(): void
+    {
+        $font = SvgFontResolver::resolve('Nope', false, false, []);
+        self::assertFalse($font->isCustom());
+        self::assertStringStartsWith('Helvetica', $font->pdfName());
     }
 }

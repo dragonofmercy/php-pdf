@@ -38,6 +38,7 @@ use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
 use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
+use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -944,7 +945,8 @@ final class Document
             if (!$meta instanceof SvgMetadata) {
                 continue;
             }
-            foreach ($meta->textFonts() as $font) {
+            foreach ($meta->textFontSpecs() as $spec) {
+                $font = SvgFontResolver::resolve($spec['family'], $spec['bold'], $spec['italic'], []);
                 $this->fontRegistry->shortName($font);
             }
         }

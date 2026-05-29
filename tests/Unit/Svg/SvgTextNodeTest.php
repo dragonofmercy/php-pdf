@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg;
 
-use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
 use DragonOfMercy\PhpPdf\Svg\SvgText;
@@ -18,7 +17,9 @@ final class SvgTextNodeTest extends TestCase
     {
         $span = new SvgTextSpan(
             text: 'Hi',
-            font: Font::helvetica(),
+            fontFamily: 'sans-serif',
+            bold: false,
+            italic: false,
             fontSize: 12.0,
             fill: SvgColor::black(),
             fillOpacity: 1.0,

@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
+use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use PHPUnit\Framework\TestCase;
 
@@ -24,7 +25,8 @@ final class ImageEmbedderTextTest extends TestCase
         $registry = new FontRegistry();
         $meta = $image->metadata;
         assert($meta instanceof SvgMetadata);
-        foreach ($meta->textFonts() as $font) {
+        foreach ($meta->textFontSpecs() as $spec) {
+            $font = SvgFontResolver::resolve($spec['family'], $spec['bold'], $spec['italic'], []);
             $registry->shortName($font);
         }
         $shortName = $registry->shortName(Font::helvetica());
