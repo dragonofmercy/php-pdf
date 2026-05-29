@@ -436,10 +436,12 @@ Standards supported:
 
 API shape:
 
-- `Page::barcode(Barcode $code, float $x, float $y, float $w, ?float $h = null)` - one method, polymorphic by value object.
+- `Page::barcode(Barcode $code, ?float $x = null, ?float $y = null, ?float $w = null, ?float $h = null, NextPosition $ln = NextPosition::NONE)` - one method, polymorphic by value object. `x` / `y` default to the current cursor position (same cursor as `cell()`).
 - 1D codes (Ean13, Ean8, Code128) require `h`; the square 2D codes (QR, Aztec, DataMatrix) only need `w` (h defaults to `w`, and `h != w` raises an error since they are square). PDF417 is rectangular: `h` is optional and unconstrained (it need not equal `w`); when null it is derived from the symbol's row count.
 - Each value object: `::of(...)` validates inputs, `withColor(Color)`, `withoutText()` (1D), `withErrorCorrection(ErrorCorrection)` (QR) or `withErrorCorrection(AztecEc)` (Aztec) - all immutable. DataMatrix has no EC knob: ECC200 fixes error correction per symbol size. PDF417 takes an int EC level 0-8 via `withErrorCorrection(int)` and an optional column hint via `withColumns(int)`.
+- **1D auto-width via module size** - the seven 1D codes implement `SizedBarcode`: `->withModuleSize(float)` sets the narrow-module width (in the document unit), after which `w` can be omitted from `barcode()` and is derived from the symbol's module count. `widthForModule(float)` returns that computed width without rendering. With neither `w` nor a module size set, `barcode()` raises an error. Example: `$page->barcode(Code128::of('ABC')->withModuleSize(0.33), x: 20, y: 20, h: 18);`
 - **1D barcode orientation** - all 1D codes implement `OrientableBarcode` and can be drawn vertically with `->vertical()` (rotated 90 degrees CCW, bars run bottom-to-top); `->horizontal()` is the default. Logical `w`/`h` are preserved, so the visual footprint is `h` wide by `w` tall, anchored at `(x, y)`. Example: `$page->barcode(Code128::of('ABC')->vertical(), x: 20, y: 20, w: 70, h: 18);`
+- **Cursor flow** - by default `barcode()` leaves the page cursor untouched (`NextPosition::NONE`), since a barcode is usually placed at an absolute position. Pass `ln: NextPosition::RIGHT` / `NEWLINE` / `BELOW` to advance the cursor over the barcode's visual box exactly like `cell()` (a vertical 1D code advances by its rotated footprint; a square 2D code with a null `h` advances by `w`).
 - Default color is **black**, not the page's current fillColor (deterministic regardless of page state).
 - Coordinates use the document unit (mm by default), top-down Y axis (consistent with the rest of the API).
 
