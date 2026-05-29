@@ -34,9 +34,14 @@ final readonly class StandardFontEngine implements FontEngine
         return $this->metrics->stringWidth(WinAnsiEncoder::encode($text), $size);
     }
 
+    public function encodeShowText(string $text): string
+    {
+        return Operators::showText(WinAnsiEncoder::encode($text));
+    }
+
     public function emitShowText(ContentStream $stream, string $text): void
     {
-        $stream->append(Operators::showText(WinAnsiEncoder::encode($text)));
+        $stream->append($this->encodeShowText($text));
     }
 
     public function emitShowTextNextLine(ContentStream $stream, string $text): void

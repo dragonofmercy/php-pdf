@@ -30,6 +30,11 @@ final class MeasureCountingFontEngine implements FontEngine
         return $this->inner->measure($text, $size);
     }
 
+    public function encodeShowText(string $text): string
+    {
+        return $this->inner->encodeShowText($text);
+    }
+
     public function emitShowText(ContentStream $stream, string $text): void
     {
         $this->inner->emitShowText($stream, $text);

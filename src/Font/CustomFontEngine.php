@@ -49,9 +49,14 @@ final readonly class CustomFontEngine implements FontEngine
         return $totalEm * $size / $this->ttf->unitsPerEm;
     }
 
+    public function encodeShowText(string $text): string
+    {
+        return Operators::showTextHex($this->encodeHex($text));
+    }
+
     public function emitShowText(ContentStream $stream, string $text): void
     {
-        $stream->append(Operators::showTextHex($this->encodeHex($text)));
+        $stream->append($this->encodeShowText($text));
     }
 
     public function emitShowTextNextLine(ContentStream $stream, string $text): void

@@ -23,6 +23,9 @@ interface FontEngine
     /** Width of $text in points at $size. Empty string returns 0.0. */
     public function measure(string $text, float $size): float;
 
+    /** Returns the show-text operator for $text in this engine's encoding. */
+    public function encodeShowText(string $text): string;
+
     /** Appends a Tj show-text operator for the current line. */
     public function emitShowText(ContentStream $stream, string $text): void;
 
