@@ -597,6 +597,115 @@ final class Page
     }
 
     /**
+     * Renders flowing Markdown from the cursor (or the given x/y), wrapping at
+     * $width and breaking across pages at line granularity when content reaches
+     * the bottom margin.
+     *
+     * x/y default to the current cursor (like {@see cell()}); $width defaults to
+     * the page width minus the right margin minus x. $style defaults to
+     * {@see MarkdownStyle::default()}.
+     *
+     * Page breaks: when a {@see Document} is attached AND auto-page-break is on,
+     * content that crosses the page bottom limit continues on a freshly added
+     * page below the document top margin, carrying the body font/size forward.
+     * Otherwise (no document, or auto-break off) the whole Markdown is rendered
+     * ATOMICALLY on the current page (it may overflow the page; this is the
+     * documented fallback, matching the no-break contract of cell(markdown:)).
+     *
+     * After rendering, the cursor is advanced on the FINAL page per $ln (NONE
+     * leaves it untouched). Returns the page the method was called on for
+     * chaining, regardless of how many pages the content spanned. An empty
+     * $markdown is a no-op.
+     */
+    public function markdown(
+        string $markdown,
+        ?float $x = null,
+        ?float $y = null,
+        ?float $width = null,
+        ?MarkdownStyle $style = null,
+        NextPosition $ln = NextPosition::NONE,
+    ): self {
+        if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
+            throw new PdfException('setFont() must be called before markdown()');
+        }
+        if ($markdown === '') {
+            return $this;
+        }
+
+        $x = $this->cursor->resolveX($x, 'Markdown');
+        $y = $this->cursor->resolveY($y, 'Markdown');
+
+        if ($width === null) {
+            $width = $this->getPageWidth() - $this->margins->right - $x;
+        }
+        if ($width <= 0) {
+            throw new PdfException('Markdown width must be positive, got ' . $width);
+        }
+
+        $style ??= MarkdownStyle::default();
+        $ast = MarkdownParser::parse($markdown);
+        $renderer = new BoxRenderer();
+
+        $bodyFont = $this->getFont();
+        $bodySize = $this->getFontSize();
+
+        // BoxRenderer mutates the page font/fill while drawing; bracket the whole
+        // render so the caller's font state survives intact.
+        $fontState = $this->captureFontState();
+        try {
+            $flowing = $this->document !== null && $this->document->autoPageBreak() && !$this->inHeaderRender;
+
+            if ($flowing) {
+                // FLOW: each break adds a page, re-applies the body font (addPage
+                // seeds the document default, which may differ), and continues at
+                // the document top margin.
+                $topMarginY = $this->document->margins()->top;
+                $finalPage = $this;
+                $onPageBreak = function () use ($bodyFont, $bodySize, $topMarginY, &$finalPage): array {
+                    $newPage = $this->document->addPage();
+                    $newPage->setFont($bodyFont, $bodySize);
+                    $finalPage = $newPage;
+                    return [$newPage, $topMarginY];
+                };
+
+                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak);
+
+                // Advance the cursor on the final page (where the last line landed).
+                $this->advanceMarkdownCursor($finalPage, $ln, $x, $y, $width, $consumedHeight, $finalPage === $this ? $y : $this->document->margins()->top);
+            } else {
+                // Fallback: render the whole document atomically on this page.
+                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::ATOMIC);
+                $this->advanceMarkdownCursor($this, $ln, $x, $y, $width, $consumedHeight, $y);
+            }
+        } finally {
+            $this->restoreFontState($fontState);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Advances $targetPage's cursor after a markdown render. The block started at
+     * $startY (document unit) on $targetPage and consumed $consumedHeight; the
+     * cursor moves per $ln exactly as cell() would over that rect.
+     */
+    private function advanceMarkdownCursor(
+        Page $targetPage,
+        NextPosition $ln,
+        float $x,
+        float $y,
+        float $width,
+        float $consumedHeight,
+        float $startY,
+    ): void {
+        $xPt = $this->toPt($x);
+        $startYPt = $this->toPt($startY);
+        $widthPt = $this->toPt($width);
+        $heightPt = $this->toPt($consumedHeight);
+        $targetPage->cursor->advance($ln, $xPt, $startYPt, $widthPt, $heightPt);
+    }
+
+    /**
      * Markdown variant of {@see cell()}: parses $text as Markdown and renders it
      * (ATOMIC, never page-breaking the content itself) into the cell's inner box,
      * auto-growing the cell height to the consumed content height plus vertical

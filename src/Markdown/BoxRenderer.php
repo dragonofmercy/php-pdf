@@ -42,8 +42,11 @@ use DragonOfMercy\PhpPdf\Page;
  * size. This keeps glyphs inside the line box; precise ascent tuning is left to
  * the golden-fixture task.
  *
- * Only ATOMIC mode is implemented here: the renderer never breaks across pages,
- * it keeps advancing the cursor and returns the full consumed height.
+ * In ATOMIC mode the renderer never breaks across pages: it keeps advancing the
+ * cursor and returns the full consumed height. In FLOW mode (a non-null
+ * $onPageBreak callback) it breaks at LINE granularity: before drawing any line
+ * whose bottom would cross the page's bottom limit it invokes the callback,
+ * rebinds the active page, and resumes at the returned top Y.
  */
 final class BoxRenderer
 {
@@ -52,12 +55,25 @@ final class BoxRenderer
     private const float DEFAULT_THEMATIC_LINE_WIDTH_PT = 0.5;
 
     /**
+     * FLOW page-break controller, set for the duration of a FLOW render() and
+     * null otherwise (ATOMIC). When present, drawing methods consult it before
+     * emitting each line and may swap the active page mid-render.
+     */
+    private ?FlowBreaker $flow = null;
+
+    /**
      * @param list<BlockNode> $ast
      * @param bool $measureOnly when true, performs the identical layout and
      *        cursor math but skips every drawing emission (text / rect / line /
      *        image / link), returning the same consumed height. Used by callers
      *        that need to size a box before drawing its background/border.
-     * @return float consumed height in the page's document unit
+     * @param ?callable():array{0: Page, 1: float} $onPageBreak when $mode is
+     *        FLOW and this is non-null, invoked before a line that would overflow
+     *        the page bottom limit; it must create/return the next page and the
+     *        top Y (document unit) to continue at. Ignored in ATOMIC mode or when
+     *        $measureOnly is true.
+     * @return float consumed height in the page's document unit (on the FINAL
+     *         page, when FLOW broke across pages)
      */
     public function render(
         array $ast,
@@ -68,6 +84,7 @@ final class BoxRenderer
         Page $page,
         BreakMode $mode,
         bool $measureOnly = false,
+        ?callable $onPageBreak = null,
     ): float {
         $bodyFont = $page->getFont();
         $bodySizePt = $style->bodySize ?? $page->getFontSize();
@@ -79,21 +96,36 @@ final class BoxRenderer
         $xPt = $this->toPt($page, $x);
         $widthPt = $this->toPt($page, $width);
 
-        $cursorYPt = $this->renderBlocks(
-            $ast,
-            $style,
-            $bodyFont,
-            $bodySizePt,
-            $xPt,
-            $topPt,
-            $widthPt,
-            $page,
-            $breaker,
-            0,
-            $measureOnly,
-        );
+        // FLOW is only active when a callback is supplied and we are actually
+        // drawing; measureOnly keeps the pure ATOMIC layout math.
+        $this->flow = ($mode === BreakMode::FLOW && $onPageBreak !== null && !$measureOnly)
+            ? new FlowBreaker($page, $topPt, $onPageBreak)
+            : null;
 
-        return $this->fromPt($page, $cursorYPt - $topPt);
+        try {
+            $cursorYPt = $this->renderBlocks(
+                $ast,
+                $style,
+                $bodyFont,
+                $bodySizePt,
+                $xPt,
+                $topPt,
+                $widthPt,
+                $page,
+                $breaker,
+                0,
+                $measureOnly,
+            );
+
+            // After a FLOW break the consumed height is measured on the final
+            // page (cursor minus that page's top), which the caller uses to
+            // place the cursor below the last drawn content.
+            $finalTopPt = $this->flow?->lastTopPt() ?? $topPt;
+        } finally {
+            $this->flow = null;
+        }
+
+        return $this->fromPt($page, $cursorYPt - $finalTopPt);
     }
 
     /**
@@ -216,19 +248,51 @@ final class BoxRenderer
             return $cursorYPt + $blockHeightPt;
         }
 
+        if ($this->flow !== null) {
+            return $this->renderCodeBlockFlowing($lines, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $lineHeightPt, $paddingPt, $page);
+        }
+
+        $this->drawCodeSlice($lines, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $lineHeightPt, $paddingPt, $page);
+
+        return $cursorYPt + $blockHeightPt;
+    }
+
+    /**
+     * Draws one self-contained code-block slice (optional background covering
+     * top padding + its lines + bottom padding, then the text) on $page. No page
+     * breaking: callers either know the block fits or have already sliced it.
+     *
+     * @param list<string> $lines
+     */
+    private function drawCodeSlice(
+        array $lines,
+        MarkdownStyle $style,
+        float $bodySizePt,
+        float $xPt,
+        float $topPt,
+        float $widthPt,
+        float $lineHeightPt,
+        float $paddingPt,
+        Page $page,
+    ): void {
+        if ($lines === []) {
+            return;
+        }
+
+        $sliceHeightPt = count($lines) * $lineHeightPt + 2 * $paddingPt;
         if ($style->codeBackground !== null) {
             $page->setFillColor($style->codeBackground);
             $page->rect(
                 $this->fromPt($page, $xPt),
-                $this->fromPt($page, $cursorYPt),
+                $this->fromPt($page, $topPt),
                 $this->fromPt($page, $widthPt),
-                $this->fromPt($page, $blockHeightPt),
+                $this->fromPt($page, $sliceHeightPt),
             )->fill();
         }
 
         $page->setFillColor($this->bodyColor());
         $textXPt = $xPt + $paddingPt;
-        $lineTopPt = $cursorYPt + $paddingPt;
+        $lineTopPt = $topPt + $paddingPt;
         foreach ($lines as $line) {
             $baselinePt = $lineTopPt + $bodySizePt;
             $page->setFont($style->codeFont, $bodySizePt);
@@ -239,8 +303,63 @@ final class BoxRenderer
             );
             $lineTopPt += $lineHeightPt;
         }
+    }
 
-        return $cursorYPt + $blockHeightPt;
+    /**
+     * FLOW variant of code-block rendering: the block is split at line
+     * granularity into per-page slices, each drawn with its own background so it
+     * stays self-contained on its page. Returns the cursor below the final
+     * slice's bottom padding on the (possibly new) final page.
+     *
+     * @param list<string> $lines
+     */
+    private function renderCodeBlockFlowing(
+        array $lines,
+        MarkdownStyle $style,
+        float $bodySizePt,
+        float $xPt,
+        float $cursorYPt,
+        float $widthPt,
+        float $lineHeightPt,
+        float $paddingPt,
+        Page $page,
+    ): float {
+        $flow = $this->flow;
+        if ($flow === null) {
+            // Defensive: this method is only reached with an active flow.
+            $this->drawCodeSlice($lines, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $lineHeightPt, $paddingPt, $page);
+            return $cursorYPt + count($lines) * $lineHeightPt + 2 * $paddingPt;
+        }
+
+        /** @var list<string> $slice lines accumulated for the current page */
+        $slice = [];
+        $sliceTopPt = $cursorYPt;
+        // The page the current slice is being laid out on. breakIfNeeded() swaps
+        // the flow page in place, so we capture the slice's page separately and
+        // flush the COMPLETED slice onto it before adopting the new page.
+        $slicePage = $flow->page();
+        // The first content line sits below the slice's top padding.
+        $lineTopPt = $cursorYPt + $paddingPt;
+
+        foreach ($lines as $line) {
+            // A line plus the trailing bottom padding must fit; otherwise the
+            // slice ends here and the rest continues on a fresh page.
+            $newLineTop = $flow->breakIfNeeded($lineTopPt, $lineHeightPt + $paddingPt);
+            if ($newLineTop !== $lineTopPt) {
+                $this->drawCodeSlice($slice, $style, $bodySizePt, $xPt, $sliceTopPt, $widthPt, $lineHeightPt, $paddingPt, $slicePage);
+                $slice = [];
+                $slicePage = $flow->page();
+                // The new slice's top padding precedes its first line.
+                $sliceTopPt = $newLineTop - $paddingPt;
+                $lineTopPt = $newLineTop;
+            }
+            $slice[] = $line;
+            $lineTopPt += $lineHeightPt;
+        }
+
+        $this->drawCodeSlice($slice, $style, $bodySizePt, $xPt, $sliceTopPt, $widthPt, $lineHeightPt, $paddingPt, $slicePage);
+
+        return $lineTopPt + $paddingPt;
     }
 
     private function renderBlockQuote(
@@ -260,6 +379,10 @@ final class BoxRenderer
         $innerXPt = $xPt + $indentPt;
         $innerWidthPt = max(0.0, $widthPt - $indentPt);
 
+        // Remember the page the quote starts on so we can detect whether its
+        // content flowed onto a later page (the bar is then drawn per-page).
+        $startPage = $this->activePage($page);
+
         $innerBottomPt = $this->renderBlocks(
             $quote->blocks,
             $style,
@@ -274,16 +397,29 @@ final class BoxRenderer
             $measureOnly,
         );
 
-        $barHeightPt = $innerBottomPt - $cursorYPt;
-        if (!$measureOnly && $barHeightPt > 0.0) {
-            $barWidthPt = $this->toPt($page, $style->blockQuoteBarWidth);
-            $page->setFillColor($style->blockQuoteBarColor);
-            $page->rect(
-                $this->fromPt($page, $xPt),
-                $this->fromPt($page, $cursorYPt),
-                $this->fromPt($page, $barWidthPt),
-                $this->fromPt($page, $barHeightPt),
-            )->fill();
+        if ($measureOnly) {
+            return $innerBottomPt;
+        }
+
+        $endPage = $this->activePage($page);
+        $barWidthPt = $this->toPt($page, $style->blockQuoteBarWidth);
+
+        if ($endPage === $startPage) {
+            // No break: a single bar spans the whole quote on this page.
+            $barHeightPt = $innerBottomPt - $cursorYPt;
+            if ($barHeightPt > 0.0) {
+                $this->drawQuoteBar($endPage, $style, $xPt, $cursorYPt, $barWidthPt, $barHeightPt);
+            }
+        } else {
+            // The quote flowed across a break: draw the bar segment on the final
+            // page only, from that page's content top down to the content bottom.
+            // (Intermediate-page bar segments are intentionally omitted to keep
+            // the FLOW path simple; the inner text itself is correctly placed.)
+            $finalTopPt = $this->flow?->lastTopPt() ?? $cursorYPt;
+            $barHeightPt = $innerBottomPt - $finalTopPt;
+            if ($barHeightPt > 0.0) {
+                $this->drawQuoteBar($endPage, $style, $xPt, $finalTopPt, $barWidthPt, $barHeightPt);
+            }
         }
 
         return $innerBottomPt;
@@ -353,14 +489,21 @@ final class BoxRenderer
         $innerXPt = $xPt + $indentPt;
         $innerWidthPt = max(0.0, $widthPt - $indentPt);
 
-        // The marker sits on the first line baseline of the item content.
+        // The marker sits on the first line baseline of the item content. In
+        // FLOW mode, break BEFORE the marker if a single body line would not fit
+        // here, so the marker and its first content line stay on the same page.
+        if (!$measureOnly && $this->flow !== null) {
+            $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $bodySizePt * self::LINE_HEIGHT_FACTOR);
+        }
+
         if (!$measureOnly) {
+            $markerPage = $this->activePage($page);
             $baselinePt = $cursorYPt + $bodySizePt;
-            $page->setFillColor($this->bodyColor());
-            $page->setFont($bodyFont, $bodySizePt);
-            $page->text(
-                $this->fromPt($page, $xPt),
-                $this->fromPt($page, $baselinePt),
+            $markerPage->setFillColor($this->bodyColor());
+            $markerPage->setFont($bodyFont, $bodySizePt);
+            $markerPage->text(
+                $this->fromPt($markerPage, $xPt),
+                $this->fromPt($markerPage, $baselinePt),
                 $marker,
             );
         }
@@ -389,12 +532,17 @@ final class BoxRenderer
         bool $measureOnly,
     ): float {
         $spacingPt = $this->toPt($page, $style->blockSpacing);
-        $midPt = $cursorYPt + $spacingPt / 2.0;
 
         if ($measureOnly) {
             return $cursorYPt + $spacingPt;
         }
 
+        if ($this->flow !== null) {
+            $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $spacingPt);
+            $page = $this->activePage($page);
+        }
+
+        $midPt = $cursorYPt + $spacingPt / 2.0;
         $page->setStrokeColor($this->bodyColor());
         $page->setLineWidth($this->fromPt($page, self::DEFAULT_THEMATIC_LINE_WIDTH_PT));
         $page->line(
@@ -426,7 +574,10 @@ final class BoxRenderer
         $lines = $breaker->layout($runs, $widthPt);
         foreach ($lines as $line) {
             if (!$measureOnly) {
-                $this->drawLine($line, $xPt, $cursorYPt, $page, $style);
+                if ($this->flow !== null) {
+                    $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $line->heightPt);
+                }
+                $this->drawLine($line, $xPt, $cursorYPt, $this->activePage($page), $style);
             }
             $cursorYPt += $line->heightPt;
         }
@@ -603,6 +754,12 @@ final class BoxRenderer
         }
 
         if (!$measureOnly) {
+            // A block image is atomic: in FLOW mode, if it would overflow the
+            // page bottom it moves WHOLLY to the next page (it is never split).
+            if ($this->flow !== null) {
+                $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $drawnHPt);
+                $page = $this->activePage($page);
+            }
             $page->image(
                 $image,
                 $this->fromPt($page, $xPt),
@@ -627,6 +784,26 @@ final class BoxRenderer
         }
 
         return Image::fromFile($src);
+    }
+
+    private function drawQuoteBar(Page $page, MarkdownStyle $style, float $xPt, float $topPt, float $barWidthPt, float $barHeightPt): void
+    {
+        $page->setFillColor($style->blockQuoteBarColor);
+        $page->rect(
+            $this->fromPt($page, $xPt),
+            $this->fromPt($page, $topPt),
+            $this->fromPt($page, $barWidthPt),
+            $this->fromPt($page, $barHeightPt),
+        )->fill();
+    }
+
+    /**
+     * The page to draw on right now: the FLOW controller's current page when a
+     * FLOW render is in progress, otherwise the page passed down the call chain.
+     */
+    private function activePage(Page $page): Page
+    {
+        return $this->flow?->page() ?? $page;
     }
 
     private function bodyColor(): Color
