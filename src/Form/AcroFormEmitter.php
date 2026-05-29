@@ -56,6 +56,7 @@ final readonly class AcroFormEmitter
         // can be threaded into emitSingleton.
         $signedFieldName = $signature?->fieldName;
         $sigRef = null;
+        $sigObjectNumber = 0;
         if ($signature !== null) {
             if ($sigEmitter === null) {
                 throw new PdfException('Signature emitter required when signing');
@@ -75,6 +76,7 @@ final readonly class AcroFormEmitter
             }
             $sigId = $nextId++;
             $sigRef = PdfReference::to($sigId, 0);
+            $sigObjectNumber = $sigId;
         }
 
         $objects = [];
@@ -128,12 +130,12 @@ final readonly class AcroFormEmitter
 
         // Emit the /Sig dictionary (with ByteRange/Contents placeholders) when
         // a signature is configured. This must come after the field loop so that
-        // $sigRef->objectNumber was already consumed by $nextId++. $sigRef is
-        // always non-null here when $signature !== null (set in the guard block
-        // above); the explicit $sigRef !== null check makes that invariant
-        // visible to the type checker for the property access below.
-        if ($signature !== null && $sigEmitter !== null && $sigRef !== null) {
-            $objects[] = $sigEmitter->emit($signature, $sigRef->objectNumber);
+        // the signature object number was already reserved via $nextId++ above.
+        // $sigObjectNumber carries that reserved number as a plain int, so the
+        // emit avoids a property access on the nullable $sigRef (which PHPStan
+        // narrows differently across PHP versions).
+        if ($signature !== null && $sigEmitter !== null) {
+            $objects[] = $sigEmitter->emit($signature, $sigObjectNumber);
         }
 
         $acroFormId = $nextId++;
