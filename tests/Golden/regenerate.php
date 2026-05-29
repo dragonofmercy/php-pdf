@@ -553,6 +553,25 @@ foreach ($svgGoldens as $name => [$class, $method]) {
     echo "Regenerated {$name}\n";
 }
 
+// SVG text with custom registered fonts (guarded on font assets being present).
+$svgCustomFontGoldens = [
+    'svg/text/custom-ttf.pdf'              => \DragonOfMercy\PhpPdf\Tests\Golden\SvgTextCustomTtfTest::class,
+    'svg/text/custom-variant-fallback.pdf' => \DragonOfMercy\PhpPdf\Tests\Golden\SvgTextCustomVariantFallbackTest::class,
+    'svg/text/custom-anchor-stroke.pdf'    => \DragonOfMercy\PhpPdf\Tests\Golden\SvgTextCustomAnchorStrokeTest::class,
+];
+foreach ($svgCustomFontGoldens as $name => $class) {
+    if (!$class::fontsPresent()) {
+        echo "Skipped {$name} (font assets absent)\n";
+        continue;
+    }
+    $path = $fixturesDir . '/' . $name;
+    if (!is_dir(dirname($path))) {
+        mkdir(dirname($path), 0755, true);
+    }
+    file_put_contents($path, $class::buildPdfBytes());
+    echo "Regenerated {$name}\n";
+}
+
 // Fixture: UPC-A barcode (extra 1D pack)
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
