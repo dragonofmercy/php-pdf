@@ -57,6 +57,14 @@ final class BoxRenderer
     private const float DEFAULT_THEMATIC_LINE_WIDTH_PT = 0.5;
 
     /**
+     * Gap between a list marker and its item text, as a fraction of the body
+     * font size (roughly one space). The marker is right-aligned to end this
+     * far before the content indent, so `-` and `1.` keep a consistent, tight
+     * spacing rather than a wide fixed gap.
+     */
+    private const float LIST_MARKER_GAP_FACTOR = 0.4;
+
+    /**
      * FLOW page-break controller, set for the duration of a FLOW render() and
      * null otherwise (ATOMIC). When present, drawing methods consult it before
      * emitting each line and may swap the active page mid-render.
@@ -501,10 +509,16 @@ final class BoxRenderer
         if (!$measureOnly) {
             $markerPage = $this->activePage($page);
             $baselinePt = $cursorYPt + $bodySizePt;
+            // Right-align the marker to end LIST_MARKER_GAP_FACTOR * size before
+            // the content indent, clamped to the item's left edge, so the gap
+            // between marker and text is tight and consistent across markers.
+            $markerWidthPt = $markerPage->measureStringPt($marker, $bodyFont, $bodySizePt);
+            $markerGapPt = $bodySizePt * self::LIST_MARKER_GAP_FACTOR;
+            $markerXPt = max($xPt, $innerXPt - $markerGapPt - $markerWidthPt);
             $markerPage->setFillColor($this->bodyColor());
             $markerPage->setFont($bodyFont, $bodySizePt);
             $markerPage->text(
-                $this->fromPt($markerPage, $xPt),
+                $this->fromPt($markerPage, $markerXPt),
                 $this->fromPt($markerPage, $baselinePt),
                 $marker,
             );
