@@ -171,11 +171,7 @@ final readonly class PngMetadata
         int $bpp,
         int $colorChannels,
     ): array {
-        $decompressed = @gzuncompress($idat);
-        if ($decompressed === false) {
-            throw new PdfException('PNG IDAT zlib decompression failed');
-        }
-        $raw = PngFilters::unfilter($decompressed, $width, $height, $bpp);
+        $raw = PngFilters::unfilter(self::inflateIdat($idat), $width, $height, $bpp);
 
         $colorOut = '';
         $alphaOut = '';
@@ -215,11 +211,7 @@ final readonly class PngMetadata
         int $height,
         string $trns,
     ): string {
-        $decompressed = @gzuncompress($idat);
-        if ($decompressed === false) {
-            throw new PdfException('PNG IDAT zlib decompression failed');
-        }
-        $raw = PngFilters::unfilter($decompressed, $width, $height, bpp: 1);
+        $raw = PngFilters::unfilter(self::inflateIdat($idat), $width, $height, bpp: 1);
 
         $trnsLen = strlen($trns);
         $alphaOut = '';
@@ -239,5 +231,14 @@ final readonly class PngMetadata
             throw new PdfException('PNG alpha channel compression failed');
         }
         return $compressed;
+    }
+
+    private static function inflateIdat(string $idat): string
+    {
+        $decompressed = @gzuncompress($idat);
+        if ($decompressed === false) {
+            throw new PdfException('PNG IDAT zlib decompression failed');
+        }
+        return $decompressed;
     }
 }

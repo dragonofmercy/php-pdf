@@ -149,14 +149,19 @@ final readonly class Upca implements OrientableBarcode, SizedBarcode
         return $modules;
     }
 
+    /**
+     * The encoded bars wrapped in the symmetric self::QUIET-module quiet zones.
+     *
+     * @return list<bool>
+     */
+    private function paddedModules(): array
+    {
+        return array_merge(array_fill(0, self::QUIET, false), $this->encodeModules(), array_fill(0, self::QUIET, false));
+    }
+
     public function encode(): EncodedBarcode
     {
-        $modules = $this->encodeModules();
-        $padded = array_merge(
-            array_fill(0, self::QUIET, false),
-            $modules,
-            array_fill(0, self::QUIET, false),
-        );
+        $padded = $this->paddedModules();
 
         $segments = [];
         if ($this->showText) {
@@ -205,12 +210,7 @@ final readonly class Upca implements OrientableBarcode, SizedBarcode
             $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
             $extensionHeight = $hPt - $barsHeight;
 
-            $modules = $this->encodeModules();
-            $padded = array_merge(
-                array_fill(0, self::QUIET, false),
-                $modules,
-                array_fill(0, self::QUIET, false),
-            );
+            $padded = $this->paddedModules();
 
             $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 

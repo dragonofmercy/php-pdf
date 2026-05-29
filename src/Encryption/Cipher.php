@@ -20,9 +20,7 @@ final class Cipher
      */
     public function encrypt(string $plaintext, string $key, callable $ivSource): string
     {
-        if (strlen($key) !== 32) {
-            throw new PdfException('AES-256 key must be exactly 32 bytes, got ' . strlen($key));
-        }
+        self::assertKey256($key);
         $iv = $ivSource(16);
         if (strlen($iv) !== 16) {
             throw new PdfException('AES-256-CBC IV must be exactly 16 bytes, got ' . strlen($iv));
@@ -45,9 +43,7 @@ final class Cipher
      */
     public function encryptEcb(string $plaintext, string $key): string
     {
-        if (strlen($key) !== 32) {
-            throw new PdfException('AES-256 key must be exactly 32 bytes, got ' . strlen($key));
-        }
+        self::assertKey256($key);
         if (strlen($plaintext) % 16 !== 0) {
             throw new PdfException('AES-256-ECB plaintext must be multiple of 16, got ' . strlen($plaintext));
         }
@@ -61,5 +57,12 @@ final class Cipher
             throw new PdfException('AES-256-ECB encryption failed');
         }
         return $ciphertext;
+    }
+
+    private static function assertKey256(string $key): void
+    {
+        if (strlen($key) !== 32) {
+            throw new PdfException('AES-256 key must be exactly 32 bytes, got ' . strlen($key));
+        }
     }
 }

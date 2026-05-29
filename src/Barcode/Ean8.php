@@ -134,15 +134,20 @@ final readonly class Ean8 implements OrientableBarcode, SizedBarcode
         return $modules;
     }
 
+    /**
+     * The encoded bars wrapped in the 7-module left/right quiet zones:
+     * 7 + 67 + 7 = 81 = self::TOTAL_MODULES.
+     *
+     * @return list<bool>
+     */
+    private function paddedModules(): array
+    {
+        return array_merge(array_fill(0, 7, false), $this->encodeModules(), array_fill(0, 7, false));
+    }
+
     public function encode(): EncodedBarcode
     {
-        $modules = $this->encodeModules();
-        // EAN-8 quiet zones: 7 left + 67 bars + 7 right = 81.
-        $padded = array_merge(
-            array_fill(0, 7, false),
-            $modules,
-            array_fill(0, 7, false),
-        );
+        $padded = $this->paddedModules();
 
         $segments = [];
         if ($this->showText) {
@@ -184,8 +189,7 @@ final readonly class Ean8 implements OrientableBarcode, SizedBarcode
             $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
             $extensionHeight = $hPt - $barsHeight;
 
-            $modules = $this->encodeModules();
-            $padded = array_merge(array_fill(0, 7, false), $modules, array_fill(0, 7, false));
+            $padded = $this->paddedModules();
 
             $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 

@@ -88,15 +88,20 @@ final readonly class Ean13 implements OrientableBarcode, SizedBarcode
         return new self($this->digits, $this->color, $this->showText, $this->orientation, $moduleSize);
     }
 
+    /**
+     * The encoded bars wrapped in the asymmetric quiet zones:
+     * 11 left + 95 bars + 7 right = 113 = self::TOTAL_MODULES.
+     *
+     * @return list<bool>
+     */
+    private function paddedModules(): array
+    {
+        return array_merge(array_fill(0, 11, false), $this->encodeModules(), array_fill(0, 7, false));
+    }
+
     public function encode(): EncodedBarcode
     {
-        $modules = $this->encodeModules();
-        // EAN-13 asymmetric quiet zones: 11 left + 95 bars + 7 right = 113.
-        $padded = array_merge(
-            array_fill(0, 11, false),
-            $modules,
-            array_fill(0, 7, false),
-        );
+        $padded = $this->paddedModules();
 
         $segments = [];
         if ($this->showText) {
@@ -144,13 +149,7 @@ final readonly class Ean13 implements OrientableBarcode, SizedBarcode
             $barsHeight = $this->showText ? $hPt * 0.85 : $hPt;
             $extensionHeight = $hPt - $barsHeight;
 
-            $modules = $this->encodeModules();
-            // Pad with leading false for left quiet zone, trailing false for right.
-            $padded = array_merge(
-                array_fill(0, 11, false),
-                $modules,
-                array_fill(0, 7, false),
-            );
+            $padded = $this->paddedModules();
 
             $body = Renderer::runLengthRow($padded, $xPt, $yPt, $moduleW, $barsHeight);
 
