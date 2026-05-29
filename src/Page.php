@@ -402,6 +402,17 @@ final class Page
     }
 
     /**
+     * @internal Measures the width of $text in POINTS for an ARBITRARY font and
+     * size, without mutating the page's font state. Mirrors {@see stringWidth()}
+     * but stays in points and returns the longest line's width (text may contain
+     * newlines). Used by the Markdown renderer, which works internally in points.
+     */
+    public function measureStringPt(string $text, Font $font, float $sizePt): float
+    {
+        return $this->textState->measureMaxLineWidthPt($text, $font, $sizePt);
+    }
+
+    /**
      * Sets the page-level cells padding. Accepts either a single float (same
      * value all four sides) or a {@see CellPadding} instance for per-side
      * control. Values are interpreted in the document's unit.
