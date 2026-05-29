@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-05-29
+## [Unreleased]
 
 ### Added
 - Markdown rendering of a CommonMark core subset via two surfaces: `Page::markdown()` flows text from the cursor and auto-paginates when the document has auto-break enabled (otherwise it renders atomically on the current page), and `cell(markdown: true)` renders the cell text as Markdown into the cell's inner box while auto-sizing its height.
@@ -52,5 +52,4 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
-[1.1.0]: https://github.com/dragonofmercy/php-pdf/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.0.0
