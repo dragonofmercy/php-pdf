@@ -36,6 +36,16 @@ final class SvgTextCustomAnchorStrokeTest extends TestCase
         );
     }
 
+    public function testEmbedsCustomFontNotStandardFallback(): void
+    {
+        if (!self::fontsPresent()) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $bytes = self::buildPdfBytes();
+        self::assertStringContainsString('FreeSans', $bytes, 'Custom font PostScript name must be embedded');
+        self::assertStringContainsString('Identity-H', $bytes, 'Custom fonts use the Identity-H encoding');
+    }
+
     public function testPassesQpdfCheck(): void
     {
         if (!self::fontsPresent()) {

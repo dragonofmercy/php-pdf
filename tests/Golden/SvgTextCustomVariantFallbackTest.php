@@ -36,6 +36,17 @@ final class SvgTextCustomVariantFallbackTest extends TestCase
         );
     }
 
+    public function testBoldFallsBackToRegularCustomFaceNotHelvetica(): void
+    {
+        if (!self::fontsPresent()) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $bytes = self::buildPdfBytes();
+        self::assertStringContainsString('FreeSans', $bytes, 'Bold must fall back to the registered regular FreeSans face');
+        self::assertStringContainsString('Identity-H', $bytes);
+        self::assertStringNotContainsString('Helvetica', $bytes, 'Missing bold variant must not fall back to a standard font');
+    }
+
     public function testPassesQpdfCheck(): void
     {
         if (!self::fontsPresent()) {
