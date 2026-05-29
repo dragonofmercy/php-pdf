@@ -83,7 +83,9 @@ final class Renderer
     {
         $this->fontRegistry = $fontRegistry ?? new FontRegistry();
         $this->fontResolver = $fontResolver;
-        $this->fontAliases = $fontAliases;
+        // Custom resolution requires a resolver; without one, ignore aliases so
+        // resolveSpanFont can never yield a custom Font that engineFor cannot build.
+        $this->fontAliases = $fontResolver !== null ? $fontAliases : [];
         $this->engines = [];
         $this->usedFonts = [];
         $this->embeddedPatterns = [];
