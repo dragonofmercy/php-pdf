@@ -14,6 +14,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
@@ -117,7 +118,7 @@ final class BarcodeTest extends TestCase
         $doc = new Document(Unit::PT);
         $page = $doc->addPage();
         $page->setXY(10.0, 50.0);
-        $page->barcode($stub, w: 30.0, h: 12.0);
+        $page->barcode($stub, w: 30.0, h: 12.0, ln: NextPosition::RIGHT);
 
         // x advances by w (10 + 30), y untouched.
         self::assertSame(40.0, $page->getX());

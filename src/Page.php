@@ -660,6 +660,7 @@ final class Page
         ?float $y = null,
         ?float $w = null,
         ?float $h = null,
+        NextPosition $ln = NextPosition::NONE,
     ): self {
         if ($w === null && $code instanceof SizedBarcode) {
             $w = $code->intrinsicWidth();
@@ -667,17 +668,24 @@ final class Page
         if ($w === null) {
             throw new PdfException('Barcode width is required (pass w or set a module size via withModuleSize())');
         }
+        $xExplicit = $x !== null;
         $x = $this->cursor->resolveX($x, 'Barcode');
         $y = $this->cursor->resolveY($y, 'Barcode');
+        if ($xExplicit) {
+            $this->cursor->setLineStartXPt($this->toPt($x));
+        }
         $code->draw($this, $x, $y, $w, $h);
-        // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
-        // the right edge of the barcode's VISUAL bounding box. For a vertical
-        // 1D code the visual width is h (the symbol is rotated a quarter turn),
-        // so advance by h; otherwise by w. y is synced to the top edge used.
-        $advancePt = ($code instanceof OrientableBarcode && $code->orientation() === Orientation::Vertical && $h !== null)
-            ? $this->toPt($h)
-            : $this->toPt($w);
-        $this->cursor->setPositionPt($this->toPt($x) + $advancePt, $this->toPt($y));
+        // Cursor advance mirrors cell()'s NextPosition, but over the barcode's
+        // VISUAL bounding box. A vertical 1D code is rotated a quarter turn, so
+        // its visual width is h and its visual height is w; otherwise width is w
+        // and height is h. A square 2D code may omit h, in which case its
+        // rendered height equals w.
+        $resolvedHPt = $this->toPt($h ?? $w);
+        $wPt = $this->toPt($w);
+        $isVertical = $code instanceof OrientableBarcode && $code->orientation() === Orientation::Vertical;
+        $visualWidthPt = $isVertical ? $resolvedHPt : $wPt;
+        $visualHeightPt = $isVertical ? $wPt : $resolvedHPt;
+        $this->cursor->advance($ln, $this->toPt($x), $this->toPt($y), $visualWidthPt, $visualHeightPt);
         return $this;
     }
 

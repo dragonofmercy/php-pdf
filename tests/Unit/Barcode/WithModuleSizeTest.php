@@ -17,7 +17,7 @@ use DragonOfMercy\PhpPdf\Barcode\{
     Upca,
 };
 use DragonOfMercy\PhpPdf\Exception\PdfException;
-use DragonOfMercy\PhpPdf\{Document, Unit};
+use DragonOfMercy\PhpPdf\{Document, NextPosition, Unit};
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -105,10 +105,10 @@ final class WithModuleSizeTest extends TestCase
         $page = $doc->addPage();
         $sized = $code->withModuleSize(2.0);
 
-        // Should not throw: w is derived from intrinsicWidth().
-        $page->barcode($sized, x: 10.0, y: 10.0, h: 30.0);
+        // Should not throw: w is derived from intrinsicWidth(). RIGHT advances
+        // the cursor by the intrinsic width (barcode()'s default is NONE).
+        $page->barcode($sized, x: 10.0, y: 10.0, h: 30.0, ln: NextPosition::RIGHT);
 
-        // Cursor advanced by the intrinsic width (horizontal default).
         self::assertEqualsWithDelta(10.0 + (float) $sized->intrinsicWidth(), $page->getX(), 1e-9);
     }
 

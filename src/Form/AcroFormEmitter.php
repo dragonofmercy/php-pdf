@@ -128,10 +128,11 @@ final readonly class AcroFormEmitter
 
         // Emit the /Sig dictionary (with ByteRange/Contents placeholders) when
         // a signature is configured. This must come after the field loop so that
-        // $sigRef->objectNumber was already consumed by $nextId++.
-        // $sigRef is always non-null here when $signature !== null (set in the
-        // guard block above), so we only need the two outer checks.
-        if ($signature !== null && $sigEmitter !== null) {
+        // $sigRef->objectNumber was already consumed by $nextId++. $sigRef is
+        // always non-null here when $signature !== null (set in the guard block
+        // above); the explicit $sigRef !== null check makes that invariant
+        // visible to the type checker for the property access below.
+        if ($signature !== null && $sigEmitter !== null && $sigRef !== null) {
             $objects[] = $sigEmitter->emit($signature, $sigRef->objectNumber);
         }
 
