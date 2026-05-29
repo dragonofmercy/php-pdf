@@ -19,6 +19,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 final readonly class Itf implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
+    use Sized;
+
     private const int QUIET_MODULES = 10;
 
     /** 2-of-5 width pattern per digit: 5 elements, 'n' narrow / 'w' wide. */
@@ -116,11 +118,6 @@ final readonly class Itf implements OrientableBarcode, SizedBarcode
             throw new PdfException("Module size must be positive, got {$moduleSize}");
         }
         return new self($this->digits, $this->color, $this->showText, $this->bearerBarModules, $this->orientation, $moduleSize);
-    }
-
-    public function intrinsicWidth(): ?float
-    {
-        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     /**

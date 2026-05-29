@@ -21,6 +21,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 final readonly class Upca implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
+    use Sized;
+
     /** 9 (left quiet) + 95 (bars) + 9 (right quiet). */
     private const int TOTAL_MODULES = 113;
     private const int QUIET = 9;
@@ -87,11 +89,6 @@ final readonly class Upca implements OrientableBarcode, SizedBarcode
             throw new PdfException("Module size must be positive, got {$moduleSize}");
         }
         return new self($this->digits, $this->color, $this->showText, $this->orientation, $moduleSize);
-    }
-
-    public function intrinsicWidth(): ?float
-    {
-        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     /**

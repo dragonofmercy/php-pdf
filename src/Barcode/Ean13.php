@@ -19,6 +19,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 final readonly class Ean13 implements OrientableBarcode, SizedBarcode
 {
     use Orientable;
+    use Sized;
+
     /** Total module count including quiet zones: 11 (left quiet) + 95 (bars) + 7 (right quiet). */
     private const int TOTAL_MODULES = 113;
 
@@ -84,11 +86,6 @@ final readonly class Ean13 implements OrientableBarcode, SizedBarcode
             throw new PdfException("Module size must be positive, got {$moduleSize}");
         }
         return new self($this->digits, $this->color, $this->showText, $this->orientation, $moduleSize);
-    }
-
-    public function intrinsicWidth(): ?float
-    {
-        return $this->moduleSize === null ? null : $this->widthForModule($this->moduleSize);
     }
 
     public function encode(): EncodedBarcode
