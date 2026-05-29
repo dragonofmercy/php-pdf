@@ -53,6 +53,10 @@ final class BoxRenderer
 
     /**
      * @param list<BlockNode> $ast
+     * @param bool $measureOnly when true, performs the identical layout and
+     *        cursor math but skips every drawing emission (text / rect / line /
+     *        image / link), returning the same consumed height. Used by callers
+     *        that need to size a box before drawing its background/border.
      * @return float consumed height in the page's document unit
      */
     public function render(
@@ -63,6 +67,7 @@ final class BoxRenderer
         float $width,
         Page $page,
         BreakMode $mode,
+        bool $measureOnly = false,
     ): float {
         $bodyFont = $page->getFont();
         $bodySizePt = $style->bodySize ?? $page->getFontSize();
@@ -85,6 +90,7 @@ final class BoxRenderer
             $page,
             $breaker,
             0,
+            $measureOnly,
         );
 
         return $this->fromPt($page, $cursorYPt - $topPt);
@@ -107,6 +113,7 @@ final class BoxRenderer
         Page $page,
         LineBreaker $breaker,
         int $depth,
+        bool $measureOnly,
     ): float {
         $blockSpacingPt = $this->toPt($page, $style->blockSpacing);
         $first = true;
@@ -118,13 +125,13 @@ final class BoxRenderer
             $first = false;
 
             $cursorYPt = match (true) {
-                $block instanceof Heading => $this->renderHeading($block, $style, $bodyFont, $xPt, $cursorYPt, $widthPt, $page, $breaker),
-                $block instanceof Paragraph => $this->renderParagraph($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker),
-                $block instanceof CodeBlock => $this->renderCodeBlock($block, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page),
-                $block instanceof BlockQuote => $this->renderBlockQuote($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth),
-                $block instanceof BulletList => $this->renderBulletList($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth),
-                $block instanceof OrderedList => $this->renderOrderedList($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth),
-                $block instanceof ThematicBreak => $this->renderThematicBreak($style, $xPt, $cursorYPt, $widthPt, $page),
+                $block instanceof Heading => $this->renderHeading($block, $style, $bodyFont, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly),
+                $block instanceof Paragraph => $this->renderParagraph($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly),
+                $block instanceof CodeBlock => $this->renderCodeBlock($block, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $measureOnly),
+                $block instanceof BlockQuote => $this->renderBlockQuote($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
+                $block instanceof BulletList => $this->renderBulletList($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
+                $block instanceof OrderedList => $this->renderOrderedList($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
+                $block instanceof ThematicBreak => $this->renderThematicBreak($style, $xPt, $cursorYPt, $widthPt, $page, $measureOnly),
                 default => $cursorYPt,
             };
         }
@@ -141,6 +148,7 @@ final class BoxRenderer
         float $widthPt,
         Page $page,
         LineBreaker $breaker,
+        bool $measureOnly,
     ): float {
         $sizePt = $style->headingSizes[$heading->level];
         $headingFont = $bodyFont->bold();
@@ -158,7 +166,7 @@ final class BoxRenderer
         }
 
         $cursorYPt += $this->toPt($page, $style->headingSpacingBefore);
-        $cursorYPt = $this->drawRuns($runs, $style, $xPt, $cursorYPt, $widthPt, $page, $breaker);
+        $cursorYPt = $this->drawRuns($runs, $style, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly);
         $cursorYPt += $this->toPt($page, $style->headingSpacingAfter);
 
         return $cursorYPt;
@@ -174,15 +182,16 @@ final class BoxRenderer
         float $widthPt,
         Page $page,
         LineBreaker $breaker,
+        bool $measureOnly,
     ): float {
         // A paragraph made solely of a single image renders the image block-level.
         $imageOnly = $this->soleImage($paragraph->inlines);
         if ($imageOnly !== null) {
-            return $this->drawBlockImage($imageOnly, $xPt, $cursorYPt, $widthPt, $page);
+            return $this->drawBlockImage($imageOnly, $xPt, $cursorYPt, $widthPt, $page, $measureOnly);
         }
 
         $runs = $this->inlineRuns($paragraph->inlines, $style, $bodyFont, $bodySizePt);
-        $cursorYPt = $this->drawRuns($runs, $style, $xPt, $cursorYPt, $widthPt, $page, $breaker);
+        $cursorYPt = $this->drawRuns($runs, $style, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly);
         $cursorYPt += $this->toPt($page, $style->paragraphSpacing);
 
         return $cursorYPt;
@@ -196,11 +205,16 @@ final class BoxRenderer
         float $cursorYPt,
         float $widthPt,
         Page $page,
+        bool $measureOnly,
     ): float {
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $code->text));
         $lineHeightPt = $bodySizePt * self::LINE_HEIGHT_FACTOR;
         $paddingPt = $this->toPt($page, $style->codeBlockPadding);
         $blockHeightPt = count($lines) * $lineHeightPt + 2 * $paddingPt;
+
+        if ($measureOnly) {
+            return $cursorYPt + $blockHeightPt;
+        }
 
         if ($style->codeBackground !== null) {
             $page->setFillColor($style->codeBackground);
@@ -240,6 +254,7 @@ final class BoxRenderer
         Page $page,
         LineBreaker $breaker,
         int $depth,
+        bool $measureOnly,
     ): float {
         $indentPt = $this->toPt($page, $style->blockQuoteIndent);
         $innerXPt = $xPt + $indentPt;
@@ -256,10 +271,11 @@ final class BoxRenderer
             $page,
             $breaker,
             $depth,
+            $measureOnly,
         );
 
         $barHeightPt = $innerBottomPt - $cursorYPt;
-        if ($barHeightPt > 0.0) {
+        if (!$measureOnly && $barHeightPt > 0.0) {
             $barWidthPt = $this->toPt($page, $style->blockQuoteBarWidth);
             $page->setFillColor($style->blockQuoteBarColor);
             $page->rect(
@@ -284,11 +300,12 @@ final class BoxRenderer
         Page $page,
         LineBreaker $breaker,
         int $depth,
+        bool $measureOnly,
     ): float {
         $glyph = $style->bulletGlyphs[$depth % count($style->bulletGlyphs)];
 
         foreach ($list->items as $item) {
-            $cursorYPt = $this->renderListItem($item, $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth);
+            $cursorYPt = $this->renderListItem($item, $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
             $cursorYPt += $this->toPt($page, $style->listItemSpacing);
         }
 
@@ -306,10 +323,11 @@ final class BoxRenderer
         Page $page,
         LineBreaker $breaker,
         int $depth,
+        bool $measureOnly,
     ): float {
         $number = $list->start;
         foreach ($list->items as $item) {
-            $cursorYPt = $this->renderListItem($item, $number . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth);
+            $cursorYPt = $this->renderListItem($item, $number . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
             $cursorYPt += $this->toPt($page, $style->listItemSpacing);
             $number++;
         }
@@ -329,20 +347,23 @@ final class BoxRenderer
         Page $page,
         LineBreaker $breaker,
         int $depth,
+        bool $measureOnly,
     ): float {
         $indentPt = $this->toPt($page, $style->listIndent);
         $innerXPt = $xPt + $indentPt;
         $innerWidthPt = max(0.0, $widthPt - $indentPt);
 
         // The marker sits on the first line baseline of the item content.
-        $baselinePt = $cursorYPt + $bodySizePt;
-        $page->setFillColor($this->bodyColor());
-        $page->setFont($bodyFont, $bodySizePt);
-        $page->text(
-            $this->fromPt($page, $xPt),
-            $this->fromPt($page, $baselinePt),
-            $marker,
-        );
+        if (!$measureOnly) {
+            $baselinePt = $cursorYPt + $bodySizePt;
+            $page->setFillColor($this->bodyColor());
+            $page->setFont($bodyFont, $bodySizePt);
+            $page->text(
+                $this->fromPt($page, $xPt),
+                $this->fromPt($page, $baselinePt),
+                $marker,
+            );
+        }
 
         return $this->renderBlocks(
             $item->blocks,
@@ -355,6 +376,7 @@ final class BoxRenderer
             $page,
             $breaker,
             $depth + 1,
+            $measureOnly,
         );
     }
 
@@ -364,9 +386,14 @@ final class BoxRenderer
         float $cursorYPt,
         float $widthPt,
         Page $page,
+        bool $measureOnly,
     ): float {
         $spacingPt = $this->toPt($page, $style->blockSpacing);
         $midPt = $cursorYPt + $spacingPt / 2.0;
+
+        if ($measureOnly) {
+            return $cursorYPt + $spacingPt;
+        }
 
         $page->setStrokeColor($this->bodyColor());
         $page->setLineWidth($this->fromPt($page, self::DEFAULT_THEMATIC_LINE_WIDTH_PT));
@@ -394,10 +421,13 @@ final class BoxRenderer
         float $widthPt,
         Page $page,
         LineBreaker $breaker,
+        bool $measureOnly,
     ): float {
         $lines = $breaker->layout($runs, $widthPt);
         foreach ($lines as $line) {
-            $this->drawLine($line, $xPt, $cursorYPt, $page, $style);
+            if (!$measureOnly) {
+                $this->drawLine($line, $xPt, $cursorYPt, $page, $style);
+            }
             $cursorYPt += $line->heightPt;
         }
 
@@ -558,7 +588,7 @@ final class BoxRenderer
      * Places an image block-level at the current cursor, clamped to the box
      * width, and returns the cursor advanced past its drawn height.
      */
-    private function drawBlockImage(ImageSpan $span, float $xPt, float $cursorYPt, float $widthPt, Page $page): float
+    private function drawBlockImage(ImageSpan $span, float $xPt, float $cursorYPt, float $widthPt, Page $page, bool $measureOnly): float
     {
         $image = $this->loadImage($span->src);
 
@@ -572,13 +602,15 @@ final class BoxRenderer
             $drawnHPt = $widthPt * $intrinsicHPt / $intrinsicWPt;
         }
 
-        $page->image(
-            $image,
-            $this->fromPt($page, $xPt),
-            $this->fromPt($page, $cursorYPt),
-            $this->fromPt($page, $drawnWPt),
-            $this->fromPt($page, $drawnHPt),
-        );
+        if (!$measureOnly) {
+            $page->image(
+                $image,
+                $this->fromPt($page, $xPt),
+                $this->fromPt($page, $cursorYPt),
+                $this->fromPt($page, $drawnWPt),
+                $this->fromPt($page, $drawnHPt),
+            );
+        }
 
         return $cursorYPt + $drawnHPt;
     }

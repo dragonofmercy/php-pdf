@@ -16,6 +16,10 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Markdown\BoxRenderer;
+use DragonOfMercy\PhpPdf\Markdown\BreakMode;
+use DragonOfMercy\PhpPdf\Markdown\MarkdownParser;
+use DragonOfMercy\PhpPdf\Markdown\MarkdownStyle;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Page\CellRenderer;
@@ -501,9 +505,13 @@ final class Page
         Fit $fit = Fit::NONE,
         float|CellPadding|null $padding = null,
         NextPosition $ln = NextPosition::RIGHT,
+        bool $markdown = false,
     ): CellResult {
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before cell()');
+        }
+        if ($markdown && $text !== '') {
+            return $this->renderMarkdownCell($x, $y, $w, $h, $text, $border, $fill, $padding, $ln);
         }
         if ($w !== null && $w <= 0) {
             throw new PdfException('Cell width must be positive, got ' . $w);
@@ -586,6 +594,191 @@ final class Page
             effectiveWidth: $this->fromPt($result->effectiveWidth),
             page: $this,
         );
+    }
+
+    /**
+     * Markdown variant of {@see cell()}: parses $text as Markdown and renders it
+     * (ATOMIC, never page-breaking the content itself) into the cell's inner box,
+     * auto-growing the cell height to the consumed content height plus vertical
+     * padding. Border/fill are drawn at the final rect and the cursor advances per
+     * $ln, exactly as the plain-text path. $text is guaranteed non-empty by the
+     * caller. Font state is bracketed so the BoxRenderer's font/fill mutations do
+     * not leak into subsequent calls.
+     */
+    private function renderMarkdownCell(
+        ?float $x,
+        ?float $y,
+        ?float $w,
+        ?float $h,
+        string $text,
+        ?Border $border,
+        ?Color $fill,
+        float|CellPadding|null $padding,
+        NextPosition $ln,
+    ): CellResult {
+        if ($w === null) {
+            throw new PdfException('Markdown cell requires an explicit width (w)');
+        }
+
+        $resolvedPaddingPt = $padding !== null
+            ? $this->paddingToPt($this->normalizePadding($padding))
+            : $this->cellsPaddingPt;
+        $padTopBottomPt = $resolvedPaddingPt->top + $resolvedPaddingPt->bottom;
+        $padLeftRightPt = $resolvedPaddingPt->left + $resolvedPaddingPt->right;
+
+        $wPt = $this->toPt($w);
+        $innerWidthPt = max(0.0, $wPt - $padLeftRightPt);
+
+        $style = MarkdownStyle::default();
+        $ast = MarkdownParser::parse($text);
+        $renderer = new BoxRenderer();
+
+        $fontState = $this->captureFontState();
+        try {
+            // Measuring pass: identical layout/cursor math, no emission. Used to
+            // size the cell so fill/border can be drawn UNDER the content.
+            $contentHeightPt = $this->toPt($renderer->render(
+                $ast,
+                $style,
+                $this->fromPt(0.0),
+                $this->fromPt(0.0),
+                $this->fromPt($innerWidthPt),
+                $this,
+                BreakMode::ATOMIC,
+                measureOnly: true,
+            ));
+
+            $computedHeightPt = $contentHeightPt + $padTopBottomPt;
+            $cellHeightPt = $h !== null ? max($this->toPt($h), $computedHeightPt) : $computedHeightPt;
+
+            // Auto-break against the measured height, mirroring the text path: a
+            // markdown cell that would overflow the bottom margin is re-rendered on
+            // a fresh page (suppressing recursion via inHeaderRender there).
+            $broken = $this->maybeAutoBreakMarkdown($x, $y, $w, $this->fromPt($cellHeightPt), $text, $border, $fill, $padding, $ln);
+            if ($broken !== null) {
+                return $broken;
+            }
+
+            $xExplicit = $x !== null;
+            $x = $this->cursor->resolveX($x, 'Cell');
+            $y = $this->cursor->resolveY($y, 'Cell');
+            if ($xExplicit) {
+                $this->cursor->setLineStartXPt($this->toPt($x));
+            }
+
+            $xPt = $this->toPt($x);
+            $yPt = $this->toPt($y);
+
+            // Reuse the text path's fill+border drawing by rendering an empty cell
+            // at the final rect (explicit width and height), so the emitted bytes
+            // match a plain cell's fill/border exactly.
+            $borderForRenderer = $this->resolveBorderForRenderer($border);
+            $cellRenderer = new CellRenderer(stream: $this->stream);
+            $cellRenderer->render(
+                engine: $this->textState->activeEngine(),
+                size: $this->textState->getFontSize(),
+                customLeading: $this->textState->customLeading(),
+                x: $xPt,
+                y: $yPt,
+                w: $wPt,
+                h: $cellHeightPt,
+                text: '',
+                border: $borderForRenderer,
+                fill: $fill,
+                textColor: null,
+                align: TextAlign::LEFT,
+                verticalAlign: VerticalAlign::TOP,
+                fit: Fit::NONE,
+                padding: $resolvedPaddingPt,
+                fontShortName: '',
+                emittingPage: $this,
+            );
+
+            // Draw the markdown content into the inner box.
+            $innerXPt = $xPt + $resolvedPaddingPt->left;
+            $innerYPt = $yPt + $resolvedPaddingPt->top;
+            $renderer->render(
+                $ast,
+                $style,
+                $this->fromPt($innerXPt),
+                $this->fromPt($innerYPt),
+                $this->fromPt($innerWidthPt),
+                $this,
+                BreakMode::ATOMIC,
+            );
+        } finally {
+            $this->restoreFontState($fontState);
+        }
+
+        $this->cursor->advance($ln, $xPt, $yPt, $wPt, $cellHeightPt);
+
+        return new CellResult(
+            x: $this->fromPt($xPt + $wPt),
+            y: $this->fromPt($yPt + $cellHeightPt),
+            height: $this->fromPt($cellHeightPt),
+            lineCount: 0,
+            brokenWords: 0,
+            textOverflow: false,
+            effectiveWidth: $this->fromPt($wPt),
+            page: $this,
+        );
+    }
+
+    /**
+     * Auto-page-break for {@see renderMarkdownCell()}. Mirrors {@see maybeAutoBreak()}
+     * but uses the already-measured markdown cell height as the overflow estimate
+     * and re-renders via the markdown path on the new page. Returns null when no
+     * break is needed.
+     */
+    private function maybeAutoBreakMarkdown(
+        ?float $x,
+        ?float $y,
+        ?float $w,
+        float $cellHeight,
+        string $text,
+        ?Border $border,
+        ?Color $fill,
+        float|CellPadding|null $padding,
+        NextPosition $ln,
+    ): ?CellResult {
+        if ($this->document === null
+            || !$this->document->autoPageBreak()
+            || $this->inHeaderRender
+        ) {
+            return null;
+        }
+
+        $resolvedYPt = $y !== null
+            ? $this->toPt($y)
+            : ($this->cursor->yPt() ?? null);
+
+        if ($resolvedYPt === null) {
+            return null;
+        }
+
+        $bottomLimitPt = $this->pageHeight - $this->toPt($this->document->margins()->bottom);
+        if ($resolvedYPt + $this->toPt($cellHeight) <= $bottomLimitPt + self::OVERFLOW_EPSILON_PT) {
+            return null;
+        }
+
+        $newPage = $this->document->addPage();
+        $newPage->inHeaderRender = true;
+        try {
+            return $newPage->cell(
+                x: $x,
+                y: null,
+                w: $w,
+                h: null,
+                text: $text,
+                border: $border,
+                fill: $fill,
+                padding: $padding,
+                ln: $ln,
+                markdown: true,
+            );
+        } finally {
+            $newPage->inHeaderRender = false;
+        }
     }
 
     public function image(
