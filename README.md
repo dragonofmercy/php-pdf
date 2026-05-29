@@ -18,11 +18,12 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Barcodes & QR codes** - EAN-13, EAN-8, Code 128 (auto A/B/C set switching), UPC-A, Code 39, Code 93, ITF (Interleaved 2 of 5), QR Code (V1-V40 full ISO 18004 range, all four error-correction levels), Aztec Code (ISO/IEC 24778, Compact 1-4 layers and Full Range 1-32 layers, four EC presets, auto UTF-8 ECI), DataMatrix (ISO/IEC 16022 ECC200 squares 10x10 to 144x144, auto UTF-8 ECI), PDF417 (ISO/IEC 15438 standard variant, auto UTF-8 ECI). Pure-PHP encoders, vector rendering, configurable color, optional human-readable text under 1D codes, and optional vertical rendering of any 1D code via `->vertical()`.
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
 - **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible) that can be left as placeholders or signed programmatically with a real PKCS#7 / CMS signature via `Document::sign()` and a PKCS#12 credential. Each field can be styled with border color and width, background color, text color, font, size, and alignment - plus per-field visibility flags (`hidden`, `noExport`) and advanced border styles (SOLID / DASHED / BEVELED / INSET / UNDERLINE via `FieldBorderStyle`). Text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` decoupled from their display `value`, restored by a ResetForm button. Page tab order is settable via `Page::setTabOrder(TabOrder::ROW | COLUMN | STRUCTURE)`. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`. Several fields sharing the same name are automatically linked - they emit as one logical field and stay synchronized in the reader (field linking).
+- **Markdown** - render a CommonMark core subset (headings, paragraphs, bold / italic / inline code, links, images, ordered + unordered nested lists, fenced / indented code blocks, block quotes, thematic breaks) either flowing from the cursor with automatic page breaks via `Page::markdown()` or inside an auto-sized cell via `cell(markdown: true)`. Styling is configurable through `MarkdownStyle`.
 
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- Multiple signatures per document, RFC 3161 timestamps (TSA), PAdES; Markdown rendering - later phases.
+- Multiple signatures per document, RFC 3161 timestamps (TSA), PAdES - later phases.
 
 ## Installation
 
@@ -468,6 +469,53 @@ $svg = (new SvgBarcodeRenderer())->withoutBackground()->render($code, 200, 200);
 ```
 
 The renderer covers the 2D matrix formats only: QR, DataMatrix, Aztec. 1D barcodes (Code128, EAN, UPC, Code39, Code93, ITF) and PDF417 throw `PdfException` - use `Page::barcode()` to render them to a PDF. Foreground color comes from `Barcode::withColor()`. The SVG uses `viewBox` in module units (quiet zone included) and the requested pixel `width` / `height` attributes, so it scales responsively while keeping the matrix square.
+
+### Markdown
+
+Render a CommonMark core subset to flowing PDF content. Two surfaces: `Page::markdown()` lays text out from the cursor and auto-paginates when the document has auto-break enabled (otherwise it renders atomically on the current page), while `cell(markdown: true)` renders the cell's text as Markdown into the cell's inner box and auto-sizes its height.
+
+```php
+use DragonOfMercy\PhpPdf\Markdown\MarkdownStyle;
+
+// Flowing Markdown from the cursor, auto-paginating when the document has auto-break on.
+$page->markdown(<<<MD
+# Invoice
+
+Thank you for your order. See **terms** below.
+
+- Item one
+- Item two
+
+> Net 30 days.
+MD, x: 20, y: 20);
+
+// Markdown inside a cell (the cell auto-sizes its height; w is required).
+$page->cell(x: 20, y: 120, w: 80, text: "## Notes\n\nHandle with *care*.", border: Border::all(), markdown: true);
+```
+
+`Page::markdown(string $markdown, ?float $x = null, ?float $y = null, ?float $width = null, ?MarkdownStyle $style = null, NextPosition $ln = NextPosition::NONE)` flows from the cursor; `x` / `y` default to the current cursor position and `width` defaults to the page width minus the right margin minus `x`.
+
+Supported (CommonMark core subset):
+
+- ATX headings (`#` to `######`) and paragraphs.
+- Inline bold (`**` / `__`), italic (`*` / `_`), bold+italic (`***`), and inline code (`` `code` ``).
+- Links `[text](url)` and images `![alt](src)` - the image source is a local file path or a `data:` URI.
+- Unordered and ordered lists, including nesting.
+- Fenced (``` ``` ```) and indented (4-space) code blocks.
+- Block quotes (`>`) and thematic breaks (`---`).
+
+Styling is configurable via `MarkdownStyle::default()` plus immutable withers: `withHeadingSize()`, `withBodySize()`, `withParagraphSpacing()`, `withCodeFont()`, `withCodeBackground()`, `withLinkColor()`, `withLinkUnderline()`, `withBlockQuoteBar()`, and `withListIndent()`.
+
+```php
+$style = MarkdownStyle::default()
+    ->withBodySize(11)
+    ->withLinkColor(Color::hex('#003366'))
+    ->withCodeBackground(Color::rgb(245, 245, 245));
+
+$page->markdown($markdown, x: 20, y: 20, style: $style);
+```
+
+Not supported (skipped silently or rendered as literal text, never an error): tables, reference links, footnotes, task lists, raw HTML (escaped to literal text), setext headings, syntax highlighting, and autolinks.
 
 ### Metadata + encryption
 

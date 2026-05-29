@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Markdown rendering of a CommonMark core subset via two surfaces: `Page::markdown()` flows text from the cursor and auto-paginates when the document has auto-break enabled (otherwise it renders atomically on the current page), and `cell(markdown: true)` renders the cell text as Markdown into the cell's inner box while auto-sizing its height.
+- Supported constructs: ATX headings, paragraphs, inline bold / italic / bold+italic / inline code, links, images (local file path or `data:` URI), ordered and unordered nested lists, fenced and indented code blocks, block quotes, and thematic breaks. Out-of-scope constructs (tables, reference links, footnotes, task lists, raw HTML, setext headings, syntax highlighting, autolinks) are skipped silently or rendered as literal text.
+- Configurable `MarkdownStyle` value object (`MarkdownStyle::default()` plus immutable withers for heading sizes, body size, paragraph spacing, code font and background, link color and underline, block-quote bar, and list indent).
+
 ## [1.0.0] - 2026-05-29
 
 First stable release. The public API is now frozen under semantic versioning:
