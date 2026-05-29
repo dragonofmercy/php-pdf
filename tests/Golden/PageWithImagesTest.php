@@ -16,7 +16,7 @@ final class PageWithImagesTest extends TestCase
 {
     public function testPageWithImagesMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-images.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/page/images.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -35,7 +35,7 @@ final class PageWithImagesTest extends TestCase
         $process = new Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/page-with-images.pdf',
+            __DIR__ . '/fixtures/page/images.pdf',
         ]);
         $process->run();
         self::assertSame(

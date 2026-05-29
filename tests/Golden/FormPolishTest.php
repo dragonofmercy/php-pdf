@@ -17,7 +17,7 @@ use Symfony\Component\Process\Process;
 
 final class FormPolishTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-polish.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/polish.pdf';
 
     public function testFormPolishMatchesFixtureBytes(): void
     {

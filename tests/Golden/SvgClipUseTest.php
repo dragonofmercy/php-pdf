@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgClipUseTest extends TestCase
 {
-    private const string FIXTURE = 'svg-clip-use.pdf';
+    private const string FIXTURE = 'svg/clip/use.pdf';
 
     public function testSvgClipUseMatchesFixtureBytes(): void
     {

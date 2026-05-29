@@ -15,7 +15,7 @@ final class SvgPathsOnlyTest extends TestCase
 {
     public function testSvgPathsOnlyMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-paths-only.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/basic/paths-only.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgPathsOnlyTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-paths-only.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/basic/paths-only.pdf']);
         $process->run();
         self::assertSame(
             0,

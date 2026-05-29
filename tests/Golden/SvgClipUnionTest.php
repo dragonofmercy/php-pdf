@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgClipUnionTest extends TestCase
 {
-    private const string FIXTURE = 'svg-clip-union.pdf';
+    private const string FIXTURE = 'svg/clip/union.pdf';
 
     public function testSvgClipUnionMatchesFixtureBytes(): void
     {

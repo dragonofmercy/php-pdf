@@ -15,7 +15,7 @@ final class SvgImageAspectMeetTest extends TestCase
 {
     public function testSvgImageAspectMeetMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-image-aspect-meet.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/image/aspect-meet.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgImageAspectMeetTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-image-aspect-meet.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/image/aspect-meet.pdf']);
         $process->run();
         self::assertSame(
             0,

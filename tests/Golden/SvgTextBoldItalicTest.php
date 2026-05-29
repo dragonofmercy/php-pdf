@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgTextBoldItalicTest extends TestCase
 {
-    private const string FIXTURE = 'svg-text-bold-italic.pdf';
+    private const string FIXTURE = 'svg/text/bold-italic.pdf';
 
     public function testSvgTextBoldItalicMatchesFixtureBytes(): void
     {

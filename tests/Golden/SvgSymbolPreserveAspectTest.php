@@ -15,7 +15,7 @@ final class SvgSymbolPreserveAspectTest extends TestCase
 {
     public function testSvgSymbolPreserveAspectMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-symbol-preserve-aspect.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/symbol/preserve-aspect.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgSymbolPreserveAspectTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-symbol-preserve-aspect.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/symbol/preserve-aspect.pdf']);
         $process->run();
         self::assertSame(
             0,

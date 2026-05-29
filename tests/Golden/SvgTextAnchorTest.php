@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgTextAnchorTest extends TestCase
 {
-    private const string FIXTURE = 'svg-text-anchor.pdf';
+    private const string FIXTURE = 'svg/text/anchor.pdf';
 
     public function testSvgTextAnchorMatchesFixtureBytes(): void
     {

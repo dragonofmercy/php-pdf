@@ -21,7 +21,7 @@ use Symfony\Component\Process\Process;
 
 final class PageWithStyledFormsTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/page-with-styled-forms.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/page/styled-forms.pdf';
 
     public function testPageWithStyledFormsMatchesFixtureBytes(): void
     {

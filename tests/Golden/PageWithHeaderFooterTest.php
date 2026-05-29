@@ -17,7 +17,7 @@ final class PageWithHeaderFooterTest extends TestCase
 {
     public function testPageWithHeaderFooterMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-header-footer.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/page/header-footer.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -36,7 +36,7 @@ final class PageWithHeaderFooterTest extends TestCase
         $process = new Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/page-with-header-footer.pdf',
+            __DIR__ . '/fixtures/page/header-footer.pdf',
         ]);
         $process->run();
         self::assertSame(

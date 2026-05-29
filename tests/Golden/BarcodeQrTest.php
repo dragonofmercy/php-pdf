@@ -12,7 +12,7 @@ final class BarcodeQrTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-qr.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/qr.pdf';
     }
 
     protected function buildPdfBytes(): string

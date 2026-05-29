@@ -18,7 +18,7 @@ use Symfony\Component\Process\Process;
 
 final class FormJavascriptTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-javascript.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/javascript.pdf';
 
     public function testFormJavascriptMatchesFixtureBytes(): void
     {

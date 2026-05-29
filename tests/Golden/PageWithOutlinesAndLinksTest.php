@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
 
 final class PageWithOutlinesAndLinksTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/page-with-outlines-and-links.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/page/outlines-and-links.pdf';
 
     public function testPageWithOutlinesAndLinksMatchesFixtureBytes(): void
     {

@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgCssTypeSelectorTest extends TestCase
 {
-    private const string FIXTURE = 'svg-css-type-selector.pdf';
+    private const string FIXTURE = 'svg/css/type-selector.pdf';
 
     public function testSvgCssTypeSelectorMatchesFixtureBytes(): void
     {

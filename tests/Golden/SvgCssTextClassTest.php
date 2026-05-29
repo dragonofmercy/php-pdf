@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgCssTextClassTest extends TestCase
 {
-    private const string FIXTURE = 'svg-css-text-class.pdf';
+    private const string FIXTURE = 'svg/css/text-class.pdf';
 
     public function testSvgCssTextClassMatchesFixtureBytes(): void
     {

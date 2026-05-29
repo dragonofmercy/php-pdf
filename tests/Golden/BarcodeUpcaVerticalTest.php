@@ -12,7 +12,7 @@ final class BarcodeUpcaVerticalTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-upca-vertical.pdf';
+        return __DIR__ . '/fixtures/barcode/1d/upca-vertical.pdf';
     }
 
     protected function buildPdfBytes(): string

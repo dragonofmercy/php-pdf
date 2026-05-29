@@ -15,7 +15,7 @@ final class SvgMaskTextTest extends TestCase
 {
     public function testSvgMaskTextMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-mask-text.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/mask/text.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgMaskTextTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-mask-text.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/mask/text.pdf']);
         $process->run();
         self::assertSame(
             0,

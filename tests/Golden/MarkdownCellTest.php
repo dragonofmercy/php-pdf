@@ -17,7 +17,7 @@ final class MarkdownCellTest extends TestCase
 {
     public function testMarkdownCellMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/markdown-cell.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/markdown/cell.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -36,7 +36,7 @@ final class MarkdownCellTest extends TestCase
         $process = new Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/markdown-cell.pdf',
+            __DIR__ . '/fixtures/markdown/cell.pdf',
         ]);
         $process->run();
         self::assertSame(

@@ -14,7 +14,7 @@ final class BarcodeAztecEcHighTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-aztec-ec-high.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/aztec-ec-high.pdf';
     }
 
     protected function buildPdfBytes(): string

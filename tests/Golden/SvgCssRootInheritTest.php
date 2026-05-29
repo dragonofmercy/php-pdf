@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgCssRootInheritTest extends TestCase
 {
-    private const string FIXTURE = 'svg-css-root-inherit.pdf';
+    private const string FIXTURE = 'svg/css/root-inherit.pdf';
 
     public function testSvgCssRootInheritMatchesFixtureBytes(): void
     {

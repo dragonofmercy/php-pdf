@@ -12,7 +12,7 @@ final class BarcodeEan8Test extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-ean8.pdf';
+        return __DIR__ . '/fixtures/barcode/1d/ean8.pdf';
     }
 
     protected function buildPdfBytes(): string

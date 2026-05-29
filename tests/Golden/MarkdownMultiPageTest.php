@@ -16,7 +16,7 @@ final class MarkdownMultiPageTest extends TestCase
 {
     public function testMarkdownMultiPageMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/markdown-multipage.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/markdown/multipage.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -27,7 +27,7 @@ final class MarkdownMultiPageTest extends TestCase
 
     public function testMarkdownMultiPageSpansAtLeastTwoPages(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/markdown-multipage.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/markdown/multipage.pdf');
         self::assertIsString($expected);
 
         // Count the page leaf objects in the raw bytes. The library emits one
@@ -37,7 +37,7 @@ final class MarkdownMultiPageTest extends TestCase
         self::assertGreaterThanOrEqual(
             2,
             $pageCount,
-            'markdown-multipage.pdf must span at least two pages.',
+            'markdown/multipage.pdf must span at least two pages.',
         );
     }
 
@@ -51,7 +51,7 @@ final class MarkdownMultiPageTest extends TestCase
         $process = new Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/markdown-multipage.pdf',
+            __DIR__ . '/fixtures/markdown/multipage.pdf',
         ]);
         $process->run();
         self::assertSame(

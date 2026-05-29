@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgCssInlineWinsTest extends TestCase
 {
-    private const string FIXTURE = 'svg-css-inline-wins.pdf';
+    private const string FIXTURE = 'svg/css/inline-wins.pdf';
 
     public function testSvgCssInlineWinsMatchesFixtureBytes(): void
     {

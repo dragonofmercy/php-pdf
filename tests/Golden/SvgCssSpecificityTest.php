@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgCssSpecificityTest extends TestCase
 {
-    private const string FIXTURE = 'svg-css-specificity.pdf';
+    private const string FIXTURE = 'svg/css/specificity.pdf';
 
     public function testSvgCssSpecificityMatchesFixtureBytes(): void
     {

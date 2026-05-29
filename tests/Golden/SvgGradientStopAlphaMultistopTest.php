@@ -15,7 +15,7 @@ final class SvgGradientStopAlphaMultistopTest extends TestCase
 {
     public function testMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-gradient-stop-alpha-multistop.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/gradient/stop-alpha-multistop.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgGradientStopAlphaMultistopTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-gradient-stop-alpha-multistop.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/gradient/stop-alpha-multistop.pdf']);
         $process->run();
         self::assertSame(
             0,

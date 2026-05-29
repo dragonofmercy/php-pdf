@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
 
 final class FormPushButtonTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-pushbutton.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/pushbutton.pdf';
 
     public function testFormPushButtonMatchesFixtureBytes(): void
     {

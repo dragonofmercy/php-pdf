@@ -17,7 +17,7 @@ use Symfony\Component\Process\Process;
 
 final class PageWithFormsTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/page-with-forms.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/page/forms.pdf';
 
     public function testPageWithFormsMatchesFixtureBytes(): void
     {

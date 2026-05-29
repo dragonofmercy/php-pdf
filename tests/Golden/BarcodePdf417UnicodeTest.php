@@ -12,7 +12,7 @@ final class BarcodePdf417UnicodeTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-pdf417-unicode.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/pdf417-unicode.pdf';
     }
 
     protected function buildPdfBytes(): string

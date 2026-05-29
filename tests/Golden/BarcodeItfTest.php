@@ -12,7 +12,7 @@ final class BarcodeItfTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-itf.pdf';
+        return __DIR__ . '/fixtures/barcode/1d/itf.pdf';
     }
 
     protected function buildPdfBytes(): string

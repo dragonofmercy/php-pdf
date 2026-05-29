@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class PageWithTtfTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/page-with-ttf.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/page/ttf.pdf';
     private const string FONTS_DIR = __DIR__ . '/fixtures/fonts';
 
     public function testPageWithTtfMatchesFixtureBytes(): void
@@ -41,7 +41,7 @@ final class PageWithTtfTest extends TestCase
         self::assertLessThan(
             200_000,
             $size,
-            'page-with-ttf.pdf is not subsetted - did regenerate.php run after the subsetting change?',
+            'page/ttf.pdf is not subsetted - did regenerate.php run after the subsetting change?',
         );
     }
 

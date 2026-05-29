@@ -12,7 +12,7 @@ final class BarcodeDataMatrixTextTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-datamatrix-text.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/datamatrix-text.pdf';
     }
 
     protected function buildPdfBytes(): string

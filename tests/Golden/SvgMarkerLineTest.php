@@ -15,7 +15,7 @@ final class SvgMarkerLineTest extends TestCase
 {
     public function testSvgMarkerLineMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-marker-line.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/marker/line.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgMarkerLineTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-marker-line.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/marker/line.pdf']);
         $process->run();
         self::assertSame(
             0,

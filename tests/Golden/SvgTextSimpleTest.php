@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgTextSimpleTest extends TestCase
 {
-    private const string FIXTURE = 'svg-text-simple.pdf';
+    private const string FIXTURE = 'svg/text/simple.pdf';
 
     public function testSvgTextSimpleMatchesFixtureBytes(): void
     {

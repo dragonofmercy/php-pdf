@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgCssClassOverrideTest extends TestCase
 {
-    private const string FIXTURE = 'svg-css-class-override.pdf';
+    private const string FIXTURE = 'svg/css/class-override.pdf';
 
     public function testSvgCssClassOverrideMatchesFixtureBytes(): void
     {

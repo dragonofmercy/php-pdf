@@ -15,7 +15,7 @@ final class SvgShapesTest extends TestCase
 {
     public function testSvgShapesMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-shapes.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/basic/shapes.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgShapesTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-shapes.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/basic/shapes.pdf']);
         $process->run();
         self::assertSame(
             0,

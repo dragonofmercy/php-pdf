@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 
 final class FormPasswordTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-password.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/password.pdf';
 
     public function testFormPasswordMatchesFixtureBytes(): void
     {

@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class FormLinkingTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-linking.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/linking.pdf';
 
     public function testFormLinkingMatchesFixtureBytes(): void
     {

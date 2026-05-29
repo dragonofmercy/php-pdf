@@ -15,7 +15,7 @@ final class SvgRealWorldIconTest extends TestCase
 {
     public function testSvgRealWorldIconMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-real-world-icon.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/basic/real-world-icon.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgRealWorldIconTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-real-world-icon.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/basic/real-world-icon.pdf']);
         $process->run();
         self::assertSame(
             0,

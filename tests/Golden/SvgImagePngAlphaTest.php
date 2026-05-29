@@ -16,7 +16,7 @@ final class SvgImagePngAlphaTest extends TestCase
 {
     public function testSvgImagePngAlphaMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-image-png-alpha.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/image/png-alpha.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -31,7 +31,7 @@ final class SvgImagePngAlphaTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-image-png-alpha.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/image/png-alpha.pdf']);
         $process->run();
         self::assertSame(
             0,

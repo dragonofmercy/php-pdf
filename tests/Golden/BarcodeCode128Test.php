@@ -12,7 +12,7 @@ final class BarcodeCode128Test extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-code128.pdf';
+        return __DIR__ . '/fixtures/barcode/1d/code128.pdf';
     }
 
     protected function buildPdfBytes(): string

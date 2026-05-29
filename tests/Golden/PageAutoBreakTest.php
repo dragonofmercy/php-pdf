@@ -19,7 +19,7 @@ final class PageAutoBreakTest extends TestCase
 {
     public function testPageAutoBreakMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/page-auto-break.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/page/auto-break.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -38,7 +38,7 @@ final class PageAutoBreakTest extends TestCase
         $process = new Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/page-auto-break.pdf',
+            __DIR__ . '/fixtures/page/auto-break.pdf',
         ]);
         $process->run();
         self::assertSame(

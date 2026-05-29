@@ -15,7 +15,7 @@ final class SvgOpacityTest extends TestCase
 {
     public function testSvgOpacityMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-opacity.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/basic/opacity.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgOpacityTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-opacity.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/basic/opacity.pdf']);
         $process->run();
         self::assertSame(
             0,

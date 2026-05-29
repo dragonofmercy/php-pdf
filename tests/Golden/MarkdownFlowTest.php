@@ -16,7 +16,7 @@ final class MarkdownFlowTest extends TestCase
 {
     public function testMarkdownFlowMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/markdown-flow.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/markdown/flow.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -35,7 +35,7 @@ final class MarkdownFlowTest extends TestCase
         $process = new Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/markdown-flow.pdf',
+            __DIR__ . '/fixtures/markdown/flow.pdf',
         ]);
         $process->run();
         self::assertSame(

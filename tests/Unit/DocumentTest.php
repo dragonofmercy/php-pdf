@@ -125,7 +125,7 @@ final class DocumentTest extends TestCase
         $doc->addPage();
         $bytes = $doc->output();
 
-        $fixture = file_get_contents(__DIR__ . '/../Golden/fixtures/empty-page.pdf');
+        $fixture = file_get_contents(__DIR__ . '/../Golden/fixtures/doc/empty-page.pdf');
         self::assertIsString($fixture);
         self::assertSame($fixture, $bytes);
     }

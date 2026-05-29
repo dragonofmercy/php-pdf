@@ -15,7 +15,7 @@ final class SvgSkipUnsupportedTest extends TestCase
 {
     public function testSvgSkipUnsupportedMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-skip-unsupported.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/basic/skip-unsupported.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgSkipUnsupportedTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-skip-unsupported.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/basic/skip-unsupported.pdf']);
         $process->run();
         self::assertSame(
             0,

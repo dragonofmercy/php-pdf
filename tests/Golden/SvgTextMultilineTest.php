@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgTextMultilineTest extends TestCase
 {
-    private const string FIXTURE = 'svg-text-multiline.pdf';
+    private const string FIXTURE = 'svg/text/multiline.pdf';
 
     public function testSvgTextMultilineMatchesFixtureBytes(): void
     {

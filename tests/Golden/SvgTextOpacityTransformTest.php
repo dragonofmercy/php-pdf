@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgTextOpacityTransformTest extends TestCase
 {
-    private const string FIXTURE = 'svg-text-opacity-transform.pdf';
+    private const string FIXTURE = 'svg/text/opacity-transform.pdf';
 
     public function testSvgTextOpacityTransformMatchesFixtureBytes(): void
     {

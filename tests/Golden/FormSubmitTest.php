@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
 
 final class FormSubmitTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-submit.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/submit.pdf';
 
     public function testFormSubmitMatchesFixtureBytes(): void
     {

@@ -12,7 +12,7 @@ final class BarcodeAztecCompactMaxTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-aztec-compact-max.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/aztec-compact-max.pdf';
     }
 
     protected function buildPdfBytes(): string

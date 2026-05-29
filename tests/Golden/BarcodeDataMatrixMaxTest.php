@@ -12,7 +12,7 @@ final class BarcodeDataMatrixMaxTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-datamatrix-max.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/datamatrix-max.pdf';
     }
 
     protected function buildPdfBytes(): string

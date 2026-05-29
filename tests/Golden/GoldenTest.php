@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 
 final class GoldenTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/empty-page.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/doc/empty-page.pdf';
 
     public function testEmptyPageMatchesFixtureBytes(): void
     {
@@ -69,7 +69,7 @@ final class GoldenTest extends TestCase
         $doc->addPage();
         $actual = $doc->output();
 
-        $expected = file_get_contents(__DIR__ . '/fixtures/document-with-metadata.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/doc/document-with-metadata.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -126,7 +126,7 @@ final class GoldenTest extends TestCase
         $doc->addPage();
         $actual = $doc->output();
 
-        $expected = file_get_contents(__DIR__ . '/fixtures/encrypted-document.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/doc/encrypted-document.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -150,7 +150,7 @@ final class GoldenTest extends TestCase
                 $qpdf,
                 '--password=user',
                 '--decrypt',
-                __DIR__ . '/fixtures/encrypted-document.pdf',
+                __DIR__ . '/fixtures/doc/encrypted-document.pdf',
                 $decrypted,
             ]);
             $process->run();
@@ -204,7 +204,7 @@ final class GoldenTest extends TestCase
         $page->restore();
 
         $actual = $doc->output();
-        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-graphics.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/page/graphics.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -223,7 +223,7 @@ final class GoldenTest extends TestCase
         $process = new \Symfony\Component\Process\Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/page-with-graphics.pdf',
+            __DIR__ . '/fixtures/page/graphics.pdf',
         ]);
         $process->run();
         self::assertSame(
@@ -254,7 +254,7 @@ final class GoldenTest extends TestCase
         $page->text(50, 220, 'Prix : 19,99 €');
 
         $actual = $doc->output();
-        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-text.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/page/text.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -273,7 +273,7 @@ final class GoldenTest extends TestCase
         $process = new \Symfony\Component\Process\Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/page-with-text.pdf',
+            __DIR__ . '/fixtures/page/text.pdf',
         ]);
         $process->run();
         self::assertSame(
@@ -352,7 +352,7 @@ final class GoldenTest extends TestCase
         );
 
         $actual = $doc->output();
-        $expected = file_get_contents(__DIR__ . '/fixtures/page-with-cells.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/page/cells.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -371,7 +371,7 @@ final class GoldenTest extends TestCase
         $process = new \Symfony\Component\Process\Process([
             $qpdf,
             '--check',
-            __DIR__ . '/fixtures/page-with-cells.pdf',
+            __DIR__ . '/fixtures/page/cells.pdf',
         ]);
         $process->run();
         self::assertSame(

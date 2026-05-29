@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
 
 final class FormSignatureTest extends TestCase
 {
-    private const string FIXTURE = __DIR__ . '/fixtures/form-signature.pdf';
+    private const string FIXTURE = __DIR__ . '/fixtures/form/signature.pdf';
 
     public function testFormSignatureMatchesFixtureBytes(): void
     {

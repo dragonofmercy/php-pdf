@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 
 final class SvgTextStrokeTest extends TestCase
 {
-    private const string FIXTURE = 'svg-text-stroke.pdf';
+    private const string FIXTURE = 'svg/text/stroke.pdf';
 
     public function testSvgTextStrokeMatchesFixtureBytes(): void
     {

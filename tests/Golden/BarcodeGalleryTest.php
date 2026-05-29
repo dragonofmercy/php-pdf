@@ -33,7 +33,7 @@ final class BarcodeGalleryTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-gallery.pdf';
+        return __DIR__ . '/fixtures/barcode/gallery.pdf';
     }
 
     protected function buildPdfBytes(): string

@@ -15,7 +15,7 @@ final class SvgGradientHrefInheritTest extends TestCase
 {
     public function testSvgGradientHrefInheritMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-gradient-href-inherit.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/gradient/href-inherit.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgGradientHrefInheritTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-gradient-href-inherit.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/gradient/href-inherit.pdf']);
         $process->run();
         self::assertSame(
             0,

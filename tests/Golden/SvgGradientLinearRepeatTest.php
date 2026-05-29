@@ -15,7 +15,7 @@ final class SvgGradientLinearRepeatTest extends TestCase
 {
     public function testSvgGradientLinearRepeatMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-gradient-linear-repeat.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/gradient/linear-repeat.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgGradientLinearRepeatTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-gradient-linear-repeat.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/gradient/linear-repeat.pdf']);
         $process->run();
         self::assertSame(
             0,

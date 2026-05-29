@@ -15,7 +15,7 @@ final class SvgPatternObjectBBoxTest extends TestCase
 {
     public function testSvgPatternObjectBBoxMatchesFixtureBytes(): void
     {
-        $expected = file_get_contents(__DIR__ . '/fixtures/svg-pattern-objectbbox.pdf');
+        $expected = file_get_contents(__DIR__ . '/fixtures/svg/pattern/objectbbox.pdf');
         self::assertIsString($expected);
         self::assertSame(
             $expected,
@@ -30,7 +30,7 @@ final class SvgPatternObjectBBoxTest extends TestCase
         if ($qpdf === null) {
             self::markTestSkipped('qpdf is not installed; skipping structural validation.');
         }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg-pattern-objectbbox.pdf']);
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/pattern/objectbbox.pdf']);
         $process->run();
         self::assertSame(
             0,

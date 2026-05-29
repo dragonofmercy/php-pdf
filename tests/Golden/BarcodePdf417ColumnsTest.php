@@ -12,7 +12,7 @@ final class BarcodePdf417ColumnsTest extends AbstractBarcodeGoldenTest
 {
     protected function fixturePath(): string
     {
-        return __DIR__ . '/fixtures/barcode-pdf417-columns.pdf';
+        return __DIR__ . '/fixtures/barcode/2d/pdf417-columns.pdf';
     }
 
     protected function buildPdfBytes(): string
