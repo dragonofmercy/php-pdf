@@ -22,6 +22,7 @@ final readonly class Signature
         public ?string $contactInfo,
         public DateTimeImmutable $signedAt,
         public int $maxSignatureBytes,
+        public ?Tsa $tsa = null,
     ) {
         if ($fieldName === '') {
             throw new PdfException('Signature field name cannot be empty');

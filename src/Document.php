@@ -38,6 +38,7 @@ use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
 use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
+use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -319,6 +320,7 @@ final class Document
         ?string $contactInfo = null,
         ?\DateTimeImmutable $signedAt = null,
         int $maxSignatureBytes = 16384,
+        ?Tsa $timestamp = null,
     ): self {
         $this->signature = new Signature(
             $certificate,
@@ -328,6 +330,7 @@ final class Document
             $contactInfo,
             $signedAt ?? new \DateTimeImmutable(),
             $maxSignatureBytes,
+            $timestamp,
         );
         return $this;
     }
