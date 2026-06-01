@@ -167,11 +167,13 @@ final class Parser
 
     private function collectDefs(DOMDocument $doc): void
     {
-        if ($doc->getElementsByTagNameNS(self::SVG_NS, 'use')->length === 0) {
+        $needsDefs = $doc->getElementsByTagNameNS(self::SVG_NS, 'use')->length > 0
+            || $doc->getElementsByTagNameNS(self::SVG_NS, 'textPath')->length > 0;
+        if (!$needsDefs) {
             return;
         }
         // Any element with an id (anywhere in the tree, not only inside <defs>)
-        // can be the target of <use>. Scan the whole document.
+        // can be the target of <use> or <textPath>. Scan the whole document.
         $xpath = new \DOMXPath($doc);
         $xpath->registerNamespace('svg', self::SVG_NS);
         $nodes = $xpath->query('//*[@id]') ?: new \DOMNodeList();
@@ -388,6 +390,19 @@ final class Parser
             case 'text':
                 if ($this->inPattern || $this->inMarker) {
                     return null;
+                }
+                $textPathChild = null;
+                foreach ($this->childElements($el) as $child) {
+                    if ($child->namespaceURI === self::SVG_NS && $child->localName === 'textPath') {
+                        $textPathChild = $child;
+                        break;
+                    }
+                }
+                if ($textPathChild !== null) {
+                    return $this->wrapMask($this->wrapClip(
+                        $this->parseTextPath($textPathChild, $paint, $textStyle, $transform),
+                        $allowClip, $attrs, $css,
+                    ), $paint);
                 }
                 return $this->wrapMask($this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css), $paint);
 
@@ -652,6 +667,45 @@ final class Parser
                 }
             }
         }
+    }
+
+    private function parseTextPath(
+        DOMElement $textPathEl,
+        SvgPaint $paint,
+        SvgTextStyle $style,
+        ?SvgMatrix $transform,
+    ): ?SvgTextPath {
+        $attrs = $this->collectAttrs($textPathEl);
+        $href = $attrs['href'] ?? $attrs['xlink:href'] ?? '';
+        if ($href === '' || $href[0] !== '#') {
+            return null;
+        }
+        $target = $this->defs[substr($href, 1)] ?? null;
+        if (!$target instanceof DOMElement || $target->localName !== 'path') {
+            return null;
+        }
+        $d = $target->getAttribute('d');
+        if ($d === '') {
+            return null;
+        }
+        $commands = PathDataParser::parse($d);
+        if ($commands === []) {
+            return null;
+        }
+
+        /** @var list<SvgTextSpan> $spans */
+        $spans = [];
+        $this->collectTextSpans($textPathEl, $paint, $style, $spans);
+        $spans = array_values(array_filter($spans, static fn (SvgTextSpan $s): bool => trim($s->text) !== ''));
+        if ($spans === []) {
+            return null;
+        }
+
+        $rawOffset = $attrs['startOffset'] ?? '0';
+        $isPercent = str_ends_with($rawOffset, '%');
+        $startOffset = (float) rtrim($rawOffset, '%');
+
+        return new SvgTextPath($transform, $commands, $spans, $startOffset, $isPercent);
     }
 
     private function withText(SvgTextSpan $span, string $text): SvgTextSpan
