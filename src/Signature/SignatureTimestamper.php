@@ -129,6 +129,11 @@ final readonly class SignatureTimestamper
         return $header['valueStart'] - $this->headerWidth($header['length']);
     }
 
+    /**
+     * Header byte count (tag + length octets) for a TLV of the given content
+     * length. Assumes minimal DER length encoding, which the input always is
+     * (openssl-produced and Der-produced DER).
+     */
     private function headerWidth(int $length): int
     {
         if ($length < 0x80) {
