@@ -391,13 +391,7 @@ final class Parser
                 if ($this->inPattern || $this->inMarker) {
                     return null;
                 }
-                $textPathChild = null;
-                foreach ($this->childElements($el) as $child) {
-                    if ($child->namespaceURI === self::SVG_NS && $child->localName === 'textPath') {
-                        $textPathChild = $child;
-                        break;
-                    }
-                }
+                $textPathChild = $this->firstChildElement($el, 'textPath');
                 if ($textPathChild !== null) {
                     return $this->wrapMask($this->wrapClip(
                         $this->parseTextPath($textPathChild, $paint, $textStyle, $transform),
@@ -703,7 +697,7 @@ final class Parser
 
         $rawOffset = $attrs['startOffset'] ?? '0';
         $isPercent = str_ends_with($rawOffset, '%');
-        $startOffset = (float) rtrim($rawOffset, '%');
+        $startOffset = (float) $rawOffset;
 
         return new SvgTextPath($transform, $commands, $spans, $startOffset, $isPercent);
     }
@@ -1046,5 +1040,15 @@ final class Parser
             }
         }
         return $out;
+    }
+
+    private function firstChildElement(DOMElement $el, string $localName): ?DOMElement
+    {
+        foreach ($this->childElements($el) as $child) {
+            if ($child->namespaceURI === self::SVG_NS && $child->localName === $localName) {
+                return $child;
+            }
+        }
+        return null;
     }
 }
