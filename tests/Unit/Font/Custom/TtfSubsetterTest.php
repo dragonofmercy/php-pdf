@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 final class TtfSubsetterTest extends TestCase
 {
-    private const string FREESANS = __DIR__ . '/../../../Golden/fixtures/fonts/FreeSans.ttf';
+    private const string FREESANS = __DIR__ . '/../../../Golden/assets/fonts/FreeSans.ttf';
 
     private function freeSansBytes(): string
     {

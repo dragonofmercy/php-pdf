@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 final class CffOpenTypeSubsetterTest extends TestCase
 {
-    private const string PLEX_OTF = __DIR__ . '/../../../../Golden/fixtures/fonts/IBMPlexSans-Regular.otf';
+    private const string PLEX_OTF = __DIR__ . '/../../../../Golden/assets/fonts/IBMPlexSans-Regular.otf';
 
     public function testEndToEndPipelineProducesValidSmallerOtf(): void
     {
@@ -48,7 +48,7 @@ final class CffOpenTypeSubsetterTest extends TestCase
 
     public function testRejectsOtfWithoutCffTable(): void
     {
-        $ttfPath = __DIR__ . '/../../../../Golden/fixtures/fonts/FreeSans.ttf';
+        $ttfPath = __DIR__ . '/../../../../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($ttfPath)) {
             self::markTestSkipped('FreeSans fixture absent');
         }

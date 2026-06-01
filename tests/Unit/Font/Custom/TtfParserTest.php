@@ -52,7 +52,7 @@ final class TtfParserTest extends TestCase
 
     public function testParsesValidFreeSansFile(): void
     {
-        $path = __DIR__ . '/../../../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../../../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans.ttf fixture not present yet');
         }
@@ -64,11 +64,11 @@ final class TtfParserTest extends TestCase
         self::assertLessThan(0, $parsed->descent);
     }
 
-    private const string IBMPLEX_OTF = __DIR__ . '/../../../Golden/fixtures/fonts/IBMPlexSans-Regular.otf';
+    private const string IBMPLEX_OTF = __DIR__ . '/../../../Golden/assets/fonts/IBMPlexSans-Regular.otf';
 
     public function testExistingTrueTypeFontReportsTrueTypeOutline(): void
     {
-        $path = __DIR__ . '/../../../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../../../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture absent');
         }

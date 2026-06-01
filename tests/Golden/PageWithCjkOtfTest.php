@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
 final class PageWithCjkOtfTest extends TestCase
 {
     private const string FIXTURE = __DIR__ . '/fixtures/page/otf-cjk.pdf';
-    private const string CJK_OTF = __DIR__ . '/fixtures/fonts/NotoSansCJKsc-Regular.otf';
+    private const string CJK_OTF = __DIR__ . '/assets/fonts/NotoSansCJKsc-Regular.otf';
 
     public function testPageWithCjkOtfMatchesFixtureBytes(): void
     {

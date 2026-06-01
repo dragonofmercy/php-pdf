@@ -947,7 +947,7 @@ final class PageTest extends TestCase
 
     public function testTextWithCustomFontEmitsHexString(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -982,7 +982,7 @@ final class PageTest extends TestCase
 
     public function testStringWidthDispatchesToCustomFont(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }

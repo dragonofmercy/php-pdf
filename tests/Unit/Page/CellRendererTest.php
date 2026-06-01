@@ -551,7 +551,7 @@ final class CellRendererTest extends TestCase
 
     public function testCellWithCustomFontRendersText(): void
     {
-        $path = __DIR__ . '/../../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -566,7 +566,7 @@ final class CellRendererTest extends TestCase
 
     public function testCellWithCustomFontAutoSizesViaCustomMetrics(): void
     {
-        $path = __DIR__ . '/../../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -581,7 +581,7 @@ final class CellRendererTest extends TestCase
 
     public function testCellAutoSizeWithCustomFontMatchesStringWidth(): void
     {
-        $path = __DIR__ . '/../../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }

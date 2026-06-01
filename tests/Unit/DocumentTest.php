@@ -435,7 +435,7 @@ final class DocumentTest extends TestCase
 
     public function testRegisteringSameAliasTwiceThrows(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -448,7 +448,7 @@ final class DocumentTest extends TestCase
 
     public function testRegisteringDistinctAliasesSucceeds(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -460,7 +460,7 @@ final class DocumentTest extends TestCase
 
     public function testRegisterFontFamilyExposesResolverViaInternalAccessor(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -471,7 +471,7 @@ final class DocumentTest extends TestCase
 
     public function testOutputEmitsFiveObjectsPerUsedCustomFont(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
@@ -491,7 +491,7 @@ final class DocumentTest extends TestCase
 
     public function testRegisteredButUnusedFontsAreNotEmbedded(): void
     {
-        $path = __DIR__ . '/../Golden/fixtures/fonts/FreeSans.ttf';
+        $path = __DIR__ . '/../Golden/assets/fonts/FreeSans.ttf';
         if (!is_file($path)) {
             self::markTestSkipped('FreeSans fixture not present');
         }
