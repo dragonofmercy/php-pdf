@@ -43,8 +43,8 @@ final class ImageEmbedder
 {
     /**
      * @param array<string, PdfReference> $fontRefs short name => font object reference
-     * @param ?FontResolver $fontResolver custom font resolver for SVG text rendering
-     * @param array<string, string> $fontAliases lowercased alias => actual alias
+     * @param ?FontResolver $fontResolver custom font resolver for SVG text rendering;
+     *        also supplies the SVG font-family alias map
      * @return list<IndirectObject>
      */
     public function embed(
@@ -53,12 +53,11 @@ final class ImageEmbedder
         ?FontRegistry $fontRegistry = null,
         array $fontRefs = [],
         ?FontResolver $fontResolver = null,
-        array $fontAliases = [],
     ): array {
         return match ($image->format) {
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
             ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber),
-            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver, $fontAliases),
+            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver),
         };
     }
 
@@ -217,17 +216,16 @@ final class ImageEmbedder
 
     /**
      * @param array<string, PdfReference> $fontRefs
-     * @param array<string, string> $fontAliases lowercased alias => actual alias
      * @return list<IndirectObject>
      */
-    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs, ?FontResolver $fontResolver = null, array $fontAliases = []): array
+    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs, ?FontResolver $fontResolver = null): array
     {
         $meta = $image->metadata;
         if (!$meta instanceof SvgMetadata) {
             throw new PdfException('Embedder received non-SVG metadata for SVG format');
         }
 
-        $rendered = (new Renderer())->render($meta, $fontRegistry, $fontResolver, $fontAliases);
+        $rendered = (new Renderer())->render($meta, $fontRegistry, $fontResolver);
         $bytes = $rendered['bytes'];
         $extGStates = $rendered['extGStates'];
         $patterns = $rendered['patterns'];
@@ -263,7 +261,7 @@ final class ImageEmbedder
             $xobjectDict = Dictionary::empty();
             $childNum = $objectNumber + 1;
             foreach ($meta->embeddedImages as $i => $child) {
-                $emitted = $this->embed($child, $childNum, $fontRegistry, $fontRefs, $fontResolver, $fontAliases);
+                $emitted = $this->embed($child, $childNum, $fontRegistry, $fontRefs, $fontResolver);
                 foreach ($emitted as $obj) {
                     $childObjects[] = $obj;
                 }

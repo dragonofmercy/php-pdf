@@ -76,16 +76,15 @@ final class Renderer
      *     embeddedMasks: list<EmbeddedMask>,
      *     fonts: list<string>,
      * }
-     *
-     * @param array<string, string> $fontAliases lowercased registered alias => actual alias
      */
-    public function render(SvgMetadata $svg, ?FontRegistry $fontRegistry = null, ?FontResolver $fontResolver = null, array $fontAliases = []): array
+    public function render(SvgMetadata $svg, ?FontRegistry $fontRegistry = null, ?FontResolver $fontResolver = null): array
     {
         $this->fontRegistry = $fontRegistry ?? new FontRegistry();
         $this->fontResolver = $fontResolver;
-        // Custom resolution requires a resolver; without one, ignore aliases so
-        // resolveSpanFont can never yield a custom Font that engineFor cannot build.
-        $this->fontAliases = $fontResolver !== null ? $fontAliases : [];
+        // The alias map travels with the resolver: without one there is no custom
+        // context, so resolveSpanFont can never yield a custom Font that engineFor
+        // cannot build.
+        $this->fontAliases = $fontResolver?->registeredAliases() ?? [];
         $this->engines = [];
         $this->usedFonts = [];
         $this->embeddedPatterns = [];
@@ -923,8 +922,8 @@ final class Renderer
 
         $placed = $this->layoutSpans($text->spans);
         $body = '';
-        foreach ($placed as [$span, $px, $py]) {
-            $body .= $this->emitSpan($span, $px, $py, $registry);
+        foreach ($placed as [$span, $px, $py, $engine]) {
+            $body .= $this->emitSpan($span, $px, $py, $engine, $registry);
         }
         if ($body === '') {
             return '';
@@ -945,7 +944,7 @@ final class Renderer
      * or -w of the chunk's total advance.
      *
      * @param list<SvgTextSpan> $spans
-     * @return list<array{0: SvgTextSpan, 1: float, 2: float}>
+     * @return list<array{0: SvgTextSpan, 1: float, 2: float, 3: FontEngine}>
      */
     private function layoutSpans(array $spans): array
     {
@@ -971,9 +970,9 @@ final class Renderer
                 }
                 $penX += $span->dx;
                 $penY += $span->dy;
-                $font = $this->resolveSpanFont($span);
-                $width = $this->engineFor($font)->measure($span->text, $span->fontSize);
-                $chunk[] = [$span, $penX, $penY];
+                $engine = $this->engineFor($this->resolveSpanFont($span));
+                $width = $engine->measure($span->text, $span->fontSize);
+                $chunk[] = [$span, $penX, $penY, $engine];
                 $penX += $width;
                 $j++;
             }
@@ -983,23 +982,21 @@ final class Renderer
                 TextAnchor::END => -$chunkWidth,
                 TextAnchor::START => 0.0,
             };
-            foreach ($chunk as [$span, $sx, $sy]) {
-                $placed[] = [$span, $sx + $offset, $sy];
+            foreach ($chunk as [$span, $sx, $sy, $engine]) {
+                $placed[] = [$span, $sx + $offset, $sy, $engine];
             }
             $i = $j;
         }
         return $placed;
     }
 
-    private function emitSpan(SvgTextSpan $span, float $px, float $py, ExtGStateRegistry $registry): string
+    private function emitSpan(SvgTextSpan $span, float $px, float $py, FontEngine $engine, ExtGStateRegistry $registry): string
     {
         $hasFill = $span->fill !== null;
         $hasStroke = $span->stroke !== null;
         if (!$hasFill && !$hasStroke) {
             return '';
         }
-        $font = $this->resolveSpanFont($span);
-        $engine = $this->engineFor($font);
         if ($span->text === '') {
             return '';
         }
@@ -1035,17 +1032,20 @@ final class Renderer
 
     private function engineFor(Font $font): FontEngine
     {
+        // resolveSpanFont mints a fresh Font per span, so the resolver's own
+        // identity-keyed cache never hits here; this value-keyed cache dedups
+        // engines across spans that resolve to the same face.
         $key = $font->isCustom()
-            ? ('custom:' . ($font->customAlias() ?? '') . ($font->isBold() ? 'b' : '') . ($font->isItalic() ? 'i' : ''))
+            ? ('custom:' . $font->requireCustomAlias() . ($font->isBold() ? 'b' : '') . ($font->isItalic() ? 'i' : ''))
             : $font->pdfName();
         if (isset($this->engines[$key])) {
             return $this->engines[$key];
         }
-        if ($font->isCustom() && $this->fontResolver !== null) {
-            $engine = $this->fontResolver->resolveEngine($font);
-        } else {
-            $engine = new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
-        }
+        // With a resolver present, delegate both font kinds to it; the local
+        // StandardFontEngine path covers standard-only SVG with no resolver.
+        $engine = $this->fontResolver !== null
+            ? $this->fontResolver->resolveEngine($font)
+            : new StandardFontEngine($font, $this->metricsRegistry->metricsFor($font));
         return $this->engines[$key] = $engine;
     }
 

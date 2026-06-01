@@ -33,6 +33,9 @@ final class FontResolver
     /** @var array<int, FontEngine> identity-keyed cache for resolveEngine() */
     private array $engineCache = [];
 
+    /** @var ?array<string, string> memoized lowercased alias => actual alias */
+    private ?array $aliasCache = null;
+
     /**
      * @param array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> $registrations
      */
@@ -41,6 +44,22 @@ final class FontResolver
         private readonly ?MetricsRegistry $metricsRegistry = null,
         private readonly ?GlyphUsage $glyphUsage = null,
     ) {}
+
+    /**
+     * @return array<string, string> lowercased registered alias => actual alias,
+     *         for SVG font-family matching.
+     */
+    public function registeredAliases(): array
+    {
+        if ($this->aliasCache !== null) {
+            return $this->aliasCache;
+        }
+        $map = [];
+        foreach (array_keys($this->registrations) as $alias) {
+            $map[strtolower($alias)] = $alias;
+        }
+        return $this->aliasCache = $map;
+    }
 
     public function resolve(Font $font): ParsedTtf
     {

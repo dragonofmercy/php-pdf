@@ -189,20 +189,6 @@ final class Document
         return $this->fontResolver;
     }
 
-    /**
-     * @return array<string, string> lowercased alias => actual alias, for SVG
-     *         font-family matching.
-     * @internal
-     */
-    public function registeredFontAliases(): array
-    {
-        $map = [];
-        foreach (array_keys($this->customFontFamilies) as $alias) {
-            $map[strtolower($alias)] = $alias;
-        }
-        return $map;
-    }
-
     private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
     {
         if (!is_file($path)) {
@@ -888,9 +874,8 @@ final class Document
 
         $embedder = new ImageEmbedder();
         $svgFontRefs = $fontRefs + $customRefs;
-        $svgAliases = $this->registeredFontAliases();
         foreach ($imageEmissions as [$image, $imageNum]) {
-            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $svgFontRefs, $this->fontResolver, $svgAliases) as $obj) {
+            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $svgFontRefs, $this->fontResolver) as $obj) {
                 $objects[] = $obj;
             }
         }
@@ -956,7 +941,7 @@ final class Document
      */
     private function preregisterSvgTextFonts(): void
     {
-        $aliases = $this->registeredFontAliases();
+        $aliases = $this->fontResolver?->registeredAliases() ?? [];
         foreach ($this->imageRegistry->registeredImages() as $image) {
             $meta = $image->metadata;
             if (!$meta instanceof SvgMetadata) {
@@ -964,7 +949,10 @@ final class Document
             }
             foreach ($meta->textFontSpecs() as $spec) {
                 $font = SvgFontResolver::resolve($spec['family'], $spec['bold'], $spec['italic'], $aliases);
-                if ($font->isCustom() && $this->fontResolver !== null) {
+                // Route every font through the resolver when present (it registers
+                // standard faces too); fall back to a plain short-name allocation
+                // when there is no custom-font context.
+                if ($this->fontResolver !== null) {
                     $this->fontResolver->resolveEngine($font)->registerOn($this->fontRegistry);
                 } else {
                     $this->fontRegistry->shortName($font);
