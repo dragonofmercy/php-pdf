@@ -55,7 +55,7 @@ final readonly class ContentRangePatcher
         $hex = strtoupper(bin2hex($der));
         if (strlen($hex) > $capacity) {
             throw new PdfException(sprintf(
-                'Signature is %d hex chars but /Contents holds %d; increase maxSignatureBytes',
+                '/Contents payload is %d hex chars but the placeholder holds %d; increase maxSignatureBytes',
                 strlen($hex),
                 $capacity,
             ));
