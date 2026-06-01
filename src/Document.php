@@ -34,6 +34,7 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
+use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
 use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
@@ -76,6 +77,7 @@ final class Document
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
     private ?Signature $signature = null;
+    private ?DocumentTimestamp $documentTimestamp = null;
 
     private ?PageLayout $pageLayout = null;
     private ?PageMode $pageMode = null;
@@ -335,6 +337,12 @@ final class Document
         return $this;
     }
 
+    public function addDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes = 16384): self
+    {
+        $this->documentTimestamp = new DocumentTimestamp($tsa, $maxSignatureBytes);
+        return $this;
+    }
+
     /**
      * Returns the outline (bookmarks) tree root. The first call creates the
      * root lazily; subsequent calls return the same instance so the user can
@@ -508,6 +516,10 @@ final class Document
 
         if ($this->signature !== null && $this->encryption !== null) {
             throw new PdfException('Signing an encrypted document is not supported');
+        }
+
+        if ($this->documentTimestamp !== null && $this->encryption !== null) {
+            throw new PdfException('Adding a document timestamp to an encrypted document is not supported');
         }
 
         $this->runFooters();
