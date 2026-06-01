@@ -37,6 +37,7 @@ use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\AppendedFieldRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
+use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\ContentRangePatcher;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
@@ -361,6 +362,30 @@ final class Document
         return $this;
     }
 
+    public function addSignature(
+        SigningCertificate $certificate,
+        ?string $reason = null,
+        ?string $location = null,
+        ?string $contactInfo = null,
+        ?\DateTimeImmutable $signedAt = null,
+        int $maxSignatureBytes = 16384,
+        ?Tsa $timestamp = null,
+    ): self {
+        $name = 'Signature' . (count($this->appendedRevisions) + 1);
+        $signature = new Signature(
+            $certificate,
+            $name,
+            $reason,
+            $location,
+            $contactInfo,
+            $signedAt ?? new \DateTimeImmutable(),
+            $maxSignatureBytes,
+            $timestamp,
+        );
+        $this->appendedRevisions[] = new AppendedSignature($signature, $name);
+        return $this;
+    }
+
     /**
      * Returns the outline (bookmarks) tree root. The first call creates the
      * root lazily; subsequent calls return the same instance so the user can
@@ -547,6 +572,20 @@ final class Document
         }
 
         if ($this->appendedRevisions !== []) {
+            $baseNames = [];
+            foreach ($this->pages as $p) {
+                foreach ($p->getFormFields() as $f) {
+                    $baseNames[$f->name()] = true;
+                }
+            }
+            foreach ($this->appendedRevisions as $revision) {
+                if (isset($baseNames[$revision->fieldName()])) {
+                    throw new PdfException(sprintf(
+                        "Appended revision field name '%s' collides with an existing form field",
+                        $revision->fieldName(),
+                    ));
+                }
+            }
             return $this->outputWithAppendedRevisions();
         }
 
