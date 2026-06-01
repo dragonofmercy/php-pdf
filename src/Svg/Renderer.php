@@ -976,7 +976,7 @@ final class Renderer
         $cursor = $startOffset + $anchorShift;
 
         $body = '';
-        $currentShort = null;
+        $currentSpan = null;
         foreach ($glyphs as [$span, $engine, $ch, $w]) {
             $fill = $span->fill;
             $stroke = $span->stroke;
@@ -990,7 +990,7 @@ final class Renderer
 
             $shortName = $engine->registerOn($this->fontRegistry);
             $this->usedFonts[$shortName] = true;
-            if ($shortName !== $currentShort) {
+            if ($span !== $currentSpan) {
                 $body .= sprintf("/%s %s Tf\n", $shortName, self::fmt($span->fontSize));
                 $gs = $registry->nameFor($span->fillOpacity, $span->strokeOpacity);
                 if ($gs !== '') {
@@ -1005,7 +1005,7 @@ final class Renderer
                 }
                 $mode = ($hasFill && $hasStroke) ? 2 : ($hasStroke ? 1 : 0);
                 $body .= $mode . " Tr\n";
-                $currentShort = $shortName;
+                $currentSpan = $span;
             }
 
             $pt = $poly->pointAt($center);
