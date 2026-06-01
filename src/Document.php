@@ -382,7 +382,7 @@ final class Document
             $maxSignatureBytes,
             $timestamp,
         );
-        $this->appendedRevisions[] = new AppendedSignature($signature, $name);
+        $this->appendedRevisions[] = new AppendedSignature($signature);
         return $this;
     }
 
@@ -825,7 +825,7 @@ final class Document
 
         $builder = new AppendedFieldRevisionBuilder();
         foreach ($this->appendedRevisions as $revision) {
-            $built = $builder->build($ctx, fn (int $n): IndirectObject => $revision->valueDict($n), $revision->fieldName());
+            $built = $builder->build($ctx, $revision->valueDict(...), $revision->fieldName());
 
             $searchFrom = strlen($bytes);
             $prevStartxref = $this->lastStartxrefOffset($bytes);
@@ -841,7 +841,7 @@ final class Document
                 $bytes,
                 $searchFrom,
                 $revision->maxSignatureBytes() * 2,
-                fn (string $data): string => $revision->fill($data),
+                $revision->fill(...),
             );
 
             $ctx = $built['context'];

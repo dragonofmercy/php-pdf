@@ -67,8 +67,6 @@ final readonly class AppendedFieldRevisionBuilder
                 ->withEntry(Name::of('AcroForm'), PdfReference::to($acroFormId, 0));
             $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
             $objects[] = $newCatalog;
-
-            $maxObjectNumber = $acroFormId;
         } else {
             $acroFormDict = self::dictOf($ctx->acroForm);
             $fields = self::arrayEntry($acroFormDict, 'Fields');
@@ -78,9 +76,11 @@ final readonly class AppendedFieldRevisionBuilder
             $newAcroForm = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroFormDict);
             $objects[] = $newAcroForm;
             $newCatalog = $ctx->catalog;
-
-            $maxObjectNumber = $fieldId;
         }
+
+        // The standalone branch also allocates the new AcroForm object; the
+        // combined branch re-emits the existing one in place.
+        $maxObjectNumber = $ctx->acroForm === null ? $acroFormId : $fieldId;
 
         $pageDict = self::dictOf($ctx->firstPage);
         $annots = self::arrayEntry($pageDict, 'Annots');

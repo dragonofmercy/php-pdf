@@ -29,10 +29,8 @@ final readonly class ContentRangePatcher
         if ($contentsPos === false) {
             throw new PdfException('/Contents placeholder not found');
         }
-        $lt = strpos($bytes, '<', $contentsPos);
-        if ($lt === false) {
-            throw new PdfException('Malformed /Contents placeholder');
-        }
+        // The needle ends with the opening '<', so its position is fixed.
+        $lt = $contentsPos + strlen($needle) - 1;
         $gt = strpos($bytes, '>', $lt);
         if ($gt === false) {
             throw new PdfException('Unterminated /Contents placeholder');

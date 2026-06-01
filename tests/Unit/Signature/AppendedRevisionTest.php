@@ -25,7 +25,7 @@ final class AppendedRevisionTest extends TestCase
         $gen = TestCertificate::generate();
         $cred = SigningCertificate::fromPkcs12Bytes($gen['p12'], $gen['password']);
         $sig = new Signature($cred, 'Signature2', 'Reviewed', null, null, new DateTimeImmutable(), 16384, null);
-        $rev = new AppendedSignature($sig, 'Signature2');
+        $rev = new AppendedSignature($sig);
 
         self::assertSame('Signature2', $rev->fieldName());
         self::assertSame(16384, $rev->maxSignatureBytes());

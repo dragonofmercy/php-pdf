@@ -15,14 +15,11 @@ use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
  */
 final readonly class AppendedSignature implements AppendedRevision
 {
-    public function __construct(
-        private Signature $signature,
-        private string $fieldName,
-    ) {}
+    public function __construct(private Signature $signature) {}
 
     public function fieldName(): string
     {
-        return $this->fieldName;
+        return $this->signature->fieldName;
     }
 
     public function maxSignatureBytes(): int
