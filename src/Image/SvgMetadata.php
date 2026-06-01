@@ -10,6 +10,7 @@ use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
 use DragonOfMercy\PhpPdf\Svg\SvgText;
+use DragonOfMercy\PhpPdf\Svg\SvgTextPath;
 use DragonOfMercy\PhpPdf\Svg\ViewBox;
 
 final readonly class SvgMetadata
@@ -47,6 +48,12 @@ final readonly class SvgMetadata
     private function walk(SvgNode $node, array &$specs): void
     {
         if ($node instanceof SvgText) {
+            foreach ($node->spans as $span) {
+                $specs[] = ['family' => $span->fontFamily, 'bold' => $span->bold, 'italic' => $span->italic];
+            }
+            return;
+        }
+        if ($node instanceof SvgTextPath) {
             foreach ($node->spans as $span) {
                 $specs[] = ['family' => $span->fontFamily, 'bold' => $span->bold, 'italic' => $span->italic];
             }
