@@ -12,7 +12,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\RawValue;
 /**
  * Builds the /DocTimeStamp value dictionary (PAdES document timestamp,
  * SubFilter ETSI.RFC3161) with fixed-width /ByteRange and /Contents
- * placeholders that DocTimeStampPatcher overwrites. Pure: no openssl, no TSA
+ * placeholders that ContentRangePatcher overwrites. Pure: no openssl, no TSA
  * call here.
  */
 final readonly class DocTimeStampDictionaryEmitter

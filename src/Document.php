@@ -34,8 +34,10 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
-use DragonOfMercy\PhpPdf\Signature\DocTimeStampPatcher;
-use DragonOfMercy\PhpPdf\Signature\DocTimeStampRevisionBuilder;
+use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
+use DragonOfMercy\PhpPdf\Signature\AppendedFieldRevisionBuilder;
+use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
+use DragonOfMercy\PhpPdf\Signature\ContentRangePatcher;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
@@ -81,7 +83,9 @@ final class Document
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
     private ?Signature $signature = null;
-    private ?DocumentTimestamp $documentTimestamp = null;
+
+    /** @var list<AppendedRevision> appended incremental revisions, in call order */
+    private array $appendedRevisions = [];
 
     /**
      * Stable /ID for the metadata-less document-timestamp path, generated once
@@ -349,7 +353,11 @@ final class Document
 
     public function addDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes = 16384): self
     {
-        $this->documentTimestamp = new DocumentTimestamp($tsa, $maxSignatureBytes);
+        $name = 'DocTimeStamp' . (count($this->appendedRevisions) + 1);
+        $this->appendedRevisions[] = new AppendedDocumentTimestamp(
+            new DocumentTimestamp($tsa, $maxSignatureBytes),
+            $name,
+        );
         return $this;
     }
 
@@ -528,8 +536,8 @@ final class Document
             throw new PdfException('Signing an encrypted document is not supported');
         }
 
-        if ($this->documentTimestamp !== null && $this->encryption !== null) {
-            throw new PdfException('Adding a document timestamp to an encrypted document is not supported');
+        if ($this->appendedRevisions !== [] && $this->encryption !== null) {
+            throw new PdfException('Appended signatures or timestamps are not supported on an encrypted document');
         }
 
         $this->runFooters();
@@ -538,8 +546,8 @@ final class Document
             return $this->outputEncrypted($this->encryption, $this->metadata);
         }
 
-        if ($this->documentTimestamp !== null) {
-            return $this->outputWithDocumentTimestamp($this->documentTimestamp);
+        if ($this->appendedRevisions !== []) {
+            return $this->outputWithAppendedRevisions();
         }
 
         $bytes = $this->metadata === null
@@ -678,8 +686,8 @@ final class Document
 
     /**
      * Builds the finalized revision-1 bytes (with a stable /ID and signature
-     * patch applied when signing) plus the RevisionContext the incremental
-     * DocTimeStamp revision needs. Used only on the document-timestamp path;
+     * patch applied when signing) plus the RevisionContext the appended
+     * incremental revisions need. Used only on the appended-revisions path;
      * the standard output methods are unchanged.
      *
      * @return array{bytes: string, context: RevisionContext}
@@ -772,28 +780,35 @@ final class Document
         return ['bytes' => $bytes, 'context' => $context];
     }
 
-    private function outputWithDocumentTimestamp(DocumentTimestamp $dt): string
+    private function outputWithAppendedRevisions(): string
     {
-        ['bytes' => $rev1, 'context' => $ctx] = $this->buildRevisionOne();
+        ['bytes' => $bytes, 'context' => $ctx] = $this->buildRevisionOne();
 
-        $rev2 = (new DocTimeStampRevisionBuilder())->build($ctx, $dt->maxSignatureBytes);
+        $builder = new AppendedFieldRevisionBuilder();
+        foreach ($this->appendedRevisions as $revision) {
+            $built = $builder->build($ctx, fn (int $n): IndirectObject => $revision->valueDict($n), $revision->fieldName());
 
-        $prevStartxref = $this->lastStartxrefOffset($rev1);
-        $combined = (new IncrementalWriter())->append(
-            priorBytes: $rev1,
-            newObjects: $rev2['objects'],
-            root: $ctx->catalog->reference(),
-            documentId: $ctx->documentId,
-            prevStartxref: $prevStartxref,
-            size: $rev2['size'],
-        );
+            $searchFrom = strlen($bytes);
+            $prevStartxref = $this->lastStartxrefOffset($bytes);
+            $bytes = (new IncrementalWriter())->append(
+                priorBytes: $bytes,
+                newObjects: $built['objects'],
+                root: $ctx->catalog->reference(),
+                documentId: $ctx->documentId,
+                prevStartxref: $prevStartxref,
+                size: $built['size'],
+            );
+            $bytes = (new ContentRangePatcher())->patch(
+                $bytes,
+                $searchFrom,
+                $revision->maxSignatureBytes() * 2,
+                fn (string $data): string => $revision->fill($data),
+            );
 
-        return (new DocTimeStampPatcher())->patch(
-            $combined,
-            $dt->tsa,
-            $dt->maxSignatureBytes,
-            strlen($rev1),
-        );
+            $ctx = $built['context'];
+        }
+
+        return $bytes;
     }
 
     private function lastStartxrefOffset(string $bytes): int
