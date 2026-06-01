@@ -34,7 +34,6 @@ final class DocTimeStampRevisionBuilderTest extends TestCase
         $ctx = new RevisionContext(
             catalog: $catalog,
             acroForm: null,
-            firstPageRef: PdfReference::to(3, 0),
             firstPage: $page,
             maxObjectNumber: 5,
             documentId: 'id',
@@ -74,7 +73,6 @@ final class DocTimeStampRevisionBuilderTest extends TestCase
         $ctx = new RevisionContext(
             catalog: $catalog,
             acroForm: $acroForm,
-            firstPageRef: PdfReference::to(3, 0),
             firstPage: $page,
             maxObjectNumber: 11,
             documentId: 'id',

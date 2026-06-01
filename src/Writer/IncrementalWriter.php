@@ -29,13 +29,16 @@ final class IncrementalWriter
         int $size,
     ): string {
         $body = $priorBytes;
+        $offset = strlen($priorBytes);
         $xref = new IncrementalXref();
         foreach ($newObjects as $object) {
-            $xref->recordOffset($object->objectNumber, strlen($body));
-            $body .= $object->toBytes();
+            $xref->recordOffset($object->objectNumber, $offset);
+            $chunk = $object->toBytes();
+            $body .= $chunk;
+            $offset += strlen($chunk);
         }
 
-        $xrefOffset = strlen($body);
+        $xrefOffset = $offset;
         $body .= $xref->toBytes();
 
         $trailer = new Trailer(

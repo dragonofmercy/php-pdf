@@ -83,6 +83,12 @@ final class Document
     private ?Signature $signature = null;
     private ?DocumentTimestamp $documentTimestamp = null;
 
+    /**
+     * Stable /ID for the metadata-less document-timestamp path, generated once
+     * so repeated output() calls (and both stacked revisions) share one value.
+     */
+    private ?string $generatedDocumentId = null;
+
     private ?PageLayout $pageLayout = null;
     private ?PageMode $pageMode = null;
     private ?OpenAction $openAction = null;
@@ -726,23 +732,18 @@ final class Document
             $infoRef = $info->reference();
             $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
         } else {
-            $documentId = md5(self::HEADER . count($this->pages) . spl_object_id($this));
+            $documentId = $this->generatedDocumentId ??= md5(random_bytes(16));
         }
-        foreach ($pageAndContentObjects as $o) {
-            $objects[] = $o;
-        }
-        foreach ($outlineObjects as $o) {
-            $objects[] = $o;
-        }
+        array_push($objects, ...$pageAndContentObjects, ...$outlineObjects);
 
-        $firstPageRef = $pageRefs[0];
+        $firstPageNumber = $pageRefs[0]->objectNumber;
         $firstPage = null;
         $maxObjectNumber = 0;
         foreach ($objects as $o) {
             if ($o->objectNumber > $maxObjectNumber) {
                 $maxObjectNumber = $o->objectNumber;
             }
-            if ($o->objectNumber === $firstPageRef->objectNumber) {
+            if ($o->objectNumber === $firstPageNumber) {
                 $firstPage = $o;
             }
         }
@@ -763,7 +764,6 @@ final class Document
         $context = new RevisionContext(
             catalog: $catalog,
             acroForm: $this->findObjectByRef($objects, $acroFormRef),
-            firstPageRef: $firstPageRef,
             firstPage: $firstPage,
             maxObjectNumber: $maxObjectNumber,
             documentId: $documentId,
@@ -798,7 +798,7 @@ final class Document
 
     private function lastStartxrefOffset(string $bytes): int
     {
-        if (preg_match('~startxref\s+(\d+)\s+%%EOF\s*$~', $bytes, $m) !== 1) {
+        if (preg_match('~startxref\n(\d+)\n%%EOF\n?$~', $bytes, $m) !== 1) {
             throw new PdfException('Could not locate the revision-1 startxref offset');
         }
         return (int) $m[1];

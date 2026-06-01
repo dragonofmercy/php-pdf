@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Signature;
 
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 
 /**
  * Snapshot of the revision-1 objects an incremental DocTimeStamp revision needs
@@ -19,7 +18,6 @@ final readonly class RevisionContext
     public function __construct(
         public IndirectObject $catalog,
         public ?IndirectObject $acroForm,
-        public PdfReference $firstPageRef,
         public IndirectObject $firstPage,
         public int $maxObjectNumber,
         public string $documentId,

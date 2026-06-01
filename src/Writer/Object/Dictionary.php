@@ -32,6 +32,14 @@ final readonly class Dictionary implements PdfObject
         return array_values($this->entries);
     }
 
+    /**
+     * Returns the value stored under $key, or null when the key is absent.
+     */
+    public function get(Name $key): ?PdfObject
+    {
+        return $this->entries[$key->toBytes()][1] ?? null;
+    }
+
     public function withEntry(Name $key, PdfObject $value): self
     {
         $entries = $this->entries;

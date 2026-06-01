@@ -18,8 +18,9 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
  * Builds the indirect objects for an incremental revision that adds a
  * /DocTimeStamp. The timestamp value dict is /V of an invisible /FT /Sig field
  * whose widget sits on the first page (Rect [0 0 0 0]). New objects get fresh
- * numbers above the prior max; the catalog / AcroForm / first page are
- * re-emitted under their original numbers with the field threaded in.
+ * numbers above the prior max; the first page and the AcroForm are re-emitted
+ * under their original numbers with the field threaded in, and the catalog is
+ * re-emitted only when no AcroForm existed yet (to add /AcroForm).
  *
  * @internal
  */
@@ -30,10 +31,11 @@ final readonly class DocTimeStampRevisionBuilder
      */
     public function build(RevisionContext $ctx, int $maxSignatureBytes): array
     {
-        $next = $ctx->maxObjectNumber;
-        $tsId = ++$next;
-        $fieldId = ++$next;
+        $tsId = $ctx->maxObjectNumber + 1;        // /DocTimeStamp value dict
+        $fieldId = $ctx->maxObjectNumber + 2;     // invisible /FT /Sig widget
+        $acroFormId = $ctx->maxObjectNumber + 3;  // new AcroForm (standalone case only)
         $fieldRef = PdfReference::to($fieldId, 0);
+        $size = ($ctx->acroForm === null ? $acroFormId : $fieldId) + 1;
 
         $objects = [];
 
@@ -54,7 +56,6 @@ final readonly class DocTimeStampRevisionBuilder
         $objects[] = IndirectObject::of($fieldId, 0, $fieldDict);
 
         if ($ctx->acroForm === null) {
-            $acroFormId = ++$next;
             $acroFormDict = Dictionary::empty()
                 ->withEntry(Name::of('Fields'), PdfArray::of($fieldRef))
                 ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
@@ -66,9 +67,8 @@ final readonly class DocTimeStampRevisionBuilder
         } else {
             $acroFormDict = self::dictOf($ctx->acroForm);
             $fields = self::arrayEntry($acroFormDict, 'Fields');
-            $newFields = PdfArray::of(...[...$fields, $fieldRef]);
             $acroFormDict = $acroFormDict
-                ->withEntry(Name::of('Fields'), $newFields)
+                ->withEntry(Name::of('Fields'), PdfArray::of(...[...$fields, $fieldRef]))
                 ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
             $objects[] = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroFormDict);
         }
@@ -78,7 +78,7 @@ final readonly class DocTimeStampRevisionBuilder
         $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...[...$annots, $fieldRef]));
         $objects[] = IndirectObject::of($ctx->firstPage->objectNumber, 0, $pageDict);
 
-        return ['objects' => $objects, 'size' => $next + 1];
+        return ['objects' => $objects, 'size' => $size];
     }
 
     private static function dictOf(IndirectObject $obj): Dictionary
@@ -95,12 +95,7 @@ final readonly class DocTimeStampRevisionBuilder
      */
     private static function arrayEntry(Dictionary $dict, string $key): array
     {
-        $wanted = Name::of($key)->toBytes();
-        foreach ($dict->entries() as [$name, $value]) {
-            if ($name->toBytes() === $wanted && $value instanceof PdfArray) {
-                return $value->elements();
-            }
-        }
-        return [];
+        $value = $dict->get(Name::of($key));
+        return $value instanceof PdfArray ? $value->elements() : [];
     }
 }
