@@ -34,6 +34,8 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
+use DragonOfMercy\PhpPdf\Signature\DocTimeStampPatcher;
+use DragonOfMercy\PhpPdf\Signature\DocTimeStampRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
@@ -42,6 +44,7 @@ use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
+use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -530,11 +533,7 @@ final class Document
         }
 
         if ($this->documentTimestamp !== null) {
-            // The document-timestamp path finalizes revision 1 (always emitting
-            // a stable /ID and applying signature patching when sign() was used)
-            // through buildRevisionOne(); the incremental DocTimeStamp revision
-            // that extends it is layered on top in a later step.
-            return $this->buildRevisionOne()['bytes'];
+            return $this->outputWithDocumentTimestamp($this->documentTimestamp);
         }
 
         $bytes = $this->metadata === null
@@ -771,6 +770,38 @@ final class Document
         );
 
         return ['bytes' => $bytes, 'context' => $context];
+    }
+
+    private function outputWithDocumentTimestamp(DocumentTimestamp $dt): string
+    {
+        ['bytes' => $rev1, 'context' => $ctx] = $this->buildRevisionOne();
+
+        $rev2 = (new DocTimeStampRevisionBuilder())->build($ctx, $dt->maxSignatureBytes);
+
+        $prevStartxref = $this->lastStartxrefOffset($rev1);
+        $combined = (new IncrementalWriter())->append(
+            priorBytes: $rev1,
+            newObjects: $rev2['objects'],
+            root: $ctx->catalog->reference(),
+            documentId: $ctx->documentId,
+            prevStartxref: $prevStartxref,
+            size: $rev2['size'],
+        );
+
+        return (new DocTimeStampPatcher())->patch(
+            $combined,
+            $dt->tsa,
+            $dt->maxSignatureBytes,
+            strlen($rev1),
+        );
+    }
+
+    private function lastStartxrefOffset(string $bytes): int
+    {
+        if (preg_match('~startxref\s+(\d+)\s+%%EOF\s*$~', $bytes, $m) !== 1) {
+            throw new PdfException('Could not locate the revision-1 startxref offset');
+        }
+        return (int) $m[1];
     }
 
     /**
