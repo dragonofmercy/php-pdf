@@ -15,6 +15,9 @@ use RuntimeException;
  */
 final class TestTsa implements TsaClient
 {
+    /** @var array{certPem: string, keyPem: string, p12: string, password: string}|null */
+    private static ?array $credential = null;
+
     public function timestamp(string $messageImprint, string $hashOid): string
     {
         $tstInfo = $this->buildTstInfo($messageImprint, $hashOid);
@@ -41,10 +44,18 @@ final class TestTsa implements TsaClient
 
     private function signAsCms(string $tstInfo): string
     {
-        $gen = TestCertificate::generate();
+        // One ephemeral TSA credential per process: the token only needs a valid
+        // signer, not a fresh keypair per call (RSA keygen is expensive).
+        $gen = self::$credential ??= TestCertificate::generate();
         $in = tempnam(sys_get_temp_dir(), 'tsa_in');
         $out = tempnam(sys_get_temp_dir(), 'tsa_out');
         if ($in === false || $out === false) {
+            if ($in !== false) {
+                @unlink($in);
+            }
+            if ($out !== false) {
+                @unlink($out);
+            }
             throw new RuntimeException('Failed to allocate TSA temp files');
         }
         try {

@@ -15,7 +15,7 @@ final class TimeStampReqBuilderTest extends TestCase
     {
         $imprint = hash('sha256', 'hello', true);
         $nonce = "\x12\x34\x56\x78";
-        $der = TimeStampReqBuilder::build($imprint, TsaHashAlgorithm::SHA256, $nonce);
+        $der = TimeStampReqBuilder::build($imprint, TsaHashAlgorithm::SHA256->oid(), $nonce);
 
         // Outer SEQUENCE.
         $outer = Der::readHeader($der, 0);
@@ -45,7 +45,7 @@ final class TimeStampReqBuilderTest extends TestCase
     public function testNonceIsEncodedAsPositiveInteger(): void
     {
         // A nonce with the high bit set must gain a leading 0x00.
-        $der = TimeStampReqBuilder::build(hash('sha256', 'x', true), TsaHashAlgorithm::SHA256, "\x80\x01");
+        $der = TimeStampReqBuilder::build(hash('sha256', 'x', true), TsaHashAlgorithm::SHA256->oid(), "\x80\x01");
         self::assertStringContainsString("\x02\x03\x00\x80\x01", $der);
     }
 }

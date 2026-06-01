@@ -19,7 +19,6 @@ final readonly class HttpTsaClient implements TsaClient
     public function __construct(
         private string $url,
         private ?TsaBasicAuth $auth,
-        private TsaHashAlgorithm $hash,
         private int $timeoutSeconds = 10,
     ) {}
 
@@ -29,7 +28,7 @@ final readonly class HttpTsaClient implements TsaClient
             throw new PdfException("TSA URL must be http(s), got '{$this->url}'");
         }
         $nonce = random_bytes(12);
-        $request = TimeStampReqBuilder::build($messageImprint, $this->hash, $nonce);
+        $request = TimeStampReqBuilder::build($messageImprint, $hashOid, $nonce);
         $response = $this->post($request);
         return TimeStampRespParser::extractToken($response);
     }

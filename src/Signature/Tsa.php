@@ -9,16 +9,14 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 /**
  * Configures RFC 3161 timestamping for a signature. Build with Tsa::http() for
  * the default HTTP transport, or Tsa::withClient() to inject a TsaClient
- * (tests, custom transports). The resolved client and the hash algorithm are
- * consumed by SignatureTimestamper.
+ * (tests, custom transports). The `client` performs the round-trip and `hash`
+ * (the imprint algorithm) is consumed by SignatureTimestamper.
  */
 final readonly class Tsa
 {
     private function __construct(
-        public string $url,
-        public ?TsaBasicAuth $auth,
         public TsaHashAlgorithm $hash,
-        private ?TsaClient $client,
+        public TsaClient $client,
     ) {}
 
     public static function http(
@@ -29,18 +27,13 @@ final readonly class Tsa
         if ($url === '') {
             throw new PdfException('TSA URL cannot be empty');
         }
-        return new self($url, $auth, $hash, null);
+        return new self($hash, new HttpTsaClient($url, $auth));
     }
 
     public static function withClient(
         TsaClient $client,
         TsaHashAlgorithm $hash = TsaHashAlgorithm::SHA256,
     ): self {
-        return new self('', null, $hash, $client);
-    }
-
-    public function resolveClient(): TsaClient
-    {
-        return $this->client ?? new HttpTsaClient($this->url, $this->auth, $this->hash);
+        return new self($hash, $client);
     }
 }

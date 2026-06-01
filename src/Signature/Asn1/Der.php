@@ -55,20 +55,14 @@ final class Der
         if ($value < 0) {
             throw new PdfException("Der::integer only encodes non-negative integers, got {$value}");
         }
-        if ($value === 0) {
-            return self::tlv(0x02, "\x00");
-        }
         $bytes = '';
         $n = $value;
         while ($n > 0) {
             $bytes = chr($n & 0xFF) . $bytes;
             $n >>= 8;
         }
-        // Prepend 0x00 if the high bit is set, to keep the integer positive.
-        if ((ord($bytes[0]) & 0x80) !== 0) {
-            $bytes = "\x00" . $bytes;
-        }
-        return self::tlv(0x02, $bytes);
+        // integerFromBytes applies the positive sign-byte rule and the TLV wrapper.
+        return self::integerFromBytes($bytes);
     }
 
     /**
@@ -127,9 +121,10 @@ final class Der
     }
 
     /**
-     * Reads one TLV header at $offset.
+     * Reads one TLV header at $offset. `start` is the tag byte offset (== $offset),
+     * `valueStart` the first content byte, `end` one past the content.
      *
-     * @return array{tag: int, length: int, valueStart: int, end: int}
+     * @return array{tag: int, length: int, start: int, valueStart: int, end: int}
      */
     public static function readHeader(string $data, int $offset): array
     {
@@ -160,7 +155,45 @@ final class Der
         if ($end > $len) {
             throw new PdfException('DER truncated: declared length exceeds buffer');
         }
-        return ['tag' => $tag, 'length' => $length, 'valueStart' => $cursor, 'end' => $end];
+        return ['tag' => $tag, 'length' => $length, 'start' => $offset, 'valueStart' => $cursor, 'end' => $end];
+    }
+
+    /**
+     * Decodes a DER INTEGER value (big-endian, assumed to fit PHP_INT) from a
+     * header produced by readHeader().
+     *
+     * @param array{tag: int, length: int, start: int, valueStart: int, end: int} $header
+     */
+    public static function readInt(string $data, array $header): int
+    {
+        $value = 0;
+        for ($i = 0; $i < $header['length']; $i++) {
+            $value = ($value << 8) | ord($data[$header['valueStart'] + $i]);
+        }
+        return $value;
+    }
+
+    /**
+     * Decodes a DER OBJECT IDENTIFIER value to its dotted string from a header
+     * produced by readHeader().
+     *
+     * @param array{tag: int, length: int, start: int, valueStart: int, end: int} $header
+     */
+    public static function readOid(string $data, array $header): string
+    {
+        $bytes = substr($data, $header['valueStart'], $header['length']);
+        $first = ord($bytes[0]);
+        $arcs = [intdiv($first, 40), $first % 40];
+        $acc = 0;
+        for ($i = 1; $i < strlen($bytes); $i++) {
+            $b = ord($bytes[$i]);
+            $acc = ($acc << 7) | ($b & 0x7F);
+            if (($b & 0x80) === 0) {
+                $arcs[] = $acc;
+                $acc = 0;
+            }
+        }
+        return implode('.', $arcs);
     }
 
     private static function base128(int $value): string

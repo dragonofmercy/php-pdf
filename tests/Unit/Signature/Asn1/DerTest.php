@@ -81,18 +81,20 @@ final class DerTest extends TestCase
         $h = Der::readHeader("\x30\x03abc", 0);
         self::assertSame(0x30, $h['tag']);
         self::assertSame(3, $h['length']);
+        self::assertSame(0, $h['start']);
         self::assertSame(2, $h['valueStart']);
         self::assertSame(5, $h['end']);
     }
 
     public function testReadHeaderLongForm(): void
     {
-        $data = "\x04\x82\x01\x00" . str_repeat('x', 256);
-        $h = Der::readHeader($data, 0);
+        $data = "zz\x04\x82\x01\x00" . str_repeat('x', 256);
+        $h = Der::readHeader($data, 2);
         self::assertSame(0x04, $h['tag']);
         self::assertSame(256, $h['length']);
-        self::assertSame(4, $h['valueStart']);
-        self::assertSame(260, $h['end']);
+        self::assertSame(2, $h['start']);
+        self::assertSame(6, $h['valueStart']);
+        self::assertSame(262, $h['end']);
     }
 
     public function testReadHeaderRejectsTruncated(): void
@@ -121,5 +123,19 @@ final class DerTest extends TestCase
     {
         $this->expectException(PdfException::class);
         Der::contextConstructed(31, 'x');
+    }
+
+    public function testReadIntRoundTrip(): void
+    {
+        $der = Der::integer(258);
+        $h = Der::readHeader($der, 0);
+        self::assertSame(258, Der::readInt($der, $h));
+    }
+
+    public function testReadOidRoundTrip(): void
+    {
+        $der = Der::oid('1.2.840.113549.1.7.2');
+        $h = Der::readHeader($der, 0);
+        self::assertSame('1.2.840.113549.1.7.2', Der::readOid($der, $h));
     }
 }

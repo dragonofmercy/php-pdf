@@ -17,7 +17,7 @@ final class TsaTest extends TestCase
     {
         $tsa = Tsa::http('https://tsa.example/tsr');
         self::assertSame(TsaHashAlgorithm::SHA256, $tsa->hash);
-        self::assertInstanceOf(HttpTsaClient::class, $tsa->resolveClient());
+        self::assertInstanceOf(HttpTsaClient::class, $tsa->client);
     }
 
     public function testHttpRejectsEmptyUrl(): void
@@ -35,7 +35,7 @@ final class TsaTest extends TestCase
             }
         };
         $tsa = Tsa::withClient($stub, TsaHashAlgorithm::SHA512);
-        self::assertSame($stub, $tsa->resolveClient());
+        self::assertSame($stub, $tsa->client);
         self::assertSame(TsaHashAlgorithm::SHA512, $tsa->hash);
     }
 }

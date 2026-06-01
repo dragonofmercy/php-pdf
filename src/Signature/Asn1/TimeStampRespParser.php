@@ -32,7 +32,7 @@ final class TimeStampRespParser
         if ($statusInt['tag'] !== 0x02) {
             throw new PdfException('PKIStatusInfo.status is not an INTEGER');
         }
-        $status = self::readInt($resp, $statusInt);
+        $status = Der::readInt($resp, $statusInt);
         if ($status !== 0 && $status !== 1) {
             throw new PdfException("TSA rejected the request: PKIStatus status {$status}");
         }
@@ -49,7 +49,7 @@ final class TimeStampRespParser
         if ($contentType['tag'] !== 0x06) {
             throw new PdfException('timeStampToken contentType is not an OID');
         }
-        $oid = self::readOid($resp, $contentType);
+        $oid = Der::readOid($resp, $contentType);
         if ($oid !== self::ID_SIGNED_DATA) {
             throw new PdfException("timeStampToken is not CMS SignedData (got OID {$oid})");
         }
@@ -57,33 +57,5 @@ final class TimeStampRespParser
         // The token bytes are the full ContentInfo TLV, from its tag at
         // $statusInfo['end'] through $token['end'].
         return substr($resp, $statusInfo['end'], $token['end'] - $statusInfo['end']);
-    }
-
-    /** @param array{tag: int, length: int, valueStart: int, end: int} $header */
-    private static function readInt(string $data, array $header): int
-    {
-        $value = 0;
-        for ($i = 0; $i < $header['length']; $i++) {
-            $value = ($value << 8) | ord($data[$header['valueStart'] + $i]);
-        }
-        return $value;
-    }
-
-    /** @param array{tag: int, length: int, valueStart: int, end: int} $header */
-    private static function readOid(string $data, array $header): string
-    {
-        $bytes = substr($data, $header['valueStart'], $header['length']);
-        $first = ord($bytes[0]);
-        $arcs = [intdiv($first, 40), $first % 40];
-        $acc = 0;
-        for ($i = 1; $i < strlen($bytes); $i++) {
-            $b = ord($bytes[$i]);
-            $acc = ($acc << 7) | ($b & 0x7F);
-            if (($b & 0x80) === 0) {
-                $arcs[] = $acc;
-                $acc = 0;
-            }
-        }
-        return implode('.', $arcs);
     }
 }

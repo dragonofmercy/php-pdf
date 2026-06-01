@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Signature\Asn1;
 
-use DragonOfMercy\PhpPdf\Signature\TsaHashAlgorithm;
-
 /**
  * Builds an RFC 3161 TimeStampReq DER:
  *
@@ -25,10 +23,10 @@ use DragonOfMercy\PhpPdf\Signature\TsaHashAlgorithm;
  */
 final class TimeStampReqBuilder
 {
-    public static function build(string $messageImprint, TsaHashAlgorithm $hash, string $nonce): string
+    public static function build(string $messageImprint, string $hashOid, string $nonce): string
     {
         $algorithmIdentifier = Der::sequence(
-            Der::oid($hash->oid()),
+            Der::oid($hashOid),
             Der::null(),
         );
         $imprint = Der::sequence(

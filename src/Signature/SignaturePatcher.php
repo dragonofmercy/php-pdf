@@ -62,7 +62,7 @@ final readonly class SignaturePatcher
         $signer = $this->injectedSigner ?? function (string $data) use ($sig): string {
             $der = (new Pkcs7Signer())->sign($data, $sig->certificate);
             if ($sig->tsa !== null) {
-                $der = (new SignatureTimestamper($sig->tsa->hash))->timestamp($der, $sig->tsa->resolveClient());
+                $der = (new SignatureTimestamper($sig->tsa->hash))->timestamp($der, $sig->tsa->client);
             }
             return $der;
         };

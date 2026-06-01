@@ -70,9 +70,8 @@ final readonly class SignatureTimestamper
         $newSignerInfos = Der::set($newSignerInfo);
 
         // SignedData content up to (not including) the signerInfos TLV, then the
-        // rebuilt SET. tlvStart() recovers the byte offset of the SET's tag.
-        $signerInfosTlvStart = $this->tlvStart($signerInfos);
-        $signedDataHead = substr($cms, $signedData['valueStart'], $signerInfosTlvStart - $signedData['valueStart']);
+        // rebuilt SET. readHeader exposes the SET's tag offset as 'start'.
+        $signedDataHead = substr($cms, $signedData['valueStart'], $signerInfos['start'] - $signedData['valueStart']);
         $newSignedData = Der::sequence($signedDataHead . $newSignerInfos);
 
         // Rebuild [0] EXPLICIT and the outer ContentInfo (contentType OID + content).
@@ -82,8 +81,8 @@ final readonly class SignatureTimestamper
     }
 
     /**
-     * @param array{tag: int, length: int, valueStart: int, end: int} $signedData
-     * @return array{tag: int, length: int, valueStart: int, end: int}
+     * @param array{tag: int, length: int, start: int, valueStart: int, end: int} $signedData
+     * @return array{tag: int, length: int, start: int, valueStart: int, end: int}
      */
     private function findSignerInfosSet(string $cms, array $signedData): array
     {
@@ -101,7 +100,7 @@ final readonly class SignatureTimestamper
     }
 
     /**
-     * @param array{tag: int, length: int, valueStart: int, end: int} $signerInfo
+     * @param array{tag: int, length: int, start: int, valueStart: int, end: int} $signerInfo
      */
     private function readSignatureValue(string $cms, array $signerInfo): string
     {
@@ -121,30 +120,5 @@ final readonly class SignatureTimestamper
             throw new PdfException('CMS: SignerInfo signature OCTET STRING not found');
         }
         return substr($cms, $signature['valueStart'], $signature['length']);
-    }
-
-    /** @param array{tag: int, length: int, valueStart: int, end: int} $header */
-    private function tlvStart(array $header): int
-    {
-        return $header['valueStart'] - $this->headerWidth($header['length']);
-    }
-
-    /**
-     * Header byte count (tag + length octets) for a TLV of the given content
-     * length. Assumes minimal DER length encoding, which the input always is
-     * (openssl-produced and Der-produced DER).
-     */
-    private function headerWidth(int $length): int
-    {
-        if ($length < 0x80) {
-            return 2;
-        }
-        $octets = 0;
-        $n = $length;
-        while ($n > 0) {
-            $octets++;
-            $n >>= 8;
-        }
-        return 2 + $octets;
     }
 }
