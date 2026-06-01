@@ -53,6 +53,25 @@ final class RendererTextTest extends TestCase
         self::assertStringContainsString("1 Tr\n", $r['bytes']);
     }
 
+    public function testTextPathGlyphsAreCentredOnThePath(): void
+    {
+        // On a horizontal path the tangent is flat, so each glyph's text matrix
+        // reduces to "1 0 0 -1 ox 50 Tm". Centring on the path point means the
+        // origin (left edge) is shifted back by half the advance, so the first
+        // glyph's left edge sits at the start (ox == 0) and successive origins
+        // are spaced by the *left* glyph's advance - never (w_left+w_right)/2.
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">'
+            . '<defs><path id="p" d="M0,50 H200"/></defs>'
+            . '<text font-size="20"><textPath href="#p">AVA</textPath></text></svg>';
+        $r = $this->render($svg);
+        $count = preg_match_all('/1 0 0 -1 (-?\d+(?:\.\d+)?) 50 Tm/', $r['bytes'], $m);
+        self::assertSame(3, $count, 'expected one text matrix per glyph');
+        $xs = array_map('floatval', $m[1]);
+        self::assertSame(0.0, $xs[0], 'first glyph left edge must sit at the path start');
+        self::assertGreaterThan($xs[0], $xs[1]);
+        self::assertGreaterThan($xs[1], $xs[2]);
+    }
+
     public function testParenthesesAreEscapedInShowText(): void
     {
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'

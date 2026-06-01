@@ -1012,10 +1012,16 @@ final class Renderer
             $theta = deg2rad($pt['angleDeg']);
             $cos = cos($theta);
             $sin = sin($theta);
+            // The glyph is centred on the path point: shift its origin (left edge
+            // of the baseline) back by half the advance along the tangent, so the
+            // glyph's midpoint - not its left edge - sits on the curve. Without
+            // this, inter-glyph spacing degrades to (w_left + w_right)/2.
+            $ox = $pt['x'] - $w / 2.0 * $cos;
+            $oy = $pt['y'] - $w / 2.0 * $sin;
             $body .= sprintf(
                 "%s %s %s %s %s %s Tm\n",
                 self::fmt($cos), self::fmt($sin), self::fmt($sin), self::fmt(-$cos),
-                self::fmt($pt['x']), self::fmt($pt['y']),
+                self::fmt($ox), self::fmt($oy),
             );
             $body .= $engine->encodeShowText($ch);
         }
