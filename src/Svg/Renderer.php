@@ -33,6 +33,7 @@ use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgShape;
+use DragonOfMercy\PhpPdf\Svg\TextPath\PathPolyline;
 
 /**
  * Translates an SvgMetadata tree into a PDF content-stream byte string.
@@ -152,6 +153,9 @@ final class Renderer
         }
         if ($node instanceof SvgText) {
             return $this->renderText($node, $registry);
+        }
+        if ($node instanceof SvgTextPath) {
+            return $this->renderTextPath($node, $registry);
         }
         if ($node instanceof SvgClipped) {
             return $this->renderClipped($node, $registry, $patterns, $ctm);
@@ -932,6 +936,97 @@ final class Renderer
         $out = "q\n";
         if ($text->transform !== null && !$text->transform->isIdentity()) {
             $out .= self::cmFromMatrix($text->transform) . "\n";
+        }
+        $out .= "BT\n" . $body . "ET\n" . "Q\n";
+        return $out;
+    }
+
+    private function renderTextPath(SvgTextPath $node, ExtGStateRegistry $registry): string
+    {
+        if ($node->spans === []) {
+            return '';
+        }
+        $poly = PathPolyline::fromCommands($node->pathCommands);
+        $pathLen = $poly->length();
+        if ($pathLen <= 0.0) {
+            return '';
+        }
+
+        $totalWidth = 0.0;
+        /** @var list<array{0: SvgTextSpan, 1: FontEngine, 2: string, 3: float}> $glyphs */
+        $glyphs = [];
+        foreach ($node->spans as $span) {
+            $engine = $this->engineFor($this->resolveSpanFont($span));
+            foreach (mb_str_split($span->text) as $ch) {
+                $w = $engine->measure($ch, $span->fontSize);
+                $glyphs[] = [$span, $engine, $ch, $w];
+                $totalWidth += $w;
+            }
+        }
+        if ($glyphs === []) {
+            return '';
+        }
+
+        $startOffset = $node->startOffsetIsPercent ? $node->startOffset / 100.0 * $pathLen : $node->startOffset;
+        $anchorShift = match ($node->spans[0]->anchor) {
+            TextAnchor::MIDDLE => -$totalWidth / 2.0,
+            TextAnchor::END => -$totalWidth,
+            TextAnchor::START => 0.0,
+        };
+        $cursor = $startOffset + $anchorShift;
+
+        $body = '';
+        $currentShort = null;
+        foreach ($glyphs as [$span, $engine, $ch, $w]) {
+            $fill = $span->fill;
+            $stroke = $span->stroke;
+            $hasFill = $fill !== null;
+            $hasStroke = $stroke !== null;
+            $center = $cursor + $w / 2.0;
+            $cursor += $w;
+            if ((!$hasFill && !$hasStroke) || $ch === ' ' || $center < 0.0 || $center > $pathLen) {
+                continue;
+            }
+
+            $shortName = $engine->registerOn($this->fontRegistry);
+            $this->usedFonts[$shortName] = true;
+            if ($shortName !== $currentShort) {
+                $body .= sprintf("/%s %s Tf\n", $shortName, self::fmt($span->fontSize));
+                $gs = $registry->nameFor($span->fillOpacity, $span->strokeOpacity);
+                if ($gs !== '') {
+                    $body .= '/' . $gs . " gs\n";
+                }
+                if ($hasFill) {
+                    $body .= sprintf("%s %s %s rg\n", self::fmt($fill->r), self::fmt($fill->g), self::fmt($fill->b));
+                }
+                if ($hasStroke) {
+                    $body .= sprintf("%s %s %s RG\n", self::fmt($stroke->r), self::fmt($stroke->g), self::fmt($stroke->b));
+                    $body .= sprintf("%s w\n", self::fmt($span->strokeWidth));
+                }
+                $mode = ($hasFill && $hasStroke) ? 2 : ($hasStroke ? 1 : 0);
+                $body .= $mode . " Tr\n";
+                $currentShort = $shortName;
+            }
+
+            $pt = $poly->pointAt($center);
+            $theta = deg2rad($pt['angleDeg']);
+            $cos = cos($theta);
+            $sin = sin($theta);
+            $body .= sprintf(
+                "%s %s %s %s %s %s Tm\n",
+                self::fmt($cos), self::fmt($sin), self::fmt($sin), self::fmt(-$cos),
+                self::fmt($pt['x']), self::fmt($pt['y']),
+            );
+            $body .= $engine->encodeShowText($ch);
+        }
+
+        if ($body === '') {
+            return '';
+        }
+
+        $out = "q\n";
+        if ($node->transform !== null && !$node->transform->isIdentity()) {
+            $out .= self::cmFromMatrix($node->transform) . "\n";
         }
         $out .= "BT\n" . $body . "ET\n" . "Q\n";
         return $out;
