@@ -35,6 +35,7 @@ use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
+use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
 use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
@@ -528,6 +529,14 @@ final class Document
             return $this->outputEncrypted($this->encryption, $this->metadata);
         }
 
+        if ($this->documentTimestamp !== null) {
+            // The document-timestamp path finalizes revision 1 (always emitting
+            // a stable /ID and applying signature patching when sign() was used)
+            // through buildRevisionOne(); the incremental DocTimeStamp revision
+            // that extends it is layered on top in a later step.
+            return $this->buildRevisionOne()['bytes'];
+        }
+
         $bytes = $this->metadata === null
             ? $this->outputWithoutMetadata()
             : $this->outputWithMetadata($this->metadata);
@@ -660,6 +669,124 @@ final class Document
             info: $info->reference(),
             documentId: $documentId,
         );
+    }
+
+    /**
+     * Builds the finalized revision-1 bytes (with a stable /ID and signature
+     * patch applied when signing) plus the RevisionContext the incremental
+     * DocTimeStamp revision needs. Used only on the document-timestamp path;
+     * the standard output methods are unchanged.
+     *
+     * @return array{bytes: string, context: RevisionContext}
+     */
+    private function buildRevisionOne(): array
+    {
+        $metadata = $this->metadata;
+        $hasMetadata = $metadata !== null;
+        $firstObjectNumber = $hasMetadata ? 5 : 3;
+        $pagesRef = PdfReference::to(2, 0);
+
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] =
+            $this->buildPagesFontsImages(firstObjectNumber: $firstObjectNumber, pagesRef: $pagesRef);
+        unset($allWidgets);
+
+        $catalogDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Catalog'))
+            ->withEntry(Name::of('Pages'), $pagesRef);
+        if ($hasMetadata) {
+            $catalogDict = $catalogDict->withEntry(Name::of('Metadata'), PdfReference::to(4, 0));
+        }
+        if ($acroFormRef !== null) {
+            $catalogDict = $catalogDict->withEntry(Name::of('AcroForm'), $acroFormRef);
+        }
+        $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
+        $nextObjectNumber = $firstObjectNumber + count($pageAndContentObjects);
+        [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
+        $catalogDict = $this->withDocumentScripts($catalogDict);
+
+        $catalog = IndirectObject::of(1, 0, $catalogDict);
+        $pages = IndirectObject::of(
+            2,
+            0,
+            Dictionary::empty()
+                ->withEntry(Name::of('Type'), Name::of('Pages'))
+                ->withEntry(Name::of('Kids'), PdfArray::of(...$pageRefs))
+                ->withEntry(Name::of('Count'), PdfNumber::ofInt(count($this->pages))),
+        );
+
+        $objects = [$catalog, $pages];
+        $infoRef = null;
+        if ($metadata !== null) {
+            $effective = clone $metadata;
+            $effective->producer ??= 'phppdf ' . self::VERSION;
+            $effective->creationDate ??= new DateTimeImmutable();
+            $info = IndirectObject::of(3, 0, $this->buildInfoDictionary($effective));
+            $metadataStream = IndirectObject::of(4, 0, new MetadataStream((new XmpWriter())->write($effective)));
+            $objects[] = $info;
+            $objects[] = $metadataStream;
+            $infoRef = $info->reference();
+            $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
+        } else {
+            $documentId = md5(self::HEADER . count($this->pages) . spl_object_id($this));
+        }
+        foreach ($pageAndContentObjects as $o) {
+            $objects[] = $o;
+        }
+        foreach ($outlineObjects as $o) {
+            $objects[] = $o;
+        }
+
+        $firstPageRef = $pageRefs[0];
+        $firstPage = null;
+        $maxObjectNumber = 0;
+        foreach ($objects as $o) {
+            if ($o->objectNumber > $maxObjectNumber) {
+                $maxObjectNumber = $o->objectNumber;
+            }
+            if ($o->objectNumber === $firstPageRef->objectNumber) {
+                $firstPage = $o;
+            }
+        }
+        if ($firstPage === null) {
+            throw new PdfException('Internal: first page object not found while building revision 1');
+        }
+
+        $bytes = $this->assembleWithTrailer(
+            objects: $objects,
+            root: $catalog->reference(),
+            info: $infoRef,
+            documentId: $documentId,
+        );
+        if ($this->signature !== null) {
+            $bytes = (new SignaturePatcher())->patch($bytes, $this->signature);
+        }
+
+        $context = new RevisionContext(
+            catalog: $catalog,
+            acroForm: $this->findObjectByRef($objects, $acroFormRef),
+            firstPageRef: $firstPageRef,
+            firstPage: $firstPage,
+            maxObjectNumber: $maxObjectNumber,
+            documentId: $documentId,
+        );
+
+        return ['bytes' => $bytes, 'context' => $context];
+    }
+
+    /**
+     * @param list<IndirectObject> $objects
+     */
+    private function findObjectByRef(array $objects, ?PdfReference $ref): ?IndirectObject
+    {
+        if ($ref === null) {
+            return null;
+        }
+        foreach ($objects as $o) {
+            if ($o->objectNumber === $ref->objectNumber) {
+                return $o;
+            }
+        }
+        return null;
     }
 
     private function outputEncrypted(Encryption $encryption, ?Metadata $metadata): string
@@ -1214,7 +1341,7 @@ final class Document
     private function assembleWithTrailer(
         array $objects,
         PdfReference $root,
-        PdfReference $info,
+        ?PdfReference $info,
         string $documentId,
     ): string {
         $xref = new XrefTable();
