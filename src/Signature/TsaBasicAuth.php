@@ -7,8 +7,9 @@ namespace DragonOfMercy\PhpPdf\Signature;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
- * Optional HTTP Basic credentials for a TSA endpoint. The password is never
- * exposed via __toString or logging.
+ * Optional HTTP Basic credentials for a TSA endpoint. No __toString is defined,
+ * so the credential is not accidentally stringified into logs; the password
+ * stays readable as a property for the transport that needs it.
  */
 final readonly class TsaBasicAuth
 {
