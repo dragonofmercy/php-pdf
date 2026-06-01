@@ -30,34 +30,13 @@ final readonly class SignaturePatcher
     public function patch(string $bytes, Signature $sig): string
     {
         $needle = '/Contents <';
-        $contentsPos = strpos($bytes, $needle);
-        if ($contentsPos === false) {
+        $first = strpos($bytes, $needle);
+        if ($first === false) {
             throw new PdfException('Signature /Contents placeholder not found in output');
         }
-        if (strpos($bytes, $needle, $contentsPos + strlen($needle)) !== false) {
+        if (strpos($bytes, $needle, $first + strlen($needle)) !== false) {
             throw new PdfException('Multiple /Contents placeholders found; single-signature only');
         }
-        $lt = strpos($bytes, '<', $contentsPos);
-        if ($lt === false) {
-            throw new PdfException('Malformed /Contents placeholder');
-        }
-        $gt = strpos($bytes, '>', $lt);
-        if ($gt === false) {
-            throw new PdfException('Unterminated /Contents placeholder');
-        }
-        $len = strlen($bytes);
-
-        $byteRange = sprintf('[0 %010d %010d %010d]', $lt, $gt + 1, $len - ($gt + 1));
-        if (strlen($byteRange) !== strlen(SignatureDictionaryEmitter::BYTERANGE_PLACEHOLDER)) {
-            throw new PdfException('Computed /ByteRange exceeds the reserved placeholder width');
-        }
-        $brPos = strpos($bytes, SignatureDictionaryEmitter::BYTERANGE_PLACEHOLDER);
-        if ($brPos === false) {
-            throw new PdfException('Signature /ByteRange placeholder not found in output');
-        }
-        $bytes = substr_replace($bytes, $byteRange, $brPos, strlen(SignatureDictionaryEmitter::BYTERANGE_PLACEHOLDER));
-
-        $signedData = substr($bytes, 0, $lt) . substr($bytes, $gt + 1);
 
         $signer = $this->injectedSigner ?? function (string $data) use ($sig): string {
             $der = (new Pkcs7Signer())->sign($data, $sig->certificate);
@@ -66,19 +45,7 @@ final readonly class SignaturePatcher
             }
             return $der;
         };
-        $der = $signer($signedData);
 
-        $hex = strtoupper(bin2hex($der));
-        $capacity = $sig->maxSignatureBytes * 2;
-        if (strlen($hex) > $capacity) {
-            throw new PdfException(sprintf(
-                'Signature is %d hex chars but /Contents holds %d; increase maxSignatureBytes',
-                strlen($hex),
-                $capacity,
-            ));
-        }
-        $hex = str_pad($hex, $capacity, '0', STR_PAD_RIGHT);
-
-        return substr_replace($bytes, $hex, $lt + 1, $capacity);
+        return (new ContentRangePatcher())->patch($bytes, 0, $sig->maxSignatureBytes * 2, $signer);
     }
 }
