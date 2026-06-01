@@ -99,7 +99,7 @@ final class Der
 
     public static function null(): string
     {
-        return "\x05\x00";
+        return self::tlv(0x05, '');
     }
 
     public static function oid(string $dotted): string
@@ -120,6 +120,9 @@ final class Der
      */
     public static function contextConstructed(int $tagNumber, string $content): string
     {
+        if ($tagNumber < 0 || $tagNumber > 30) {
+            throw new PdfException("Context tag number must be 0..30, got {$tagNumber}");
+        }
         return self::tlv(0xA0 | $tagNumber, $content);
     }
 

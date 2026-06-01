@@ -106,4 +106,20 @@ final class DerTest extends TestCase
         $this->expectException(PdfException::class);
         Der::readHeader("\x30\x80", 0);
     }
+
+    public function testIntegerFromBytes(): void
+    {
+        // All-zero input collapses to integer 0.
+        self::assertSame("\x02\x01\x00", Der::integerFromBytes(''));
+        // High bit set: 0x00 pad prepended to keep integer positive.
+        self::assertSame("\x02\x02\x00\x80", Der::integerFromBytes("\x80"));
+        // Leading zero stripped then re-padded because high bit is still set.
+        self::assertSame("\x02\x02\x00\x81", Der::integerFromBytes("\x00\x81"));
+    }
+
+    public function testContextConstructedRejectsTagAbove30(): void
+    {
+        $this->expectException(PdfException::class);
+        Der::contextConstructed(31, 'x');
+    }
 }
