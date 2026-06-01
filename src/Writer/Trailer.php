@@ -24,6 +24,7 @@ final readonly class Trailer
         private int $xrefOffset,
         private ?PdfReference $info = null,
         private ?string $documentId = null,
+        private ?int $prev = null,
     ) {}
 
     public function toBytes(): string
@@ -39,6 +40,10 @@ final readonly class Trailer
         if ($this->documentId !== null) {
             $id = HexString::of($this->documentId);
             $dict = $dict->withEntry(Name::of('ID'), PdfArray::of($id, $id));
+        }
+
+        if ($this->prev !== null) {
+            $dict = $dict->withEntry(Name::of('Prev'), PdfNumber::ofInt($this->prev));
         }
 
         return "trailer\n" . $dict->toBytes() . "\nstartxref\n" . $this->xrefOffset . "\n%%EOF\n";
