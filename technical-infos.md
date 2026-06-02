@@ -236,6 +236,32 @@ Pages without any `field()` calls produce:
 
 So the byte-identity baseline of earlier phases is preserved.
 
+### Long-term validation (DSS / LTV)
+
+`Document::enableLtv()` makes the document's signatures long-term validatable by
+embedding their validation material in a Document Security Store and covering it
+with a document timestamp. It is written as incremental revisions appended after
+every signature: first a DSS revision, then (when a `Tsa` is given) a
+`/DocTimeStamp` revision whose ByteRange covers the DSS.
+
+- **/DSS** is an indirect dictionary referenced from the catalog, carrying
+  `/Certs` and `/CRLs` arrays of raw-DER stream objects (one stream per
+  certificate and per CRL). The global DSS only - no per-signature `/VRI`
+  sub-dictionary, because its key is the SHA-1 of a signature's `/Contents`
+  which is not known until after signing; a global DSS is sufficient for
+  validators and is what modern signers emit.
+- **CRL-based.** Revocation material is collected through an injectable
+  `ValidationDataSource` (the same seam shape as `TsaClient`): the default
+  `HttpCrlValidationDataSource` reads each certificate's CRL distribution point
+  and fetches the CRL; `StaticValidationDataSource` supplies material a caller
+  obtained itself (and is how the test suite runs offline). OCSP is a later
+  phase.
+- **Subfilter stays `adbe.pkcs7.detached`.** This is Adobe-style LTV: it is the
+  presence of validation material in the DSS plus a covering document timestamp
+  that makes the file long-term validatable, not the CMS subfilter. The strict
+  ETSI.CAdES profile (with the ESS signing-certificate-v2 signed attribute) is a
+  later phase.
+
 ## Encryption
 
 phppdf supports two encryption schemes:

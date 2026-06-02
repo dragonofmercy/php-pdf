@@ -16,7 +16,8 @@
         "symfony/process": "^7.0"
     },
     "suggest": {
-        "ext-gd": "Decode JPEG images that appear inside an SVG <filter> region"
+        "ext-gd": "Decode JPEG images that appear inside an SVG <filter> region",
+        "ext-curl": "Faster CRL and timestamp fetching for LTV; file_get_contents is used otherwise"
     },
     "autoload": {
         "psr-4": { "DragonOfMercy\\PhpPdf\\": "src/" }
