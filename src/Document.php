@@ -445,8 +445,11 @@ final class Document
         foreach ($this->signingCertificates as $credential) {
             $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
         }
-        if ($material->certificates === [] && $material->crls === []) {
-            throw new PdfException('enableLtv: the validation data source returned no certificates or CRLs');
+        if ($material->certificates === []) {
+            throw new PdfException('enableLtv: the validation data source returned no certificates');
+        }
+        if ($material->crls === [] && $material->ocsps === []) {
+            throw new PdfException('enableLtv: the validation data source returned no CRLs or OCSP responses');
         }
         $this->appendedRevisions[] = new DssRevision($material);
 
