@@ -7,8 +7,12 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg\Filter;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Svg\Align;
 use DragonOfMercy\PhpPdf\Svg\Filter\SubtreeRasterizer;
+use DragonOfMercy\PhpPdf\Svg\GradientStop;
+use DragonOfMercy\PhpPdf\Svg\GradientUnits;
+use DragonOfMercy\PhpPdf\Svg\LinearGradient;
 use DragonOfMercy\PhpPdf\Svg\MeetOrSlice;
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
+use DragonOfMercy\PhpPdf\Svg\SpreadMethod;
 use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgImage;
@@ -64,6 +68,37 @@ final class SubtreeRasterizerTest extends TestCase
 
         self::assertEqualsWithDelta([1.0, 0.0, 0.0, 1.0], $buf->pixel(2, 2), 1e-6);
         self::assertEqualsWithDelta([1.0, 0.0, 0.0, 1.0], $buf->pixel(0, 0), 1e-6);
+    }
+
+    public function testFillsLinearGradient(): void
+    {
+        // red at x=0 -> blue at x=10, userSpaceOnUse, horizontal.
+        $stops = [
+            new GradientStop(0.0, new SvgColor(1.0, 0.0, 0.0), 1.0),
+            new GradientStop(1.0, new SvgColor(0.0, 0.0, 1.0), 1.0),
+        ];
+        $gradient = new LinearGradient(
+            0.0, 0.0, 10.0, 0.0,
+            GradientUnits::USER_SPACE_ON_USE,
+            null,
+            $stops,
+            1.0,
+            SpreadMethod::PAD,
+        );
+        $paint = SvgPaint::default()->withFill($gradient);
+        $rect = new SvgRect(null, $paint, 0.0, 0.0, 10.0, 10.0, 0.0, 0.0);
+        $group = new SvgGroup(null, [$rect]);
+
+        $buf = (new SubtreeRasterizer())->rasterize($group, SvgMatrix::identity(), 10, 10);
+
+        $left = $buf->pixel(1, 5);
+        $right = $buf->pixel(8, 5);
+
+        // Left is redder than blue; right is bluer than red.
+        self::assertGreaterThan($left[2], $left[0]);
+        self::assertGreaterThan($right[0], $right[2]);
+        // And the red channel decreases left-to-right.
+        self::assertGreaterThan($right[0], $left[0]);
     }
 
     /**

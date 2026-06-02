@@ -10,11 +10,19 @@ use DragonOfMercy\PhpPdf\Image\PngColorType;
 use DragonOfMercy\PhpPdf\Image\PngFilters;
 use DragonOfMercy\PhpPdf\Image\PngMetadata;
 use DragonOfMercy\PhpPdf\Svg\Align;
+use DragonOfMercy\PhpPdf\Svg\BoundingBox;
+use DragonOfMercy\PhpPdf\Svg\FillRule;
+use DragonOfMercy\PhpPdf\Svg\GradientStop;
+use DragonOfMercy\PhpPdf\Svg\GradientUnits;
+use DragonOfMercy\PhpPdf\Svg\LinearGradient;
 use DragonOfMercy\PhpPdf\Svg\MeetOrSlice;
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
+use DragonOfMercy\PhpPdf\Svg\RadialGradient;
+use DragonOfMercy\PhpPdf\Svg\SpreadMethod;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
 use DragonOfMercy\PhpPdf\Svg\SvgColor;
 use DragonOfMercy\PhpPdf\Svg\SvgFiltered;
+use DragonOfMercy\PhpPdf\Svg\SvgGradient;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgImage;
 use DragonOfMercy\PhpPdf\Svg\SvgMasked;
@@ -97,17 +105,190 @@ final class SubtreeRasterizer
         $paint = $shape->paint();
 
         $fill = $paint->fill;
-        if (!$fill instanceof SvgColor) {
-            // none / gradient / pattern: gradient handled in 12c; pattern skipped.
+        $baseAlpha = $paint->effectiveFillOpacity() * $opacity;
+
+        if ($fill instanceof SvgColor) {
+            $rings = ShapeFlattener::toRings($shape, $shapeCtm);
+            if ($rings === []) {
+                return;
+            }
+            PolygonFiller::fill($buf, $rings, $paint->fillRule, $fill->r, $fill->g, $fill->b, $baseAlpha);
             return;
         }
 
+        if ($fill instanceof SvgGradient) {
+            $this->drawGradientFill($shape, $fill, $shapeCtm, $paint->fillRule, $buf, $baseAlpha);
+            return;
+        }
+
+        // none / pattern: pattern fills inside filters are out of scope (skipped).
+    }
+
+    /**
+     * Fills a shape with a gradient by rasterizing its silhouette into a
+     * coverage buffer, then sampling the gradient color per covered pixel.
+     * The gradient color is evaluated in the gradient's intrinsic coordinate
+     * space, reached by inverse-mapping each device pixel through the same
+     * matrix the vector renderer builds (shapeCtm . [bbox for oBB] .
+     * gradientTransform).
+     */
+    private function drawGradientFill(SvgShape $shape, SvgGradient $gradient, SvgMatrix $shapeCtm, FillRule $rule, RasterBuffer $buf, float $baseAlpha): void
+    {
+        $stops = $gradient->stops();
+        if ($stops === []) {
+            return;
+        }
+
+        // Matrix mapping gradient-intrinsic space -> device space.
+        $matrix = $shapeCtm;
+        if ($gradient->units() === GradientUnits::OBJECT_BOUNDING_BOX) {
+            $bbox = BoundingBox::of($shape);
+            if ($bbox->isDegenerate()) {
+                return;
+            }
+            $matrix = $matrix
+                ->compose(SvgMatrix::translate($bbox->x, $bbox->y))
+                ->compose(SvgMatrix::scale($bbox->width, $bbox->height));
+        }
+        $gt = $gradient->transform();
+        if ($gt !== null) {
+            $matrix = $matrix->compose($gt);
+        }
+        $inverse = self::invert($matrix);
+        if ($inverse === null) {
+            return;
+        }
+
+        // Rasterize the silhouette coverage into a private buffer (white, alpha
+        // = coverage), then read it back to drive per-pixel gradient sampling.
         $rings = ShapeFlattener::toRings($shape, $shapeCtm);
         if ($rings === []) {
             return;
         }
-        $alpha = $paint->effectiveFillOpacity() * $opacity;
-        PolygonFiller::fill($buf, $rings, $paint->fillRule, $fill->r, $fill->g, $fill->b, $alpha);
+        $coverage = new RasterBuffer($buf->width, $buf->height);
+        PolygonFiller::fill($coverage, $rings, $rule, 1.0, 1.0, 1.0, 1.0);
+
+        $spread = $gradient->spreadMethod();
+        for ($py = 0; $py < $buf->height; $py++) {
+            for ($px = 0; $px < $buf->width; $px++) {
+                $cov = $coverage->pixel($px, $py)[3];
+                if ($cov <= 0.0) {
+                    continue;
+                }
+                [$gx, $gy] = $inverse->apply($px + 0.5, $py + 0.5);
+                $t = self::gradientParameter($gradient, $gx, $gy);
+                if ($t === null) {
+                    continue;
+                }
+                $t = self::applySpread($t, $spread);
+                [$r, $g, $b, $stopA] = self::sampleStops($stops, $t);
+                $srcA = $stopA * $baseAlpha * $cov;
+                if ($srcA <= 0.0) {
+                    continue;
+                }
+                self::composite($buf, $px, $py, $r, $g, $b, $srcA);
+            }
+        }
+    }
+
+    /**
+     * Computes the gradient parameter t in [0, 1] (before spread) for a point in
+     * the gradient's intrinsic space. Returns null when the point cannot be
+     * placed (degenerate radial radius).
+     */
+    private static function gradientParameter(SvgGradient $gradient, float $gx, float $gy): ?float
+    {
+        if ($gradient instanceof LinearGradient) {
+            $dx = $gradient->x2 - $gradient->x1;
+            $dy = $gradient->y2 - $gradient->y1;
+            $lenSq = $dx * $dx + $dy * $dy;
+            if ($lenSq <= 0.0) {
+                return 1.0;
+            }
+            return (($gx - $gradient->x1) * $dx + ($gy - $gradient->y1) * $dy) / $lenSq;
+        }
+        if ($gradient instanceof RadialGradient) {
+            $r = $gradient->r;
+            if ($r <= 0.0) {
+                return null;
+            }
+            // Focal radial gradient: parameterize along the ray from the focal
+            // point through the sample point to the circle (centre cx,cy, radius r).
+            $fx = $gradient->fx;
+            $fy = $gradient->fy;
+            $cx = $gradient->cx;
+            $cy = $gradient->cy;
+            $dx = $gx - $fx;
+            $dy = $gy - $fy;
+            $fcx = $fx - $cx;
+            $fcy = $fy - $cy;
+            // Solve |F + s*D - C|^2 = r^2 for the positive scale s; t = 1/s.
+            $a = $dx * $dx + $dy * $dy;
+            if ($a <= 0.0) {
+                return 0.0; // Sample sits on the focal point: innermost stop.
+            }
+            $b = 2.0 * ($dx * $fcx + $dy * $fcy);
+            $c = $fcx * $fcx + $fcy * $fcy - $r * $r;
+            $disc = $b * $b - 4.0 * $a * $c;
+            if ($disc < 0.0) {
+                return 1.0;
+            }
+            $sq = sqrt($disc);
+            $s = (-$b + $sq) / (2.0 * $a);
+            if ($s <= 0.0) {
+                return 1.0;
+            }
+            return 1.0 / $s;
+        }
+        return null;
+    }
+
+    private static function applySpread(float $t, SpreadMethod $spread): float
+    {
+        return match ($spread) {
+            SpreadMethod::PAD => max(0.0, min(1.0, $t)),
+            SpreadMethod::REPEAT => $t - floor($t),
+            SpreadMethod::REFLECT => self::reflect($t),
+        };
+    }
+
+    private static function reflect(float $t): float
+    {
+        $m = fmod(abs($t), 2.0);
+        return $m > 1.0 ? 2.0 - $m : $m;
+    }
+
+    /**
+     * Linearly interpolates the (normalized, monotone) gradient stops at t.
+     *
+     * @param list<GradientStop> $stops
+     * @return array{0: float, 1: float, 2: float, 3: float} r, g, b, alpha
+     */
+    private static function sampleStops(array $stops, float $t): array
+    {
+        $first = $stops[0];
+        if ($t <= $first->offset) {
+            return [$first->color->r, $first->color->g, $first->color->b, $first->opacity];
+        }
+        $last = $stops[count($stops) - 1];
+        if ($t >= $last->offset) {
+            return [$last->color->r, $last->color->g, $last->color->b, $last->opacity];
+        }
+        for ($i = 1, $n = count($stops); $i < $n; $i++) {
+            $s0 = $stops[$i - 1];
+            $s1 = $stops[$i];
+            if ($t <= $s1->offset) {
+                $span = $s1->offset - $s0->offset;
+                $f = $span > 0.0 ? ($t - $s0->offset) / $span : 0.0;
+                return [
+                    $s0->color->r + ($s1->color->r - $s0->color->r) * $f,
+                    $s0->color->g + ($s1->color->g - $s0->color->g) * $f,
+                    $s0->color->b + ($s1->color->b - $s0->color->b) * $f,
+                    $s0->opacity + ($s1->opacity - $s0->opacity) * $f,
+                ];
+            }
+        }
+        return [$last->color->r, $last->color->g, $last->color->b, $last->opacity];
     }
 
     private function drawImage(SvgImage $img, SvgMatrix $ctm, RasterBuffer $buf, float $opacity): void
