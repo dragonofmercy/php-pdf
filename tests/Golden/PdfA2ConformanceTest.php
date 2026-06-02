@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -31,9 +32,9 @@ final class PdfA2ConformanceTest extends TestCase
     }
 
     /**
-     * @dataProvider cases
      * @param callable(): Document $build
      */
+    #[DataProvider('cases')]
     public function testVeraPdfReportsCompliant(string $flavour, callable $build): void
     {
         if (!is_file(self::JAVA) || !is_file(self::JAR)) {
