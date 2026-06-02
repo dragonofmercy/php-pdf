@@ -37,7 +37,8 @@ final class HttpCrlValidationDataSource implements ValidationDataSource
 
     private function fetchCrlDer(string $url): string
     {
-        $body = @file_get_contents($url);
+        $context = stream_context_create(['http' => ['timeout' => 10]]);
+        $body = @file_get_contents($url, false, $context);
         if ($body === false || $body === '') {
             throw new PdfException("Failed to fetch CRL from {$url}");
         }

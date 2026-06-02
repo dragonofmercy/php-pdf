@@ -41,6 +41,20 @@ final class EnableLtvTest extends TestCase
         $doc->enableLtv($source);
     }
 
+    public function testEnableLtvWithEmptyMaterialThrows(): void
+    {
+        if (!function_exists('openssl_cms_sign')) {
+            self::markTestSkipped('openssl unavailable');
+        }
+        $gen = TestCertificate::generate();
+        $doc = new Document();
+        $doc->addPage();
+        $doc->addSignature(SigningCertificate::fromPkcs12Bytes($gen['p12'], $gen['password']));
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('no certificates or CRLs');
+        $doc->enableLtv(new StaticValidationDataSource(ValidationMaterial::of([], [])));
+    }
+
     public function testEnableLtvAddsDssToOutput(): void
     {
         if (!function_exists('openssl_cms_sign')) {
