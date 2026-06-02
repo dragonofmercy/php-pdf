@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a hand-built CMS carrying the `contentType`, `messageDigest` and
   `signingCertificateV2` (ESS, RFC 5035) signed attributes - PAdES-B-B, or B-T
   when combined with a `Tsa`. The default stays `adbe.pkcs7.detached`. RSA keys.
+- PAdES-B-LTA: `enableLtv($source, $timestamp, $timestampCertificateChains)`
+  embeds the document-timestamp TSA certificate's chain plus revocation in the
+  DSS, so the archive timestamp is itself long-term validatable (validated
+  end-to-end with pyHanko: signature and document timestamp both verify from the
+  embedded DSS under hard-fail). Archive-timestamp renewal remains a later phase.
 
 ## [1.1.0] - 2026-06-02
 

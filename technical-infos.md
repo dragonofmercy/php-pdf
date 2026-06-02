@@ -263,6 +263,14 @@ every signature: first a DSS revision, then (when a `Tsa` is given) a
   the file long-term validatable, not the CMS subfilter. It works over both the
   default `adbe.pkcs7.detached` and the strict `ETSI.CAdES.detached` signatures
   (see below).
+- **Archival (B-LTA).** `enableLtv($source, $timestamp, $timestampCertificateChains)`
+  also collects, through the same `ValidationDataSource`, the chain + revocation
+  of the certificate that signs the covering `/DocTimeStamp`, and merges it into
+  the DSS. The archive timestamp then protects validation material that includes
+  its own TSA certificate's revocation, so the whole construct - signature and
+  timestamp - validates offline from the embedded DSS (PAdES-B-LTA). Renewal
+  (stacking further archive timestamps years later, each preceded by a DSS update
+  for the prior timestamp's TSA) is out of scope.
 
 ### Strict ETSI.CAdES signatures
 
