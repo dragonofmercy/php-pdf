@@ -42,12 +42,22 @@ final readonly class DssBuilder
             $next++;
         }
 
+        $ocspRefs = [];
+        foreach ($material->ocsps as $der) {
+            $objects[] = IndirectObject::of($next, 0, Stream::of($der));
+            $ocspRefs[] = PdfReference::to($next, 0);
+            $next++;
+        }
+
         $dssDict = Dictionary::empty()->withEntry(Name::of('Type'), Name::of('DSS'));
         if ($certRefs !== []) {
             $dssDict = $dssDict->withEntry(Name::of('Certs'), PdfArray::of(...$certRefs));
         }
         if ($crlRefs !== []) {
             $dssDict = $dssDict->withEntry(Name::of('CRLs'), PdfArray::of(...$crlRefs));
+        }
+        if ($ocspRefs !== []) {
+            $dssDict = $dssDict->withEntry(Name::of('OCSPs'), PdfArray::of(...$ocspRefs));
         }
 
         $dssObjectNumber = $next;

@@ -34,4 +34,27 @@ final class DssBuilderTest extends TestCase
         self::assertStringContainsString('/Certs [5 0 R]', $dssBytes);
         self::assertStringNotContainsString('/CRLs', $dssBytes);
     }
+
+    public function testEmitsOcspsArrayWhenPresent(): void
+    {
+        $material = ValidationMaterial::of(["\x30\x01a"], [], ["\x30\x02bb"]);
+        $built = (new DssBuilder())->build($material, 10);
+
+        $dss = $built['objects'][count($built['objects']) - 1];
+        self::assertSame($built['dssObjectNumber'], $dss->objectNumber);
+
+        $dssSerialized = $dss->toBytes();
+        self::assertStringContainsString('/OCSPs', $dssSerialized);
+        self::assertStringNotContainsString('/CRLs', $dssSerialized);
+    }
+
+    public function testOmitsOcspsArrayWhenEmpty(): void
+    {
+        $material = ValidationMaterial::of(["\x30\x01a"], ["\x30\x02bb"]);
+        $built = (new DssBuilder())->build($material, 10);
+
+        $dss = $built['objects'][count($built['objects']) - 1];
+        self::assertStringNotContainsString('/OCSPs', $dss->toBytes());
+        self::assertStringContainsString('/CRLs', $dss->toBytes());
+    }
 }
