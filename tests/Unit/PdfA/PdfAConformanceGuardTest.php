@@ -53,4 +53,17 @@ final class PdfAConformanceGuardTest extends TestCase
         $this->expectExceptionMessage('JavaScript');
         (new PdfAConformanceGuard())->verify([], false, false, true);
     }
+
+    public function testThrowsOnAttachmentAtPart2(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('PDF/A-2');
+        (new \DragonOfMercy\PhpPdf\PdfA\PdfAConformanceGuard())->verify(
+            standardFonts: [],
+            hasEncryption: false,
+            hasAppendedRevisions: false,
+            hasDocumentScripts: false,
+            hasAttachmentsAtPart2: true,
+        );
+    }
 }

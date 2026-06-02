@@ -19,6 +19,8 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\PdfA\AFRelationship;
+use DragonOfMercy\PhpPdf\PdfA\AttachedFile;
 use DragonOfMercy\PhpPdf\PdfA\OutputIntent;
 use DragonOfMercy\PhpPdf\PdfA\PdfAConformanceGuard;
 use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
@@ -155,6 +157,9 @@ final class Document
 
     /** @var array<string, string> name => JavaScript, run on document open */
     private array $documentScripts = [];
+
+    /** @var list<AttachedFile> */
+    private array $attachments = [];
 
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
@@ -494,6 +499,31 @@ final class Document
     }
 
     /**
+     * Embeds a file in the document. With enablePdfA(PdfALevel::A3B|A3U) this is a
+     * conformant PDF/A-3 associated file (e.g. a Factur-X invoice XML); without
+     * PDF/A it is a plain attachment. Rejected at PDF/A-2 (part 2 forbids embedded
+     * files). The mod date defaults to now; pass it explicitly for deterministic output.
+     */
+    public function attachFile(
+        string $bytes,
+        string $name,
+        AFRelationship $relationship = AFRelationship::Data,
+        string $mime = 'application/octet-stream',
+        ?string $description = null,
+        ?\DateTimeImmutable $modDate = null,
+    ): self {
+        $this->attachments[] = new AttachedFile(
+            $name,
+            $bytes,
+            $relationship,
+            $mime,
+            $description,
+            $modDate ?? new \DateTimeImmutable(),
+        );
+        return $this;
+    }
+
+    /**
      * Returns the outline (bookmarks) tree root. The first call creates the
      * root lazily; subsequent calls return the same instance so the user can
      * keep adding nodes. The tree is only emitted if it has at least one
@@ -680,7 +710,11 @@ final class Document
                 hasEncryption: $this->encryption !== null,
                 hasAppendedRevisions: $this->appendedRevisions !== [],
                 hasDocumentScripts: $this->hasDocumentScripts(),
+                hasAttachmentsAtPart2: !$this->pdfALevel->allowsEmbeddedFiles() && $this->attachments !== [],
             );
+            $this->metadata();
+        }
+        if ($this->attachments !== []) {
             $this->metadata();
         }
 
