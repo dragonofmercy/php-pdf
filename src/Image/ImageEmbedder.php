@@ -12,7 +12,9 @@ use DragonOfMercy\PhpPdf\ImageFormat;
 use DragonOfMercy\PhpPdf\Svg\EmbeddedMask;
 use DragonOfMercy\PhpPdf\Svg\EmbeddedPattern;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
+use DragonOfMercy\PhpPdf\Svg\EmbeddedFilter;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgFiltered;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
@@ -69,15 +71,18 @@ final class ImageEmbedder
             foreach ($meta->embeddedImages as $child) {
                 $count += self::objectCount($child);
             }
-            // Tiling patterns and masks are allocated at render time (the /Matrix
-            // depends on the painted shape's CTM and bbox). Detect usage cheaply,
-            // then pre-render to get the exact count.
-            if (self::svgHasPatternPaint($meta) || self::svgHasMaskPaint($meta)) {
-                // Font context is intentionally omitted: it does not affect the pattern/mask count.
-                // This pre-render must produce the same embeddedPatterns/embeddedMasks counts as embedSvg() for object numbering to stay correct.
+            // Tiling patterns, masks, and filter rasters are allocated at render
+            // time (their object count depends on render-time decisions such as
+            // /Matrix, bbox, and whether a filtered region is degenerate). Detect
+            // usage cheaply, then pre-render to get the exact count.
+            if (self::svgHasPatternPaint($meta) || self::svgHasMaskPaint($meta) || self::svgHasFilterPaint($meta)) {
+                // Font context is intentionally omitted: it does not affect the pattern/mask/filter count.
+                // This pre-render must produce the same embeddedPatterns/embeddedMasks/embeddedFilters counts as embedSvg() for object numbering to stay correct.
                 $rendered = (new Renderer())->render($meta);
                 $count += count($rendered['embeddedPatterns']);
                 $count += count($rendered['embeddedMasks']);
+                // Each filter raster is a color image XObject plus a DeviceGray SMask.
+                $count += count($rendered['embeddedFilters']) * 2;
             }
             return $count;
         }
@@ -136,6 +141,33 @@ final class ImageEmbedder
         }
         if ($node instanceof SvgClipped) {
             return self::nodeHasMaskPaint($node->child);
+        }
+        return false;
+    }
+
+    private static function svgHasFilterPaint(SvgMetadata $meta): bool
+    {
+        return self::nodeHasFilterPaint($meta->root);
+    }
+
+    private static function nodeHasFilterPaint(SvgNode $node): bool
+    {
+        if ($node instanceof SvgFiltered) {
+            return true;
+        }
+        if ($node instanceof SvgGroup) {
+            foreach ($node->children as $c) {
+                if (self::nodeHasFilterPaint($c)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if ($node instanceof SvgClipped) {
+            return self::nodeHasFilterPaint($node->child);
+        }
+        if ($node instanceof SvgMasked) {
+            return self::nodeHasFilterPaint($node->child);
         }
         return false;
     }
@@ -232,6 +264,7 @@ final class ImageEmbedder
         $patternRefs = $rendered['patternRefs'];
         $embeddedPatterns = $rendered['embeddedPatterns'];
         $embeddedMasks = $rendered['embeddedMasks'];
+        $embeddedFilters = $rendered['embeddedFilters'];
         $fonts = $rendered['fonts'];
 
         $procSet = $fonts !== []
@@ -257,9 +290,9 @@ final class ImageEmbedder
         // (ExtGState before XObject).
         $childObjects = [];
         $xobjectDict = null;
-        if ($meta->embeddedImages !== []) {
+        $childNum = $objectNumber + 1;
+        if ($meta->embeddedImages !== [] || $embeddedFilters !== []) {
             $xobjectDict = Dictionary::empty();
-            $childNum = $objectNumber + 1;
             foreach ($meta->embeddedImages as $i => $child) {
                 $emitted = $this->embed($child, $childNum, $fontRegistry, $fontRefs, $fontResolver);
                 foreach ($emitted as $obj) {
@@ -268,8 +301,17 @@ final class ImageEmbedder
                 $xobjectDict = $xobjectDict->withEntry(Name::of('Im' . $i), PdfReference::to($childNum, 0));
                 $childNum += count($emitted);
             }
-        } else {
-            $childNum = $objectNumber + 1;
+            // Filter rasters: a DeviceRGB color image + its DeviceGray SMask,
+            // mirroring the alpha-PNG construction. Named /ImF{index} to match
+            // the renderer's content-stream reference.
+            foreach ($embeddedFilters as $i => $filter) {
+                $smaskNum = $childNum + 1;
+                [$colorObject, $smaskObject] = $this->buildFilterObjects($childNum, $smaskNum, $filter);
+                $childObjects[] = $colorObject;
+                $childObjects[] = $smaskObject;
+                $xobjectDict = $xobjectDict->withEntry(Name::of('ImF' . $i), PdfReference::to($childNum, 0));
+                $childNum += 2;
+            }
         }
 
         // (2) Tiling patterns become child indirect objects allocated next.
@@ -365,6 +407,34 @@ final class ImageEmbedder
             $extGStateDict = $extGStateDict->withEntry(Name::of($gsName), $gsDict);
         }
         return $resources->withEntry(Name::of('ExtGState'), $extGStateDict);
+    }
+
+    /**
+     * Builds the two indirect objects for a filter raster: a DeviceRGB color
+     * image whose /SMask points at a DeviceGray alpha image. Both sample
+     * streams are raw 8-bit samples recompressed with /FlateDecode (gzcompress),
+     * mirroring the alpha-PNG XObject pair in embedPng().
+     *
+     * @return array{IndirectObject, IndirectObject} [color image, alpha SMask]
+     */
+    private function buildFilterObjects(int $colorNum, int $smaskNum, EmbeddedFilter $filter): array
+    {
+        $colorCompressed = gzcompress($filter->colorBytes, 6);
+        $alphaCompressed = gzcompress($filter->alphaBytes, 6);
+        if ($colorCompressed === false || $alphaCompressed === false) {
+            throw new PdfException('SVG filter raster compression failed');
+        }
+
+        $smaskDict = $this->xObjectBase($filter->widthPx, $filter->heightPx, 8, Name::of('DeviceGray'))
+            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
+        $smaskObject = IndirectObject::of($smaskNum, 0, new ImageStream($smaskDict, $alphaCompressed));
+
+        $colorDict = $this->xObjectBase($filter->widthPx, $filter->heightPx, 8, Name::of('DeviceRGB'))
+            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'))
+            ->withEntry(Name::of('SMask'), PdfReference::to($smaskNum, 0));
+        $colorObject = IndirectObject::of($colorNum, 0, new ImageStream($colorDict, $colorCompressed));
+
+        return [$colorObject, $smaskObject];
     }
 
     private function buildMaskFormObject(int $childNum, EmbeddedMask $emb): IndirectObject
