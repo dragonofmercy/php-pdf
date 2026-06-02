@@ -40,6 +40,12 @@ use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
 use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\ContentRangePatcher;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
+use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
+use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
+use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevisionBuilder;
+use DragonOfMercy\PhpPdf\Signature\Ltv\HttpCrlValidationDataSource;
+use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationDataSource;
+use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
@@ -85,8 +91,13 @@ final class Document
     private ?Encryption $encryption = null;
     private ?Signature $signature = null;
 
-    /** @var list<AppendedRevision> appended incremental revisions, in call order */
+    /** @var list<AppendedRevision|DssRevision> appended incremental revisions, in call order */
     private array $appendedRevisions = [];
+
+    /** @var list<SigningCertificate> */
+    private array $signingCertificates = [];
+
+    private bool $ltvEnabled = false;
 
     /**
      * Stable /ID for the metadata-less document-timestamp path, generated once
@@ -366,17 +377,23 @@ final class Document
             $maxSignatureBytes,
             $timestamp,
         );
+        $this->signingCertificates[] = $certificate;
         return $this;
     }
 
     public function addDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes = 16384): self
+    {
+        $this->appendDocumentTimestamp($tsa, $maxSignatureBytes);
+        return $this;
+    }
+
+    private function appendDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes): void
     {
         $name = 'DocTimeStamp' . (count($this->appendedRevisions) + 1);
         $this->appendedRevisions[] = new AppendedDocumentTimestamp(
             new DocumentTimestamp($tsa, $maxSignatureBytes),
             $name,
         );
-        return $this;
     }
 
     public function addSignature(
@@ -400,6 +417,37 @@ final class Document
             $timestamp,
         );
         $this->appendedRevisions[] = new AppendedSignature($signature);
+        $this->signingCertificates[] = $certificate;
+        return $this;
+    }
+
+    /**
+     * Makes the document's signatures long-term validatable: collects the signer
+     * certificate chains plus their CRLs into a /DSS, and (when a timestamp is
+     * given) covers them with a document timestamp. Must be called after sign()
+     * and any addSignature(); the DSS is appended as the last incremental
+     * revisions so it covers every signature.
+     */
+    public function enableLtv(?ValidationDataSource $source = null, ?Tsa $timestamp = null): self
+    {
+        if ($this->signingCertificates === []) {
+            throw new PdfException('enableLtv requires at least one signature (call sign() or addSignature() first)');
+        }
+        if ($this->ltvEnabled) {
+            throw new PdfException('enableLtv can only be called once per document');
+        }
+        $this->ltvEnabled = true;
+        $resolver = $source ?? new HttpCrlValidationDataSource();
+
+        $material = ValidationMaterial::of([], []);
+        foreach ($this->signingCertificates as $credential) {
+            $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
+        }
+        $this->appendedRevisions[] = new DssRevision($material);
+
+        if ($timestamp !== null) {
+            $this->appendDocumentTimestamp($timestamp, 16384);
+        }
         return $this;
     }
 
@@ -596,6 +644,9 @@ final class Document
                 }
             }
             foreach ($this->appendedRevisions as $revision) {
+                if ($revision instanceof DssRevision) {
+                    continue;
+                }
                 if (isset($baseNames[$revision->fieldName()])) {
                     throw new PdfException(sprintf(
                         "Appended revision field name '%s' collides with an existing form field",
@@ -842,6 +893,21 @@ final class Document
 
         $builder = new AppendedFieldRevisionBuilder();
         foreach ($this->appendedRevisions as $revision) {
+            if ($revision instanceof DssRevision) {
+                $built = (new DssRevisionBuilder())->build($ctx, $revision->material);
+                $prevStartxref = $this->lastStartxrefOffset($bytes);
+                $bytes = (new IncrementalWriter())->append(
+                    priorBytes: $bytes,
+                    newObjects: $built['objects'],
+                    root: $ctx->catalog->reference(),
+                    documentId: $ctx->documentId,
+                    prevStartxref: $prevStartxref,
+                    size: $built['size'],
+                );
+                $ctx = $built['context'];
+                continue;
+            }
+
             $built = $builder->build($ctx, $revision->valueDict(...), $revision->fieldName());
 
             $searchFrom = strlen($bytes);
