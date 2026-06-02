@@ -17,8 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fetches CRLs from each certificate's distribution point, `HttpOcspValidationDataSource`
   fetches OCSP responses from each certificate's AIA responder, and
   `StaticValidationDataSource` supplies material the caller already obtained
-  (offline use). The per-signature `/VRI` and the strict ETSI.CAdES profile are
-  later phases.
+  (offline use). The per-signature `/VRI` entry is a later phase.
+- Strict ETSI.CAdES signature profile: `sign(..., format: SignatureFormat::EtsiCadesDetached)`
+  (and the same on `addSignature()`) emits `/SubFilter /ETSI.CAdES.detached` with
+  a hand-built CMS carrying the `contentType`, `messageDigest` and
+  `signingCertificateV2` (ESS, RFC 5035) signed attributes - PAdES-B-B, or B-T
+  when combined with a `Tsa`. The default stays `adbe.pkcs7.detached`. RSA keys.
 
 ## [1.1.0] - 2026-06-02
 

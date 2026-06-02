@@ -258,11 +258,35 @@ every signature: first a DSS revision, then (when a `Tsa` is given) a
   SHA-1 `CertID` with no nonce, built by `OcspRequestBuilder` over an injectable
   `OcspClient` seam), and `StaticValidationDataSource` supplies material a caller
   obtained itself (and is how the test suite runs offline).
-- **Subfilter stays `adbe.pkcs7.detached`.** This is Adobe-style LTV: it is the
-  presence of validation material in the DSS plus a covering document timestamp
-  that makes the file long-term validatable, not the CMS subfilter. The strict
-  ETSI.CAdES profile (with the ESS signing-certificate-v2 signed attribute) is a
-  later phase.
+- **Subfilter independent.** This is Adobe-style LTV: it is the presence of
+  validation material in the DSS plus a covering document timestamp that makes
+  the file long-term validatable, not the CMS subfilter. It works over both the
+  default `adbe.pkcs7.detached` and the strict `ETSI.CAdES.detached` signatures
+  (see below).
+
+### Strict ETSI.CAdES signatures
+
+`sign(..., format: SignatureFormat::EtsiCadesDetached)` (and the same on
+`addSignature()`) emits `/SubFilter /ETSI.CAdES.detached` with a CMS SignedData
+built by hand, because PHP's `openssl_cms_sign` cannot inject signed attributes.
+`CadesSigner` assembles the DER with the `Der` toolkit.
+
+- **Signed attributes.** `CmsSignedAttributes` builds the three CAdES attributes:
+  `contentType` (id-data), `messageDigest` (SHA-256 of the ByteRange content),
+  and `signingCertificateV2` (ESS, RFC 5035) - an `ESSCertIDv2` whose `certHash`
+  is `sha256(signerCertDer)` plus an `IssuerSerial`, binding the signature to the
+  exact signer certificate. The SHA-256 hashAlgorithm is the ESSCertIDv2 DEFAULT
+  and is omitted.
+- **Sign vs embed (RFC 5652 5.4).** The attributes are signed under an EXPLICIT
+  `SET OF` tag (`0x31`) but embedded in the SignerInfo under the `[0] IMPLICIT`
+  tag (`0xA0`), over the same content; the `SET OF` elements are DER-sorted
+  ascending bytewise.
+- **SignerInfo** is v1 with `issuerAndSerialNumber`, digestAlgorithm SHA-256,
+  signatureAlgorithm rsaEncryption; the signature is RSA-SHA256 over the `SET OF`
+  form (`openssl_sign`). RSA keys only.
+- **Composition.** The existing `SignatureTimestamper` adds the RFC 3161 token as
+  an unsigned attribute on the hand-built CMS unchanged, so CAdES + a `Tsa` gives
+  PAdES-B-T; `enableLtv()` on top is the strict path toward B-LT.
 
 ## Encryption
 
