@@ -967,6 +967,15 @@ foreach ($markdownGoldens as $name => $class) {
     echo "Regenerated {$name}\n";
 }
 
+// PDF/A-2 fixtures (Task 8)
+if (!is_dir($fixturesDir . '/pdfa')) {
+    mkdir($fixturesDir . '/pdfa', 0755, true);
+}
+\DragonOfMercy\PhpPdf\Tests\Golden\PdfA2bTest::buildDocument()->save($fixturesDir . '/pdfa/a2b.pdf');
+echo "Regenerated pdfa/a2b.pdf\n";
+\DragonOfMercy\PhpPdf\Tests\Golden\PdfA2uTest::buildDocument()->save($fixturesDir . '/pdfa/a2u.pdf');
+echo "Regenerated pdfa/a2u.pdf\n";
+
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
     mkdir($svgFixturesDir, 0755, true);
