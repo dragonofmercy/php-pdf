@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Signature\Ltv;
 use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Tests\Support\TestCertificate;
+use DragonOfMercy\PhpPdf\Tests\Support\TestPki;
 use PHPUnit\Framework\TestCase;
 
 final class CertificateChainTest extends TestCase
@@ -47,5 +48,30 @@ final class CertificateChainTest extends TestCase
     {
         $urls = CertificateChain::crlUrlsFromExtensionText("URI:http://crl.test/a.crl (reason)\nURI:http://crl.test/b.crl,\n");
         self::assertSame(['http://crl.test/a.crl', 'http://crl.test/b.crl'], $urls);
+    }
+
+    public function testOcspUrlsReadsAiaResponder(): void
+    {
+        $pki = TestPki::issueWithOcsp();
+        if ($pki === null) {
+            self::markTestSkipped('openssl CLI unavailable');
+        }
+        $urls = CertificateChain::ocspUrls($pki['leafPem']);
+        self::assertSame(['http://ocsp.example.com/'], $urls);
+    }
+
+    public function testOcspUrlsEmptyWhenNoAia(): void
+    {
+        $pki = TestPki::issueWithCrl();
+        if ($pki === null) {
+            self::markTestSkipped('openssl CLI unavailable');
+        }
+        self::assertSame([], CertificateChain::ocspUrls($pki['leafPem']));
+    }
+
+    public function testOcspUrlsFromExtensionTextParsesOcspLine(): void
+    {
+        $text = "CA Issuers - URI:http://ca.example.com/ca.crt\nOCSP - URI:http://ocsp.example.com/\n";
+        self::assertSame(['http://ocsp.example.com/'], CertificateChain::ocspUrlsFromExtensionText($text));
     }
 }

@@ -77,6 +77,41 @@ final class CertificateChain
     }
 
     /**
+     * Reads the OCSP responder URLs from a certificate's Authority Information
+     * Access extension. Returns an empty list when the certificate has no AIA
+     * OCSP entry.
+     *
+     * @return list<string>
+     */
+    public static function ocspUrls(string $certPem): array
+    {
+        $parsed = openssl_x509_parse($certPem);
+        if (!is_array($parsed)) {
+            throw new PdfException('Could not parse certificate for OCSP responder URLs');
+        }
+        $extensions = $parsed['extensions'] ?? null;
+        if (!is_array($extensions)) {
+            return [];
+        }
+        $aia = $extensions['authorityInfoAccess'] ?? null;
+        return is_string($aia) ? self::ocspUrlsFromExtensionText($aia) : [];
+    }
+
+    /**
+     * Extracts OCSP responder URIs from the human-readable authorityInfoAccess
+     * text that openssl_x509_parse produces (lines like "OCSP - URI:http://...").
+     *
+     * @return list<string>
+     */
+    public static function ocspUrlsFromExtensionText(string $text): array
+    {
+        if (preg_match_all('~OCSP - URI:([^\s,)]+)~', $text, $m) === false) {
+            return [];
+        }
+        return array_values(array_unique($m[1]));
+    }
+
+    /**
      * True when a certificate is self-signed (issuer DN == subject DN), i.e. a
      * root that needs no revocation entry.
      */
