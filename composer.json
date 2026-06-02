@@ -15,6 +15,9 @@
         "phpstan/phpstan": "^2.0",
         "symfony/process": "^7.0"
     },
+    "suggest": {
+        "ext-gd": "Decode JPEG images that appear inside an SVG <filter> region"
+    },
     "autoload": {
         "psr-4": { "DragonOfMercy\\PhpPdf\\": "src/" }
     },
