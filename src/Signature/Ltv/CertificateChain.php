@@ -1,0 +1,91 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DragonOfMercy\PhpPdf\Signature\Ltv;
+
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
+
+/**
+ * Helpers to assemble the PEM certificate chain from a signing credential, to
+ * convert PEM to DER, and to read CRL distribution point URLs from a
+ * certificate. Pure, network-free; the actual fetch lives in
+ * HttpCrlValidationDataSource.
+ *
+ * @internal
+ */
+final class CertificateChain
+{
+    /**
+     * Signer certificate first, then the credential's extra (issuer) certs.
+     *
+     * @return list<string> PEM strings
+     */
+    public static function chainPem(SigningCertificate $credential): array
+    {
+        return [$credential->certificatePem, ...$credential->extraCertificates];
+    }
+
+    /**
+     * Strips PEM armor and base64-decodes to DER.
+     */
+    public static function pemToDer(string $pem): string
+    {
+        if (preg_match('~-----BEGIN CERTIFICATE-----(.+?)-----END CERTIFICATE-----~s', $pem, $m) !== 1) {
+            throw new PdfException('Certificate PEM armor not found');
+        }
+        $der = base64_decode(preg_replace('~\s+~', '', $m[1]) ?? '', true);
+        if ($der === false || $der === '') {
+            throw new PdfException('Certificate base64 body did not decode');
+        }
+        return $der;
+    }
+
+    /**
+     * Reads the CRL distribution point URLs declared by a certificate. Returns
+     * an empty list when the certificate has no CDP extension.
+     *
+     * @return list<string>
+     */
+    public static function crlUrls(string $certPem): array
+    {
+        $parsed = openssl_x509_parse($certPem);
+        if (!is_array($parsed)) {
+            throw new PdfException('Could not parse certificate for CRL distribution points');
+        }
+        $extensions = $parsed['extensions'] ?? null;
+        if (!is_array($extensions)) {
+            return [];
+        }
+        $cdp = $extensions['crlDistributionPoints'] ?? null;
+        return is_string($cdp) ? self::crlUrlsFromExtensionText($cdp) : [];
+    }
+
+    /**
+     * Extracts URI tokens from the human-readable crlDistributionPoints text
+     * that openssl_x509_parse produces.
+     *
+     * @return list<string>
+     */
+    public static function crlUrlsFromExtensionText(string $text): array
+    {
+        if (preg_match_all('~URI:([^\s,)]+)~', $text, $m) === false) {
+            return [];
+        }
+        return array_values(array_unique($m[1]));
+    }
+
+    /**
+     * True when a certificate is self-signed (issuer DN == subject DN), i.e. a
+     * root that needs no revocation entry.
+     */
+    public static function isSelfSigned(string $certPem): bool
+    {
+        $parsed = openssl_x509_parse($certPem);
+        if (!is_array($parsed)) {
+            throw new PdfException('Could not parse certificate to determine self-signed status');
+        }
+        return ($parsed['subject'] ?? null) === ($parsed['issuer'] ?? []);
+    }
+}
