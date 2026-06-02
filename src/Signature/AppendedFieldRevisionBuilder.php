@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Signature;
 
 use Closure;
-use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -63,12 +62,12 @@ final readonly class AppendedFieldRevisionBuilder
             $newAcroForm = IndirectObject::of($acroFormId, 0, $acroFormDict);
             $objects[] = $newAcroForm;
 
-            $catalogDict = self::dictOf($ctx->catalog)
+            $catalogDict = $ctx->catalog->dictionaryPayload()
                 ->withEntry(Name::of('AcroForm'), PdfReference::to($acroFormId, 0));
             $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
             $objects[] = $newCatalog;
         } else {
-            $acroFormDict = self::dictOf($ctx->acroForm);
+            $acroFormDict = $ctx->acroForm->dictionaryPayload();
             $fields = self::arrayEntry($acroFormDict, 'Fields');
             $acroFormDict = $acroFormDict
                 ->withEntry(Name::of('Fields'), PdfArray::of(...[...$fields, $fieldRef]))
@@ -82,7 +81,7 @@ final readonly class AppendedFieldRevisionBuilder
         // combined branch re-emits the existing one in place.
         $maxObjectNumber = $ctx->acroForm === null ? $acroFormId : $fieldId;
 
-        $pageDict = self::dictOf($ctx->firstPage);
+        $pageDict = $ctx->firstPage->dictionaryPayload();
         $annots = self::arrayEntry($pageDict, 'Annots');
         $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...[...$annots, $fieldRef]));
         $newPage = IndirectObject::of($ctx->firstPage->objectNumber, 0, $pageDict);
@@ -97,15 +96,6 @@ final readonly class AppendedFieldRevisionBuilder
         );
 
         return ['objects' => $objects, 'size' => $maxObjectNumber + 1, 'context' => $context];
-    }
-
-    private static function dictOf(IndirectObject $obj): Dictionary
-    {
-        $payload = $obj->payload();
-        if (!$payload instanceof Dictionary) {
-            throw new PdfException('Appended revision: expected a Dictionary payload to re-emit');
-        }
-        return $payload;
     }
 
     /**

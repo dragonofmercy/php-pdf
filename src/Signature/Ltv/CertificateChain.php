@@ -30,14 +30,14 @@ final class CertificateChain
     /**
      * Strips PEM armor and base64-decodes to DER.
      */
-    public static function pemToDer(string $pem): string
+    public static function pemToDer(string $pem, string $label = 'CERTIFICATE'): string
     {
-        if (preg_match('~-----BEGIN CERTIFICATE-----(.+?)-----END CERTIFICATE-----~s', $pem, $m) !== 1) {
-            throw new PdfException('Certificate PEM armor not found');
+        if (preg_match("~-----BEGIN {$label}-----(.+?)-----END {$label}-----~s", $pem, $m) !== 1) {
+            throw new PdfException("{$label} PEM armor not found");
         }
         $der = base64_decode(preg_replace('~\s+~', '', $m[1]) ?? '', true);
         if ($der === false || $der === '') {
-            throw new PdfException('Certificate base64 body did not decode');
+            throw new PdfException("{$label} base64 body did not decode");
         }
         return $der;
     }
@@ -86,6 +86,6 @@ final class CertificateChain
         if (!is_array($parsed)) {
             throw new PdfException('Could not parse certificate to determine self-signed status');
         }
-        return ($parsed['subject'] ?? null) === ($parsed['issuer'] ?? []);
+        return isset($parsed['subject'], $parsed['issuer']) && $parsed['subject'] === $parsed['issuer'];
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Writer\Object;
 
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+
 /**
  * PDF indirect object (PDF 1.7 §7.3.10). Wraps any PdfObject with an
  * object number and generation. Emitted as "N G obj\n<payload>\nendobj\n".
@@ -26,6 +28,19 @@ final readonly class IndirectObject implements PdfObject
     /** @internal */
     public function payload(): PdfObject
     {
+        return $this->payload;
+    }
+
+    /**
+     * Returns the payload as a Dictionary, or throws when it is some other
+     * object type. Used when an indirect object must be re-emitted with extra
+     * entries (incremental-update revisions).
+     */
+    public function dictionaryPayload(): Dictionary
+    {
+        if (!$this->payload instanceof Dictionary) {
+            throw new PdfException('Expected a Dictionary payload to re-emit, got a different object type');
+        }
         return $this->payload;
     }
 

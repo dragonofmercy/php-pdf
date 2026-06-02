@@ -440,6 +440,8 @@ final class Document
         $resolver = $source ?? new HttpCrlValidationDataSource();
 
         $material = ValidationMaterial::of([], []);
+        // Validation material is gathered eagerly (here, not at output()) so a
+        // network failure surfaces at the enableLtv() call rather than mid-output().
         foreach ($this->signingCertificates as $credential) {
             $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
         }

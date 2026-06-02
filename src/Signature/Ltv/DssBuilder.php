@@ -21,7 +21,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\Stream;
 final readonly class DssBuilder
 {
     /**
-     * @return array{objects: list<IndirectObject>, dssObjectNumber: int, nextObjectNumber: int}
+     * @return array{objects: list<IndirectObject>, dssObjectNumber: int}
      */
     public function build(ValidationMaterial $material, int $firstObjectNumber): array
     {
@@ -52,12 +52,10 @@ final readonly class DssBuilder
 
         $dssObjectNumber = $next;
         $objects[] = IndirectObject::of($dssObjectNumber, 0, $dssDict);
-        $next++;
 
         return [
             'objects' => $objects,
             'dssObjectNumber' => $dssObjectNumber,
-            'nextObjectNumber' => $next,
         ];
     }
 }

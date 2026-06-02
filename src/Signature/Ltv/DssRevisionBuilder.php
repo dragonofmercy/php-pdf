@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Signature\Ltv;
 
-use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
-use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
@@ -30,7 +28,7 @@ final readonly class DssRevisionBuilder
         $built = (new DssBuilder())->build($material, $ctx->maxObjectNumber + 1);
         $objects = $built['objects'];
 
-        $catalogDict = $this->dictOf($ctx->catalog)
+        $catalogDict = $ctx->catalog->dictionaryPayload()
             ->withEntry(Name::of('DSS'), PdfReference::to($built['dssObjectNumber'], 0));
         $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
         $objects[] = $newCatalog;
@@ -45,14 +43,5 @@ final readonly class DssRevisionBuilder
         );
 
         return ['objects' => $objects, 'size' => $maxObjectNumber + 1, 'context' => $context];
-    }
-
-    private function dictOf(IndirectObject $obj): Dictionary
-    {
-        $payload = $obj->payload();
-        if (!$payload instanceof Dictionary) {
-            throw new PdfException('DSS revision: expected a Dictionary catalog payload to re-emit');
-        }
-        return $payload;
     }
 }

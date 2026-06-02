@@ -42,12 +42,8 @@ final class HttpCrlValidationDataSource implements ValidationDataSource
         if ($body === false || $body === '') {
             throw new PdfException("Failed to fetch CRL from {$url}");
         }
-        if (preg_match('~-----BEGIN X509 CRL-----(.+?)-----END X509 CRL-----~s', $body, $m) === 1) {
-            $der = base64_decode(preg_replace('~\s+~', '', $m[1]) ?? '', true);
-            if ($der === false || $der === '') {
-                throw new PdfException("CRL at {$url} did not base64-decode");
-            }
-            return $der;
+        if (preg_match('~-----BEGIN X509 CRL-----~', $body) === 1) {
+            return CertificateChain::pemToDer($body, 'X509 CRL');
         }
         return $body;
     }

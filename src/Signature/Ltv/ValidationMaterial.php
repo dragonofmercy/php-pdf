@@ -32,22 +32,22 @@ final readonly class ValidationMaterial
      */
     public static function of(array $certificates, array $crls, array $ocsps = []): self
     {
-        foreach ($certificates as $der) {
-            if ($der === '') {
-                throw new PdfException('ValidationMaterial certificate entry cannot be empty');
-            }
-        }
-        foreach ($crls as $der) {
-            if ($der === '') {
-                throw new PdfException('ValidationMaterial CRL entry cannot be empty');
-            }
-        }
-        foreach ($ocsps as $der) {
-            if ($der === '') {
-                throw new PdfException('ValidationMaterial OCSP entry cannot be empty');
-            }
-        }
+        self::assertNonEmpty($certificates, 'certificate');
+        self::assertNonEmpty($crls, 'CRL');
+        self::assertNonEmpty($ocsps, 'OCSP');
         return new self($certificates, $crls, $ocsps);
+    }
+
+    /**
+     * @param list<string> $items
+     */
+    private static function assertNonEmpty(array $items, string $label): void
+    {
+        foreach ($items as $der) {
+            if ($der === '') {
+                throw new PdfException("ValidationMaterial {$label} entry cannot be empty");
+            }
+        }
     }
 
     /**
@@ -69,15 +69,10 @@ final readonly class ValidationMaterial
      */
     private static function dedupe(array $items): array
     {
-        $seen = [];
         $out = [];
         foreach ($items as $item) {
-            $key = md5($item);
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $out[] = $item;
-            }
+            $out[$item] = $item;
         }
-        return $out;
+        return array_values($out);
     }
 }

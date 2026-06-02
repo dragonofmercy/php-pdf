@@ -18,7 +18,6 @@ final class DssBuilderTest extends TestCase
         self::assertCount(4, $built['objects']); // 2 certs + 1 crl + 1 DSS dict
         self::assertSame(10, $built['objects'][0]->objectNumber);
         self::assertSame(13, $built['dssObjectNumber']);
-        self::assertSame(14, $built['nextObjectNumber']);
 
         $dssBytes = $built['objects'][3]->toBytes();
         self::assertStringContainsString('/Certs [10 0 R 11 0 R]', $dssBytes);
