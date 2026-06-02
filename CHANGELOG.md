@@ -5,9 +5,10 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-06-02
 
 ### Added
+- SVG `<filter>`: `filter="url(#id)"` on any element renders through a deterministic pure-PHP raster of the filter region (embedded as a DeviceRGB image plus a DeviceGray `/SMask`), while text in the filtered subtree is redrawn sharp (vector) on top. First-wave primitives: `feGaussianBlur`, `feOffset`, `feFlood`, `feMerge`, `feBlend` (normal / multiply / screen / darken / lighten), `feComposite` (over / in / out / atop / xor / arithmetic), `feColorMatrix` (matrix / saturate / hueRotate / luminanceToAlpha), and `feDropShadow`. Filters run in linearRGB. Raster resolution is tunable via `Document::setSvgFilterResolution(int $dpi)` (default 300, capped at 2000 px per side). `ext-gd` stays optional (only used to decode a JPEG referenced inside a filter; PNG decodes with the built-in decoder). Heavier primitives (`feTurbulence`, `feDisplacementMap`, `feConvolveMatrix`, `feMorphology`, `feImage`, `feTile`, lighting) remain out of this wave.
 - Markdown rendering of a CommonMark core subset via two surfaces: `Page::markdown()` flows text from the cursor and auto-paginates when the document has auto-break enabled (otherwise it renders atomically on the current page), and `cell(markdown: true)` renders the cell text as Markdown into the cell's inner box while auto-sizing its height.
 - Supported constructs: ATX headings, paragraphs, inline bold / italic / bold+italic / inline code, links, images (local file path or `data:` URI), ordered and unordered nested lists, fenced and indented code blocks, block quotes, and thematic breaks. Out-of-scope constructs (tables, reference links, footnotes, task lists, raw HTML, setext headings, syntax highlighting, autolinks) are skipped silently or rendered as literal text.
 - Configurable `MarkdownStyle` value object (`MarkdownStyle::default()` plus immutable withers for heading sizes, body size, paragraph spacing, code font and background, link color and underline, block-quote bar, and list indent).
@@ -57,4 +58,5 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.1.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.1.0
 [1.0.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.0.0
