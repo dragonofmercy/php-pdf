@@ -908,12 +908,11 @@ final class Renderer
             return $this->renderNode($node->child, $registry, $patterns, $ctm);
         }
 
-        [$a, $b, $c, $d] = $ctm->toArray();
-        $ctmScale = sqrt(abs($a * $d - $b * $c));
-        if ($ctmScale <= 0.0) {
-            $ctmScale = 1.0;
-        }
-        $pxPerUnit = $this->filterDpi / 72.0 * $ctmScale;
+        // The filter region is expressed in viewBox-local user coordinates, so
+        // the raster resolution must NOT include the prologue/ancestor ctm
+        // scale (that scale is already active on the PDF graphics stack when
+        // the resulting image XObject is placed).
+        $pxPerUnit = $this->filterDpi / 72.0;
         if ($pxPerUnit <= 0.0) {
             $pxPerUnit = 1.0;
         }
@@ -944,10 +943,11 @@ final class Renderer
             [$regionX, $regionY, $regionW, $regionH],
         );
 
+        // The accumulated $ctm is already active on the graphics stack (the
+        // prologue + ancestor transforms were emitted before this node), so we
+        // place the image with ONLY its region-local cm, mirroring renderImage.
+        // Re-emitting $ctm here would double-apply it.
         $out = "q\n";
-        if (!$ctm->isIdentity()) {
-            $out .= self::cmFromMatrix($ctm) . "\n";
-        }
         $out .= sprintf("%s 0 0 %s %s %s cm\n", self::fmt($regionW), self::fmt(-$regionH), self::fmt($regionX), self::fmt($regionY + $regionH));
         $out .= '/ImF' . $index . " Do\n";
         $out .= "Q\n";

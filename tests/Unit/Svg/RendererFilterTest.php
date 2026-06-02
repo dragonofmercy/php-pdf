@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Svg;
 
+use DragonOfMercy\PhpPdf\Svg\EmbeddedFilter;
 use DragonOfMercy\PhpPdf\Svg\Parser;
 use DragonOfMercy\PhpPdf\Svg\Renderer;
 use PHPUnit\Framework\TestCase;
@@ -24,6 +25,14 @@ final class RendererFilterTest extends TestCase
         self::assertCount(1, $result['embeddedFilters']);
         $bytes = $result['bytes'];
         self::assertStringContainsString('/ImF0 Do', $bytes);
+
+        // The 60-unit filter region must rasterize at the filter DPI alone
+        // (60 * 300/72 = 250 px), NOT collapsed by the ~0.01 prologue ctm scale
+        // (which previously yielded a ~3x3 px near-empty raster).
+        $filter = $result['embeddedFilters'][0];
+        self::assertInstanceOf(EmbeddedFilter::class, $filter);
+        self::assertGreaterThanOrEqual(100, $filter->widthPx);
+        self::assertGreaterThanOrEqual(100, $filter->heightPx);
     }
 
     public function testFilteredTextRendersSharpOnTop(): void
