@@ -4,5 +4,3 @@ parameters:
         - src
         - tests
     tmpDir: .phpstan.cache
-    excludePaths:
-        - tests/Unit/Signature/Ltv/HttpCrlValidationDataSourceTest.php
