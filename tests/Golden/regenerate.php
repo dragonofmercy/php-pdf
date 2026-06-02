@@ -549,6 +549,13 @@ $svgGoldens = [
     'svg/gradient/stop-alpha-radial.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaRadialTest::class, 'buildPdfBytes'],
     'svg/gradient/stop-alpha-multistop.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaMultistopTest::class, 'buildPdfBytes'],
     'svg/gradient/stop-alpha-stroke.pdf'    => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgGradientStopAlphaStrokeTest::class, 'buildPdfBytes'],
+    'svg/filter/blur.pdf'                   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterBlurTest::class, 'buildPdfBytes'],
+    'svg/filter/drop-shadow.pdf'            => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterDropShadowTest::class, 'buildPdfBytes'],
+    'svg/filter/color-matrix-saturate.pdf'  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterColorMatrixSaturateTest::class, 'buildPdfBytes'],
+    'svg/filter/offset-merge.pdf'           => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterOffsetMergeTest::class, 'buildPdfBytes'],
+    'svg/filter/composite-arithmetic.pdf'   => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterCompositeArithmeticTest::class, 'buildPdfBytes'],
+    'svg/filter/flood.pdf'                  => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterFloodTest::class, 'buildPdfBytes'],
+    'svg/filter/blend-multiply.pdf'         => [\DragonOfMercy\PhpPdf\Tests\Golden\SvgFilterBlendMultiplyTest::class, 'buildPdfBytes'],
 ];
 
 foreach ($svgGoldens as $name => [$class, $method]) {
