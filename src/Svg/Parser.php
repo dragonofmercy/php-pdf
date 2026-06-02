@@ -13,6 +13,21 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\ImageFormat;
 use DragonOfMercy\PhpPdf\Svg\Css\CssParser;
 use DragonOfMercy\PhpPdf\Svg\Css\CssStylesheet;
+use DragonOfMercy\PhpPdf\Svg\Filter\BlendMode;
+use DragonOfMercy\PhpPdf\Svg\Filter\ColorMatrixType;
+use DragonOfMercy\PhpPdf\Svg\Filter\CompositeOperator;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeBlend;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeColorMatrix;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeComposite;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeDropShadow;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeFlood;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeGaussianBlur;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeMerge;
+use DragonOfMercy\PhpPdf\Svg\Filter\FeOffset;
+use DragonOfMercy\PhpPdf\Svg\Filter\FilterPrimitive;
+use DragonOfMercy\PhpPdf\Svg\Filter\FilterUnits;
+use DragonOfMercy\PhpPdf\Svg\Filter\Subregion;
+use DragonOfMercy\PhpPdf\Svg\Filter\SvgFilter;
 use DragonOfMercy\PhpPdf\Svg\Mask\MaskResolver;
 
 final class Parser
@@ -26,7 +41,7 @@ final class Parser
 
     private const array WHITELIST = [
         'svg' => true, 'g' => true, 'defs' => true, 'use' => true,
-        'symbol' => true, 'marker' => true, 'mask' => true,
+        'symbol' => true, 'marker' => true, 'mask' => true, 'filter' => true,
         'path' => true, 'rect' => true, 'circle' => true, 'ellipse' => true,
         'line' => true, 'polygon' => true, 'polyline' => true,
         'title' => true, 'desc' => true, 'image' => true, 'text' => true,
@@ -40,6 +55,9 @@ final class Parser
 
     /** @var array<string, DOMElement> */
     private array $clipPathDefs = [];
+
+    /** @var array<string, SvgFilter> */
+    private array $filters = [];
 
     private ?GradientResolver $gradients = null;
 
@@ -112,6 +130,7 @@ final class Parser
         $this->collectDefs($doc);
         $this->collectGradientDefs($doc);
         $this->collectClipPaths($doc);
+        $this->collectFilters($doc);
         $this->gradients = new GradientResolver($this->gradientDefs);
         $this->patterns = new PatternResolver($this->collectPatternDefs($doc), $this);
         $this->markers = new Marker\MarkerResolver($this->collectMarkerDefs($doc), $this);
@@ -251,6 +270,218 @@ final class Parser
         }
     }
 
+    /**
+     * Indexes all <filter> elements by id into $this->filters as parsed
+     * SvgFilter value objects (region + ordered primitive list).
+     */
+    private function collectFilters(DOMDocument $doc): void
+    {
+        foreach ($doc->getElementsByTagNameNS(self::SVG_NS, 'filter') as $el) {
+            if ($el->hasAttribute('id')) {
+                $this->filters[$el->getAttribute('id')] = $this->parseFilter($el);
+            }
+        }
+    }
+
+    /**
+     * Parses a <filter> element. Region defaults are the SVG spec defaults
+     * (x=-10%, y=-10%, width=120%, height=120%).
+     *
+     * Region coordinate convention: a percentage is stored as a FRACTION
+     * ("-20%" -> -0.2) and a plain length is stored as its numeric value
+     * ("10" -> 10.0). The renderer interprets these per filterUnits
+     * (objectBoundingBox multiplies the fraction by the bbox; userSpaceOnUse
+     * uses the length directly).
+     */
+    private function parseFilter(DOMElement $el): SvgFilter
+    {
+        $id = $el->hasAttribute('id') ? $el->getAttribute('id') : null;
+        $filterUnits = FilterUnits::fromString($el->getAttribute('filterUnits'), FilterUnits::OBJECT_BOUNDING_BOX);
+        $primitiveUnits = FilterUnits::fromString($el->getAttribute('primitiveUnits'), FilterUnits::USER_SPACE_ON_USE);
+
+        $x = $el->hasAttribute('x') ? $this->regionLength($el->getAttribute('x')) : -0.1;
+        $y = $el->hasAttribute('y') ? $this->regionLength($el->getAttribute('y')) : -0.1;
+        $width = $el->hasAttribute('width') ? $this->regionLength($el->getAttribute('width')) : 1.2;
+        $height = $el->hasAttribute('height') ? $this->regionLength($el->getAttribute('height')) : 1.2;
+
+        $primitives = [];
+        foreach ($this->childElements($el) as $child) {
+            if ($child->namespaceURI !== self::SVG_NS) {
+                continue;
+            }
+            $primitive = $this->parseFilterPrimitive($child);
+            if ($primitive !== null) {
+                $primitives[] = $primitive;
+            }
+        }
+
+        return new SvgFilter($id, $filterUnits, $primitiveUnits, $x, $y, $width, $height, $primitives);
+    }
+
+    /**
+     * Parses a single value as a region length: percentages become fractions
+     * ("-20%" -> -0.2), plain lengths keep their numeric value.
+     */
+    private function regionLength(string $raw): float
+    {
+        $raw = trim($raw);
+        if (str_ends_with($raw, '%')) {
+            return (float) substr($raw, 0, -1) / 100.0;
+        }
+        return (float) $raw;
+    }
+
+    /**
+     * Parses one filter primitive element (fe*) into its VO. Returns null for
+     * unknown fe* elements and for any non-primitive child (e.g. feMergeNode,
+     * which is consumed by feMerge).
+     */
+    private function parseFilterPrimitive(DOMElement $el): ?FilterPrimitive
+    {
+        $attrs = $this->collectAttrs($el);
+        $in = isset($attrs['in']) ? $attrs['in'] : null;
+        $in2 = isset($attrs['in2']) ? $attrs['in2'] : null;
+        $result = isset($attrs['result']) ? $attrs['result'] : null;
+        $subregion = $this->parseSubregion($attrs);
+
+        switch ($el->localName) {
+            case 'feGaussianBlur':
+                [$sx, $sy] = $this->parseStdDeviation($attrs['stdDeviation'] ?? '');
+                return new FeGaussianBlur($in, $result, $sx, $sy, $subregion);
+
+            case 'feOffset':
+                return new FeOffset($in, $result, (float) ($attrs['dx'] ?? 0), (float) ($attrs['dy'] ?? 0), $subregion);
+
+            case 'feColorMatrix':
+                $type = ColorMatrixType::fromString($attrs['type'] ?? '');
+                return new FeColorMatrix($in, $result, $type, $this->parseNumberList($attrs['values'] ?? ''), $subregion);
+
+            case 'feComposite':
+                $operator = CompositeOperator::fromString($attrs['operator'] ?? '');
+                return new FeComposite(
+                    $in,
+                    $in2,
+                    $result,
+                    $operator,
+                    (float) ($attrs['k1'] ?? 0),
+                    (float) ($attrs['k2'] ?? 0),
+                    (float) ($attrs['k3'] ?? 0),
+                    (float) ($attrs['k4'] ?? 0),
+                    $subregion,
+                );
+
+            case 'feBlend':
+                return new FeBlend($in, $in2, $result, BlendMode::fromString($attrs['mode'] ?? ''), $subregion);
+
+            case 'feFlood':
+                return new FeFlood(
+                    $result,
+                    $this->parseFloodColor($attrs['flood-color'] ?? null),
+                    (float) ($attrs['flood-opacity'] ?? 1),
+                    $subregion,
+                );
+
+            case 'feMerge':
+                return new FeMerge($result, $this->parseMergeInputs($el), $subregion);
+
+            case 'feDropShadow':
+                [$sx, $sy] = $this->parseStdDeviation($attrs['stdDeviation'] ?? '', 2.0);
+                return new FeDropShadow(
+                    $in,
+                    $result,
+                    (float) ($attrs['dx'] ?? 2),
+                    (float) ($attrs['dy'] ?? 2),
+                    $sx,
+                    $sy,
+                    $this->parseFloodColor($attrs['flood-color'] ?? null),
+                    (float) ($attrs['flood-opacity'] ?? 1),
+                    $subregion,
+                );
+
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Per-primitive subregion. Returns null when ALL four of x/y/width/height
+     * are absent; otherwise individual missing components stay null.
+     *
+     * @param array<string, string> $attrs
+     */
+    private function parseSubregion(array $attrs): ?Subregion
+    {
+        $hasAny = isset($attrs['x']) || isset($attrs['y']) || isset($attrs['width']) || isset($attrs['height']);
+        if (!$hasAny) {
+            return null;
+        }
+        return new Subregion(
+            isset($attrs['x']) ? $this->regionLength($attrs['x']) : null,
+            isset($attrs['y']) ? $this->regionLength($attrs['y']) : null,
+            isset($attrs['width']) ? $this->regionLength($attrs['width']) : null,
+            isset($attrs['height']) ? $this->regionLength($attrs['height']) : null,
+        );
+    }
+
+    /**
+     * Parses a stdDeviation attribute (one or two numbers split on whitespace
+     * or comma). One value sets x=y; an absent/empty value uses $default for
+     * both.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private function parseStdDeviation(string $raw, float $default = 0.0): array
+    {
+        $parts = $this->parseNumberList($raw);
+        if ($parts === []) {
+            return [$default, $default];
+        }
+        if (count($parts) === 1) {
+            return [$parts[0], $parts[0]];
+        }
+        return [$parts[0], $parts[1]];
+    }
+
+    /**
+     * Splits a whitespace/comma-separated numeric list into floats.
+     *
+     * @return list<float>
+     */
+    private function parseNumberList(string $raw): array
+    {
+        $parts = preg_split('/[\s,]+/', trim($raw), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        return array_map(static fn (string $p): float => (float) $p, $parts);
+    }
+
+    /**
+     * Parses a flood-color value via the shared color routine. Defaults to
+     * black when absent or unparseable.
+     */
+    private function parseFloodColor(?string $raw): SvgColor
+    {
+        if ($raw === null || trim($raw) === '') {
+            return SvgColor::black();
+        }
+        return ColorParser::parse(trim($raw), SvgColor::black()) ?? SvgColor::black();
+    }
+
+    /**
+     * Collects the `in` attribute of each child <feMergeNode> into a list,
+     * preserving order. A feMergeNode without `in` contributes a null entry.
+     *
+     * @return list<?string>
+     */
+    private function parseMergeInputs(DOMElement $el): array
+    {
+        $inputs = [];
+        foreach ($this->childElements($el) as $child) {
+            if ($child->namespaceURI === self::SVG_NS && $child->localName === 'feMergeNode') {
+                $inputs[] = $child->hasAttribute('in') ? $child->getAttribute('in') : null;
+            }
+        }
+        return $inputs;
+    }
+
     private function collectStyleSheet(DOMDocument $doc): CssStylesheet
     {
         $styleNodes = $doc->getElementsByTagNameNS(self::SVG_NS, 'style');
@@ -307,8 +538,9 @@ final class Parser
             case 'symbol':
             case 'marker':
             case 'mask':
-                if ($local === 'defs' || $local === 'symbol' || $local === 'marker' || $local === 'mask') {
-                    // <defs>, <symbol>, <marker>, and <mask> contents are only reachable via reference; do not render directly.
+            case 'filter':
+                if ($local === 'defs' || $local === 'symbol' || $local === 'marker' || $local === 'mask' || $local === 'filter') {
+                    // <defs>, <symbol>, <marker>, <mask>, and <filter> contents are only reachable via reference; do not render directly.
                     return null;
                 }
                 $children = [];
@@ -318,7 +550,7 @@ final class Parser
                         $children[] = $node;
                     }
                 }
-                return $this->wrapMask($this->wrapClip(new SvgGroup($transform, $children), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgGroup($transform, $children), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'rect':
                 $x = (float) ($attrs['x'] ?? 0);
@@ -330,7 +562,7 @@ final class Parser
                 }
                 $rx = (float) ($attrs['rx'] ?? 0);
                 $ry = (float) ($attrs['ry'] ?? 0);
-                return $this->wrapMask($this->wrapClip(new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'circle':
                 $cx = (float) ($attrs['cx'] ?? 0);
@@ -339,7 +571,7 @@ final class Parser
                 if ($r <= 0.0) {
                     return null;
                 }
-                return $this->wrapMask($this->wrapClip(new SvgCircle($transform, $paint, $cx, $cy, $r), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgCircle($transform, $paint, $cx, $cy, $r), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'ellipse':
                 $cx = (float) ($attrs['cx'] ?? 0);
@@ -349,14 +581,14 @@ final class Parser
                 if ($rx <= 0.0 || $ry <= 0.0) {
                     return null;
                 }
-                return $this->wrapMask($this->wrapClip(new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'line':
                 $x1 = (float) ($attrs['x1'] ?? 0);
                 $y1 = (float) ($attrs['y1'] ?? 0);
                 $x2 = (float) ($attrs['x2'] ?? 0);
                 $y2 = (float) ($attrs['y2'] ?? 0);
-                return $this->wrapMask($this->wrapClip(new SvgLine($transform, $paint, $x1, $y1, $x2, $y2), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgLine($transform, $paint, $x1, $y1, $x2, $y2), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'polygon':
             case 'polyline':
@@ -364,16 +596,20 @@ final class Parser
                 if ($points === []) {
                     return null;
                 }
-                return $this->wrapMask(
-                    $this->wrapClip(
-                        $local === 'polygon'
-                            ? new SvgPolygon($transform, $paint, $points)
-                            : new SvgPolyline($transform, $paint, $points),
-                        $allowClip,
-                        $attrs,
-                        $css,
+                return $this->wrapFilter(
+                    $this->wrapMask(
+                        $this->wrapClip(
+                            $local === 'polygon'
+                                ? new SvgPolygon($transform, $paint, $points)
+                                : new SvgPolyline($transform, $paint, $points),
+                            $allowClip,
+                            $attrs,
+                            $css,
+                        ),
+                        $paint,
                     ),
-                    $paint,
+                    $attrs,
+                    $css,
                 );
 
             case 'path':
@@ -385,7 +621,7 @@ final class Parser
                 if ($commands === []) {
                     return null;
                 }
-                return $this->wrapMask($this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'text':
                 if ($this->inPattern || $this->inMarker) {
@@ -393,15 +629,15 @@ final class Parser
                 }
                 $textPathChild = $this->firstChildElement($el, 'textPath');
                 if ($textPathChild !== null) {
-                    return $this->wrapMask($this->wrapClip(
+                    return $this->wrapFilter($this->wrapMask($this->wrapClip(
                         $this->parseTextPath($textPathChild, $paint, $textStyle, $transform),
                         $allowClip, $attrs, $css,
-                    ), $paint);
+                    ), $paint), $attrs, $css);
                 }
-                return $this->wrapMask($this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'use':
-                return $this->wrapMask($this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'image':
                 if ($this->inPattern || $this->inMarker) {
@@ -430,7 +666,7 @@ final class Parser
                 $ar = isset($attrs['preserveAspectRatio'])
                     ? PreserveAspectRatio::parse($attrs['preserveAspectRatio'])
                     : PreserveAspectRatio::default();
-                return $this->wrapMask($this->wrapClip(new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height), $allowClip, $attrs, $css), $paint);
+                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height), $allowClip, $attrs, $css), $paint), $attrs, $css);
 
             case 'title':
             case 'desc':
@@ -837,6 +1073,35 @@ final class Parser
             return $node;
         }
         return new SvgMasked($paint->mask, $node);
+    }
+
+    /**
+     * Wraps a node in SvgFiltered if its filter presentation attribute or
+     * `filter:` style declaration resolves to a registered <filter> def.
+     * This is the outermost wrapper (filter outside mask outside clip), so the
+     * renderer rasterizes the already-masked/clipped subtree before filtering.
+     * `none`, empty, non-url() values, and unknown ids leave the node untouched.
+     *
+     * @param array<string, string> $attrs
+     * @param array<string, string> $css
+     */
+    private function wrapFilter(?SvgNode $node, array $attrs, array $css): ?SvgNode
+    {
+        if ($node === null) {
+            return null;
+        }
+        $value = $this->styleProp($attrs['style'] ?? '', 'filter')
+            ?? ($css['filter'] ?? null)
+            ?? ($attrs['filter'] ?? null);
+        if ($value === null) {
+            return $node;
+        }
+        $id = $this->clipUrlId($value);
+        if ($id === null) {
+            return $node;
+        }
+        $filter = $this->filters[$id] ?? null;
+        return $filter !== null ? new SvgFiltered($filter, $node) : $node;
     }
 
     /**
