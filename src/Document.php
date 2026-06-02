@@ -21,6 +21,7 @@ use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\PdfA\AFRelationship;
 use DragonOfMercy\PhpPdf\PdfA\AttachedFile;
+use DragonOfMercy\PhpPdf\PdfA\EmbeddedFileEmitter;
 use DragonOfMercy\PhpPdf\PdfA\OutputIntent;
 use DragonOfMercy\PhpPdf\PdfA\PdfAConformanceGuard;
 use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
@@ -810,7 +811,7 @@ final class Document
 
         $nextObjectNumber = 3 + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        $catalogDict = $this->withDocumentScripts($catalogDict);
+        $catalogDict = $this->withNames($catalogDict, []);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -852,11 +853,29 @@ final class Document
 
         $nextObjectNumber = 5 + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        $catalogDict = $this->withDocumentScripts($catalogDict);
+
+        $afterOutlines = $nextObjectNumber + count($outlineObjects);
+
+        $attachmentObjects = [];
+        $embeddedFilesForNames = [];
+        $afRefs = [];
+        if ($this->attachments !== []) {
+            $emit = (new EmbeddedFileEmitter())->emit($this->attachments, $afterOutlines);
+            $attachmentObjects = $emit['objects'];
+            $afRefs = $emit['filespecRefs'];
+            foreach ($this->attachments as $i => $a) {
+                $embeddedFilesForNames[] = ['name' => $a->name, 'ref' => $emit['filespecRefs'][$i]];
+            }
+            $afterOutlines += count($attachmentObjects);
+        }
+
+        $catalogDict = $this->withNames($catalogDict, $embeddedFilesForNames);
+        if ($afRefs !== []) {
+            $catalogDict = $catalogDict->withEntry(Name::of('AF'), PdfArray::of(...$afRefs));
+        }
 
         $outputIntentObjects = [];
         if ($this->pdfALevel !== null) {
-            $afterOutlines = $nextObjectNumber + count($outlineObjects);
             $profileNumber = $afterOutlines;
             $intentNumber = $afterOutlines + 1;
             [$intent, $profile] = (new OutputIntent())->build(
@@ -887,7 +906,7 @@ final class Document
         $xmpXml = (new XmpWriter())->write($effective, $this->pdfALevel);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$outputIntentObjects];
+        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects];
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
@@ -930,7 +949,7 @@ final class Document
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
         $nextObjectNumber = $firstObjectNumber + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        $catalogDict = $this->withDocumentScripts($catalogDict);
+        $catalogDict = $this->withNames($catalogDict, []);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $pages = IndirectObject::of(
@@ -1117,7 +1136,7 @@ final class Document
 
         $nextObjectNumber = $firstPageObjectNumber + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
-        $catalogDict = $this->withDocumentScripts($catalogDict);
+        $catalogDict = $this->withNames($catalogDict, []);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
@@ -1553,28 +1572,45 @@ final class Document
      * small by nature), so no extra indirect objects are allocated. In the
      * encrypted path the inline /JS strings are encrypted with the catalog
      * object's key like any other string.
+     *
+     * @param list<array{name: string, ref: PdfReference}> $embeddedFiles
      */
-    private function withDocumentScripts(Dictionary $catalogDict): Dictionary
+    private function withNames(Dictionary $catalogDict, array $embeddedFiles): Dictionary
     {
-        if ($this->documentScripts === []) {
+        $namesDict = Dictionary::empty();
+
+        if ($this->documentScripts !== []) {
+            $scripts = $this->documentScripts;
+            ksort($scripts, SORT_STRING);
+            $jsItems = [];
+            foreach ($scripts as $name => $js) {
+                $jsItems[] = PdfString::of($name);
+                $jsItems[] = Dictionary::empty()
+                    ->withEntry(Name::of('Type'), Name::of('Action'))
+                    ->withEntry(Name::of('S'), Name::of('JavaScript'))
+                    ->withEntry(Name::of('JS'), PdfString::of($js));
+            }
+            $namesDict = $namesDict->withEntry(
+                Name::of('JavaScript'),
+                Dictionary::empty()->withEntry(Name::of('Names'), PdfArray::of(...$jsItems)),
+            );
+        }
+
+        if ($embeddedFiles !== []) {
+            $efItems = [];
+            foreach ($embeddedFiles as $ef) {
+                $efItems[] = PdfString::of($ef['name']);
+                $efItems[] = $ef['ref'];
+            }
+            $namesDict = $namesDict->withEntry(
+                Name::of('EmbeddedFiles'),
+                Dictionary::empty()->withEntry(Name::of('Names'), PdfArray::of(...$efItems)),
+            );
+        }
+
+        if ($this->documentScripts === [] && $embeddedFiles === []) {
             return $catalogDict;
         }
-        $scripts = $this->documentScripts;
-        ksort($scripts, SORT_STRING);
-
-        $nameArrayItems = [];
-        foreach ($scripts as $name => $js) {
-            $nameArrayItems[] = PdfString::of($name);
-            $nameArrayItems[] = Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('Action'))
-                ->withEntry(Name::of('S'), Name::of('JavaScript'))
-                ->withEntry(Name::of('JS'), PdfString::of($js));
-        }
-
-        $namesDict = Dictionary::empty()->withEntry(
-            Name::of('JavaScript'),
-            Dictionary::empty()->withEntry(Name::of('Names'), PdfArray::of(...$nameArrayItems)),
-        );
         return $catalogDict->withEntry(Name::of('Names'), $namesDict);
     }
 
