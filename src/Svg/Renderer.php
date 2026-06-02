@@ -19,8 +19,13 @@ use DragonOfMercy\PhpPdf\Svg\PathCommand\CubicBezier;
 use DragonOfMercy\PhpPdf\Svg\PathCommand\QuadraticBezier;
 use DragonOfMercy\PhpPdf\Svg\BoundingBox;
 use DragonOfMercy\PhpPdf\Svg\ClipPathUnits;
+use DragonOfMercy\PhpPdf\Svg\EmbeddedFilter;
 use DragonOfMercy\PhpPdf\Svg\EmbeddedMask;
 use DragonOfMercy\PhpPdf\Svg\FillRule;
+use DragonOfMercy\PhpPdf\Svg\Filter\ColorInterpolation;
+use DragonOfMercy\PhpPdf\Svg\Filter\FilterPipeline;
+use DragonOfMercy\PhpPdf\Svg\Filter\FilterUnits;
+use DragonOfMercy\PhpPdf\Svg\Filter\SubtreeRasterizer;
 use DragonOfMercy\PhpPdf\Svg\Mask\MaskUnits;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerKind;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerOrientMode;
@@ -28,8 +33,10 @@ use DragonOfMercy\PhpPdf\Svg\Marker\MarkerPosition;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerPositioner;
 use DragonOfMercy\PhpPdf\Svg\Marker\MarkerUnits;
 use DragonOfMercy\PhpPdf\Svg\Marker\SvgMarker;
+use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Svg\SvgClip;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgFiltered;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgShape;
@@ -42,6 +49,8 @@ use DragonOfMercy\PhpPdf\Svg\TextPath\PathPolyline;
  */
 final class Renderer
 {
+    private const int MAX_FILTER_SIDE = 2000;
+
     private FontRegistry $fontRegistry;
     private MetricsRegistry $metricsRegistry;
 
@@ -54,6 +63,12 @@ final class Renderer
     /** @var list<EmbeddedMask> soft-mask records accumulated during render */
     private array $embeddedMasks = [];
 
+    /** @var list<EmbeddedFilter> rasterized-filter records accumulated during render */
+    private array $embeddedFilters = [];
+
+    /** @var list<Image> embedded rasters from the SvgMetadata being rendered, indexed by SvgImage::$imageIndex */
+    private array $embeddedImages = [];
+
     /** @var array<string, FontEngine> engine cache keyed by pdfName (standard) or custom alias+variant */
     private array $engines = [];
 
@@ -62,7 +77,7 @@ final class Renderer
 
     private ?FontResolver $fontResolver = null;
 
-    public function __construct()
+    public function __construct(private int $filterDpi = 300)
     {
         $this->metricsRegistry = new MetricsRegistry();
     }
@@ -75,6 +90,7 @@ final class Renderer
      *     patternRefs: list<array{name: string, embeddedIndex: int}>,
      *     embeddedPatterns: list<EmbeddedPattern>,
      *     embeddedMasks: list<EmbeddedMask>,
+     *     embeddedFilters: list<EmbeddedFilter>,
      *     fonts: list<string>,
      * }
      */
@@ -90,6 +106,8 @@ final class Renderer
         $this->usedFonts = [];
         $this->embeddedPatterns = [];
         $this->embeddedMasks = [];
+        $this->embeddedFilters = [];
+        $this->embeddedImages = $svg->embeddedImages;
         $out = '';
         $registry = new ExtGStateRegistry();
         $patterns = new PatternRegistry();
@@ -113,6 +131,7 @@ final class Renderer
             'patternRefs' => $patterns->refEntries(),
             'embeddedPatterns' => $this->embeddedPatterns,
             'embeddedMasks' => $this->embeddedMasks,
+            'embeddedFilters' => $this->embeddedFilters,
             'fonts' => array_keys($this->usedFonts),
         ];
     }
@@ -162,6 +181,9 @@ final class Renderer
         }
         if ($node instanceof SvgMasked) {
             return $this->renderMasked($node, $registry, $patterns, $ctm);
+        }
+        if ($node instanceof SvgFiltered) {
+            return $this->renderFiltered($node, $registry, $patterns, $ctm);
         }
         return '';
     }
@@ -855,6 +877,121 @@ final class Renderer
             return '';
         }
         return "q\n/" . $name . " gs\n" . $childBytes . "Q\n";
+    }
+
+    /**
+     * Renders a filtered element by rasterizing its child subtree into a pixel
+     * buffer, running the filter primitive pipeline, and embedding the result as
+     * an image XObject placed over the filter region. Selectable text inside the
+     * filtered subtree is re-emitted sharp on top (the rasterizer skips text).
+     */
+    private function renderFiltered(SvgFiltered $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
+    {
+        $bbox = BoundingBox::ofNode($node->child);
+        if ($bbox->isDegenerate()) {
+            return $this->renderNode($node->child, $registry, $patterns, $ctm);
+        }
+
+        $filter = $node->filter;
+        if ($filter->filterUnits === FilterUnits::OBJECT_BOUNDING_BOX) {
+            $regionX = $bbox->x + $filter->x * $bbox->width;
+            $regionY = $bbox->y + $filter->y * $bbox->height;
+            $regionW = $filter->width * $bbox->width;
+            $regionH = $filter->height * $bbox->height;
+        } else {
+            $regionX = $filter->x;
+            $regionY = $filter->y;
+            $regionW = $filter->width;
+            $regionH = $filter->height;
+        }
+        if ($regionW <= 0.0 || $regionH <= 0.0) {
+            return $this->renderNode($node->child, $registry, $patterns, $ctm);
+        }
+
+        [$a, $b, $c, $d] = $ctm->toArray();
+        $ctmScale = sqrt(abs($a * $d - $b * $c));
+        if ($ctmScale <= 0.0) {
+            $ctmScale = 1.0;
+        }
+        $pxPerUnit = $this->filterDpi / 72.0 * $ctmScale;
+        if ($pxPerUnit <= 0.0) {
+            $pxPerUnit = 1.0;
+        }
+
+        $wPx = max(1, (int) round($regionW * $pxPerUnit));
+        $hPx = max(1, (int) round($regionH * $pxPerUnit));
+        if (max($wPx, $hPx) > self::MAX_FILTER_SIDE) {
+            $factor = self::MAX_FILTER_SIDE / max($wPx, $hPx);
+            $pxPerUnit *= $factor;
+            $wPx = max(1, (int) round($regionW * $pxPerUnit));
+            $hPx = max(1, (int) round($regionH * $pxPerUnit));
+        }
+
+        // Child-local -> pixel (top-down): p -> (p - regionOrigin) * pxPerUnit.
+        // compose(u) applies u first, so translate(-region) runs before scale.
+        $deviceMatrix = SvgMatrix::scale($pxPerUnit, $pxPerUnit)
+            ->compose(SvgMatrix::translate(-$regionX, -$regionY));
+
+        $source = (new SubtreeRasterizer($this->embeddedImages))->rasterize($node->child, $deviceMatrix, $wPx, $hPx);
+        $final = (new FilterPipeline(ColorInterpolation::LINEAR_RGB, $pxPerUnit, $regionX, $regionY))->run($source, $filter->primitives);
+
+        $index = count($this->embeddedFilters);
+        $this->embeddedFilters[] = new EmbeddedFilter(
+            $final->width,
+            $final->height,
+            $final->colorBytes(),
+            $final->alphaBytes(),
+            [$regionX, $regionY, $regionW, $regionH],
+        );
+
+        $out = "q\n";
+        if (!$ctm->isIdentity()) {
+            $out .= self::cmFromMatrix($ctm) . "\n";
+        }
+        $out .= sprintf("%s 0 0 %s %s %s cm\n", self::fmt($regionW), self::fmt(-$regionH), self::fmt($regionX), self::fmt($regionY + $regionH));
+        $out .= '/ImF' . $index . " Do\n";
+        $out .= "Q\n";
+        $out .= $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+        return $out;
+    }
+
+    /**
+     * Re-emits ONLY the text of a (filtered) subtree, mirroring renderNode /
+     * renderGroup wrapping so the sharp selectable text lands in the same place
+     * as the rasterized image. Non-text nodes contribute nothing.
+     */
+    private function renderTextOnly(SvgNode $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
+    {
+        if ($node instanceof SvgGroup) {
+            $childCtm = $node->transform !== null ? $ctm->compose($node->transform) : $ctm;
+            $body = '';
+            foreach ($node->children as $child) {
+                $body .= $this->renderTextOnly($child, $registry, $patterns, $childCtm);
+            }
+            if ($body === '') {
+                return '';
+            }
+            $cm = ($node->transform !== null && !$node->transform->isIdentity())
+                ? self::cmFromMatrix($node->transform) . "\n"
+                : '';
+            return "q\n" . $cm . $body . "Q\n";
+        }
+        if ($node instanceof SvgText) {
+            return $this->renderText($node, $registry);
+        }
+        if ($node instanceof SvgTextPath) {
+            return $this->renderTextPath($node, $registry);
+        }
+        if ($node instanceof SvgClipped) {
+            return $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+        }
+        if ($node instanceof SvgMasked) {
+            return $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+        }
+        if ($node instanceof SvgFiltered) {
+            return $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+        }
+        return '';
     }
 
     /**
