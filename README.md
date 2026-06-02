@@ -23,7 +23,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 ## Not yet implemented
 
 - TrueType collections (`.ttc`), variable fonts, kerning, ligatures, RTL / Arabic / Indic shaping - out of scope.
-- PAdES-B-LT full profile (OCSP, per-signature `/VRI`, strict `ETSI.CAdES.detached`), incremental update over externally-supplied PDFs, and certifying (author / MDP) signatures - later phases.
+- PAdES-B-LT full profile (per-signature `/VRI`, strict `ETSI.CAdES.detached`), incremental update over externally-supplied PDFs, and certifying (author / MDP) signatures - later phases.
 
 ## Installation
 
@@ -821,7 +821,7 @@ Notes and current limits:
 - `signedAt` (defaults to now) and `maxSignatureBytes` (the `/Contents` placeholder size, default 16384) are optional. If the produced signature does not fit, raise `maxSignatureBytes`.
 - `timestamp` (optional) attaches an RFC 3161 signature timestamp. Use `Tsa::http($url, $auth, $hash)` for the built-in HTTP transport (optional `TsaBasicAuth`, `TsaHashAlgorithm` SHA-256 / 384 / 512), or `Tsa::withClient()` to inject a custom `TsaClient`. The TSA token is embedded as an `id-aa-timeStampToken` unsigned attribute; the token adds roughly 1.5-4 KB, so raise `maxSignatureBytes` if needed.
 - Signing and encryption cannot be combined; configuring both throws a `PdfException`.
-- Not yet supported: `ETSI.CAdES.detached`, and certifying (author / MDP) signatures. Document timestamps (`/DocTimeStamp`, `ETSI.RFC3161`) are supported via `$doc->addDocumentTimestamp(Tsa::http($url))` as a separate incremental revision. Signatures can be made long-term validatable (LTV) with `$doc->enableLtv()`, which embeds the certificate chain and CRLs in a Document Security Store (`/DSS`) and covers them with a document timestamp, so a signature stays verifiable after the signer certificate expires. CRL-based; OCSP and the strict ETSI.CAdES profile are later phases.
+- Not yet supported: `ETSI.CAdES.detached`, and certifying (author / MDP) signatures. Document timestamps (`/DocTimeStamp`, `ETSI.RFC3161`) are supported via `$doc->addDocumentTimestamp(Tsa::http($url))` as a separate incremental revision. Signatures can be made long-term validatable (LTV) with `$doc->enableLtv()`, which embeds the certificate chain plus revocation data in a Document Security Store (`/DSS`) and covers them with a document timestamp, so a signature stays verifiable after the signer certificate expires. Revocation is embedded as CRLs (default `HttpCrlValidationDataSource`) or OCSP responses (`new HttpOcspValidationDataSource()`), or supplied directly via `StaticValidationDataSource`. The per-signature `/VRI` and the strict ETSI.CAdES profile are later phases.
 
 ## Development
 

@@ -245,17 +245,19 @@ every signature: first a DSS revision, then (when a `Tsa` is given) a
 `/DocTimeStamp` revision whose ByteRange covers the DSS.
 
 - **/DSS** is an indirect dictionary referenced from the catalog, carrying
-  `/Certs` and `/CRLs` arrays of raw-DER stream objects (one stream per
-  certificate and per CRL). The global DSS only - no per-signature `/VRI`
-  sub-dictionary, because its key is the SHA-1 of a signature's `/Contents`
-  which is not known until after signing; a global DSS is sufficient for
-  validators and is what modern signers emit.
-- **CRL-based.** Revocation material is collected through an injectable
-  `ValidationDataSource` (the same seam shape as `TsaClient`): the default
+  `/Certs`, `/CRLs` and `/OCSPs` arrays of raw-DER stream objects (one stream
+  per certificate, CRL and OCSP response; empty arrays are omitted). The global
+  DSS only - no per-signature `/VRI` sub-dictionary, because its key is the
+  SHA-1 of a signature's `/Contents` which is not known until after signing; a
+  global DSS is sufficient for validators and is what modern signers emit.
+- **CRL or OCSP revocation.** Material is collected through an injectable
+  `ValidationDataSource` (the same seam shape as `TsaClient`):
   `HttpCrlValidationDataSource` reads each certificate's CRL distribution point
-  and fetches the CRL; `StaticValidationDataSource` supplies material a caller
-  obtained itself (and is how the test suite runs offline). OCSP is a later
-  phase.
+  and fetches the CRL, `HttpOcspValidationDataSource` reads each certificate's
+  AIA responder and fetches the OCSP response (the OCSP request is a single
+  SHA-1 `CertID` with no nonce, built by `OcspRequestBuilder` over an injectable
+  `OcspClient` seam), and `StaticValidationDataSource` supplies material a caller
+  obtained itself (and is how the test suite runs offline).
 - **Subfilter stays `adbe.pkcs7.detached`.** This is Adobe-style LTV: it is the
   presence of validation material in the DSS plus a covering document timestamp
   that makes the file long-term validatable, not the CMS subfilter. The strict

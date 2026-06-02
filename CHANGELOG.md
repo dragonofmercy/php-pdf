@@ -9,14 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Long-term validation (LTV) for signatures: `Document::enableLtv()` embeds the
-  signer certificate chain and CRLs in a Document Security Store (`/DSS`) and,
-  when given a `Tsa`, covers them with a `/DocTimeStamp`, so signatures remain
-  verifiable after the signer certificate expires. Validation material is
-  supplied through an injectable `ValidationDataSource` (default
-  `HttpCrlValidationDataSource` fetches CRLs from the certificate distribution
-  points; `StaticValidationDataSource` is provided for offline use). CRL-based;
-  OCSP, the per-signature `/VRI`, and the strict ETSI.CAdES profile are later
-  phases.
+  signer certificate chain plus revocation data in a Document Security Store
+  (`/DSS`) and, when given a `Tsa`, covers them with a `/DocTimeStamp`, so
+  signatures remain verifiable after the signer certificate expires. Revocation
+  is embedded as CRLs (`/CRLs`) or OCSP responses (`/OCSPs`). Validation material
+  is supplied through an injectable `ValidationDataSource`: `HttpCrlValidationDataSource`
+  fetches CRLs from each certificate's distribution point, `HttpOcspValidationDataSource`
+  fetches OCSP responses from each certificate's AIA responder, and
+  `StaticValidationDataSource` supplies material the caller already obtained
+  (offline use). The per-signature `/VRI` and the strict ETSI.CAdES profile are
+  later phases.
 
 ## [1.1.0] - 2026-06-02
 
