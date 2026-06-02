@@ -23,12 +23,6 @@ final class AttachedFileTest extends TestCase
         self::assertSame($when, $a->modDate);
     }
 
-    public function testSubtypeNameEscapesSlash(): void
-    {
-        $a = new AttachedFile('a.xml', 'x', AFRelationship::Data, 'text/xml', null, new \DateTimeImmutable('@0'));
-        self::assertSame('text#2Fxml', $a->subtypeName());
-    }
-
     public function testEmptyNameRejected(): void
     {
         $this->expectException(PdfException::class);

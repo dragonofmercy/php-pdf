@@ -27,13 +27,4 @@ final readonly class AttachedFile
             throw new PdfException("Attached file '{$this->name}' must have a non-empty MIME type");
         }
     }
-
-    /**
-     * The MIME type as a PDF name token body (the EmbeddedFile /Subtype): the
-     * solidus is written as its #-escape, e.g. text/xml -> text#2Fxml.
-     */
-    public function subtypeName(): string
-    {
-        return str_replace('/', '#2F', $this->mime);
-    }
 }
