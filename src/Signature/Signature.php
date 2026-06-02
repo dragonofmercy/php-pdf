@@ -23,6 +23,7 @@ final readonly class Signature
         public DateTimeImmutable $signedAt,
         public int $maxSignatureBytes,
         public ?Tsa $tsa = null,
+        public SignatureFormat $format = SignatureFormat::Pkcs7Detached,
     ) {
         if ($fieldName === '') {
             throw new PdfException('Signature field name cannot be empty');

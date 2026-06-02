@@ -27,7 +27,7 @@ final readonly class SignatureDictionaryEmitter
         $dict = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('Sig'))
             ->withEntry(Name::of('Filter'), Name::of('Adobe.PPKLite'))
-            ->withEntry(Name::of('SubFilter'), Name::of('adbe.pkcs7.detached'))
+            ->withEntry(Name::of('SubFilter'), Name::of($sig->format->subFilter()))
             ->withEntry(Name::of('ByteRange'), RawValue::of(self::BYTERANGE_PLACEHOLDER))
             ->withEntry(Name::of('Contents'), RawValue::of($contents))
             ->withEntry(Name::of('M'), PdfString::of(PdfDate::format($sig->signedAt)));

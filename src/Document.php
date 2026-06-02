@@ -49,6 +49,7 @@ use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureDictionaryEmitter;
+use DragonOfMercy\PhpPdf\Signature\SignatureFormat;
 use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
@@ -366,6 +367,7 @@ final class Document
         ?\DateTimeImmutable $signedAt = null,
         int $maxSignatureBytes = 16384,
         ?Tsa $timestamp = null,
+        SignatureFormat $format = SignatureFormat::Pkcs7Detached,
     ): self {
         $this->signature = new Signature(
             $certificate,
@@ -376,6 +378,7 @@ final class Document
             $signedAt ?? new \DateTimeImmutable(),
             $maxSignatureBytes,
             $timestamp,
+            $format,
         );
         $this->signingCertificates[] = $certificate;
         return $this;
@@ -404,6 +407,7 @@ final class Document
         ?\DateTimeImmutable $signedAt = null,
         int $maxSignatureBytes = 16384,
         ?Tsa $timestamp = null,
+        SignatureFormat $format = SignatureFormat::Pkcs7Detached,
     ): self {
         $name = 'Signature' . (count($this->appendedRevisions) + 1);
         $signature = new Signature(
@@ -415,6 +419,7 @@ final class Document
             $signedAt ?? new \DateTimeImmutable(),
             $maxSignatureBytes,
             $timestamp,
+            $format,
         );
         $this->appendedRevisions[] = new AppendedSignature($signature);
         $this->signingCertificates[] = $certificate;

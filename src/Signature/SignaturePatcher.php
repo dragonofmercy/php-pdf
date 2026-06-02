@@ -12,7 +12,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * /ByteRange with the real offsets, signs the two byte ranges, and writes the
  * signature hex into /Contents - all in place so the total byte length (and
  * therefore the xref offsets) is preserved. The signer is injectable for
- * testing; production uses Pkcs7Signer.
+ * testing; production delegates to CmsSignerFactory.
  */
 final readonly class SignaturePatcher
 {
@@ -20,7 +20,7 @@ final readonly class SignaturePatcher
     private ?Closure $injectedSigner;
 
     /**
-     * @param (callable(string): string)|null $signer returns DER bytes for the given data; null uses Pkcs7Signer
+     * @param (callable(string): string)|null $signer returns DER bytes for the given data; null uses CmsSignerFactory
      */
     public function __construct(?callable $signer = null)
     {
@@ -39,7 +39,7 @@ final readonly class SignaturePatcher
         }
 
         $signer = $this->injectedSigner ?? function (string $data) use ($sig): string {
-            $der = (new Pkcs7Signer())->sign($data, $sig->certificate);
+            $der = CmsSignerFactory::for($sig->format)->sign($data, $sig->certificate);
             if ($sig->tsa !== null) {
                 $der = (new SignatureTimestamper($sig->tsa->hash))->timestamp($der, $sig->tsa->client);
             }
