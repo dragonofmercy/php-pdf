@@ -11,7 +11,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * openssl_cms_sign with SHA-256 signed attributes. The CA chain from the
  * credential is embedded. Temp files are removed in a finally block.
  */
-final readonly class Pkcs7Signer
+final readonly class Pkcs7Signer implements CmsSigner
 {
     public function sign(string $data, SigningCertificate $certificate): string
     {
