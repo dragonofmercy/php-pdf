@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Image;
 
 use DragonOfMercy\PhpPdf\Svg\PreserveAspectRatio;
 use DragonOfMercy\PhpPdf\Svg\SvgClipped;
+use DragonOfMercy\PhpPdf\Svg\SvgFiltered;
 use DragonOfMercy\PhpPdf\Svg\SvgGroup;
 use DragonOfMercy\PhpPdf\Svg\SvgMasked;
 use DragonOfMercy\PhpPdf\Svg\SvgNode;
@@ -66,6 +67,10 @@ final readonly class SvgMetadata
             return;
         }
         if ($node instanceof SvgClipped) {
+            $this->walk($node->child, $specs);
+            return;
+        }
+        if ($node instanceof SvgFiltered) {
             $this->walk($node->child, $specs);
             return;
         }
