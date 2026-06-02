@@ -19,6 +19,8 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\PdfA\PdfAConformanceGuard;
+use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
 use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
@@ -99,6 +101,8 @@ final class Document
     private array $signingCertificates = [];
 
     private bool $ltvEnabled = false;
+
+    private ?PdfALevel $pdfALevel = null;
 
     /**
      * Stable /ID for the metadata-less document-timestamp path, generated once
@@ -475,6 +479,20 @@ final class Document
     }
 
     /**
+     * Makes output() emit a PDF/A conformant file at the given level (ISO 19005-2
+     * part 2, conformance B or U). Forces the metadata output path so the XMP
+     * packet, Info dictionary, and document /ID are always present, embeds an
+     * sRGB output intent, and stamps the pdfaid schema. Throws at output() if the
+     * document uses a non-embedded standard font, encryption, document scripts,
+     * or appended revisions.
+     */
+    public function enablePdfA(PdfALevel $level): self
+    {
+        $this->pdfALevel = $level;
+        return $this;
+    }
+
+    /**
      * Returns the outline (bookmarks) tree root. The first call creates the
      * root lazily; subsequent calls return the same instance so the user can
      * keep adding nodes. The tree is only emitted if it has at least one
@@ -655,6 +673,16 @@ final class Document
 
         $this->runFooters();
 
+        if ($this->pdfALevel !== null) {
+            (new PdfAConformanceGuard())->verify(
+                standardFonts: $this->fontRegistry->registeredFonts(),
+                hasEncryption: $this->encryption !== null,
+                hasAppendedRevisions: $this->appendedRevisions !== [],
+                hasDocumentScripts: $this->hasDocumentScripts(),
+            );
+            $this->metadata();
+        }
+
         if ($this->encryption !== null) {
             return $this->outputEncrypted($this->encryption, $this->metadata);
         }
@@ -723,6 +751,11 @@ final class Document
         if ($result === false) {
             throw new PdfException("Failed to write PDF to {$path}");
         }
+    }
+
+    private function hasDocumentScripts(): bool
+    {
+        return $this->documentScripts !== [];
     }
 
     private function outputWithoutMetadata(): string
@@ -799,7 +832,7 @@ final class Document
 
         $info = IndirectObject::of(3, 0, $this->buildInfoDictionary($effective));
 
-        $xmpXml = (new XmpWriter())->write($effective);
+        $xmpXml = (new XmpWriter())->write($effective, $this->pdfALevel);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
         $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects];
