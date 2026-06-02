@@ -37,11 +37,12 @@ use DragonOfMercy\PhpPdf\Svg\SvgTextPath;
  * alpha) for the SVG filter pipeline. This is the SourceGraphic producer:
  * the filter primitives operate on the buffer this class fills.
  *
- * Solid fills, groups, nested clip/mask/filter wrappers (clip/mask/filter
- * themselves ignored, only the inner child drawn), raster <image> elements,
- * and gradient fills are rendered. Text (<text> / <textPath>) is intentionally
- * SKIPPED: filtering selectable text is out of scope, and the vector renderer
- * still emits it normally on the unfiltered path.
+ * Solid fills, linear/radial gradient fills, basic solid strokes (square
+ * joins/caps, v1), groups, nested clip/mask/filter wrappers (clip/mask/filter
+ * themselves ignored, only the inner child drawn), and raster <image> elements
+ * are rendered. Text (<text> / <textPath>) is intentionally SKIPPED: filtering
+ * selectable text is out of scope, and the vector renderer still emits it
+ * normally on the unfiltered path. Pattern paint servers are also skipped.
  *
  * @internal
  */
@@ -105,23 +106,76 @@ final class SubtreeRasterizer
         $paint = $shape->paint();
 
         $fill = $paint->fill;
-        $baseAlpha = $paint->effectiveFillOpacity() * $opacity;
+        $fillAlpha = $paint->effectiveFillOpacity() * $opacity;
 
         if ($fill instanceof SvgColor) {
             $rings = ShapeFlattener::toRings($shape, $shapeCtm);
-            if ($rings === []) {
-                return;
+            if ($rings !== []) {
+                PolygonFiller::fill($buf, $rings, $paint->fillRule, $fill->r, $fill->g, $fill->b, $fillAlpha);
             }
-            PolygonFiller::fill($buf, $rings, $paint->fillRule, $fill->r, $fill->g, $fill->b, $baseAlpha);
+        } elseif ($fill instanceof SvgGradient) {
+            $this->drawGradientFill($shape, $fill, $shapeCtm, $paint->fillRule, $buf, $fillAlpha);
+        }
+        // none / pattern fill: skipped (pattern fills inside filters are out of scope).
+
+        $stroke = $paint->stroke;
+        if ($stroke instanceof SvgColor && $paint->strokeWidth > 0.0) {
+            $strokeAlpha = $paint->effectiveStrokeOpacity() * $opacity;
+            $this->drawStroke($shape, $shapeCtm, $paint->strokeWidth, $stroke, $strokeAlpha, $buf);
+        }
+        // Gradient / pattern strokes inside filters are out of scope (skipped).
+    }
+
+    /**
+     * Approximates a solid stroke by flattening the shape into device-space
+     * rings and filling a width-w quad along every edge. Joins and caps are
+     * square (v1): each edge contributes an axis-perpendicular rectangle, so
+     * corners overlap rather than mitre. Stroke width is taken in user units and
+     * scaled to device by the shapeCtm's average linear scale.
+     */
+    private function drawStroke(SvgShape $shape, SvgMatrix $shapeCtm, float $userWidth, SvgColor $color, float $alpha, RasterBuffer $buf): void
+    {
+        if ($alpha <= 0.0) {
+            return;
+        }
+        $rings = ShapeFlattener::toRings($shape, $shapeCtm);
+        if ($rings === []) {
+            return;
+        }
+        // Average linear scale of the device matrix (sqrt of the area scale).
+        $det = abs($shapeCtm->a * $shapeCtm->d - $shapeCtm->b * $shapeCtm->c);
+        $scale = $det > 0.0 ? sqrt($det) : 1.0;
+        $half = $userWidth * $scale / 2.0;
+        if ($half <= 0.0) {
             return;
         }
 
-        if ($fill instanceof SvgGradient) {
-            $this->drawGradientFill($shape, $fill, $shapeCtm, $paint->fillRule, $buf, $baseAlpha);
-            return;
+        foreach ($rings as $ring) {
+            $n = count($ring);
+            if ($n < 2) {
+                continue;
+            }
+            for ($i = 0; $i < $n; $i++) {
+                $p1 = $ring[$i];
+                $p2 = $ring[($i + 1) % $n];
+                $ex = $p2['x'] - $p1['x'];
+                $ey = $p2['y'] - $p1['y'];
+                $len = sqrt($ex * $ex + $ey * $ey);
+                if ($len <= 0.0) {
+                    continue;
+                }
+                // Unit normal to the edge.
+                $nx = -$ey / $len * $half;
+                $ny = $ex / $len * $half;
+                $quad = [[
+                    ['x' => $p1['x'] + $nx, 'y' => $p1['y'] + $ny],
+                    ['x' => $p2['x'] + $nx, 'y' => $p2['y'] + $ny],
+                    ['x' => $p2['x'] - $nx, 'y' => $p2['y'] - $ny],
+                    ['x' => $p1['x'] - $nx, 'y' => $p1['y'] - $ny],
+                ]];
+                PolygonFiller::fill($buf, $quad, FillRule::NONZERO, $color->r, $color->g, $color->b, $alpha);
+            }
         }
-
-        // none / pattern: pattern fills inside filters are out of scope (skipped).
     }
 
     /**

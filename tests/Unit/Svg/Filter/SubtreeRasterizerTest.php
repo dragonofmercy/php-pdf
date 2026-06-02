@@ -101,6 +101,23 @@ final class SubtreeRasterizerTest extends TestCase
         self::assertGreaterThan($right[0], $left[0]);
     }
 
+    public function testStrokesShapeOutline(): void
+    {
+        $paint = SvgPaint::default()
+            ->withFillNone()
+            ->withStroke(new SvgColor(1.0, 0.0, 0.0))
+            ->withStrokeWidth(2.0);
+        // Rect spanning (2,2)-(8,8); a stroke of width 2 covers the border band.
+        $rect = new SvgRect(null, $paint, 2.0, 2.0, 6.0, 6.0, 0.0, 0.0);
+        $group = new SvgGroup(null, [$rect]);
+
+        $buf = (new SubtreeRasterizer())->rasterize($group, SvgMatrix::identity(), 10, 10);
+
+        // A pixel on the left border is red; the interior centre is untouched.
+        self::assertEqualsWithDelta([1.0, 0.0, 0.0, 1.0], $buf->pixel(2, 5), 1e-6);
+        self::assertSame([0.0, 0.0, 0.0, 0.0], $buf->pixel(5, 5));
+    }
+
     /**
      * Builds a minimal 2x2 8-bit RGB PNG with every pixel red. CRCs are zeroed
      * (PngMetadata does not validate them).
