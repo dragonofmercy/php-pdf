@@ -40,8 +40,10 @@ final readonly class CmsSignedAttributes
             Der::set(SigningCertificateV2Attribute::build($signerCertificateDer)),
         );
 
+        // DER SET OF requires the elements ordered ascending by their encoded
+        // bytes; SORT_STRING makes the bytewise comparison explicit.
         $attributes = [$contentType, $messageDigestAttr, $signingCertificate];
-        sort($attributes);
+        sort($attributes, SORT_STRING);
         $this->sortedContent = implode('', $attributes);
     }
 
