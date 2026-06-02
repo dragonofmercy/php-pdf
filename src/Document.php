@@ -432,9 +432,16 @@ final class Document
      * given) covers them with a document timestamp. Must be called after sign()
      * and any addSignature(); the DSS is appended as the last incremental
      * revisions so it covers every signature.
+     *
+     * @param list<list<string>> $timestampCertificateChains PEM chains (TSA signer
+     *        cert first, then issuers) whose revocation is collected into the DSS
+     *        so a covering document timestamp is itself long-term validatable (B-LTA).
      */
-    public function enableLtv(?ValidationDataSource $source = null, ?Tsa $timestamp = null): self
-    {
+    public function enableLtv(
+        ?ValidationDataSource $source = null,
+        ?Tsa $timestamp = null,
+        array $timestampCertificateChains = [],
+    ): self {
         if ($this->signingCertificates === []) {
             throw new PdfException('enableLtv requires at least one signature (call sign() or addSignature() first)');
         }
@@ -449,6 +456,9 @@ final class Document
         // network failure surfaces at the enableLtv() call rather than mid-output().
         foreach ($this->signingCertificates as $credential) {
             $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
+        }
+        foreach ($timestampCertificateChains as $tsaChainPem) {
+            $material = $material->merge($resolver->collect($tsaChainPem));
         }
         if ($material->certificates === []) {
             throw new PdfException('enableLtv: the validation data source returned no certificates');
