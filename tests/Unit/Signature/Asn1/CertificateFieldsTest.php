@@ -40,6 +40,29 @@ final class CertificateFieldsTest extends TestCase
         self::assertSame($serialHex, strtolower(bin2hex($fields->serialNumber())));
     }
 
+    public function testIssuerNameDerMatchesOpenssl(): void
+    {
+        $pki = TestPki::issueWithOcsp();
+        $openssl = (new ExecutableFinder())->find('openssl');
+        if ($pki === null || $openssl === null) {
+            self::markTestSkipped('openssl CLI unavailable');
+        }
+        $der = CertificateChain::pemToDer($pki['leafPem']);
+        $issuerNameDer = CertificateFields::fromDer($der)->issuerNameDer();
+
+        self::assertSame(0x30, ord($issuerNameDer[0]));
+        $leaf = (string) tempnam(sys_get_temp_dir(), 'leaf');
+        file_put_contents($leaf, $pki['leafPem']);
+        try {
+            $p = new Process([$openssl, 'x509', '-in', $leaf, '-noout', '-issuer']);
+            $p->run();
+            self::assertStringContainsString('phppdf test root', $p->getOutput());
+        } finally {
+            @unlink($leaf);
+        }
+        self::assertStringContainsString('phppdf test root', $issuerNameDer);
+    }
+
     public function testThrowsOnNonCertificate(): void
     {
         $this->expectException(PdfException::class);

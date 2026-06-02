@@ -7,11 +7,12 @@ namespace DragonOfMercy\PhpPdf\Signature\Asn1;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
- * Extracts the three X.509 fields the OCSP CertID needs from a DER certificate:
- * the serialNumber content bytes, the full DER of the subject Name (hashed for
- * issuerNameHash), and the raw subjectPublicKey bytes (hashed for issuerKeyHash,
- * per RFC 6960 4.1.1, excluding tag, length and the unused-bits octet). Walks
- * TBSCertificate field by field; not a general X.509 parser.
+ * Extracts the four X.509 fields the OCSP CertID and CAdES attributes need from
+ * a DER certificate: the serialNumber content bytes, the full DER of the issuer
+ * Name (for IssuerSerial / issuerNameHash), the full DER of the subject Name
+ * (hashed for issuerNameHash), and the raw subjectPublicKey bytes (hashed for
+ * issuerKeyHash, per RFC 6960 4.1.1, excluding tag, length and the unused-bits
+ * octet). Walks TBSCertificate field by field; not a general X.509 parser.
  *
  * @internal
  */
@@ -19,6 +20,7 @@ final readonly class CertificateFields
 {
     private function __construct(
         private string $serialNumber,
+        private string $issuerNameDer,
         private string $subjectNameDer,
         private string $subjectPublicKeyBytes,
     ) {}
@@ -47,8 +49,14 @@ final readonly class CertificateFields
 
         $cursor = $field['end'];
         $cursor = Der::readHeader($der, $cursor)['end'];   // signature AlgorithmIdentifier
-        $cursor = Der::readHeader($der, $cursor)['end'];   // issuer Name
-        $cursor = Der::readHeader($der, $cursor)['end'];   // validity
+
+        $issuer = Der::readHeader($der, $cursor);          // issuer Name
+        if ($issuer['tag'] !== 0x30) {
+            throw new PdfException('TBSCertificate issuer Name not found');
+        }
+        $issuerNameDer = substr($der, $issuer['start'], $issuer['end'] - $issuer['start']);
+
+        $cursor = Der::readHeader($der, $issuer['end'])['end'];   // validity
 
         $subject = Der::readHeader($der, $cursor);
         if ($subject['tag'] !== 0x30) {
@@ -67,12 +75,17 @@ final readonly class CertificateFields
         }
         $subjectPublicKeyBytes = substr($der, $bitString['valueStart'] + 1, $bitString['length'] - 1);
 
-        return new self($serialNumber, $subjectNameDer, $subjectPublicKeyBytes);
+        return new self($serialNumber, $issuerNameDer, $subjectNameDer, $subjectPublicKeyBytes);
     }
 
     public function serialNumber(): string
     {
         return $this->serialNumber;
+    }
+
+    public function issuerNameDer(): string
+    {
+        return $this->issuerNameDer;
     }
 
     public function subjectNameDer(): string
