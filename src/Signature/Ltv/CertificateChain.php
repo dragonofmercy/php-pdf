@@ -50,16 +50,8 @@ final class CertificateChain
      */
     public static function crlUrls(string $certPem): array
     {
-        $parsed = openssl_x509_parse($certPem);
-        if (!is_array($parsed)) {
-            throw new PdfException('Could not parse certificate for CRL distribution points');
-        }
-        $extensions = $parsed['extensions'] ?? null;
-        if (!is_array($extensions)) {
-            return [];
-        }
-        $cdp = $extensions['crlDistributionPoints'] ?? null;
-        return is_string($cdp) ? self::crlUrlsFromExtensionText($cdp) : [];
+        $cdp = self::extensionText($certPem, 'crlDistributionPoints', 'CRL distribution points');
+        return $cdp === null ? [] : self::crlUrlsFromExtensionText($cdp);
     }
 
     /**
@@ -70,10 +62,7 @@ final class CertificateChain
      */
     public static function crlUrlsFromExtensionText(string $text): array
     {
-        if (preg_match_all('~URI:([^\s,)]+)~', $text, $m) === false) {
-            return [];
-        }
-        return array_values(array_unique($m[1]));
+        return self::uriTokens($text, '~URI:([^\s,)]+)~');
     }
 
     /**
@@ -85,16 +74,8 @@ final class CertificateChain
      */
     public static function ocspUrls(string $certPem): array
     {
-        $parsed = openssl_x509_parse($certPem);
-        if (!is_array($parsed)) {
-            throw new PdfException('Could not parse certificate for OCSP responder URLs');
-        }
-        $extensions = $parsed['extensions'] ?? null;
-        if (!is_array($extensions)) {
-            return [];
-        }
-        $aia = $extensions['authorityInfoAccess'] ?? null;
-        return is_string($aia) ? self::ocspUrlsFromExtensionText($aia) : [];
+        $aia = self::extensionText($certPem, 'authorityInfoAccess', 'OCSP responder URLs');
+        return $aia === null ? [] : self::ocspUrlsFromExtensionText($aia);
     }
 
     /**
@@ -105,7 +86,37 @@ final class CertificateChain
      */
     public static function ocspUrlsFromExtensionText(string $text): array
     {
-        if (preg_match_all('~OCSP - URI:([^\s,)]+)~', $text, $m) === false) {
+        return self::uriTokens($text, '~OCSP - URI:([^\s,)]+)~');
+    }
+
+    /**
+     * Returns the human-readable text of a named certificate extension, or null
+     * when the certificate has no such extension. Throws when the certificate
+     * itself cannot be parsed.
+     */
+    private static function extensionText(string $certPem, string $extensionKey, string $purpose): ?string
+    {
+        $parsed = openssl_x509_parse($certPem);
+        if (!is_array($parsed)) {
+            throw new PdfException("Could not parse certificate for {$purpose}");
+        }
+        $extensions = $parsed['extensions'] ?? null;
+        if (!is_array($extensions)) {
+            return null;
+        }
+        $value = $extensions[$extensionKey] ?? null;
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * Captures the first group of every match of $regex in $text, de-duplicated
+     * and re-indexed.
+     *
+     * @return list<string>
+     */
+    private static function uriTokens(string $text, string $regex): array
+    {
+        if (preg_match_all($regex, $text, $m) === false) {
             return [];
         }
         return array_values(array_unique($m[1]));

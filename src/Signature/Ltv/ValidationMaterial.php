@@ -7,8 +7,8 @@ namespace DragonOfMercy\PhpPdf\Signature\Ltv;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
- * Validation material for a Document Security Store: raw DER certificates and
- * CRLs (and, reserved for a later OCSP phase, OCSP responses). Immutable.
+ * Validation material for a Document Security Store: raw DER certificates,
+ * CRLs and OCSP responses. Immutable.
  *
  * @internal
  */
@@ -17,7 +17,7 @@ final readonly class ValidationMaterial
     /**
      * @param list<string> $certificates DER-encoded X.509 certificates
      * @param list<string> $crls DER-encoded CRLs
-     * @param list<string> $ocsps DER-encoded OCSP responses (reserved; empty in the CRL phase)
+     * @param list<string> $ocsps DER-encoded OCSP responses
      */
     private function __construct(
         public array $certificates,
