@@ -126,7 +126,8 @@ final class FilterPipeline
 
         if ($p instanceof FeDropShadow) {
             $base = $this->resolveInput($p->in, $named, $last);
-            $offset = Offset::apply($named['SourceAlpha'], (int) round($p->dx * $px), (int) round($p->dy * $px));
+            // Shadow = blur(offset(alpha-of(in))); in defaults to SourceGraphic.
+            $offset = Offset::apply($this->alphaOnly($base), (int) round($p->dx * $px), (int) round($p->dy * $px));
             $blurred = BoxBlur::apply($offset, $p->stdDeviationX * $px, $p->stdDeviationY * $px);
 
             [$r, $g, $b] = $this->floodComponents($p->floodColor, $linear);

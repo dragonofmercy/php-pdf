@@ -50,6 +50,25 @@ final class BlendOffsetFloodMergeTest extends TestCase
         self::assertEqualsWithDelta(0.25, $out->pixel(0, 0)[0], 1e-6);
     }
 
+    public function testBlendMultiplyTranslucentUsesPremultipliedColor(): void
+    {
+        // Source (1,0,0, a=0.5) multiply backdrop (0,0,1, a=1.0).
+        // premult cs=(0.5,0,0), cb=(0,0,1); ar=0.5+1-0.5=1.0
+        // red:   (1-0.5)*0 + (1-1)*0.5 + 0.5*0   = 0
+        // blue:  (1-0.5)*1 + (1-1)*0   + 0*1     = 0.5
+        // un-premult /1.0 -> (0,0,0.5), ar=1.0
+        $src = new RasterBuffer(1, 1);
+        $src->setPixel(0, 0, 1.0, 0.0, 0.0, 0.5);
+        $back = new RasterBuffer(1, 1);
+        $back->setPixel(0, 0, 0.0, 0.0, 1.0, 1.0);
+        $out = Blend::apply($src, $back, BlendMode::MULTIPLY);
+        $p = $out->pixel(0, 0);
+        self::assertEqualsWithDelta(0.0, $p[0], 1e-6);
+        self::assertEqualsWithDelta(0.0, $p[1], 1e-6);
+        self::assertEqualsWithDelta(0.5, $p[2], 1e-6);
+        self::assertEqualsWithDelta(1.0, $p[3], 1e-6);
+    }
+
     public function testMergeEmptyThrows(): void
     {
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);

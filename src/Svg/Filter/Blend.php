@@ -10,9 +10,12 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
  * SVG feBlend primitive: composites two buffers using an SVG 1.1 blend mode.
  *
  * $in is the source (top layer, cs/as); $in2 is the backdrop (cb/ab).
- * Channels are straight (non-premultiplied) RGBA floats in [0, 1].
+ * Buffers carry straight (non-premultiplied) RGBA floats in [0, 1], but the
+ * SVG 1.1 feBlend formulas are defined on PREMULTIPLIED color and produce a
+ * premultiplied result, so each channel is premultiplied on the way in and
+ * un-premultiplied on the way out.
  *
- * SVG 1.1 feBlend formulas (non-premultiplied, qa = source alpha, qb = backdrop alpha):
+ * SVG 1.1 feBlend formulas (premultiplied cs/cb, qa = source alpha, qb = backdrop alpha):
  *   ar = as + ab - as*ab
  *   normal:   cr = (1 - qa)*cb + cs
  *   multiply: cr = (1 - qa)*cb + (1 - qb)*cs + cs*cb
@@ -43,33 +46,43 @@ final class Blend
 
         for ($y = 0; $y < $h; $y++) {
             for ($x = 0; $x < $w; $x++) {
-                [$cs, $gs, $bs, $as] = $in->pixel($x, $y);
-                [$cb, $gb, $bb, $ab] = $in2->pixel($x, $y);
+                [$rs, $gs, $bs, $as] = $in->pixel($x, $y);
+                [$rb, $gb, $bb, $ab] = $in2->pixel($x, $y);
 
                 $ar = $as + $ab - $as * $ab;
-                $ar = $ar < 0.0 ? 0.0 : ($ar > 1.0 ? 1.0 : $ar);
+                $ar = RasterBuffer::clamp01($ar);
 
-                $cr = self::blendChannel($cs, $cb, $as, $ab, $mode);
-                $cg = self::blendChannel($gs, $gb, $as, $ab, $mode);
-                $cbOut = self::blendChannel($bs, $bb, $as, $ab, $mode);
+                // Blend per channel on premultiplied color, then un-premultiply.
+                $cr = self::blendChannel($rs * $as, $rb * $ab, $as, $ab, $mode);
+                $cg = self::blendChannel($gs * $as, $gb * $ab, $as, $ab, $mode);
+                $cbOut = self::blendChannel($bs * $as, $bb * $ab, $as, $ab, $mode);
 
-                $out->setPixel($x, $y, $cr, $cg, $cbOut, $ar);
+                $inv = $ar > 0.0 ? 1.0 / $ar : 0.0;
+                $out->setPixel(
+                    $x,
+                    $y,
+                    RasterBuffer::clamp01($cr * $inv),
+                    RasterBuffer::clamp01($cg * $inv),
+                    RasterBuffer::clamp01($cbOut * $inv),
+                    $ar,
+                );
             }
         }
 
         return $out;
     }
 
+    /**
+     * Applies the SVG 1.1 feBlend mode to a single premultiplied channel pair.
+     */
     private static function blendChannel(float $cs, float $cb, float $qa, float $qb, BlendMode $mode): float
     {
-        $cr = match ($mode) {
+        return match ($mode) {
             BlendMode::NORMAL => (1.0 - $qa) * $cb + $cs,
             BlendMode::MULTIPLY => (1.0 - $qa) * $cb + (1.0 - $qb) * $cs + $cs * $cb,
             BlendMode::SCREEN => $cs + $cb - $cs * $cb,
             BlendMode::DARKEN => min((1.0 - $qa) * $cb + $cs, (1.0 - $qb) * $cs + $cb),
             BlendMode::LIGHTEN => max((1.0 - $qa) * $cb + $cs, (1.0 - $qb) * $cs + $cb),
         };
-
-        return $cr < 0.0 ? 0.0 : ($cr > 1.0 ? 1.0 : $cr);
     }
 }

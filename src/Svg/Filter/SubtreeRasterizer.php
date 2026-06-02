@@ -620,7 +620,7 @@ final class SubtreeRasterizer
     private static function invert(SvgMatrix $m): ?SvgMatrix
     {
         $det = $m->a * $m->d - $m->b * $m->c;
-        if ($det === 0.0) {
+        if (abs($det) < 1e-12) {
             return null;
         }
         $invDet = 1.0 / $det;
