@@ -47,6 +47,7 @@ final class ImageEmbedder
      * @param array<string, PdfReference> $fontRefs short name => font object reference
      * @param ?FontResolver $fontResolver custom font resolver for SVG text rendering;
      *        also supplies the SVG font-family alias map
+     * @param int $filterDpi raster resolution (DPI) used when rasterizing SVG filter subtrees
      * @return list<IndirectObject>
      */
     public function embed(
@@ -55,11 +56,12 @@ final class ImageEmbedder
         ?FontRegistry $fontRegistry = null,
         array $fontRefs = [],
         ?FontResolver $fontResolver = null,
+        int $filterDpi = 300,
     ): array {
         return match ($image->format) {
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
             ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber),
-            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver),
+            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver, $filterDpi),
         };
     }
 
@@ -250,14 +252,14 @@ final class ImageEmbedder
      * @param array<string, PdfReference> $fontRefs
      * @return list<IndirectObject>
      */
-    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs, ?FontResolver $fontResolver = null): array
+    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs, ?FontResolver $fontResolver = null, int $filterDpi = 300): array
     {
         $meta = $image->metadata;
         if (!$meta instanceof SvgMetadata) {
             throw new PdfException('Embedder received non-SVG metadata for SVG format');
         }
 
-        $rendered = (new Renderer())->render($meta, $fontRegistry, $fontResolver);
+        $rendered = (new Renderer($filterDpi))->render($meta, $fontRegistry, $fontResolver);
         $bytes = $rendered['bytes'];
         $extGStates = $rendered['extGStates'];
         $patterns = $rendered['patterns'];

@@ -115,6 +115,9 @@ final class Document
 
     private ?FontResolver $fontResolver = null;
 
+    /** Raster resolution (DPI) used when rasterizing SVG filter subtrees. */
+    private int $svgFilterDpi = 300;
+
     private readonly GlyphUsage $glyphUsage;
 
     /** Default per-side cells padding (document unit) for new pages, null = page builtin. */
@@ -270,6 +273,20 @@ final class Document
     public function defaultBorderWidth(): float
     {
         return $this->unit->fromPoints($this->defaultBorderWidthPt);
+    }
+
+    /**
+     * Sets the raster resolution (DPI) used when SVG filter subtrees are
+     * rasterized into image XObjects. Higher values yield sharper filter
+     * output at the cost of larger PDFs. Initial value is 300.
+     */
+    public function setSvgFilterResolution(int $dpi): self
+    {
+        if ($dpi < 1) {
+            throw new PdfException("SVG filter resolution must be positive, got {$dpi}");
+        }
+        $this->svgFilterDpi = $dpi;
+        return $this;
     }
 
     /**
@@ -1102,7 +1119,7 @@ final class Document
         $embedder = new ImageEmbedder();
         $svgFontRefs = $fontRefs + $customRefs;
         foreach ($imageEmissions as [$image, $imageNum]) {
-            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $svgFontRefs, $this->fontResolver) as $obj) {
+            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $svgFontRefs, $this->fontResolver, $this->svgFilterDpi) as $obj) {
                 $objects[] = $obj;
             }
         }
