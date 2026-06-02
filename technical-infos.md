@@ -296,6 +296,44 @@ built by hand, because PHP's `openssl_cms_sign` cannot inject signed attributes.
   an unsigned attribute on the hand-built CMS unchanged, so CAdES + a `Tsa` gives
   PAdES-B-T; `enableLtv()` on top is the strict path toward B-LT.
 
+## PDF/A archival conformance
+
+`Document::enablePdfA(PdfALevel $level)` makes the output comply with ISO 19005-2 (PDF/A-2). Two conformance levels are available:
+
+- `PdfALevel::A2B` - PDF/A-2b (basic): correct visual reproduction.
+- `PdfALevel::A2U` - PDF/A-2u (unicode): A2b plus ToUnicode maps on every font (already satisfied by custom embedded fonts; standard fonts are prohibited anyway).
+
+`PdfALevel::A3B` / `A3U` are reserved in the enum for a future file-attachment phase but are not yet implemented (attempting to use them throws).
+
+### Namespace: `src/PdfA/`
+
+- **`PdfALevel`** - backed enum carrying the ISO part (2 or 3) and the conformance character (B or U). Helper methods `part()` and `conformance()` are used by the emitters.
+- **`OutputIntent`** - builds the `/OutputIntents` array entry: an `/OutputIntent` dictionary with `/S /GTS_PDFA1`, `/OutputConditionIdentifier (sRGB)`, `/DestOutputProfile` pointing at an `IccProfileStream`, plus `/Info` and `/RegistryName`.
+- **`IccProfileStream`** - wraps the bundled `resources/icc/sRGB.icc` (a 588-byte littleCMS sRGB profile) in a FlateDecode stream object with `/N 3` (three color components). The same profile object is used for every PDF/A document produced in a session.
+- **`PdfAConformanceGuard`** - called by `output()` before serialization; throws `PdfException` for any of the four prohibited combinations:
+  - a non-embedded standard font (Helvetica, Times, Courier, etc.) is in use - every font must be embedded via `registerFontFamily()`;
+  - encryption is configured;
+  - document JavaScript (`addDocumentScript`) is present;
+  - appended revisions (`addSignature` / `addDocumentTimestamp` / `enableLtv`) are present.
+
+### How `enablePdfA()` wires into serialization
+
+Calling `enablePdfA()` does three things that all take effect at `output()` time:
+
+1. **Forces the metadata output path** - the XMP packet, the `/Info` dictionary, and the document `/ID` pair are always written (normally `/ID` and full XMP are optional).
+2. **Injects `/OutputIntents`** - an `[OutputIntent]` array is added to the catalog referencing the sRGB ICC profile stream.
+3. **Passes the level to `XmpWriter`** - the XMP serializer prepends a `pdfaid` RDF description block (`xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"`) carrying `<pdfaid:part>` (2) and `<pdfaid:conformance>` (B or U). The rest of the XMP packet (dc:, xmp:, pdf: namespaces) is emitted unchanged.
+
+The PDF header is already `%PDF-1.7`, which satisfies the PDF/A-2 version requirement.
+
+### Why the `u` variant is essentially free
+
+PDF/A-2u requires a valid ToUnicode CMap on every font. Custom embedded fonts (the only fonts allowed in a PDF/A document) already carry a `/ToUnicode` stream built by `FontEngine` during subsetting - the same stream that makes copy-paste work correctly. No extra work is needed to satisfy the Unicode conformance level.
+
+### Validation oracle
+
+The e2e golden test `tests/Golden/PdfA2ConformanceTest.php` renders a small document with a custom font, calls `enablePdfA()`, and pipes the output to `veraPDF --flavour 2b` (or `2u`). It asserts `isCompliant="true"` in the veraPDF XML report. The test auto-skips when `veraPDF` or `java` are absent from PATH.
+
 ## Encryption
 
 phppdf supports two encryption schemes:

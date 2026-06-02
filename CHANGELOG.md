@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PDF/A-2 archival conformance (`Document::enablePdfA(PdfALevel::A2B|A2U)`): sRGB output intent, `pdfaid` XMP schema, forced metadata + document `/ID`, with a conformance guard that rejects non-embedded standard fonts, encryption, document JavaScript, and appended revisions. Validated with veraPDF.
 - Long-term validation (LTV) for signatures: `Document::enableLtv()` embeds the
   signer certificate chain plus revocation data in a Document Security Store
   (`/DSS`) and, when given a `Tsa`, covers them with a `/DocTimeStamp`, so
