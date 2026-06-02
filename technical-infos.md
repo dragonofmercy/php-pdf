@@ -303,7 +303,7 @@ built by hand, because PHP's `openssl_cms_sign` cannot inject signed attributes.
 - `PdfALevel::A2B` - PDF/A-2b (basic): correct visual reproduction.
 - `PdfALevel::A2U` - PDF/A-2u (unicode): A2b plus ToUnicode maps on every font (already satisfied by custom embedded fonts; standard fonts are prohibited anyway).
 
-`PdfALevel::A3B` / `A3U` are reserved in the enum for a future file-attachment phase but are not yet implemented (attempting to use them throws).
+`PdfALevel::A3B` and `A3U` enable ISO 19005-3 (PDF/A-3), which adds support for embedded associated files. Use `Document::attachFile(string $bytes, string $name, AFRelationship $relationship, string $mimeType = '', string $description = '')` to attach a file; the most common use case is a Factur-X or ZUGFeRD e-invoice XML embedded alongside the human-readable PDF.
 
 ### Namespace: `src/PdfA/`
 
@@ -315,6 +315,11 @@ built by hand, because PHP's `openssl_cms_sign` cannot inject signed attributes.
   - encryption is configured;
   - document JavaScript (`addDocumentScript`) is present;
   - appended revisions (`addSignature` / `addDocumentTimestamp` / `enableLtv`) are present.
+  An additional guard rejects `attachFile()` calls when the PDF/A part is 2 (attachments are only permitted at part 3).
+- **`AFRelationship`** - backed string enum for the `/AFRelationship` key on a file specification: `Source`, `Data`, `Alternative`, `Supplement`, `EncryptedPayload`, `FormData`, `Schema`, `Unspecified`.
+- **`AttachedFile`** - value object holding the raw byte string, filename, `AFRelationship`, MIME type string, and description.
+- **`EmbeddedFileStream`** - builds the two indirect objects that represent one embedded file in PDF: an `/EmbeddedFile` stream (uncompressed, `/Subtype` set to the MIME type as a PDF name, `/Params` carrying `/Size`, `/ModDate`, and a `/CheckSum` MD5 hash) and the `/Filespec` dictionary referencing it (`/F`, `/UF`, `/EF`, `/Desc`, `/AFRelationship`).
+- **`EmbeddedFileEmitter`** - allocated and called by `outputWithMetadata()` after outlines and before the output intent; it allocates one `EmbeddedFileStream` pair per attached file, returns the resulting filespec references, and hands both the `/AF` array (for the catalog) and the `/EmbeddedFiles` name tree entries (keyed by filename) back to the writer. The name tree is merged with the existing `/JavaScript` name tree via the shared `withNames()` helper on the catalog, so there is always a single `/Names` dictionary.
 
 ### How `enablePdfA()` wires into serialization
 
@@ -333,6 +338,8 @@ PDF/A-2u requires a valid ToUnicode CMap on every font. Custom embedded fonts (t
 ### Validation oracle
 
 The e2e golden test `tests/Golden/PdfA2ConformanceTest.php` renders a small document with a custom font, calls `enablePdfA()`, and pipes the output to `veraPDF --flavour 2b` (or `2u`). It asserts `isCompliant="true"` in the veraPDF XML report. The test auto-skips when `veraPDF` or `java` are absent from PATH.
+
+`tests/Golden/PdfA3ConformanceTest.php` does the same for PDF/A-3: it attaches a small XML file via `attachFile()`, enables `PdfALevel::A3B`, and asserts `isCompliant="true"` under `veraPDF --flavour 3b`. The test also checks that `attachFile()` throws when the level is A-2.
 
 ## Encryption
 
