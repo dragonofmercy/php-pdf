@@ -117,7 +117,9 @@ This is the standard PDF way to express partial transparency.
 
 **Color function.** Two-stop gradients use a single FunctionType 2 (exponential, N=1) interpolating between the two endpoint RGB triples. Three or more stops use a stitching FunctionType 3 wrapping one FunctionType 2 per adjacent pair, with `Bounds` and `Encode` derived from the stop offsets. `Extend [true true]` on the shading dictionary implements the `pad` spread (colors clamp beyond the gradient ends).
 
-**Stop opacity.** When all stops share the same `stop-opacity`, that value is folded into the existing ExtGState `ca` / `CA` mechanism (the same per-pair alpha dictionaries used for `fill-opacity` / `stroke-opacity`). Per-stop varying opacity is not supported; stops are treated as fully opaque if opacities differ across stops.
+**Stop opacity.** When all stops share the same `stop-opacity`, that value is folded into the existing ExtGState `ca` / `CA` mechanism (the same per-pair alpha dictionaries used for `fill-opacity` / `stroke-opacity`). When opacity varies across stops, the color shading is painted with alpha forced to 1 inside an outer Form XObject, and a parallel alpha shading (a `/DeviceGray` shading whose stop "colors" are the per-stop opacities) is sub-rendered into a luminance `/SMask` Form, reusing the soft-mask infrastructure. The alpha-shading `/Matrix` must NOT include the shape CTM (the color matrix does): the alpha shading lives in the SMask Form's user space while the color shading lives in the outer Form's post-viewBox space - two opposite `/Matrix` conventions.
+
+**Spread methods.** `spreadMethod="reflect"` and `"repeat"` are implemented by rewriting the gradient: the geometry is extended and the stops are replicated outward in PAD mode (the `ShadingBuilder` itself is unchanged). For radial gradients the extent is measured from the center `(cx, cy)`, not the focal point `(fx, fy)`.
 
 **href stop inheritance.** A gradient element that has `href` (or `xlink:href`) pointing to another gradient inherits its `<stop>` children from the target. Inheritance is resolved before rendering with cycle detection; a cycle causes the gradient to be skipped silently.
 
@@ -129,8 +131,15 @@ This is the standard PDF way to express partial transparency.
 - viewBox + preserveAspectRatio (all 9 alignments x meet | slice; `none` stretches).
 - Groups (`<g>`), `<defs>` + `<use>` references with cycle detection.
 - Paint state: solid fill / stroke (147 named CSS colors, hex, `rgb()`, `rgba()`, `currentColor`), stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit, stroke-dasharray + stroke-dashoffset, fill-rule (nonzero | evenodd), fill-opacity, stroke-opacity, opacity (multiplicative).
-- Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, with uniform stop-opacity.
-- Presentation attributes AND inline `style="..."`. Precedence: inline style > direct attribute > inherited.
+- Linear and radial gradients (`<linearGradient>` / `<radialGradient>`): objectBoundingBox and userSpaceOnUse units, gradientTransform, href stop inheritance, multi-stop, on fill and stroke, uniform AND per-stop stop-opacity, and `spreadMethod` pad / reflect / repeat.
+- `<pattern>` tiling fills and strokes (`/PatternType 1`): patternUnits objectBoundingBox / userSpaceOnUse, patternTransform, nested `viewBox`, href inheritance; pattern children may be shapes, groups, and `<use>` (text and image inside a pattern are stripped).
+- `<clipPath>` (`clip-path="url(#id)"`): native PDF clipping (`W` / `W*` `n`), clipPathUnits userSpaceOnUse / objectBoundingBox, any element, shapes + `<use>`, clip-rule nonzero / evenodd, union of children. Clip transforms are baked into the coordinates (never emitted as `cm`).
+- `<mask>` luminance soft masks: PDF `/SMask` + Form XObject `/Group /S /Transparency`, maskUnits + maskContentUnits (objectBoundingBox + userSpaceOnUse), any maskable element. The mask Form's `/Matrix` is identity with the `/BBox` projected into user space (a PDF Form `/Matrix` is concatenated with the CTM active at the `/gs`, the opposite convention from a tiling pattern).
+- `<symbol>` + `<marker>`: `<use>` of a `<symbol viewBox + preserveAspectRatio>` resolves to a group with the viewBox-to-use-box matrix; `marker-start` / `marker-mid` / `marker-end` on line / polyline / polygon / path with markerUnits stroke / userSpace, orient num / auto / auto-start-reverse, refX / refY, emitted inline (`q` / `cm` / `Q`), never as an indirect object.
+- `<text>`, `<tspan>`, `<textPath>` as real selectable PDF text (`BT` / `Tf` / `Tm` / `Tj` / `ET`): text-anchor, font-size / weight / style, dx / dy, fill + stroke, opacity, transform, inheritance through `<g>`. Standard 14 fonts and any registered custom TTF / OTF family (matched by `font-family`, with automatic glyph subsetting via the shared `GlyphUsage`). `<textPath>` lays glyphs along a referenced `<path>`, rotated to the tangent, with startOffset (absolute / percentage) and text-anchor. The Y flip is applied via the text matrix `Tm [1 0 0 -1 bx by]`.
+- `<image>`: PNG / JPEG data URIs (see subsection below).
+- `<filter>` (`filter="url(#id)"`): hybrid pure-PHP raster (see subsection below).
+- Presentation attributes, inline `style="..."`, AND `<style>` CSS (simple + compound selectors: type / `.class` / `#id` / `*` / `rect.foo`, comma groups; cascade by specificity then source order). Precedence: inline style > CSS rule > direct attribute > inherited. CSS is resolved entirely at parse time.
 
 ### SVG embedded images
 
@@ -144,15 +153,26 @@ An SVG `<image>` element whose `href` attribute is a PNG or JPEG data URI (`data
 - `transform` and `opacity` on the `<image>` element go through the same matrix-concat and ExtGState mechanisms used for other SVG elements.
 - External `href` values (local file paths or http(s) URLs) are silently ignored - the renderer has no network or filesystem access at emit time. Other data URI formats (GIF, WebP, `svg+xml`) are also ignored, as are images with non-positive computed width or height.
 
+### SVG filters
+
+An element carrying `filter="url(#id)"` is rendered with a **hybrid raster** strategy (the approach Batik / Illustrator take; no other pure-PHP PDF library implements SVG filters):
+
+- The filter region is rasterized in **pure deterministic PHP** - no GD drawing, so byte-identity golden tests stay stable across platforms. The result is embedded as an image XObject (`/DeviceRGB` samples) plus a `/DeviceGray` `/SMask`, both `/FlateDecode`, and placed back with a region-local `cm`.
+- **Text inside a filtered subtree is NOT rasterized**: it is redrawn sharp (vector) on top of the raster via `renderTextOnly`, so it stays selectable and crisp.
+- The pipeline is a named-buffer graph (`SourceGraphic` / `SourceAlpha` / per-primitive `result`), with null-`in` chaining (first primitive defaults to `SourceGraphic`, later ones to the previous result). Blur / composite math runs on premultiplied alpha; color math runs in linearRGB via `ColorSpace` LUTs.
+- First-wave primitives: `feGaussianBlur` (3-pass box blur), `feOffset`, `feFlood`, `feMerge`, `feBlend` (normal / multiply / screen / darken / lighten, on premultiplied color), `feComposite` (Porter-Duff over / in / out / atop / xor + arithmetic), `feColorMatrix` (matrix / saturate / hueRotate / luminanceToAlpha), and `feDropShadow` (expanded to blur + offset + flood + merge).
+- Resolution is `Document::setSvgFilterResolution(int $dpi)` (default 300, capped at 2000 px per side). `pxPerUnit = dpi / 72` in viewBox-local coordinates - it must NOT include the viewBox-to-unit prologue scale, or the raster collapses.
+- `ext-gd` is **optional** (composer `suggest`, not `require`): used only to decode a JPEG referenced inside a filter. PNG decodes through the built-in `PngMetadata` / `PngFilters` path to raw samples.
+- `ImageEmbedder::svgHasFilterPaint` pre-reserves `count * 2` objects in `objectCount` (image + SMask per filtered element) so the xref stays correct.
+
+Known limits: `primitiveUnits="objectBoundingBox"` is parsed but subregion coords are treated as userSpaceOnUse; `color-interpolation-filters="sRGB"` is not wired (always linearRGB); clip / mask / pattern / filter nested inside a filter are ignored; stroke inside a filter is a v1 approximation (perpendicular quads, square joins); the heavier primitives below are deferred.
+
 ### Not supported (skipped silently per SVG fallback spec)
 
-- `<text>`, `<tspan>`, `<textPath>`. Workaround for logos: convert text to paths in your authoring tool.
-- `<pattern>` and mesh gradients. `fill="url(#x)"` referencing an unsupported paint server falls back to black.
-- `<filter>` and all `<fe*>` (blur, drop-shadow, etc.).
-- `<mask>`, `<clipPath>`, `<symbol>`, `<marker>`.
-- External CSS via `<style>` blocks or external sheets.
-- Scripts, animations, foreignObject.
-- `<image>` is supported only for PNG / JPEG data URIs (see subsection above). External href and other data URI formats are ignored.
+- Heavy filter primitives: `feTurbulence`, `feDisplacementMap`, `feConvolveMatrix`, `feMorphology`, `feImage`, `feTile`, and the lighting primitives (`feDiffuseLighting` / `feSpecularLighting`). `BackgroundImage` / `FillPaint` / `StrokePaint` filter inputs are transparent.
+- Mesh gradients. `fill="url(#x)"` referencing an unsupported or unresolvable paint server falls back to black.
+- Scripts, animations (SMIL), foreignObject.
+- `<image>` is supported only for PNG / JPEG data URIs (see subsection above). External href values (local paths or http(s) URLs) and other data URI formats (GIF, WebP, `svg+xml`) are ignored - the renderer has no network or filesystem access at emit time.
 
 ## Outlines and hyperlinks
 
