@@ -51,4 +51,22 @@ final class EnablePdfATest extends TestCase
         self::assertStringContainsString('/Metadata', $bytes);
         self::assertStringContainsString('<pdfaid:part>2</pdfaid:part>', $bytes);
     }
+
+    public function testEmitsOutputIntentWithCustomFont(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $doc = new \DragonOfMercy\PhpPdf\Document(\DragonOfMercy\PhpPdf\Unit::PT);
+        $doc->registerFontFamily('FS', regular: self::FONTS_DIR . '/FreeSans.ttf');
+        $page = $doc->addPage();
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::custom('FS'), 12);
+        $page->text(50, 50, 'hello pdfa');
+        $doc->enablePdfA(\DragonOfMercy\PhpPdf\PdfA\PdfALevel::A2B);
+
+        $bytes = $doc->output();
+        self::assertStringContainsString('/OutputIntents', $bytes);
+        self::assertStringContainsString('/S /GTS_PDFA1', $bytes);
+        self::assertStringContainsString('/DestOutputProfile', $bytes);
+    }
 }

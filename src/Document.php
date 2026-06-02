@@ -19,6 +19,7 @@ use DragonOfMercy\PhpPdf\Encryption\EncryptionKey;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\PdfA\OutputIntent;
 use DragonOfMercy\PhpPdf\PdfA\PdfAConformanceGuard;
 use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
 use DragonOfMercy\PhpPdf\Form\AcroFormEmitter;
@@ -819,6 +820,23 @@ final class Document
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
         $catalogDict = $this->withDocumentScripts($catalogDict);
 
+        $outputIntentObjects = [];
+        if ($this->pdfALevel !== null) {
+            $afterOutlines = $nextObjectNumber + count($outlineObjects);
+            $profileNumber = $afterOutlines;
+            $intentNumber = $afterOutlines + 1;
+            [$intent, $profile] = (new OutputIntent())->build(
+                intentObjectNumber: $intentNumber,
+                profileObjectNumber: $profileNumber,
+                iccBytes: self::srgbIccProfile(),
+            );
+            $outputIntentObjects = [$intent, $profile];
+            $catalogDict = $catalogDict->withEntry(
+                Name::of('OutputIntents'),
+                PdfArray::of(PdfReference::to($intentNumber, 0)),
+            );
+        }
+
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
         $pages = IndirectObject::of(
@@ -835,7 +853,7 @@ final class Document
         $xmpXml = (new XmpWriter())->write($effective, $this->pdfALevel);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects];
+        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$outputIntentObjects];
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
@@ -1524,6 +1542,21 @@ final class Document
             Dictionary::empty()->withEntry(Name::of('Names'), PdfArray::of(...$nameArrayItems)),
         );
         return $catalogDict->withEntry(Name::of('Names'), $namesDict);
+    }
+
+    private static ?string $cachedSrgbIcc = null;
+
+    private static function srgbIccProfile(): string
+    {
+        if (self::$cachedSrgbIcc === null) {
+            $path = __DIR__ . '/../resources/icc/sRGB.icc';
+            $data = @file_get_contents($path);
+            if ($data === false) {
+                throw new PdfException('PDF/A: bundled sRGB ICC profile not found at ' . $path);
+            }
+            self::$cachedSrgbIcc = $data;
+        }
+        return self::$cachedSrgbIcc;
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary
