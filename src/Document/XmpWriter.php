@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Document;
 
+use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
+
 /**
  * Generates an XMP packet (XML/RDF) from Metadata.
  *
@@ -11,12 +13,21 @@ namespace DragonOfMercy\PhpPdf\Document;
  */
 final class XmpWriter
 {
-    public function write(Metadata $metadata): string
+    public function write(Metadata $metadata, ?PdfALevel $pdfa = null): string
     {
         $fields = $this->fields($metadata);
         $fieldsBlock = $fields === '' ? '' : "\n" . $fields;
 
-        $rdf = '<rdf:Description rdf:about=""'
+        $descriptions = '';
+        if ($pdfa !== null) {
+            $descriptions .= '<rdf:Description rdf:about=""'
+                . ' xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">'
+                . '<pdfaid:part>' . $pdfa->part() . '</pdfaid:part>'
+                . '<pdfaid:conformance>' . $pdfa->conformance() . '</pdfaid:conformance>'
+                . "</rdf:Description>\n";
+        }
+
+        $descriptions .= '<rdf:Description rdf:about=""'
             . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
             . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/"'
             . ' xmlns:pdf="http://ns.adobe.com/pdf/1.3/">'
@@ -26,7 +37,7 @@ final class XmpWriter
         return "<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
             . "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
             . "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
-            . $rdf . "\n"
+            . $descriptions . "\n"
             . "</rdf:RDF>\n"
             . "</x:xmpmeta>\n"
             . '<?xpacket end="w"?>';
