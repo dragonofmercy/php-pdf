@@ -35,7 +35,7 @@ final class RasterBuffer
         }
 
         $size = $width * $height;
-        $zeros = self::zeroPlane($size);
+        $zeros = array_fill(0, $size, 0.0);
 
         $this->r = $zeros;
         $this->g = $zeros;
@@ -43,14 +43,9 @@ final class RasterBuffer
         $this->a = $zeros;
     }
 
-    /** @return array<int, float> */
-    private static function zeroPlane(int $size): array
+    public static function clamp01(float $v): float
     {
-        $plane = [];
-        for ($i = 0; $i < $size; $i++) {
-            $plane[] = 0.0;
-        }
-        return $plane;
+        return $v < 0.0 ? 0.0 : ($v > 1.0 ? 1.0 : $v);
     }
 
     private function index(int $x, int $y): int
@@ -99,7 +94,7 @@ final class RasterBuffer
     /** @return int<0, 255> */
     private function quantize(float $v): int
     {
-        $v = $v < 0.0 ? 0.0 : ($v > 1.0 ? 1.0 : $v);
+        $v = self::clamp01($v);
         $byte = (int) floor($v * 255.0 + 0.5);
         return $byte > 255 ? 255 : ($byte < 0 ? 0 : $byte);
     }

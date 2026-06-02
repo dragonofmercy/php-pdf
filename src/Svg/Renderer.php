@@ -951,7 +951,7 @@ final class Renderer
         $out .= sprintf("%s 0 0 %s %s %s cm\n", self::fmt($regionW), self::fmt(-$regionH), self::fmt($regionX), self::fmt($regionY + $regionH));
         $out .= '/ImF' . $index . " Do\n";
         $out .= "Q\n";
-        $out .= $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+        $out .= $this->renderTextOnly($node->child, $registry);
         return $out;
     }
 
@@ -960,13 +960,12 @@ final class Renderer
      * renderGroup wrapping so the sharp selectable text lands in the same place
      * as the rasterized image. Non-text nodes contribute nothing.
      */
-    private function renderTextOnly(SvgNode $node, ExtGStateRegistry $registry, PatternRegistry $patterns, SvgMatrix $ctm): string
+    private function renderTextOnly(SvgNode $node, ExtGStateRegistry $registry): string
     {
         if ($node instanceof SvgGroup) {
-            $childCtm = $node->transform !== null ? $ctm->compose($node->transform) : $ctm;
             $body = '';
             foreach ($node->children as $child) {
-                $body .= $this->renderTextOnly($child, $registry, $patterns, $childCtm);
+                $body .= $this->renderTextOnly($child, $registry);
             }
             if ($body === '') {
                 return '';
@@ -983,13 +982,13 @@ final class Renderer
             return $this->renderTextPath($node, $registry);
         }
         if ($node instanceof SvgClipped) {
-            return $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+            return $this->renderTextOnly($node->child, $registry);
         }
         if ($node instanceof SvgMasked) {
-            return $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+            return $this->renderTextOnly($node->child, $registry);
         }
         if ($node instanceof SvgFiltered) {
-            return $this->renderTextOnly($node->child, $registry, $patterns, $ctm);
+            return $this->renderTextOnly($node->child, $registry);
         }
         return '';
     }

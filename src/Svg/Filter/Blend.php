@@ -46,15 +46,12 @@ final class Blend
                 [$cs, $gs, $bs, $as] = $in->pixel($x, $y);
                 [$cb, $gb, $bb, $ab] = $in2->pixel($x, $y);
 
-                $qa = $as;
-                $qb = $ab;
-
                 $ar = $as + $ab - $as * $ab;
                 $ar = $ar < 0.0 ? 0.0 : ($ar > 1.0 ? 1.0 : $ar);
 
-                $cr = self::blendChannel($cs, $cb, $qa, $qb, $mode);
-                $cg = self::blendChannel($gs, $gb, $qa, $qb, $mode);
-                $cbOut = self::blendChannel($bs, $bb, $qa, $qb, $mode);
+                $cr = self::blendChannel($cs, $cb, $as, $ab, $mode);
+                $cg = self::blendChannel($gs, $gb, $as, $ab, $mode);
+                $cbOut = self::blendChannel($bs, $bb, $as, $ab, $mode);
 
                 $out->setPixel($x, $y, $cr, $cg, $cbOut, $ar);
             }

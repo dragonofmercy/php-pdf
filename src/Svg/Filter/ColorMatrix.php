@@ -33,10 +33,10 @@ final class ColorMatrix
 
                 $out->setPixel(
                     $x, $y,
-                    self::clamp($nr),
-                    self::clamp($ng),
-                    self::clamp($nb),
-                    self::clamp($na),
+                    RasterBuffer::clamp01($nr),
+                    RasterBuffer::clamp01($ng),
+                    RasterBuffer::clamp01($nb),
+                    RasterBuffer::clamp01($na),
                 );
             }
         }
@@ -143,10 +143,5 @@ final class ColorMatrix
             0.0,    0.0,    0.0,    0.0, 0.0,
             0.2125, 0.7154, 0.0721, 0.0, 0.0,
         ];
-    }
-
-    private static function clamp(float $v): float
-    {
-        return $v < 0.0 ? 0.0 : ($v > 1.0 ? 1.0 : $v);
     }
 }

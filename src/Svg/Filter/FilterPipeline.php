@@ -57,12 +57,13 @@ final class FilterPipeline
         foreach ($primitives as $p) {
             $output = $this->dispatch($p, $named, $last, $linear, $w, $h);
 
-            $subregion = $this->subregionOf($p);
+            $subregion = $p->subregion;
             if ($subregion !== null) {
+                // primitiveUnits objectBoundingBox not yet applied; subregion coords treated as userSpaceOnUse.
                 $output = $this->clipToSubregion($output, $subregion);
             }
 
-            $result = $this->resultName($p);
+            $result = $p->result;
             if ($result !== null) {
                 $named[$result] = $output;
             }
@@ -144,40 +145,6 @@ final class FilterPipeline
         return $last;
     }
 
-    private function resultName(FilterPrimitive $p): ?string
-    {
-        if ($p instanceof FeGaussianBlur
-            || $p instanceof FeOffset
-            || $p instanceof FeColorMatrix
-            || $p instanceof FeComposite
-            || $p instanceof FeBlend
-            || $p instanceof FeFlood
-            || $p instanceof FeMerge
-            || $p instanceof FeDropShadow
-        ) {
-            return $p->result;
-        }
-
-        return null;
-    }
-
-    private function subregionOf(FilterPrimitive $p): ?Subregion
-    {
-        if ($p instanceof FeGaussianBlur
-            || $p instanceof FeOffset
-            || $p instanceof FeColorMatrix
-            || $p instanceof FeComposite
-            || $p instanceof FeBlend
-            || $p instanceof FeFlood
-            || $p instanceof FeMerge
-            || $p instanceof FeDropShadow
-        ) {
-            return $p->subregion;
-        }
-
-        return null;
-    }
-
     /**
      * @param array<string, RasterBuffer> $named
      */
@@ -235,56 +202,51 @@ final class FilterPipeline
         return $out;
     }
 
-    private function copyBuffer(RasterBuffer $in): RasterBuffer
+    /**
+     * @param callable(float,float,float,float): array{0:float,1:float,2:float,3:float} $fn
+     */
+    private function mapPixels(RasterBuffer $in, callable $fn): RasterBuffer
     {
         $out = new RasterBuffer($in->width, $in->height);
         for ($y = 0; $y < $in->height; $y++) {
             for ($x = 0; $x < $in->width; $x++) {
                 [$r, $g, $b, $a] = $in->pixel($x, $y);
-                $out->setPixel($x, $y, $r, $g, $b, $a);
+                [$nr, $ng, $nb, $na] = $fn($r, $g, $b, $a);
+                $out->setPixel($x, $y, $nr, $ng, $nb, $na);
             }
         }
 
         return $out;
+    }
+
+    private function copyBuffer(RasterBuffer $in): RasterBuffer
+    {
+        return $this->mapPixels($in, static fn(float $r, float $g, float $b, float $a): array => [$r, $g, $b, $a]);
     }
 
     private function toLinear(RasterBuffer $in): RasterBuffer
     {
-        $out = new RasterBuffer($in->width, $in->height);
-        for ($y = 0; $y < $in->height; $y++) {
-            for ($x = 0; $x < $in->width; $x++) {
-                [$r, $g, $b, $a] = $in->pixel($x, $y);
-                $out->setPixel($x, $y, ColorSpace::srgbToLinear($r), ColorSpace::srgbToLinear($g), ColorSpace::srgbToLinear($b), $a);
-            }
-        }
-
-        return $out;
+        return $this->mapPixels($in, static fn(float $r, float $g, float $b, float $a): array => [
+            ColorSpace::srgbToLinear($r),
+            ColorSpace::srgbToLinear($g),
+            ColorSpace::srgbToLinear($b),
+            $a,
+        ]);
     }
 
     private function toSrgb(RasterBuffer $in): RasterBuffer
     {
-        $out = new RasterBuffer($in->width, $in->height);
-        for ($y = 0; $y < $in->height; $y++) {
-            for ($x = 0; $x < $in->width; $x++) {
-                [$r, $g, $b, $a] = $in->pixel($x, $y);
-                $out->setPixel($x, $y, ColorSpace::linearToSrgb($r), ColorSpace::linearToSrgb($g), ColorSpace::linearToSrgb($b), $a);
-            }
-        }
-
-        return $out;
+        return $this->mapPixels($in, static fn(float $r, float $g, float $b, float $a): array => [
+            ColorSpace::linearToSrgb($r),
+            ColorSpace::linearToSrgb($g),
+            ColorSpace::linearToSrgb($b),
+            $a,
+        ]);
     }
 
     private function alphaOnly(RasterBuffer $in): RasterBuffer
     {
-        $out = new RasterBuffer($in->width, $in->height);
-        for ($y = 0; $y < $in->height; $y++) {
-            for ($x = 0; $x < $in->width; $x++) {
-                $a = $in->pixel($x, $y)[3];
-                $out->setPixel($x, $y, 0.0, 0.0, 0.0, $a);
-            }
-        }
-
-        return $out;
+        return $this->mapPixels($in, static fn(float $r, float $g, float $b, float $a): array => [0.0, 0.0, 0.0, $a]);
     }
 
     private function transparent(int $w, int $h): RasterBuffer

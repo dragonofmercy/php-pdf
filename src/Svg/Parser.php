@@ -339,9 +339,9 @@ final class Parser
     private function parseFilterPrimitive(DOMElement $el): ?FilterPrimitive
     {
         $attrs = $this->collectAttrs($el);
-        $in = isset($attrs['in']) ? $attrs['in'] : null;
-        $in2 = isset($attrs['in2']) ? $attrs['in2'] : null;
-        $result = isset($attrs['result']) ? $attrs['result'] : null;
+        $in = $attrs['in'] ?? null;
+        $in2 = $attrs['in2'] ?? null;
+        $result = $attrs['result'] ?? null;
         $subregion = $this->parseSubregion($attrs);
 
         switch ($el->localName) {

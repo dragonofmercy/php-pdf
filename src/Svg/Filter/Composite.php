@@ -62,10 +62,10 @@ final class Composite
 
                 if ($op === CompositeOperator::ARITHMETIC) {
                     // out = k1*i1*i2 + k2*i1 + k3*i2 + k4 applied per channel and alpha.
-                    $rOut = self::clamp($k1 * $rSrc * $rDst + $k2 * $rSrc + $k3 * $rDst + $k4);
-                    $gOut = self::clamp($k1 * $gSrc * $gDst + $k2 * $gSrc + $k3 * $gDst + $k4);
-                    $bOut = self::clamp($k1 * $bSrc * $bDst + $k2 * $bSrc + $k3 * $bDst + $k4);
-                    $aOut = self::clamp($k1 * $as * $ad + $k2 * $as + $k3 * $ad + $k4);
+                    $rOut = RasterBuffer::clamp01($k1 * $rSrc * $rDst + $k2 * $rSrc + $k3 * $rDst + $k4);
+                    $gOut = RasterBuffer::clamp01($k1 * $gSrc * $gDst + $k2 * $gSrc + $k3 * $gDst + $k4);
+                    $bOut = RasterBuffer::clamp01($k1 * $bSrc * $bDst + $k2 * $bSrc + $k3 * $bDst + $k4);
+                    $aOut = RasterBuffer::clamp01($k1 * $as * $ad + $k2 * $as + $k3 * $ad + $k4);
                 } else {
                     [$fa, $fb] = self::factors($op, $as, $ad);
 
@@ -77,16 +77,16 @@ final class Composite
 
                 // Un-premultiply.
                 if ($aOut > 0.0) {
-                    $rFinal = self::clamp($rOut / $aOut);
-                    $gFinal = self::clamp($gOut / $aOut);
-                    $bFinal = self::clamp($bOut / $aOut);
+                    $rFinal = RasterBuffer::clamp01($rOut / $aOut);
+                    $gFinal = RasterBuffer::clamp01($gOut / $aOut);
+                    $bFinal = RasterBuffer::clamp01($bOut / $aOut);
                 } else {
                     $rFinal = 0.0;
                     $gFinal = 0.0;
                     $bFinal = 0.0;
                 }
 
-                $out->setPixel($x, $y, $rFinal, $gFinal, $bFinal, self::clamp($aOut));
+                $out->setPixel($x, $y, $rFinal, $gFinal, $bFinal, RasterBuffer::clamp01($aOut));
             }
         }
 
@@ -108,10 +108,5 @@ final class Composite
             CompositeOperator::XOR  => [1.0 - $aDst, 1.0 - $aSrc],
             CompositeOperator::ARITHMETIC => [0.0, 0.0], // unreachable; handled above
         };
-    }
-
-    private static function clamp(float $v): float
-    {
-        return $v < 0.0 ? 0.0 : ($v > 1.0 ? 1.0 : $v);
     }
 }

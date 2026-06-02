@@ -100,15 +100,15 @@ final class BoxBlur
                 $idx = $y * $w + $x;
                 $a = $pa[$idx];
                 if ($a > 0.0) {
-                    $r = self::clamp($pr[$idx] / $a);
-                    $g = self::clamp($pg[$idx] / $a);
-                    $b = self::clamp($pb[$idx] / $a);
+                    $r = RasterBuffer::clamp01($pr[$idx] / $a);
+                    $g = RasterBuffer::clamp01($pg[$idx] / $a);
+                    $b = RasterBuffer::clamp01($pb[$idx] / $a);
                 } else {
                     $r = 0.0;
                     $g = 0.0;
                     $b = 0.0;
                 }
-                $out->setPixel($x, $y, $r, $g, $b, self::clamp($a));
+                $out->setPixel($x, $y, $r, $g, $b, RasterBuffer::clamp01($a));
             }
         }
 
@@ -258,10 +258,5 @@ final class BoxBlur
         for ($y = 0; $y < $h; $y++) {
             $plane[$y * $w + $x] = $col[$y];
         }
-    }
-
-    private static function clamp(float $v): float
-    {
-        return $v < 0.0 ? 0.0 : ($v > 1.0 ? 1.0 : $v);
     }
 }
