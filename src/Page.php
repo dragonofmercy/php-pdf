@@ -896,6 +896,159 @@ final class Page
         }
     }
 
+    /**
+     * @internal Wrapped text block height in points for a given inner width.
+     * The active font/size must be set by the caller (the table renderer sets
+     * the column/cell font before calling). Returns lineCount * leading.
+     */
+    public function tableTextHeightPt(string $text, float $innerWidthPt): float
+    {
+        $engine = $this->textState->activeEngine();
+        $sizePt = $this->textState->getFontSize();
+        $leading = $this->textState->customLeading() ?? ($sizePt * 1.2);
+        $renderer = new CellRenderer(stream: $this->stream);
+        $wrap = $renderer->wrapText(self::normalizeNewlines($text), $innerWidthPt, $engine, $sizePt);
+
+        return max(1, count($wrap->lines)) * $leading;
+    }
+
+    /**
+     * @internal Draw one already-measured table cell box: border + fill + text.
+     * No auto-page-break, no flow-cursor advance. All coordinates in points.
+     */
+    public function drawTableCell(
+        float $xPt,
+        float $yPt,
+        float $wPt,
+        float $hPt,
+        string $text,
+        ?Border $border,
+        ?Color $fill,
+        ?Color $textColor,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        CellPadding $paddingPt,
+    ): void {
+        $text = self::normalizeNewlines($text);
+
+        $engine = $this->textState->activeEngine();
+        $fontShortName = '';
+        if ($text !== '') {
+            $fontShortName = $engine->registerOn($this->fontRegistry);
+            $this->fontsUsed[$engine->usageKey()] = $engine->font();
+        }
+
+        $renderer = new CellRenderer(stream: $this->stream);
+        $renderer->render(
+            engine: $engine,
+            size: $this->textState->getFontSize(),
+            customLeading: $this->textState->customLeading(),
+            x: $xPt,
+            y: $yPt,
+            w: $wPt,
+            h: $hPt,
+            text: $text,
+            border: $this->resolveBorderForRenderer($border),
+            fill: $fill,
+            textColor: $textColor,
+            align: $align,
+            verticalAlign: $verticalAlign,
+            fit: Fit::NONE,
+            padding: $paddingPt,
+            fontShortName: $fontShortName,
+            emittingPage: $this,
+        );
+    }
+
+    /**
+     * @internal Place an image inside a table cell box. Draws only the image
+     * (border/fill are drawn by a prior drawTableCell call with empty text).
+     * The image is sized per Page::image() rules ($reqWPt/$reqHPt), clamped to
+     * the cell inner width preserving aspect, then aligned in the inner box.
+     * Returns the drawn image height in points.
+     */
+    public function drawTableImage(
+        float $xPt,
+        float $yPt,
+        float $wPt,
+        float $hPt,
+        Image $image,
+        ?float $reqWPt,
+        ?float $reqHPt,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        CellPadding $paddingPt,
+    ): float {
+        $innerX = $xPt + $paddingPt->left;
+        $innerY = $yPt + $paddingPt->top;
+        $innerW = max(0.0, $wPt - $paddingPt->left - $paddingPt->right);
+        $innerH = max(0.0, $hPt - $paddingPt->top - $paddingPt->bottom);
+
+        [$drawW, $drawH] = $this->resolveTableImageSizePt($image, $reqWPt, $reqHPt, $innerW);
+
+        // Horizontal alignment inside the inner box.
+        $offsetX = match ($align) {
+            TextAlign::LEFT => 0.0,
+            TextAlign::CENTER => ($innerW - $drawW) / 2.0,
+            TextAlign::RIGHT => $innerW - $drawW,
+        };
+        // Vertical alignment inside the inner box.
+        $offsetY = match ($verticalAlign) {
+            VerticalAlign::TOP => 0.0,
+            VerticalAlign::MIDDLE => ($innerH - $drawH) / 2.0,
+            VerticalAlign::BOTTOM => $innerH - $drawH,
+        };
+
+        if ($drawW <= 0.0 || $drawH <= 0.0) {
+            return 0.0;
+        }
+
+        $this->image(
+            $image,
+            x: $this->fromPt($innerX + max(0.0, $offsetX)),
+            y: $this->fromPt($innerY + max(0.0, $offsetY)),
+            w: $this->fromPt($drawW),
+            h: $this->fromPt($drawH),
+        );
+
+        return $drawH;
+    }
+
+    /**
+     * @internal Compute the drawn image size in points: apply Page::image() w/h
+     * rules, then clamp to the cell inner width preserving aspect.
+     *
+     * @return array{0: float, 1: float}
+     */
+    public function resolveTableImageSizePt(Image $image, ?float $reqWPt, ?float $reqHPt, float $innerWPt): array
+    {
+        // Intrinsic dimensions are pixel counts; the library treats one pixel as
+        // one PDF point (mirrors Page::image()).
+        $intrinsicW = (float) $image->width;
+        $intrinsicH = (float) $image->height;
+
+        if ($reqWPt !== null && $reqHPt !== null) {
+            $w = $reqWPt;
+            $h = $reqHPt;
+        } elseif ($reqWPt !== null) {
+            $w = $reqWPt;
+            $h = $reqWPt * $intrinsicH / $intrinsicW;
+        } elseif ($reqHPt !== null) {
+            $h = $reqHPt;
+            $w = $reqHPt * $intrinsicW / $intrinsicH;
+        } else {
+            $w = $intrinsicW;
+            $h = $intrinsicH;
+        }
+
+        if ($innerWPt > 0 && $w > $innerWPt) {
+            $h = $h * $innerWPt / $w;
+            $w = $innerWPt;
+        }
+
+        return [$w, $h];
+    }
+
     public function image(
         string|Image $image,
         ?float $x = null,
