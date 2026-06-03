@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Tables: `Page::table($columns, $rows, ...)` renders data tables on top of the
+  existing cell/image pipeline. Columns are fixed-width or `fill` (sharing the
+  remaining width by weight). Long tables auto-page-break with the header row
+  repeated on each page (`TableStyle::withRepeatHeader()`). Styling: configurable
+  borders (`TableBorders` GRID / HORIZONTAL / HEADER_UNDERLINE / NONE), header
+  fill/bold/color, zebra striping, a conditional per-cell style callback, and
+  per-column alignment/padding. A cell may hold text or an image (`Cell::image()`,
+  e.g. avatars). No cell spanning in this version. New `DragonOfMercy\PhpPdf\Table\`
+  namespace: `Column`, `Cell`, `CellStyle`, `TableStyle`, `TableBorders`, `TableResult`.
+
 ## [1.2.0] - 2026-06-03
 
 ### Added

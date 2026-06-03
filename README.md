@@ -19,6 +19,7 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 - **Bookmarks & hyperlinks** - build a sidebar table of contents with nested sections (what PDF viewers show in their left panel) and place clickable areas anywhere on a page that open a URL or jump to another page in the same document. Declarative API.
 - **Interactive forms** - the reader can type into the PDF before saving or printing it: text fields (single or multi-line, including password fields), checkboxes, radio buttons (grouped), dropdowns, listboxes, push buttons (resetForm, openUrl, and submit field data to a URL in FDF / HTML / XFDF / PDF format), and signature fields (visible or invisible) that can be left as placeholders or signed programmatically with a real PKCS#7 / CMS signature via `Document::sign()` and a PKCS#12 credential. Signatures can carry an RFC 3161 signature timestamp by passing a `Tsa` to `sign()` (`timestamp: Tsa::http('https://tsa.example/tsr')`), which embeds the Time Stamping Authority token as an unsigned attribute in the CMS for a trusted signing time independent of the signer's clock. (The default container is `adbe.pkcs7.detached`; pass `format: SignatureFormat::EtsiCadesDetached` to `sign()` / `addSignature()` for the strict PAdES profile - `/SubFilter /ETSI.CAdES.detached` with a CMS carrying the `signingCertificateV2` signed attribute, i.e. PAdES-B-B, or B-T with a `Tsa`. RSA keys.) A whole-document timestamp can be added as an incremental revision with `$doc->addDocumentTimestamp(Tsa::http($url))` (a `/DocTimeStamp`, `ETSI.RFC3161`), standalone or layered over a signature to attest the signed bytes; this is the building block toward PAdES-B-LT (LTV is a later phase). Several signers can each approve the same document: `$doc->addSignature($cred, reason: 'Reviewed')` adds an approval signature in its own incremental revision (so each signature covers all prior ones); chain `sign()` + N x `addSignature()` + an optional `addDocumentTimestamp()` for a fully layered file. Each field can be styled with border color and width, background color, text color, font, size, and alignment - plus per-field visibility flags (`hidden`, `noExport`) and advanced border styles (SOLID / DASHED / BEVELED / INSET / UNDERLINE via `FieldBorderStyle`). Text fields, comboboxes, listboxes, and checkboxes accept a `defaultValue` decoupled from their display `value`, restored by a ResetForm button. Page tab order is settable via `Page::setTabOrder(TabOrder::ROW | COLUMN | STRUCTURE)`. Text fields, comboboxes, and listboxes can carry JavaScript actions for auto-calculation (sum, product, average, min, max), display formatting (number, currency, percent, date, time), and input validation (range checks) - executed by Adobe Reader / Acrobat only. Document-level scripts run on open via `addDocumentScript`. Several fields sharing the same name are automatically linked - they emit as one logical field and stay synchronized in the reader (field linking).
 - **Markdown** - render a CommonMark core subset (headings, paragraphs, bold / italic / inline code, links, images, ordered + unordered nested lists, fenced / indented code blocks, block quotes, thematic breaks) either flowing from the cursor with automatic page breaks via `Page::markdown()` or inside an auto-sized cell via `cell(markdown: true)`. Styling is configurable through `MarkdownStyle`.
+- **Tables** - render data tables with `Page::table()`: fixed or `fill` column widths, automatic page-break with the header row repeated on each page (toggle via `TableStyle::withRepeatHeader()`), zebra striping, configurable borders (grid / horizontal rules / header underline / none), per-column alignment and padding, a conditional per-cell style callback, and cells holding either text or an image (e.g. avatars). Built on the existing cell/image pipeline.
 - **PDF/A archival conformance** - emit ISO 19005-2 conformant files (PDF/A-2b and PDF/A-2u) with one call: `$doc->enablePdfA(PdfALevel::A2B)`. This embeds an sRGB output intent, stamps the XMP packet with the PDF/A identification schema, and always writes the document metadata and `/ID`. Every font must be embedded - register one with `registerFontFamily()`; using a non-embedded standard font (or encryption, or document JavaScript) throws. Validated against veraPDF, the ISO reference validator. PDF/A-3b and PDF/A-3u are also supported: call `$doc->attachFile($xmlBytes, 'factur-x.xml', AFRelationship::Data, 'text/xml')` to embed an associated file (e.g. a Factur-X / ZUGFeRD e-invoice XML). Attachments are rejected at PDF/A-2 (use A-3).
 
 ## Installation
@@ -516,6 +517,70 @@ $page->markdown($markdown, x: 20, y: 20, style: $style);
 ```
 
 Not supported (skipped silently or rendered as literal text, never an error): tables, reference links, footnotes, task lists, raw HTML (escaped to literal text), setext headings, syntax highlighting, and autolinks.
+
+### Tables
+
+Render a data table from an array (or any `iterable`) of associative rows. Each column is defined by a `Column` value object that names the key it reads from each row, its header label, its width policy (fixed mm or `fill` sharing remaining space by weight), and optional alignment and padding overrides.
+
+```php
+use DragonOfMercy\PhpPdf\Table\Cell;
+use DragonOfMercy\PhpPdf\Table\CellStyle;
+use DragonOfMercy\PhpPdf\Table\Column;
+use DragonOfMercy\PhpPdf\Table\TableBorders;
+use DragonOfMercy\PhpPdf\Table\TableStyle;
+use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Image;
+use DragonOfMercy\PhpPdf\TextAlign;
+
+$doc = new Document();
+$doc->setAutoPageBreak(true, 15);
+$page = $doc->addPage();
+$page->setFont($doc->getFont('Helvetica'), 10);
+
+// Column definitions: one fill column (takes remaining width), two fixed columns.
+$columns = [
+    Column::of('avatar', '')->width(14)->align(TextAlign::CENTER),
+    Column::of('name', 'Name')->fill(),
+    Column::of('role', 'Role')->width(40),
+    Column::of('salary', 'Salary')->width(32)->align(TextAlign::RIGHT),
+];
+
+// Rows: scalars are shorthand for Cell::of($scalar); Cell::image() embeds an image.
+$rows = [
+    ['avatar' => Cell::image(Image::fromFile('avatar1.png'), w: 10), 'name' => 'Alice Martin',  'role' => 'Engineer',  'salary' => '95,000'],
+    ['avatar' => Cell::image(Image::fromFile('avatar2.png'), w: 10), 'name' => 'Bob Nguyen',    'role' => 'Designer',  'salary' => '82,000'],
+    ['avatar' => Cell::image(Image::fromFile('avatar3.png'), w: 10), 'name' => 'Carol Schmidt', 'role' => 'Manager',   'salary' => '110,000'],
+];
+
+$style = TableStyle::default()
+    ->withHeader(fill: Color::gray(220), bold: true)
+    ->withBorder(TableBorders::GRID)
+    ->withZebra(Color::rgb(255, 255, 255), Color::gray(247))
+    ->withCellStyle(function (mixed $value, array $row, Column $col): ?CellStyle {
+        // Highlight salaries above 100,000 in bold red.
+        if ($col->key === 'salary' && is_string($value) && (int) str_replace(',', '', $value) > 100000) {
+            return CellStyle::new()->withTextColor(Color::rgb(180, 0, 0))->withBold(true);
+        }
+        return null;
+    });
+
+$result = $page->table($columns, $rows, x: 15, y: 30, width: 180, style: $style);
+// $result->rowCount, $result->pageCount, $result->page (the last page used)
+```
+
+**Column widths.** A column is either fixed (`->width(float $mm)`) or fill (`->fill(int $weight = 1)`). Fill columns share the space left after all fixed columns are allocated, proportionally to their weight. At least one column must be defined. There is no content-derived auto-width in this version.
+
+**Automatic page-break and header repeat.** When `Document::setAutoPageBreak(true)` is active, the renderer starts a new page whenever a row does not fit and re-draws the header row at the top. Disable header repetition with `TableStyle::withRepeatHeader(false)`.
+
+**Borders.** `TableBorders::GRID` draws all cell edges (default); `HORIZONTAL` draws horizontal rules only (between rows); `HEADER_UNDERLINE` draws a single rule under the header row; `NONE` suppresses all borders. Use `->withBorderStyle(Border::all()->withWidth(0.3))` to customise the line appearance.
+
+**Zebra striping.** `->withZebra(Color $even, Color $odd)` fills alternating data rows with the given colours. Even rows (0, 2, ...) use `$even`, odd rows use `$odd`.
+
+**Conditional cell styling.** The callable passed to `->withCellStyle()` receives `($value, $row, Column $col)` and must return a `CellStyle|null`. A non-null return overrides the matching fields for that cell only. `CellStyle::new()` is immutable and supports `->withTextColor()`, `->withFill()`, `->withBold()`, and `->withAlign()`.
+
+**Cell types.** A cell value may be a scalar (treated as `Cell::of((string) $value)`), a `Cell::of(string|\Stringable $text)` text cell (with optional `->bold()`, `->align()`, `->textColor()`, `->fill()`, `->padding()` overrides), or a `Cell::image(Image|string $src, ?float $w = null, ?float $h = null)` image cell (defaults to centred / middle alignment; aspect ratio is preserved and the image is clamped to the inner cell box).
+
+**Limitations in this version.** No cell spanning (no colspan / rowspan). No content-derived auto-width.
 
 ### Metadata + encryption
 
