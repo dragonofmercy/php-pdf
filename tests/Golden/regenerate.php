@@ -978,6 +978,20 @@ echo "Regenerated pdfa/a2u.pdf\n";
 \DragonOfMercy\PhpPdf\Tests\Golden\PdfA3bTest::buildDocument()->save($fixturesDir . '/pdfa/a3b.pdf');
 echo "Regenerated pdfa/a3b.pdf\n";
 
+// Table golden fixtures (Tasks 10-13)
+if (!is_dir($fixturesDir . '/table')) {
+    mkdir($fixturesDir . '/table', 0755, true);
+}
+file_put_contents($fixturesDir . '/table/table-basic.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildBasic());
+echo "Regenerated table/table-basic.pdf\n";
+file_put_contents($fixturesDir . '/table/table-styled.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildStyled());
+echo "Regenerated table/table-styled.pdf\n";
+file_put_contents($fixturesDir . '/table/table-paginated.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildPaginated(true));
+file_put_contents($fixturesDir . '/table/table-paginated-noheader.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildPaginated(false));
+echo "Regenerated table/table-paginated*.pdf\n";
+file_put_contents($fixturesDir . '/table/table-avatars.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildAvatars());
+echo "Regenerated table/table-avatars.pdf\n";
+
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
     mkdir($svgFixturesDir, 0755, true);
