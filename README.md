@@ -1,5 +1,11 @@
 # phppdf
 
+[![CI](https://img.shields.io/github/actions/workflow/status/dragonofmercy/php-pdf/ci.yml?branch=main&label=CI)](https://github.com/dragonofmercy/php-pdf/actions/workflows/ci.yml)
+[![Latest Version](https://img.shields.io/packagist/v/dragonofmercy/phppdf.svg)](https://packagist.org/packages/dragonofmercy/phppdf)
+[![Total Downloads](https://img.shields.io/packagist/dt/dragonofmercy/phppdf.svg)](https://packagist.org/packages/dragonofmercy/phppdf)
+[![PHP Version](https://img.shields.io/packagist/php-v/dragonofmercy/phppdf.svg)](https://www.php.net/)
+[![License](https://img.shields.io/packagist/l/dragonofmercy/phppdf.svg)](LICENSE)
+
 Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime dependencies beyond the standard `mbstring`, `openssl`, and `zlib` extensions.
 
 > **Status:** stable (1.0). The public API follows [semantic versioning](https://semver.org/); breaking changes are reserved for the next major version. See [CHANGELOG.md](CHANGELOG.md).
