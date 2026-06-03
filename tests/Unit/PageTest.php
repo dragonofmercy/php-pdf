@@ -15,6 +15,7 @@ use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\LineCap;
 use DragonOfMercy\PhpPdf\LineJoin;
 use DragonOfMercy\PhpPdf\Page;
@@ -851,6 +852,74 @@ final class PageTest extends TestCase
         $img = Image::fromBytes(TestImageFactory::pngRgb(width: 64, height: 32));
         $page->image($img, x: 5, y: 10);
         self::assertStringContainsString('64 0 0 -32 5 42 cm', $page->contentStream()->bytes());
+    }
+
+    public function testImageDefaultAdvancesRight(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        // No $ln given: must keep the legacy RIGHT advance (x + w, y unchanged).
+        $page->image($img, x: 10, y: 20, w: 100, h: 50);
+        self::assertSame(110.0, $page->getX());
+        self::assertSame(20.0, $page->getY());
+    }
+
+    public function testImageRightAdvance(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $page->image($img, x: 10, y: 20, w: 100, h: 50, ln: NextPosition::RIGHT);
+        self::assertSame(110.0, $page->getX());
+        self::assertSame(20.0, $page->getY());
+    }
+
+    public function testImageBelowAdvance(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        // BELOW: x stays at the left edge, y advances by the rendered height.
+        $page->image($img, x: 10, y: 20, w: 100, h: 50, ln: NextPosition::BELOW);
+        self::assertSame(10.0, $page->getX());
+        self::assertSame(70.0, $page->getY());
+    }
+
+    public function testImageNewlineReturnsToLineStart(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        // Explicit x sets the line start; NEWLINE returns to it and drops by height.
+        $page->image($img, x: 30, y: 20, w: 100, h: 50, ln: NextPosition::NEWLINE);
+        self::assertSame(30.0, $page->getX());
+        self::assertSame(70.0, $page->getY());
+    }
+
+    public function testImageNoneLeavesCursorUntouched(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        $page->setXY(5, 7);
+        $page->image($img, x: 10, y: 20, w: 100, h: 50, ln: NextPosition::NONE);
+        // NONE: the prior cursor (5, 7) is preserved.
+        self::assertSame(5.0, $page->getX());
+        self::assertSame(7.0, $page->getY());
+    }
+
+    public function testImageExplicitXSetsLineStartForLaterNewline(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
+        // image() at x=40 must define the row's line start, so a subsequent
+        // NEWLINE-advancing image without explicit x returns to x=40.
+        $page->image($img, x: 40, y: 20, w: 100, h: 50);          // RIGHT -> cursor (140, 20)
+        $page->image($img, w: 60, h: 30, ln: NextPosition::NEWLINE); // drawn at (140,20); NEWLINE -> (40, 50)
+        self::assertSame(40.0, $page->getX());
+        self::assertSame(50.0, $page->getY());
     }
 
     public function testImageThrowsOnNonPositiveWidth(): void

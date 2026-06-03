@@ -1085,6 +1085,7 @@ final class Page
         ?float $y = null,
         ?float $w = null,
         ?float $h = null,
+        NextPosition $ln = NextPosition::RIGHT,
     ): self {
         if ($w !== null && $w <= 0.0) {
             throw new PdfException("Image width must be positive, got {$w}");
@@ -1093,6 +1094,7 @@ final class Page
             throw new PdfException("Image height must be positive, got {$h}");
         }
 
+        $xExplicit = $x !== null;
         $x = $this->cursor->resolveX($x, 'Image');
         $y = $this->cursor->resolveY($y, 'Image');
 
@@ -1105,6 +1107,9 @@ final class Page
 
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
+        if ($xExplicit) {
+            $this->cursor->setLineStartXPt($xPt);
+        }
 
         $this->stream->append(Operators::saveState());
         $this->stream->append(Operators::concatMatrix(
@@ -1114,11 +1119,10 @@ final class Page
         $this->stream->append(Operators::restoreState());
 
         $this->imagesUsed[$shortName] = true;
-        // Mirror cell()'s RIGHT semantics on the x axis: advance the cursor to
-        // the right edge of what we just drew so a chained image() or barcode()
-        // without explicit x can flow next to it. y is synced to the top edge
-        // used (not y + h) so a subsequent call without explicit y aligns.
-        $this->cursor->setPositionPt($xPt + $effWPt, $yPt);
+        // Advance the cursor over the image's bounding box per $ln, mirroring
+        // cell()/barcode(). The default RIGHT reproduces the legacy behaviour
+        // (right edge, same top y) so existing callers are unaffected.
+        $this->cursor->advance($ln, $xPt, $yPt, $effWPt, $effHPt);
         return $this;
     }
 
