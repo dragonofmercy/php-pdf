@@ -320,6 +320,37 @@ final class PageTest extends TestCase
         $this->page()->setFont(Font::helvetica());
     }
 
+    public function testSetFontSizeChangesSizeKeepsFont(): void
+    {
+        $page = $this->page();
+        $font = Font::times()->italic();
+        $page->setFont($font, 12);
+        $page->setFontSize(20);
+        self::assertSame(20.0, $page->getFontSize());
+        self::assertSame($font, $page->getFont());
+    }
+
+    public function testSetFontSizeReturnsSelf(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 12);
+        self::assertSame($page, $page->setFontSize(16));
+    }
+
+    public function testSetFontSizeThrowsWhenNoFontSet(): void
+    {
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->page()->setFontSize(12);
+    }
+
+    public function testSetFontSizeThrowsOnNonPositiveSize(): void
+    {
+        $page = $this->page();
+        $page->setFont(Font::helvetica(), 12);
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $page->setFontSize(0);
+    }
+
     public function testFontsUsedAccessorReturnsRegisteredForThisPage(): void
     {
         $page = $this->page();

@@ -88,6 +88,18 @@ final class TextState
         $this->customLeading = null;
     }
 
+    public function setFontSize(float $size): void
+    {
+        if ($this->currentFont === null) {
+            throw new PdfException('Cannot set font size before a font is set: call setFont() first');
+        }
+        if ($size <= 0) {
+            throw new PdfException('Font size must be positive, got ' . $size);
+        }
+        $this->currentSize = $size;
+        $this->customLeading = null;
+    }
+
     public function setLeading(float $leading): void
     {
         $this->customLeading = $leading;

@@ -347,6 +347,12 @@ final class Page
         return $this;
     }
 
+    public function setFontSize(float $size): self
+    {
+        $this->textState->setFontSize($size);
+        return $this;
+    }
+
     public function setLeading(float $leading): self
     {
         $this->textState->setLeading($leading);

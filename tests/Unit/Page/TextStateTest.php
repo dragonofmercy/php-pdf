@@ -96,6 +96,39 @@ final class TextStateTest extends TestCase
         self::assertNull($s->customLeading());
     }
 
+    public function testSetFontSizeChangesSizeKeepsFont(): void
+    {
+        $s = $this->makeState();
+        $s->setFont(Font::helvetica(), 12.0);
+        $s->setFontSize(18.0);
+        self::assertSame(18.0, $s->getFontSize());
+        self::assertSame('Helvetica', $s->getFont()->pdfName());
+    }
+
+    public function testSetFontSizeRejectsNonPositiveSize(): void
+    {
+        $s = $this->makeState();
+        $s->setFont(Font::helvetica(), 12.0);
+        $this->expectException(PdfException::class);
+        $s->setFontSize(0.0);
+    }
+
+    public function testSetFontSizeThrowsWhenNoFontSet(): void
+    {
+        $s = $this->makeState();
+        $this->expectException(PdfException::class);
+        $s->setFontSize(12.0);
+    }
+
+    public function testSetFontSizeResetsLeading(): void
+    {
+        $s = $this->makeState();
+        $s->setFont(Font::helvetica(), 12.0);
+        $s->setLeading(15.0);
+        $s->setFontSize(18.0);
+        self::assertNull($s->customLeading());
+    }
+
     public function testCaptureRestoreRoundTrips(): void
     {
         $s = $this->makeState();
