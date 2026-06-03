@@ -114,12 +114,6 @@ final class Cursor
         $this->lineStartXPt = $xPt;
     }
 
-    public function setPositionPt(float $xPt, float $yPt): void
-    {
-        $this->xPt = $xPt;
-        $this->yPt = $yPt;
-    }
-
     public function advance(NextPosition $ln, float $xPt, float $yPt, float $effWidthPt, float $heightPt): void
     {
         $bottomPt = $yPt + $heightPt;

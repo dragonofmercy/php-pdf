@@ -1109,6 +1109,9 @@ final class Page
         $xExplicit = $x !== null;
         $x = $this->cursor->resolveX($x, 'Image');
         $y = $this->cursor->resolveY($y, 'Image');
+        if ($xExplicit) {
+            $this->cursor->setLineStartXPt($this->toPt($x));
+        }
 
         [$shortName, $resolved] = $this->imageRegistry->register($image);
         [$effWPt, $effHPt] = self::sizeImagePt(
@@ -1119,9 +1122,6 @@ final class Page
 
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
-        if ($xExplicit) {
-            $this->cursor->setLineStartXPt($xPt);
-        }
 
         $this->stream->append(Operators::saveState());
         $this->stream->append(Operators::concatMatrix(
