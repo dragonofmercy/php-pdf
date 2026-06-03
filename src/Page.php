@@ -1079,6 +1079,18 @@ final class Page
         return [$w, $h];
     }
 
+    /**
+     * Places a raster or vector image with its top-left corner at (x, y) in the
+     * document unit. Omitted x/y fall back to the current cursor position.
+     *
+     * Dimension rules: both w and h given -> forced; one omitted -> derived from
+     * the aspect ratio of the other; both omitted -> intrinsic size at 72 DPI.
+     *
+     * After drawing, the cursor advances according to $ln. The default is RIGHT
+     * (x moves to the right edge of the image, y unchanged), which matches the
+     * legacy behaviour. Use NEWLINE to start a new line below, BELOW to move the
+     * cursor beneath the image, or NONE to leave the cursor untouched.
+     */
     public function image(
         string|Image $image,
         ?float $x = null,

@@ -15,9 +15,9 @@ use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Font\StandardFontEngine;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
-use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\LineCap;
 use DragonOfMercy\PhpPdf\LineJoin;
+use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Page\TextState;
 use DragonOfMercy\PhpPdf\PageMargins;
@@ -867,6 +867,7 @@ final class PageTest extends TestCase
 
     public function testImageRightAdvance(): void
     {
+        // Regression guard: an explicit RIGHT must equal the omitted default.
         $doc = new Document(Unit::PT);
         $page = $doc->addPage();
         $img = Image::fromBytes(TestImageFactory::pngRgb(2, 2));
