@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
 final class SvgTextCustomAnchorStrokeTest extends TestCase
 {
     private const string FIXTURE = 'svg/text/custom-anchor-stroke.pdf';
-    private const string FONTS = __DIR__ . '/fixtures/fonts';
+    private const string FONTS = __DIR__ . '/assets/fonts';
 
     public static function fontsPresent(): bool
     {

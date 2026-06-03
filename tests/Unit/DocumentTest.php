@@ -836,7 +836,7 @@ final class DocumentTest extends TestCase
         self::assertSame($doc, $doc->setDefaultBorderWidth(0.5));
     }
 
-    private const string FS_DIR = __DIR__ . '/../Golden/fixtures/fonts';
+    private const string FS_DIR = __DIR__ . '/../Golden/assets/fonts';
 
     public function testCustomFontIsSubsettedAndDeterministic(): void
     {

@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
 final class PageWithOtfTest extends TestCase
 {
     private const string FIXTURE = __DIR__ . '/fixtures/page/otf.pdf';
-    private const string FONTS_DIR = __DIR__ . '/fixtures/fonts';
+    private const string FONTS_DIR = __DIR__ . '/assets/fonts';
 
     public function testPageWithOtfMatchesFixtureBytes(): void
     {

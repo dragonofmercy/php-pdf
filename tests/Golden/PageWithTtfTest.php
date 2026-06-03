@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
 final class PageWithTtfTest extends TestCase
 {
     private const string FIXTURE = __DIR__ . '/fixtures/page/ttf.pdf';
-    private const string FONTS_DIR = __DIR__ . '/fixtures/fonts';
+    private const string FONTS_DIR = __DIR__ . '/assets/fonts';
 
     public function testPageWithTtfMatchesFixtureBytes(): void
     {
