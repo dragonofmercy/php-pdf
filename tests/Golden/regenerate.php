@@ -216,6 +216,21 @@ $page->image($paletteImage, x: 400, y: 200);                        // intrinsic
 $doc->save($fixturesDir . '/page/images.pdf');
 echo "Regenerated page/images.pdf\n";
 
+// Fixture: image cursor flow (NextPosition on image())
+$doc = new Document(Unit::PT);
+$page = $doc->addPage();
+$thumb = \DragonOfMercy\PhpPdf\Image::fromBytes(
+    \DragonOfMercy\PhpPdf\Tests\Support\TestImageFactory::pngPalette(width: 8, height: 8),
+);
+$page->setXY(50, 50);
+// Two thumbnails side by side via the default RIGHT advance.
+$page->image($thumb, w: 80, h: 60);                                          // at (50, 50); cursor -> (130, 50)
+$page->image($thumb, w: 80, h: 60, ln: \DragonOfMercy\PhpPdf\NextPosition::NEWLINE); // at (130, 50); NEWLINE -> (50, 110)
+// Third thumbnail on the new line, default RIGHT again.
+$page->image($thumb, w: 80, h: 60);                                          // at (50, 110); cursor -> (130, 110)
+$doc->save($fixturesDir . '/page/image-flow.pdf');
+echo "Regenerated page/image-flow.pdf\n";
+
 // Fixture 8: EAN-13 barcode (Phase 5)
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
