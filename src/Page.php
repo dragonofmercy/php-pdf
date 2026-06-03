@@ -28,6 +28,10 @@ use DragonOfMercy\PhpPdf\Page\Cursor;
 use DragonOfMercy\PhpPdf\Page\Operators;
 use DragonOfMercy\PhpPdf\Page\PageGraphics;
 use DragonOfMercy\PhpPdf\Page\TextState;
+use DragonOfMercy\PhpPdf\Table\Column;
+use DragonOfMercy\PhpPdf\Table\TableRenderer;
+use DragonOfMercy\PhpPdf\Table\TableResult;
+use DragonOfMercy\PhpPdf\Table\TableStyle;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -145,6 +149,18 @@ final class Page
     public function margins(): PageMargins
     {
         return $this->margins;
+    }
+
+    /** @internal Owning document, or null for legacy direct construction. */
+    public function document(): ?Document
+    {
+        return $this->document;
+    }
+
+    /** @internal Flow cursor, so table() can advance it on the final page after a page break. */
+    public function cursor(): Cursor
+    {
+        return $this->cursor;
     }
 
     /**
@@ -1162,6 +1178,49 @@ final class Page
     }
 
     /**
+     * Render a data table starting at (x, y) within $width. Reuses the cell /
+     * image pipeline per cell; paginates with header repeat when the document
+     * has auto-page-break on. Returns a {@see TableResult} with the final anchor
+     * and span metrics (the final page may differ from this one after a break).
+     *
+     * @param list<Column> $columns
+     * @param iterable<array<string, mixed>> $rows
+     */
+    public function table(
+        array $columns,
+        iterable $rows,
+        ?float $x = null,
+        ?float $y = null,
+        ?float $width = null,
+        ?TableStyle $style = null,
+        NextPosition $ln = NextPosition::NONE,
+    ): TableResult {
+        if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
+            throw new PdfException('setFont() must be called before table()');
+        }
+        $xExplicit = $x !== null;
+        $x = $this->cursor->resolveX($x, 'Table');
+        $y = $this->cursor->resolveY($y, 'Table');
+        if ($xExplicit) {
+            $this->cursor->setLineStartXPt($this->toPt($x));
+        }
+        $width ??= $this->fromPt($this->pageWidth) - $this->margins()->right - $x;
+
+        $renderer = new TableRenderer($this, $columns, $rows, $style ?? TableStyle::default());
+        [$finalYPt, $rowCount, $pageCount, $finalPage] = $renderer->render($this->toPt($x), $this->toPt($y), $this->toPt($width));
+
+        $finalPage->cursor()->advance($ln, $finalPage->toPt($x), $finalYPt, $finalPage->toPt($width), 0.0);
+
+        return new TableResult(
+            x: $x,
+            y: $finalPage->fromPt($finalYPt),
+            rowCount: $rowCount,
+            pageCount: $pageCount,
+            page: $finalPage,
+        );
+    }
+
+    /**
      * @internal
      */
     public function metricsRegistry(): MetricsRegistry
@@ -1362,12 +1421,14 @@ final class Page
         return $sizePt + $descentAbs + ($lineCount - 1) * $effectiveLeading + $padTopBottomPt;
     }
 
-    private function toPt(float $value): float
+    /** @internal Convert a value from the document unit to points. */
+    public function toPt(float $value): float
     {
         return $this->unit->toPoints($value);
     }
 
-    private function fromPt(float $value): float
+    /** @internal Convert a value from points to the document unit. */
+    public function fromPt(float $value): float
     {
         return $this->unit->fromPoints($value);
     }

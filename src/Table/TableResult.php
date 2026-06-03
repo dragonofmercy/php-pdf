@@ -12,6 +12,6 @@ final readonly class TableResult
         public float $y,
         public int $rowCount,
         public int $pageCount,
-        public ?Page $page = null,
+        public Page $page,
     ) {}
 }
