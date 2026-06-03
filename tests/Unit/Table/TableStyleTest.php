@@ -62,4 +62,15 @@ final class TableStyleTest extends TestCase
         self::assertNotNull($s->zebraEven);
         self::assertNotNull($s->zebraOdd);
     }
+
+    public function testWithHeaderCanClearFill(): void
+    {
+        $withFill = TableStyle::default()->withHeader(fill: Color::gray(238), bold: true);
+        self::assertNotNull($withFill->headerFill);
+        self::assertTrue($withFill->headerBold);
+
+        $cleared = $withFill->withHeader(bold: false);
+        self::assertNull($cleared->headerFill);
+        self::assertFalse($cleared->headerBold);
+    }
 }

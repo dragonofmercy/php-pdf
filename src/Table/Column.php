@@ -17,7 +17,7 @@ final readonly class Column
         public string $key,
         public ?string $header = null,
         public ?float $fixedWidth = null,
-        public ?int $fillWeight = 1,
+        public ?int $fillWeight = null,
         public TextAlign $align = TextAlign::LEFT,
         public VerticalAlign $verticalAlign = VerticalAlign::TOP,
         public ?CellPadding $padding = null,
@@ -30,7 +30,7 @@ final readonly class Column
 
     public function width(float $w): self
     {
-        if ($this->fixedWidth === null && $this->fillWeight !== 1) {
+        if ($this->fillWeight !== null) {
             throw new PdfException('Column "' . $this->key . '" cannot set both width and fill');
         }
         if ($w <= 0) {

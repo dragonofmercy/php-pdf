@@ -21,12 +21,12 @@ final class ColumnTest extends TestCase
         self::assertSame(TextAlign::RIGHT, $c->align);
     }
 
-    public function testDefaultsToFillWeightOne(): void
+    public function testDefaultsToImplicitFill(): void
     {
         $c = Column::of('name');
         self::assertNull($c->header);
         self::assertNull($c->fixedWidth);
-        self::assertSame(1, $c->fillWeight);
+        self::assertNull($c->fillWeight);
         self::assertSame(TextAlign::LEFT, $c->align);
         self::assertSame(VerticalAlign::TOP, $c->verticalAlign);
     }
@@ -43,6 +43,20 @@ final class ColumnTest extends TestCase
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('Column "name" cannot set both width and fill');
         Column::of('name')->width(20.0)->fill(2);
+    }
+
+    public function testExplicitFillThenWidthThrows(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Column "name" cannot set both width and fill');
+        Column::of('name')->fill(1)->width(20.0);
+    }
+
+    public function testExplicitFillThenWidthThrowsWeight2(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Column "name" cannot set both width and fill');
+        Column::of('name')->fill(2)->width(20.0);
     }
 
     public function testNegativeWidthThrows(): void
