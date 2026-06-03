@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-06-03
 
 ### Added
 - PDF/A-2 archival conformance (`Document::enablePdfA(PdfALevel::A2B|A2U)`): sRGB output intent, `pdfaid` XMP schema, forced metadata + document `/ID`, with a conformance guard that rejects non-embedded standard fonts, encryption, document JavaScript, and appended revisions. Validated with veraPDF.
@@ -84,5 +84,6 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.2.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.2.0
 [1.1.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.1.0
 [1.0.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.0.0
