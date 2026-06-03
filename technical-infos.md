@@ -298,17 +298,18 @@ built by hand, because PHP's `openssl_cms_sign` cannot inject signed attributes.
 
 ## PDF/A archival conformance
 
-`Document::enablePdfA(PdfALevel $level)` makes the output comply with ISO 19005-2 (PDF/A-2). Two conformance levels are available:
+`Document::enablePdfA(PdfALevel $level)` makes the output comply with ISO 19005 (PDF/A-2 or PDF/A-3). Four levels are available:
 
 - `PdfALevel::A2B` - PDF/A-2b (basic): correct visual reproduction.
 - `PdfALevel::A2U` - PDF/A-2u (unicode): A2b plus ToUnicode maps on every font (already satisfied by custom embedded fonts; standard fonts are prohibited anyway).
+- `PdfALevel::A3B` / `A3U` - PDF/A-3 (ISO 19005-3): the A-2 levels plus support for embedded associated files.
 
-`PdfALevel::A3B` and `A3U` enable ISO 19005-3 (PDF/A-3), which adds support for embedded associated files. Use `Document::attachFile(string $bytes, string $name, AFRelationship $relationship, string $mimeType = '', string $description = '')` to attach a file; the most common use case is a Factur-X or ZUGFeRD e-invoice XML embedded alongside the human-readable PDF.
+Use `Document::attachFile(string $bytes, string $name, AFRelationship $relationship = AFRelationship::Data, string $mime = 'application/octet-stream', ?string $description = null, ?DateTimeImmutable $modDate = null)` to attach a file; the most common use case is a Factur-X or ZUGFeRD e-invoice XML embedded alongside the human-readable PDF. Attachments are rejected at PDF/A-2 (the guard throws); use A3B or A3U.
 
 ### Namespace: `src/PdfA/`
 
-- **`PdfALevel`** - backed enum carrying the ISO part (2 or 3) and the conformance character (B or U). Helper methods `part()` and `conformance()` are used by the emitters.
-- **`OutputIntent`** - builds the `/OutputIntents` array entry: an `/OutputIntent` dictionary with `/S /GTS_PDFA1`, `/OutputConditionIdentifier (sRGB)`, `/DestOutputProfile` pointing at an `IccProfileStream`, plus `/Info` and `/RegistryName`.
+- **`PdfALevel`** - pure (non-backed) enum with one case per level (`A2B`, `A2U`, `A3B`, `A3U`). Helper methods `part()` (2 or 3), `conformance()` (`B` or `U`), `allowsEmbeddedFiles()`, and `requiresUnicode()` derive everything the emitters need from the case.
+- **`OutputIntent`** - builds the intent object and its profile object as a pair. The `/OutputIntent` dictionary carries `/Type /OutputIntent`, `/S /GTS_PDFA1`, `/OutputConditionIdentifier (sRGB IEC61966-2.1)`, `/Info` (the same condition string), and `/DestOutputProfile` pointing at the `IccProfileStream`. The ICC bytes are FlateDecode-compressed (`gzcompress`, level 9) here before being handed to the stream.
 - **`IccProfileStream`** - wraps the bundled `resources/icc/sRGB.icc` (a 588-byte littleCMS sRGB profile) in a FlateDecode stream object with `/N 3` (three color components). The same profile object is used for every PDF/A document produced in a session.
 - **`PdfAConformanceGuard`** - called by `output()` before serialization; throws `PdfException` for any of the four prohibited combinations:
   - a non-embedded standard font (Helvetica, Times, Courier, etc.) is in use - every font must be embedded via `registerFontFamily()`;
@@ -316,10 +317,10 @@ built by hand, because PHP's `openssl_cms_sign` cannot inject signed attributes.
   - document JavaScript (`addDocumentScript`) is present;
   - appended revisions (`addSignature` / `addDocumentTimestamp` / `enableLtv`) are present.
   An additional guard rejects `attachFile()` calls when the PDF/A part is 2 (attachments are only permitted at part 3).
-- **`AFRelationship`** - backed string enum for the `/AFRelationship` key on a file specification: `Source`, `Data`, `Alternative`, `Supplement`, `EncryptedPayload`, `FormData`, `Schema`, `Unspecified`.
-- **`AttachedFile`** - value object holding the raw byte string, filename, `AFRelationship`, MIME type string, and description.
-- **`EmbeddedFileStream`** - builds the two indirect objects that represent one embedded file in PDF: an `/EmbeddedFile` stream (uncompressed, `/Subtype` set to the MIME type as a PDF name, `/Params` carrying `/Size`, `/ModDate`, and a `/CheckSum` MD5 hash) and the `/Filespec` dictionary referencing it (`/F`, `/UF`, `/EF`, `/Desc`, `/AFRelationship`).
-- **`EmbeddedFileEmitter`** - allocated and called by `outputWithMetadata()` after outlines and before the output intent; it allocates one `EmbeddedFileStream` pair per attached file, returns the resulting filespec references, and hands both the `/AF` array (for the catalog) and the `/EmbeddedFiles` name tree entries (keyed by filename) back to the writer. The name tree is merged with the existing `/JavaScript` name tree via the shared `withNames()` helper on the catalog, so there is always a single `/Names` dictionary.
+- **`AFRelationship`** - pure (non-backed) enum for the `/AFRelationship` key on a file specification: `Source`, `Data`, `Alternative`, `Supplement`, `Unspecified` (`Data` is the Factur-X default). `pdfName()` maps each case to its PDF name.
+- **`AttachedFile`** - `final readonly` value object holding the filename, raw byte string, `AFRelationship`, MIME type string, an optional description, and the modification date (`DateTimeImmutable`, passed in so serialization is deterministic). It throws on an empty name or empty MIME type.
+- **`EmbeddedFileStream`** - the stream-object wrapper for one embedded file: given the prepared dictionary and the raw bytes, it appends `/Length` and the uncompressed body. The dictionary it receives is an `/EmbeddedFile` stream with `/Subtype` set to the MIME type as a PDF name (the raw `/` is encoded to `#2F` by `Name::of`) and `/Params` carrying `/Size`, `/ModDate`, and a `/CheckSum` (MD5 hex).
+- **`EmbeddedFileEmitter`** - builds the two indirect objects per attachment (the `/Filespec` dictionary then the `EmbeddedFileStream`), numbered sequentially from a given first object number, and returns both the objects and the filespec references. The filespec carries `/Type /Filespec`, `/F`, `/UF`, `/AFRelationship`, `/EF`, and `/Desc` (omitted when null). `outputWithMetadata()` calls it after outlines and before the output intent, then injects the filespec references as the catalog `/AF` array and as `/EmbeddedFiles` name tree entries (keyed by filename). That name tree is merged with the existing `/JavaScript` name tree via the shared `withNames()` helper, so there is always a single `/Names` dictionary.
 
 ### How `enablePdfA()` wires into serialization
 
@@ -327,9 +328,9 @@ Calling `enablePdfA()` does three things that all take effect at `output()` time
 
 1. **Forces the metadata output path** - the XMP packet, the `/Info` dictionary, and the document `/ID` pair are always written (normally `/ID` and full XMP are optional).
 2. **Injects `/OutputIntents`** - an `[OutputIntent]` array is added to the catalog referencing the sRGB ICC profile stream.
-3. **Passes the level to `XmpWriter`** - the XMP serializer prepends a `pdfaid` RDF description block (`xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"`) carrying `<pdfaid:part>` (2) and `<pdfaid:conformance>` (B or U). The rest of the XMP packet (dc:, xmp:, pdf: namespaces) is emitted unchanged.
+3. **Passes the level to `XmpWriter`** - the XMP serializer prepends a `pdfaid` RDF description block (`xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"`) carrying `<pdfaid:part>` (2 or 3, from `PdfALevel::part()`) and `<pdfaid:conformance>` (B or U). The rest of the XMP packet (dc:, xmp:, pdf: namespaces) is emitted unchanged, so the `null` (non-PDF/A) path stays byte-identical.
 
-The PDF header is already `%PDF-1.7`, which satisfies the PDF/A-2 version requirement.
+The PDF header is already `%PDF-1.7`, which satisfies the PDF/A-2 and PDF/A-3 version requirement.
 
 ### Why the `u` variant is essentially free
 
@@ -337,9 +338,7 @@ PDF/A-2u requires a valid ToUnicode CMap on every font. Custom embedded fonts (t
 
 ### Validation oracle
 
-The e2e golden test `tests/Golden/PdfA2ConformanceTest.php` renders a small document with a custom font, calls `enablePdfA()`, and pipes the output to `veraPDF --flavour 2b` (or `2u`). It asserts `isCompliant="true"` in the veraPDF XML report. The test auto-skips when `veraPDF` or `java` are absent from PATH.
-
-`tests/Golden/PdfA3ConformanceTest.php` does the same for PDF/A-3: it attaches a small XML file via `attachFile()`, enables `PdfALevel::A3B`, and asserts `isCompliant="true"` under `veraPDF --flavour 3b`. The test also checks that `attachFile()` throws when the level is A-2.
+The e2e golden test `tests/Golden/PdfA2ConformanceTest.php` is a single data-provided test covering three flavours (`2b`, `2u`, `3b`). Each case rebuilds the matching byte-identity fixture document (`PdfA2bTest`, `PdfA2uTest`, `PdfA3bTest` expose a static `buildDocument()`), pipes the output to `veraPDF --flavour <flavour>`, and asserts `isCompliant="true"` in the veraPDF XML report. The `3b` case attaches an XML file via `attachFile()`, exercising the embedded-file path. The test auto-skips when the bundled JRE or the veraPDF CLI jar are absent. That `attachFile()` throws at PDF/A-2 is covered separately by the unit tests.
 
 ## Encryption
 

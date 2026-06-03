@@ -713,9 +713,10 @@ final class Document
                 hasDocumentScripts: $this->hasDocumentScripts(),
                 hasAttachmentsAtPart2: !$this->pdfALevel->allowsEmbeddedFiles() && $this->attachments !== [],
             );
-            $this->metadata();
         }
-        if ($this->attachments !== []) {
+        // PDF/A and attached files both require the metadata output path (XMP +
+        // /ID for PDF/A, the /Names /EmbeddedFiles tree for attachments).
+        if ($this->pdfALevel !== null || $this->attachments !== []) {
             $this->metadata();
         }
 
