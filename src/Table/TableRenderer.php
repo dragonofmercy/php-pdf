@@ -207,7 +207,7 @@ final class TableRenderer
                 $page->drawTableImage($cx, $yPt, $widthsPt[$i], $rowHeightPt, $image, $reqW, $reqH, $cell->align ?? TextAlign::CENTER, $cell->verticalAlign ?? VerticalAlign::MIDDLE, $colPad);
             } else {
                 $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
-                $page->drawTableCell($cx, $yPt, $widthsPt[$i], $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $col->verticalAlign, $colPad);
+                $page->drawTableCell($cx, $yPt, $widthsPt[$i], $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad);
             }
             $cx += $widthsPt[$i];
             $i++;

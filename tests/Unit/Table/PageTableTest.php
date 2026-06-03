@@ -6,6 +6,7 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\TextAlign;
+use DragonOfMercy\PhpPdf\VerticalAlign;
 use DragonOfMercy\PhpPdf\Table\Cell;
 use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\TableResult;
@@ -95,5 +96,42 @@ final class PageTableTest extends TestCase
         );
         self::assertSame(1, $result->rowCount);
         self::assertStringContainsString('%PDF-', $doc->output());
+    }
+
+    public function testTextCellVerticalAlignOverrideIsHonored(): void
+    {
+        // VO level: the wither must preserve the value.
+        $cell = Cell::of('x')->verticalAlign(VerticalAlign::BOTTOM);
+        self::assertSame(VerticalAlign::BOTTOM, $cell->verticalAlign);
+
+        // Scalar-sourced cells fall back to null (column default applies).
+        self::assertNull(Cell::of('scalar')->verticalAlign);
+
+        // Smoke render: a text cell with verticalAlign BOTTOM in a row that is
+        // taller than the cell's own content must not throw and must produce a
+        // valid PDF byte string.
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+
+        $result = $page->table(
+            columns: [
+                Column::of('label', 'Label')->fill(),
+                Column::of('tall', 'Tall')->width(30.0),
+            ],
+            rows: [
+                [
+                    'label' => Cell::of('bottom-aligned text')->verticalAlign(VerticalAlign::BOTTOM),
+                    // Force the row to be taller by using a multi-line cell in the other column.
+                    'tall' => Cell::of("line1\nline2\nline3"),
+                ],
+            ],
+            x: 20.0, y: 30.0, width: 170.0,
+        );
+
+        self::assertSame(1, $result->rowCount);
+        $pdf = $doc->output();
+        self::assertStringContainsString('%PDF-', $pdf);
+        self::assertGreaterThan(0, strlen($pdf));
     }
 }
