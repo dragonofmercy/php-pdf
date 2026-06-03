@@ -45,8 +45,8 @@ use DragonOfMercy\PhpPdf\VerticalAlign;
  */
 final class Page
 {
-    /** Tolerance (in points) for the auto-break overflow comparison; absorbs float drift on exact-fit cells. */
-    private const float OVERFLOW_EPSILON_PT = 0.0001;
+    /** @internal Tolerance (in points) for the auto-break overflow comparison; absorbs float drift on exact-fit cells. */
+    public const float OVERFLOW_EPSILON_PT = 0.0001;
 
     private readonly ContentStream $stream;
     private readonly PageGraphics $graphics;
@@ -1038,8 +1038,27 @@ final class Page
      */
     public function resolveTableImageSizePt(Image $image, ?float $reqWPt, ?float $reqHPt, float $innerWPt): array
     {
-        // Intrinsic dimensions are pixel counts; the library treats one pixel as
-        // one PDF point (mirrors Page::image()).
+        [$w, $h] = self::sizeImagePt($image, $reqWPt, $reqHPt);
+
+        if ($innerWPt > 0 && $w > $innerWPt) {
+            $h = $h * $innerWPt / $w;
+            $w = $innerWPt;
+        }
+
+        return [$w, $h];
+    }
+
+    /**
+     * Resolve the drawn image size in points from optional point-space requested
+     * width/height, applying the four-branch (w+h / w-only / h-only / neither)
+     * intrinsic-aspect rules shared by {@see image()} and
+     * {@see resolveTableImageSizePt()}. Intrinsic dimensions are pixel counts;
+     * the library treats one pixel as one PDF point.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private static function sizeImagePt(Image $image, ?float $reqWPt, ?float $reqHPt): array
+    {
         $intrinsicW = (float) $image->width;
         $intrinsicH = (float) $image->height;
 
@@ -1055,11 +1074,6 @@ final class Page
         } else {
             $w = $intrinsicW;
             $h = $intrinsicH;
-        }
-
-        if ($innerWPt > 0 && $w > $innerWPt) {
-            $h = $h * $innerWPt / $w;
-            $w = $innerWPt;
         }
 
         return [$w, $h];
@@ -1083,24 +1097,11 @@ final class Page
         $y = $this->cursor->resolveY($y, 'Image');
 
         [$shortName, $resolved] = $this->imageRegistry->register($image);
-        // Intrinsic image dimensions are pixel counts; the library treats one
-        // pixel as one PDF point when neither width nor height is supplied.
-        $intrinsicWPt = (float) $resolved->width;
-        $intrinsicHPt = (float) $resolved->height;
-
-        if ($w !== null && $h !== null) {
-            $effWPt = $this->toPt($w);
-            $effHPt = $this->toPt($h);
-        } elseif ($w !== null) {
-            $effWPt = $this->toPt($w);
-            $effHPt = $effWPt * $intrinsicHPt / $intrinsicWPt;
-        } elseif ($h !== null) {
-            $effHPt = $this->toPt($h);
-            $effWPt = $effHPt * $intrinsicWPt / $intrinsicHPt;
-        } else {
-            $effWPt = $intrinsicWPt;
-            $effHPt = $intrinsicHPt;
-        }
+        [$effWPt, $effHPt] = self::sizeImagePt(
+            $resolved,
+            $w !== null ? $this->toPt($w) : null,
+            $h !== null ? $this->toPt($h) : null,
+        );
 
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
@@ -1448,7 +1449,8 @@ final class Page
         return $padding instanceof CellPadding ? $padding : CellPadding::all((float) $padding);
     }
 
-    private function paddingToPt(CellPadding $p): CellPadding
+    /** @internal Convert a four-sided {@see CellPadding} from the document unit to points. */
+    public function paddingToPt(CellPadding $p): CellPadding
     {
         return new CellPadding(
             top: $this->toPt($p->top),

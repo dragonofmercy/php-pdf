@@ -16,7 +16,6 @@ use DragonOfMercy\PhpPdf\VerticalAlign;
 final readonly class Cell
 {
     private function __construct(
-        public bool $image_,
         public string $text = '',
         public ?Image $image = null,
         public ?float $imageWidth = null,
@@ -31,14 +30,13 @@ final readonly class Cell
 
     public static function of(string|\Stringable $text): self
     {
-        return new self(image_: false, text: (string) $text);
+        return new self(text: (string) $text);
     }
 
     public static function image(Image|string $src, ?float $w = null, ?float $h = null): self
     {
         $image = $src instanceof Image ? $src : Image::fromFile($src);
         return new self(
-            image_: true,
             image: $image,
             imageWidth: $w,
             imageHeight: $h,
@@ -47,8 +45,8 @@ final readonly class Cell
         );
     }
 
-    public function isText(): bool { return !$this->image_; }
-    public function isImage(): bool { return $this->image_; }
+    public function isText(): bool { return $this->image === null; }
+    public function isImage(): bool { return $this->image !== null; }
 
     public function bold(bool $bold = true): self
     {
@@ -89,7 +87,6 @@ final readonly class Cell
         ?CellPadding $padding = null,
     ): self {
         return new self(
-            image_: $this->image_,
             text: $this->text,
             image: $this->image,
             imageWidth: $this->imageWidth,

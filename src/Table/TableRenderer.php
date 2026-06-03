@@ -5,6 +5,7 @@ namespace DragonOfMercy\PhpPdf\Table;
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\TextAlign;
@@ -54,6 +55,7 @@ final class TableRenderer
         }
 
         $rowPaddingPt = $this->rowPaddingPt($page);
+        $fontState = $page->captureFontState();
         $baseFont = $page->getFont();
         $baseSize = $page->getFontSize();
 
@@ -62,34 +64,34 @@ final class TableRenderer
         $pageCount = 1;
 
         if ($hasHeader) {
-            $y = $this->drawHeaderRow($page, $startXPt, $y, $widthsPt, $rowPaddingPt, $baseFont, $baseSize);
+            $y = $this->drawHeaderRow($page, $startXPt, $y, $widthsPt, $rowPaddingPt, $baseFont, $baseSize, $fontState);
         }
 
         $rowIndex = 0;
         foreach ($this->rows as $row) {
-            $rowHeightPt = $this->measureRowHeightPt($page, $row, $widthsPt, $rowPaddingPt, $baseFont, $baseSize);
+            $rowHeightPt = $this->measureRowHeightPt($page, $row, $widthsPt, $rowPaddingPt, $baseFont, $baseSize, $fontState);
 
             $bottomLimitPt = $page->pageHeight - $page->toPt($page->margins()->bottom);
-            if ($this->paginates($page) && ($y + $rowHeightPt) > $bottomLimitPt + 0.0001) {
+            if ($this->paginates($page) && ($y + $rowHeightPt) > $bottomLimitPt + Page::OVERFLOW_EPSILON_PT) {
                 $document = $page->document();
                 if ($document !== null) {
                     $page = $document->addPage();
-                    $page->setFont($baseFont, $baseSize);
+                    $page->restoreFontState($fontState);
                     $y = $page->toPt($page->margins()->top);
                     $pageCount++;
                     if ($hasHeader && $this->style->repeatHeader) {
-                        $y = $this->drawHeaderRow($page, $startXPt, $y, $widthsPt, $rowPaddingPt, $baseFont, $baseSize);
+                        $y = $this->drawHeaderRow($page, $startXPt, $y, $widthsPt, $rowPaddingPt, $baseFont, $baseSize, $fontState);
                     }
                 }
             }
 
-            $this->drawDataRow($page, $row, $startXPt, $y, $widthsPt, $rowHeightPt, $rowPaddingPt, $rowIndex, $baseFont, $baseSize);
+            $this->drawDataRow($page, $row, $startXPt, $y, $widthsPt, $rowHeightPt, $rowPaddingPt, $rowIndex, $baseFont, $baseSize, $fontState);
             $y += $rowHeightPt;
             $rowCount++;
             $rowIndex++;
         }
 
-        $page->setFont($baseFont, $baseSize);
+        $page->restoreFontState($fontState);
         return [$y, $rowCount, $pageCount, $page];
     }
 
@@ -102,12 +104,7 @@ final class TableRenderer
     private function rowPaddingPt(Page $page): CellPadding
     {
         $p = $this->style->rowPadding ?? CellPadding::all($page->fromPt(2.0));
-        return new CellPadding(
-            $page->toPt($p->top),
-            $page->toPt($p->right),
-            $page->toPt($p->bottom),
-            $page->toPt($p->left),
-        );
+        return $page->paddingToPt($p);
     }
 
     private function columnPaddingPt(Page $page, Column $col): ?CellPadding
@@ -115,17 +112,14 @@ final class TableRenderer
         if ($col->padding === null) {
             return null;
         }
-        $p = $col->padding;
-        return new CellPadding(
-            $page->toPt($p->top),
-            $page->toPt($p->right),
-            $page->toPt($p->bottom),
-            $page->toPt($p->left),
-        );
+        return $page->paddingToPt($col->padding);
     }
 
-    /** @param list<float> $widthsPt */
-    private function drawHeaderRow(Page $page, float $xPt, float $yPt, array $widthsPt, CellPadding $padPt, Font $baseFont, float $baseSize): float
+    /**
+     * @param list<float> $widthsPt
+     * @param array{font: ?Font, size: ?float, leading: ?float, engine: ?FontEngine} $fontState
+     */
+    private function drawHeaderRow(Page $page, float $xPt, float $yPt, array $widthsPt, CellPadding $padPt, Font $baseFont, float $baseSize, array $fontState): float
     {
         $height = 0.0;
         $i = 0;
@@ -138,11 +132,11 @@ final class TableRenderer
             $i++;
         }
 
+        $border = $this->borderForCell($page, true);
         $cx = $xPt;
         $i = 0;
         foreach ($this->columns as $col) {
             $rs = self::resolveCellStyle($col->header ?? '', [], $col, Cell::of($col->header ?? ''), $this->style, -1, true);
-            $border = $this->borderForCell($page, true);
             $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
             $colPad = $this->columnPaddingPt($page, $col) ?? $padPt;
             $page->drawTableCell($cx, $yPt, $widthsPt[$i], $height, $col->header ?? '', $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $col->verticalAlign, $colPad);
@@ -150,15 +144,16 @@ final class TableRenderer
             $i++;
         }
 
-        $page->setFont($baseFont, $baseSize);
+        $page->restoreFontState($fontState);
         return $yPt + $height;
     }
 
     /**
      * @param array<string, mixed> $row
      * @param list<float> $widthsPt
+     * @param array{font: ?Font, size: ?float, leading: ?float, engine: ?FontEngine} $fontState
      */
-    private function measureRowHeightPt(Page $page, array $row, array $widthsPt, CellPadding $padPt, Font $baseFont, float $baseSize): float
+    private function measureRowHeightPt(Page $page, array $row, array $widthsPt, CellPadding $padPt, Font $baseFont, float $baseSize, array $fontState): float
     {
         $height = 0.0;
         $i = 0;
@@ -179,23 +174,24 @@ final class TableRenderer
             $height = max($height, $cellH);
             $i++;
         }
-        $page->setFont($baseFont, $baseSize);
+        $page->restoreFontState($fontState);
         return $height;
     }
 
     /**
      * @param array<string, mixed> $row
      * @param list<float> $widthsPt
+     * @param array{font: ?Font, size: ?float, leading: ?float, engine: ?FontEngine} $fontState
      */
-    private function drawDataRow(Page $page, array $row, float $xPt, float $yPt, array $widthsPt, float $rowHeightPt, CellPadding $padPt, int $rowIndex, Font $baseFont, float $baseSize): void
+    private function drawDataRow(Page $page, array $row, float $xPt, float $yPt, array $widthsPt, float $rowHeightPt, CellPadding $padPt, int $rowIndex, Font $baseFont, float $baseSize, array $fontState): void
     {
+        $border = $this->borderForCell($page, false);
         $cx = $xPt;
         $i = 0;
         foreach ($this->columns as $col) {
             $cell = $this->cellFor($row, $col);
             $value = $row[$col->key] ?? '';
             $rs = self::resolveCellStyle($value, $row, $col, $cell, $this->style, $rowIndex, false);
-            $border = $this->borderForCell($page, false);
             $colPad = $this->columnPaddingPt($page, $col) ?? $padPt;
 
             $image = $cell->image;
@@ -212,7 +208,7 @@ final class TableRenderer
             $cx += $widthsPt[$i];
             $i++;
         }
-        $page->setFont($baseFont, $baseSize);
+        $page->restoreFontState($fontState);
     }
 
     /** @param array<string, mixed> $row */
