@@ -4,6 +4,7 @@ namespace DragonOfMercy\PhpPdf\Table;
 
 use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\CellPadding;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Image;
@@ -156,11 +157,13 @@ final class TableRenderer
     private function measureRowHeightPt(Page $page, array $row, array $widthsPt, CellPadding $padPt, Font $baseFont, float $baseSize, array $fontState): float
     {
         $height = 0.0;
+        $count = count($this->columns);
         $i = 0;
-        foreach ($this->columns as $col) {
-            $cell = $this->cellFor($row, $col);
+        while ($i < $count) {
+            [$cell, $mergedWidth, $span] = $this->spanAt($row, $widthsPt, $i);
+            $col = $this->columns[$i];
             $colPad = $this->columnPaddingPt($page, $col) ?? $padPt;
-            $innerW = max(0.0, $widthsPt[$i] - $colPad->left - $colPad->right);
+            $innerW = max(0.0, $mergedWidth - $colPad->left - $colPad->right);
             $image = $cell->image;
             if ($cell->isImage() && $image !== null) {
                 $reqW = $cell->imageWidth !== null ? $page->toPt($cell->imageWidth) : null;
@@ -172,10 +175,34 @@ final class TableRenderer
                 $cellH = $page->tableTextHeightPt($cell->text, $innerW) + $colPad->top + $colPad->bottom;
             }
             $height = max($height, $cellH);
-            $i++;
+            $i += $span;
         }
         $page->restoreFontState($fontState);
         return $height;
+    }
+
+    /**
+     * Resolve the anchor cell, merged width, and span at column index $i.
+     *
+     * @param array<string, mixed> $row
+     * @param list<float> $widthsPt
+     * @return array{0: Cell, 1: float, 2: int}
+     */
+    private function spanAt(array $row, array $widthsPt, int $i): array
+    {
+        $col = $this->columns[$i];
+        $cell = $this->cellFor($row, $col);
+        $span = max(1, $cell->colSpan);
+        if ($i + $span > count($this->columns)) {
+            throw new PdfException(
+                'Cell colSpan ' . $cell->colSpan . " at column '" . $col->key . "' exceeds the table column count (" . count($this->columns) . ')'
+            );
+        }
+        $mergedWidth = 0.0;
+        for ($k = $i; $k < $i + $span; $k++) {
+            $mergedWidth += $widthsPt[$k];
+        }
+        return [$cell, $mergedWidth, $span];
     }
 
     /**
@@ -187,9 +214,11 @@ final class TableRenderer
     {
         $border = $this->borderForCell($page, false);
         $cx = $xPt;
+        $count = count($this->columns);
         $i = 0;
-        foreach ($this->columns as $col) {
-            $cell = $this->cellFor($row, $col);
+        while ($i < $count) {
+            [$cell, $mergedWidth, $span] = $this->spanAt($row, $widthsPt, $i);
+            $col = $this->columns[$i];
             $value = $row[$col->key] ?? '';
             $rs = self::resolveCellStyle($value, $row, $col, $cell, $this->style, $rowIndex, false);
             $colPad = $this->columnPaddingPt($page, $col) ?? $padPt;
@@ -197,16 +226,16 @@ final class TableRenderer
             $image = $cell->image;
             if ($cell->isImage() && $image !== null) {
                 // Background + border first (empty text), then the image on top.
-                $page->drawTableCell($cx, $yPt, $widthsPt[$i], $rowHeightPt, '', $border, $rs->fill, null, $col->align, $col->verticalAlign, $colPad);
+                $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, '', $border, $rs->fill, null, $col->align, $col->verticalAlign, $colPad);
                 $reqW = $cell->imageWidth !== null ? $page->toPt($cell->imageWidth) : null;
                 $reqH = $cell->imageHeight !== null ? $page->toPt($cell->imageHeight) : null;
-                $page->drawTableImage($cx, $yPt, $widthsPt[$i], $rowHeightPt, $image, $reqW, $reqH, $cell->align ?? TextAlign::CENTER, $cell->verticalAlign ?? VerticalAlign::MIDDLE, $colPad);
+                $page->drawTableImage($cx, $yPt, $mergedWidth, $rowHeightPt, $image, $reqW, $reqH, $cell->align ?? TextAlign::CENTER, $cell->verticalAlign ?? VerticalAlign::MIDDLE, $colPad);
             } else {
                 $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
-                $page->drawTableCell($cx, $yPt, $widthsPt[$i], $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad);
+                $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad);
             }
-            $cx += $widthsPt[$i];
-            $i++;
+            $cx += $mergedWidth;
+            $i += $span;
         }
         $page->restoreFontState($fontState);
     }

@@ -150,4 +150,44 @@ final class PageTableTest extends TestCase
         self::assertStringContainsString('%PDF-', $pdf);
         self::assertGreaterThan(0, strlen($pdf));
     }
+
+    public function testColSpanOverflowThrows(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('colSpan');
+        $page->table(
+            columns: [
+                Column::of('a', 'A')->width(30.0),
+                Column::of('b', 'B')->width(30.0),
+            ],
+            rows: [
+                ['a' => Cell::of('too wide')->colSpan(3)],
+            ],
+            x: 10.0, y: 20.0, width: 60.0,
+        );
+    }
+
+    public function testColSpanRendersWithoutError(): void
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+        $result = $page->table(
+            columns: [
+                Column::of('a', 'A')->width(30.0),
+                Column::of('b', 'B')->width(30.0),
+                Column::of('c', 'C')->width(30.0),
+            ],
+            rows: [
+                ['a' => Cell::of('full width banner')->colSpan(3)],
+                ['a' => '1', 'b' => '2', 'c' => '3'],
+            ],
+            x: 10.0, y: 20.0, width: 90.0,
+        );
+        self::assertSame(2, $result->rowCount);
+    }
 }
