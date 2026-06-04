@@ -191,6 +191,16 @@ final class Operators
         return '<' . $hexBytes . "> '\n";
     }
 
+    /**
+     * Emits a TJ array operator. The caller supplies the fully formatted array
+     * body (string elements already delimited as ( ) or < >, interleaved with
+     * adjustment numbers in thousandths of a text-space unit).
+     */
+    public static function showTextArray(string $arrayBody): string
+    {
+        return '[' . $arrayBody . "] TJ\n";
+    }
+
     private static function num(float $value): string
     {
         return PdfNumber::ofFloat($value)->toBytes();
