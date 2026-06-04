@@ -6,6 +6,8 @@ namespace DragonOfMercy\PhpPdf;
 
 use DragonOfMercy\PhpPdf\Barcode\{Barcode, Orientation, OrientableBarcode, SizedBarcode};
 use DragonOfMercy\PhpPdf\Border;
+use DragonOfMercy\PhpPdf\ColumnFill;
+use DragonOfMercy\PhpPdf\Page\ColumnLayout;
 use DragonOfMercy\PhpPdf\CellResult;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
@@ -1101,6 +1103,9 @@ final class Page
         ?float $h = null,
         NextPosition $ln = NextPosition::RIGHT,
     ): self {
+        if ($this->document?->columnLayout() !== null) {
+            throw new PdfException('image() is not supported inside a columns() block in this version');
+        }
         if ($w !== null && $w <= 0.0) {
             throw new PdfException("Image width must be positive, got {$w}");
         }
@@ -1169,6 +1174,9 @@ final class Page
         ?float $h = null,
         NextPosition $ln = NextPosition::NONE,
     ): self {
+        if ($this->document?->columnLayout() !== null) {
+            throw new PdfException('barcode() is not supported inside a columns() block in this version');
+        }
         if ($w === null && $code instanceof SizedBarcode) {
             $w = $code->intrinsicWidth();
         }
@@ -1214,6 +1222,9 @@ final class Page
         ?TableStyle $style = null,
         NextPosition $ln = NextPosition::BELOW,
     ): TableResult {
+        if ($this->document?->columnLayout() !== null) {
+            throw new PdfException('table() is not supported inside a columns() block in this version');
+        }
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before table()');
         }
@@ -1237,6 +1248,94 @@ final class Page
             pageCount: $pageCount,
             page: $finalPage,
         );
+    }
+
+    /**
+     * Flows cell() and markdown() content across $count equal-width columns.
+     * Inside $render, omitted x/width default to the current column; content
+     * fills a column to the bottom margin, then the next column, then a new page
+     * (SEQUENTIAL). After the block, full-width flow resumes with the cursor below
+     * the lowest column content on the final page.
+     */
+    public function columns(
+        int $count,
+        float $gap = 0.0,
+        ColumnFill $fill = ColumnFill::SEQUENTIAL,
+        ?callable $render = null,
+    ): self {
+        if ($this->document === null) {
+            throw new PdfException('columns() requires the page to belong to a Document');
+        }
+        if ($this->document->columnLayout() !== null) {
+            throw new PdfException('columns() cannot be nested');
+        }
+        if ($fill === ColumnFill::BALANCED) {
+            throw new PdfException('ColumnFill::BALANCED is not yet implemented');
+        }
+        if ($render === null) {
+            return $this;
+        }
+
+        $contentWidthPt = $this->pageWidth
+            - $this->toPt($this->margins->left)
+            - $this->toPt($this->margins->right);
+        $layout = ColumnLayout::compute(
+            $count,
+            $this->toPt($gap),
+            $this->toPt($this->margins->left),
+            $this->toPt($this->margins->top),
+            $contentWidthPt,
+            $fill,
+        );
+
+        $this->document->beginColumns($layout);
+        $this->setXY($this->fromPt($layout->leftPtForColumn(0)), $this->fromPt($layout->topPt));
+        try {
+            $render($this->document->getCurrentPage());
+        } finally {
+            $bottomPt = $this->document->columnPageBottomPt();
+            $finalPage = $this->document->getCurrentPage();
+            $this->document->endColumns();
+            $finalPage->setXY($this->margins->left, $this->fromPt($bottomPt));
+        }
+
+        return $this;
+    }
+
+    /**
+     * Forces flow to continue at the top of the next column (or the next page when
+     * already in the last column). Only valid inside a columns() block.
+     */
+    public function columnBreak(): self
+    {
+        if ($this->document === null || $this->document->columnLayout() === null) {
+            throw new PdfException('columnBreak() is only valid inside a columns() block');
+        }
+        $this->advanceColumnFlow();
+        return $this;
+    }
+
+    /**
+     * Advances column flow: to the next column on the same page, or - when in the
+     * last column - to a new page's column 0. Assumes an active column layout.
+     * @internal
+     */
+    private function advanceColumnFlow(): Page
+    {
+        $doc = $this->document;
+        assert($doc !== null);
+        $layout = $doc->columnLayout();
+        assert($layout !== null);
+
+        $index = $doc->columnIndex();
+        if ($index < $layout->count - 1) {
+            $next = $index + 1;
+            $doc->setColumnIndex($next);
+            $page = $doc->getCurrentPage();
+            $page->setXY($this->fromPt($layout->leftPtForColumn($next)), $this->fromPt($layout->topPt));
+            return $page;
+        }
+        return $doc->addPage();
     }
 
     /**
