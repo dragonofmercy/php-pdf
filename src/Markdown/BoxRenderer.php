@@ -854,6 +854,12 @@ final class BoxRenderer
         return $page->unit->toPoints($value);
     }
 
+    /**
+     * Points-to-unit conversion for y, width, and height. For a HORIZONTAL x
+     * position (a left edge, x1, or x2) use {@see emitX} instead, so the active
+     * flow's column x-shift is applied - otherwise content will not move into
+     * the correct column.
+     */
     private function fromPt(Page $page, float $value): float
     {
         return $page->unit->fromPoints($value);

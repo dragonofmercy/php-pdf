@@ -534,8 +534,8 @@ final class Page
         // Inside a columns() block, earlier content may have flowed onto a newer
         // page than the one a render callback captured; always draw on the
         // document's current page so nothing lands on a stale page.
-        $current = $this->document?->columnLayout() !== null ? $this->document->getCurrentPage() : null;
-        if ($current !== null && $current !== $this) {
+        $current = $this->columnRedirectTarget();
+        if ($current !== null) {
             return $current->cell($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln, $markdown);
         }
 
@@ -689,8 +689,8 @@ final class Page
         // Inside a columns() block, earlier content may have flowed onto a newer
         // page than the one a render callback captured; always draw on the
         // document's current page so nothing lands on a stale page.
-        $current = $this->document?->columnLayout() !== null ? $this->document->getCurrentPage() : null;
-        if ($current !== null && $current !== $this) {
+        $current = $this->columnRedirectTarget();
+        if ($current !== null) {
             return $current->markdown($markdown, $x, $y, $width, $style, $ln);
         }
 
@@ -1384,6 +1384,20 @@ final class Page
         }
         $this->advanceColumnFlow();
         return $this;
+    }
+
+    /**
+     * The page draws should be redirected to: inside a columns() block, content
+     * may have flowed onto a newer page than the one a render callback captured.
+     * Returns the document's current page when it differs from this one, else null.
+     */
+    private function columnRedirectTarget(): ?Page
+    {
+        if ($this->document?->columnLayout() === null) {
+            return null;
+        }
+        $current = $this->document->getCurrentPage();
+        return $current !== $this ? $current : null;
     }
 
     /**
