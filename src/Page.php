@@ -531,6 +531,14 @@ final class Page
         NextPosition $ln = NextPosition::RIGHT,
         bool $markdown = false,
     ): CellResult {
+        // Inside a columns() block, earlier content may have flowed onto a newer
+        // page than the one a render callback captured; always draw on the
+        // document's current page so nothing lands on a stale page.
+        $current = $this->document?->columnLayout() !== null ? $this->document->getCurrentPage() : null;
+        if ($current !== null && $current !== $this) {
+            return $current->cell($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln, $markdown);
+        }
+
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before cell()');
         }
@@ -678,6 +686,14 @@ final class Page
         ?MarkdownStyle $style = null,
         NextPosition $ln = NextPosition::BELOW,
     ): self {
+        // Inside a columns() block, earlier content may have flowed onto a newer
+        // page than the one a render callback captured; always draw on the
+        // document's current page so nothing lands on a stale page.
+        $current = $this->document?->columnLayout() !== null ? $this->document->getCurrentPage() : null;
+        if ($current !== null && $current !== $this) {
+            return $current->markdown($markdown, $x, $y, $width, $style, $ln);
+        }
+
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before markdown()');
         }
@@ -1390,7 +1406,11 @@ final class Page
             $page->setXY($this->fromPt($layout->leftPtForColumn($next)), $this->fromPt($layout->topPt));
             return $page;
         }
-        return $doc->addPage();
+        $newPage = $doc->addPage();
+        if ($this->textState->currentFont() !== null) {
+            $newPage->setFont($this->getFont(), $this->getFontSize());
+        }
+        return $newPage;
     }
 
     /**
@@ -1617,6 +1637,14 @@ final class Page
         $bottomLimitPt = $this->pageHeight - $this->toPt($this->document?->margins()->bottom ?? 0.0);
 
         if ($resolvedYPt + $estimatedHeightPt <= $bottomLimitPt + self::OVERFLOW_EPSILON_PT) {
+            return null;
+        }
+
+        // A cell that is already at the very top of the column is drawn there
+        // even if it is taller than the column, to avoid silently skipping a
+        // column (mirrors the same guard in FlowBreaker).
+        $layout = $this->document?->columnLayout();
+        if ($layout !== null && $resolvedYPt <= $layout->topPt + self::OVERFLOW_EPSILON_PT) {
             return null;
         }
 
