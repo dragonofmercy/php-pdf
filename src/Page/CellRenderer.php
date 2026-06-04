@@ -258,7 +258,7 @@ final class CellRenderer
         foreach ($lines as $i => $line) {
             $lineWidth = $widths[$i];
             $lineX = match ($align) {
-                TextAlign::LEFT   => $cellX + $padding->left,
+                TextAlign::LEFT, TextAlign::JUSTIFY => $cellX + $padding->left,
                 TextAlign::CENTER => $cellX + ($cellW - $lineWidth) / 2.0,
                 TextAlign::RIGHT  => $cellX + $cellW - $padding->right - $lineWidth,
             };

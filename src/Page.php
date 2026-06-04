@@ -1006,7 +1006,7 @@ final class Page
 
         // Horizontal alignment inside the inner box.
         $offsetX = match ($align) {
-            TextAlign::LEFT => 0.0,
+            TextAlign::LEFT, TextAlign::JUSTIFY => 0.0,
             TextAlign::CENTER => ($innerW - $drawW) / 2.0,
             TextAlign::RIGHT => $innerW - $drawW,
         };
