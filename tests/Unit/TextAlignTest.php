@@ -12,9 +12,16 @@ final class TextAlignTest extends TestCase
     public function testCasesExist(): void
     {
         $cases = TextAlign::cases();
-        self::assertCount(3, $cases);
+        self::assertCount(4, $cases);
         self::assertContains(TextAlign::LEFT, $cases);
         self::assertContains(TextAlign::CENTER, $cases);
         self::assertContains(TextAlign::RIGHT, $cases);
+        self::assertContains(TextAlign::JUSTIFY, $cases);
+    }
+
+    public function testJustifyCaseExists(): void
+    {
+        $names = array_map(static fn (TextAlign $c): string => $c->name, TextAlign::cases());
+        self::assertContains('JUSTIFY', $names);
     }
 }

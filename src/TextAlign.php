@@ -12,4 +12,5 @@ enum TextAlign
     case LEFT;
     case CENTER;
     case RIGHT;
+    case JUSTIFY;
 }
