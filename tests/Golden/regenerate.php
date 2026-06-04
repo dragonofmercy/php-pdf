@@ -1022,6 +1022,14 @@ if (is_file(__DIR__ . '/assets/fonts/FreeSans.ttf')) {
     echo "Skipped page/cell-justify-custom.pdf (FreeSans asset absent)\n";
 }
 
+// Multi-column golden fixtures (Task 7)
+file_put_contents($fixturesDir . '/page/columns-cells.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\ColumnsGoldenTest::buildCells());
+echo "Regenerated page/columns-cells.pdf\n";
+file_put_contents($fixturesDir . '/page/columns-markdown-1page.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\ColumnsGoldenTest::buildMarkdown1Page());
+echo "Regenerated page/columns-markdown-1page.pdf\n";
+file_put_contents($fixturesDir . '/page/columns-markdown-2pages.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\ColumnsGoldenTest::buildMarkdown2Pages());
+echo "Regenerated page/columns-markdown-2pages.pdf\n";
+
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
     mkdir($svgFixturesDir, 0755, true);
