@@ -147,10 +147,7 @@ final class TableRenderer
             $colStart = 0;
             foreach ($groups as $g) {
                 if (!$g->isSpacer()) {
-                    $mergedW = 0.0;
-                    for ($k = $colStart; $k < $colStart + $g->span; $k++) {
-                        $mergedW += $widthsPt[$k];
-                    }
+                    $mergedW = self::mergedWidthPt($widthsPt, $colStart, $g->span);
                     $innerW = max(0.0, $mergedW - $padPt->left - $padPt->right);
                     $this->applyFont($page, $baseFont, $baseSize, ($g->bold ?? $this->style->headerBold) === true);
                     $bandH = max($bandH, $page->tableTextHeightPt($g->label, $innerW) + $padPt->top + $padPt->bottom);
@@ -166,10 +163,7 @@ final class TableRenderer
             $cx = $xPt;
             $colStart = 0;
             foreach ($groups as $g) {
-                $mergedW = 0.0;
-                for ($k = $colStart; $k < $colStart + $g->span; $k++) {
-                    $mergedW += $widthsPt[$k];
-                }
+                $mergedW = self::mergedWidthPt($widthsPt, $colStart, $g->span);
                 if (!$g->isSpacer()) {
                     $this->applyFont($page, $baseFont, $baseSize, ($g->bold ?? $this->style->headerBold) === true);
                     $page->drawTableCell($cx, $yPt, $mergedW, $bandH, $g->label, $border, $g->fill ?? $this->style->headerFill, $g->textColor ?? $this->style->headerTextColor, $g->align, VerticalAlign::MIDDLE, $padPt);
@@ -287,11 +281,21 @@ final class TableRenderer
                 'Cell colSpan ' . $cell->colSpan . " at column '" . $col->key . "' exceeds the table column count (" . count($this->columns) . ')'
             );
         }
-        $mergedWidth = 0.0;
-        for ($k = $i; $k < $i + $span; $k++) {
-            $mergedWidth += $widthsPt[$k];
+        return [$cell, self::mergedWidthPt($widthsPt, $i, $span), $span];
+    }
+
+    /**
+     * Sum the widths of `$span` columns starting at index `$start`.
+     *
+     * @param list<float> $widthsPt
+     */
+    private static function mergedWidthPt(array $widthsPt, int $start, int $span): float
+    {
+        $width = 0.0;
+        for ($k = $start; $k < $start + $span; $k++) {
+            $width += $widthsPt[$k];
         }
-        return [$cell, $mergedWidth, $span];
+        return $width;
     }
 
     /**
