@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Table;
 
 use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
@@ -58,5 +59,32 @@ final class CellTest extends TestCase
         self::assertInstanceOf(Image::class, $c->image);
         self::assertSame(8.0, $c->imageWidth);
         self::assertNull($c->imageHeight);
+    }
+
+    public function testColSpanDefaultsToOne(): void
+    {
+        self::assertSame(1, Cell::of('x')->colSpan);
+    }
+
+    public function testColSpanSetsValueImmutably(): void
+    {
+        $base = Cell::of('x');
+        $spanned = $base->colSpan(3);
+        self::assertSame(3, $spanned->colSpan);
+        self::assertSame(1, $base->colSpan, 'original Cell must be unchanged');
+    }
+
+    public function testColSpanPreservesOtherFields(): void
+    {
+        $cell = Cell::of('x')->bold()->colSpan(2);
+        self::assertSame(2, $cell->colSpan);
+        self::assertTrue($cell->bold);
+    }
+
+    public function testColSpanBelowOneThrows(): void
+    {
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Cell colSpan must be >= 1, got 0');
+        Cell::of('x')->colSpan(0);
     }
 }

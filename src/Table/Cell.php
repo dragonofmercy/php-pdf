@@ -4,6 +4,7 @@ namespace DragonOfMercy\PhpPdf\Table;
 
 use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\Color;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
@@ -26,6 +27,7 @@ final readonly class Cell
         public ?Color $textColor = null,
         public ?Color $fill = null,
         public ?CellPadding $padding = null,
+        public int $colSpan = 1,
     ) {}
 
     public static function of(string|\Stringable $text): self
@@ -51,6 +53,14 @@ final readonly class Cell
     public function bold(bool $bold = true): self
     {
         return $this->copy(bold: $bold);
+    }
+
+    public function colSpan(int $n): self
+    {
+        if ($n < 1) {
+            throw new PdfException('Cell colSpan must be >= 1, got ' . $n);
+        }
+        return $this->copy(colSpan: $n);
     }
 
     public function align(TextAlign $align): self
@@ -85,6 +95,7 @@ final readonly class Cell
         ?Color $textColor = null,
         ?Color $fill = null,
         ?CellPadding $padding = null,
+        ?int $colSpan = null,
     ): self {
         return new self(
             text: $this->text,
@@ -97,6 +108,7 @@ final readonly class Cell
             textColor: $textColor ?? $this->textColor,
             fill: $fill ?? $this->fill,
             padding: $padding ?? $this->padding,
+            colSpan: $colSpan ?? $this->colSpan,
         );
     }
 }
