@@ -116,15 +116,10 @@ final readonly class StandardFontEngine implements FontEngine
         float $size,
     ): void {
         $adj = $size === 0.0 ? 0.0 : -$extraPerGapPt / $size * 1000.0;
-        $adjBytes = PdfNumber::ofFloat($adj)->toBytes();
-        $body = '';
-        $last = count($segments) - 1;
-        foreach ($segments as $i => $segment) {
-            $body .= PdfString::of(WinAnsiEncoder::encode($segment))->toBytes();
-            if ($i !== $last) {
-                $body .= $adjBytes;
-            }
-        }
-        $stream->append(Operators::showTextArray($body));
+        $elements = array_map(
+            static fn (string $segment): string => PdfString::of(WinAnsiEncoder::encode($segment))->toBytes(),
+            $segments,
+        );
+        $stream->append(Operators::showTextArray(implode(PdfNumber::ofFloat($adj)->toBytes(), $elements)));
     }
 }

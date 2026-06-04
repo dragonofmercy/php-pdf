@@ -265,29 +265,25 @@ final class CellRenderer
 
         foreach ($lines as $i => $line) {
             $lineWidth = $widths[$i];
-            $isJustified = ($justify[$i] ?? false);
 
             $segments = [];
-            $gaps = 0;
-            $justifyWidth = $lineWidth;
-            if ($isJustified) {
+            $extraPerGap = 0.0;
+            $doJustify = false;
+            if ($justify[$i] ?? false) {
                 $trimmed = rtrim($line);
-                $justifyWidth = $engine->measure($trimmed, $effectiveSize);
                 $parts = preg_split('/(\s+)/u', $trimmed, -1, PREG_SPLIT_DELIM_CAPTURE);
                 $parts = $parts === false ? [$trimmed] : $parts;
                 $count = count($parts);
                 for ($p = 0; $p < $count; $p += 2) {
-                    $word = $parts[$p];
-                    $ws = $parts[$p + 1] ?? '';
-                    if ($ws !== '') {
-                        $gaps++;
-                    }
-                    $segments[] = $word . $ws;
+                    $segments[] = ($parts[$p] ?? '') . ($parts[$p + 1] ?? '');
+                }
+                $gaps = count($segments) - 1;
+                $extra = $innerW - $engine->measure($trimmed, $effectiveSize);
+                if ($gaps > 0 && $extra > 0.0001) {
+                    $doJustify = true;
+                    $extraPerGap = $extra / $gaps;
                 }
             }
-
-            $extra = $innerW - $justifyWidth;
-            $doJustify = $isJustified && $gaps > 0 && $extra > 0.0001;
 
             $lineX = $doJustify
                 ? $cellX + $padding->left
@@ -304,7 +300,7 @@ final class CellRenderer
             }
 
             if ($doJustify) {
-                $engine->emitJustifiedLine($this->stream, $segments, $extra / $gaps, $effectiveSize);
+                $engine->emitJustifiedLine($this->stream, $segments, $extraPerGap, $effectiveSize);
             } else {
                 $engine->emitShowText($this->stream, $line);
             }

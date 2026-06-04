@@ -140,15 +140,10 @@ final readonly class CustomFontEngine implements FontEngine
         float $size,
     ): void {
         $adj = $size === 0.0 ? 0.0 : -$extraPerGapPt / $size * 1000.0;
-        $adjBytes = PdfNumber::ofFloat($adj)->toBytes();
-        $body = '';
-        $last = count($segments) - 1;
-        foreach ($segments as $i => $segment) {
-            $body .= '<' . $this->encodeHex($segment) . '>';
-            if ($i !== $last) {
-                $body .= $adjBytes;
-            }
-        }
-        $stream->append(Operators::showTextArray($body));
+        $elements = array_map(
+            fn (string $segment): string => '<' . $this->encodeHex($segment) . '>',
+            $segments,
+        );
+        $stream->append(Operators::showTextArray(implode(PdfNumber::ofFloat($adj)->toBytes(), $elements)));
     }
 }
