@@ -269,9 +269,12 @@ final class CellRenderer
 
             $segments = [];
             $gaps = 0;
+            $justifyWidth = $lineWidth;
             if ($isJustified) {
-                $parts = preg_split('/(\s+)/u', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
-                $parts = $parts === false ? [$line] : $parts;
+                $trimmed = rtrim($line);
+                $justifyWidth = $engine->measure($trimmed, $effectiveSize);
+                $parts = preg_split('/(\s+)/u', $trimmed, -1, PREG_SPLIT_DELIM_CAPTURE);
+                $parts = $parts === false ? [$trimmed] : $parts;
                 $count = count($parts);
                 for ($p = 0; $p < $count; $p += 2) {
                     $word = $parts[$p];
@@ -283,7 +286,7 @@ final class CellRenderer
                 }
             }
 
-            $extra = $innerW - $lineWidth;
+            $extra = $innerW - $justifyWidth;
             $doJustify = $isJustified && $gaps > 0 && $extra > 0.0001;
 
             $lineX = $doJustify
