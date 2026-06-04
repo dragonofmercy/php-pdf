@@ -40,6 +40,7 @@ use DragonOfMercy\PhpPdf\Image\SvgMetadata;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
+use DragonOfMercy\PhpPdf\Page\ColumnLayout;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\AppendedFieldRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
@@ -161,6 +162,10 @@ final class Document
 
     /** @var list<AttachedFile> */
     private array $attachments = [];
+
+    private ?ColumnLayout $columnLayout = null;
+    private int $columnIndex = 0;
+    private float $columnPageBottomPt = 0.0;
 
     public function __construct(public readonly Unit $unit = Unit::MM)
     {
@@ -344,6 +349,52 @@ final class Document
     public function autoPageBreak(): bool
     {
         return $this->autoPageBreak;
+    }
+
+    public function columnLayout(): ?ColumnLayout
+    {
+        return $this->columnLayout;
+    }
+
+    public function columnIndex(): int
+    {
+        return $this->columnIndex;
+    }
+
+    /** @internal Begin column flow with the given layout (set by Page::columns()). */
+    public function beginColumns(ColumnLayout $layout): void
+    {
+        $this->columnLayout = $layout;
+        $this->columnIndex = 0;
+        $this->columnPageBottomPt = $layout->topPt;
+    }
+
+    /** @internal End column flow. */
+    public function endColumns(): void
+    {
+        $this->columnLayout = null;
+        $this->columnIndex = 0;
+        $this->columnPageBottomPt = 0.0;
+    }
+
+    /** @internal */
+    public function setColumnIndex(int $index): void
+    {
+        $this->columnIndex = $index;
+    }
+
+    /** @internal Record the lowest content bottom reached on the current page. */
+    public function recordColumnBottomPt(float $bottomPt): void
+    {
+        if ($bottomPt > $this->columnPageBottomPt) {
+            $this->columnPageBottomPt = $bottomPt;
+        }
+    }
+
+    /** @internal The lowest content bottom on the current page during column flow. */
+    public function columnPageBottomPt(): float
+    {
+        return $this->columnPageBottomPt;
     }
 
     public function pageCount(): int
@@ -663,6 +714,15 @@ final class Document
         }
         // Position cursor at the top-left of the content area (inside margins).
         $page->setXY($this->margins->left, $this->margins->top);
+        if ($this->columnLayout !== null) {
+            // Column flow continues on the new page starting at column 0.
+            $this->columnIndex = 0;
+            $this->columnPageBottomPt = $this->columnLayout->topPt;
+            $page->setXY(
+                $this->unit->fromPoints($this->columnLayout->leftPtForColumn(0)),
+                $this->unit->fromPoints($this->columnLayout->topPt),
+            );
+        }
         $this->pages[] = $page;
         return $page;
     }
