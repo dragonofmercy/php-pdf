@@ -50,7 +50,7 @@ $pdf->save('out.pdf');
 
 Full usage documentation lives in the [wiki](https://github.com/dragonofmercy/php-pdf/wiki):
 
-- [Getting Started](https://github.com/dragonofmercy/php-pdf/wiki/Getting-Started)
+- [Getting Started](https://github.com/dragonofmercy/php-pdf/wiki/Getting-Started), [Examples](https://github.com/dragonofmercy/php-pdf/wiki/Examples)
 - [Text and Fonts](https://github.com/dragonofmercy/php-pdf/wiki/Text-and-Fonts), [Cells](https://github.com/dragonofmercy/php-pdf/wiki/Cells), [Tables](https://github.com/dragonofmercy/php-pdf/wiki/Tables), [Graphics](https://github.com/dragonofmercy/php-pdf/wiki/Graphics), [Images](https://github.com/dragonofmercy/php-pdf/wiki/Images)
 - [Barcodes and QR Codes](https://github.com/dragonofmercy/php-pdf/wiki/Barcodes-and-QR-Codes), [SVG Support](https://github.com/dragonofmercy/php-pdf/wiki/SVG-Support)
 - [Markdown](https://github.com/dragonofmercy/php-pdf/wiki/Markdown), [Bookmarks and Hyperlinks](https://github.com/dragonofmercy/php-pdf/wiki/Bookmarks-and-Hyperlinks), [Viewer Preferences](https://github.com/dragonofmercy/php-pdf/wiki/Viewer-Preferences), [Metadata and Encryption](https://github.com/dragonofmercy/php-pdf/wiki/Metadata-and-Encryption)

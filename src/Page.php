@@ -634,10 +634,12 @@ final class Page
      * ATOMICALLY on the current page (it may overflow the page; this is the
      * documented fallback, matching the no-break contract of cell(markdown:)).
      *
-     * After rendering, the cursor is advanced on the FINAL page per $ln (NONE
-     * leaves it untouched). Returns the page the method was called on for
-     * chaining, regardless of how many pages the content spanned. An empty
-     * $markdown is a no-op.
+     * After rendering, the cursor is advanced on the FINAL page per $ln. The
+     * default is BELOW (cursor moves to the block's left edge, just under the
+     * content) so consecutive markdown()/cell() calls flow down the page; pass
+     * NONE to leave the cursor untouched. Returns the page the method was called
+     * on for chaining, regardless of how many pages the content spanned. An
+     * empty $markdown is a no-op.
      */
     public function markdown(
         string $markdown,
@@ -645,7 +647,7 @@ final class Page
         ?float $y = null,
         ?float $width = null,
         ?MarkdownStyle $style = null,
-        NextPosition $ln = NextPosition::NONE,
+        NextPosition $ln = NextPosition::BELOW,
     ): self {
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before markdown()');
@@ -1210,7 +1212,7 @@ final class Page
         ?float $y = null,
         ?float $width = null,
         ?TableStyle $style = null,
-        NextPosition $ln = NextPosition::NONE,
+        NextPosition $ln = NextPosition::BELOW,
     ): TableResult {
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before table()');

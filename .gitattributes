@@ -3,3 +3,7 @@
 # bytes on checkout and breaks the byte-compare tests. Treat all PDFs as binary.
 *.pdf binary
 resources/icc/*.icc binary
+
+# Dev-only assets kept out of the Composer dist archive (composer require uses
+# the dist tarball, which honours export-ignore).
+/examples export-ignore

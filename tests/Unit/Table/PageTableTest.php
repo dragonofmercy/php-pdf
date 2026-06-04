@@ -39,6 +39,22 @@ final class PageTableTest extends TestCase
         self::assertGreaterThan(30.0, $result->y); // advanced below the start
     }
 
+    public function testDefaultLnAdvancesCursorBelowTheTable(): void
+    {
+        // The default cursor behaviour is BELOW: after a table the cursor sits at
+        // the table's left edge, just under the last row.
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+        $page->table(
+            columns: [Column::of('k', 'K')->fill()],
+            rows: [['k' => 'a'], ['k' => 'b']],
+            x: 20.0, y: 30.0, width: 170.0,
+        );
+        self::assertEqualsWithDelta(20.0, $page->getX(), 1e-9);
+        self::assertGreaterThan(30.0, $page->getY());
+    }
+
     public function testCursorAdvanceWithLnBelow(): void
     {
         $doc = new Document();

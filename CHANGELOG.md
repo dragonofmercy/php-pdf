@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `Page::markdown()` and `Page::table()` now advance the cursor below the
+  rendered block by default (`$ln` defaults to `NextPosition::BELOW` instead of
+  `NextPosition::NONE`). Consecutive flowing calls now stack down the page
+  naturally instead of overwriting each other. Pass `ln: NextPosition::NONE` to
+  keep the cursor in place. `Page::barcode()` is unchanged, and
+  `TableResult::$y` still reports the position just below the last row.
+
 ## [1.4.0] - 2026-06-03
 
 ### Added

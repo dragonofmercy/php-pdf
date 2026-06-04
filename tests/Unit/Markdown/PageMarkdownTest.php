@@ -98,4 +98,17 @@ final class PageMarkdownTest extends TestCase
         }
         self::assertSame($count, $total);
     }
+
+    public function testDefaultLnAdvancesCursorBelowTheBlock(): void
+    {
+        // The default cursor behaviour is BELOW: after a markdown block the
+        // cursor sits at the block's left edge, just under the rendered content,
+        // so a following markdown()/cell() flows naturally beneath it.
+        $doc = new Document(Unit::MM);
+        $p = $doc->addPage();
+        $p->setFont(Font::helvetica(), 11.0);
+        $p->markdown("# Title\n\nA paragraph of body text.", x: 20.0, y: 30.0, width: 120.0);
+        self::assertEqualsWithDelta(20.0, $p->getX(), 1e-9);
+        self::assertGreaterThan(30.0, $p->getY());
+    }
 }
