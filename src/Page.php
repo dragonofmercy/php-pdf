@@ -548,6 +548,29 @@ final class Page
         // explode-on-\n in the renderer, which WinAnsiEncoder maps to '?'.
         $text = self::normalizeNewlines($text);
 
+        // When inside a columns() block, default x to the active column's left
+        // edge and default w to the column width so that callers do not have to
+        // hard-code geometry that depends on the layout.
+        $columnLayout = $this->document?->columnLayout();
+        if ($columnLayout !== null && !$this->inHeaderRender) {
+            if ($x === null) {
+                $x = $this->fromPt($columnLayout->leftPtForColumn($this->document->columnIndex()));
+            }
+            if ($w === null && $text !== '') {
+                $w = $this->fromPt($columnLayout->widthPt);
+            }
+        }
+
+        // Column overflow: when inside a columns() block and the cell would
+        // exceed the page bottom, flow to the next column (or new page col 0)
+        // regardless of whether autoPageBreak is active.
+        if ($columnLayout !== null && !$this->inHeaderRender) {
+            $colOverflow = $this->maybeColumnOverflow($y, $h, $text, $x, $w, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln);
+            if ($colOverflow !== null) {
+                return $colOverflow;
+            }
+        }
+
         // Auto-page-break: when active and we are not currently rendering a
         // header, check whether this cell would overflow the bottom margin
         // and if so, delegate to a new page.
@@ -607,6 +630,10 @@ final class Page
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
         $this->cursor->advance($ln, $xPt, $yPt, $result->effectiveWidth, $result->height);
+
+        if ($this->document?->columnLayout() !== null) {
+            $this->document->recordColumnBottomPt($yPt + $result->height);
+        }
 
         return new CellResult(
             x: $this->fromPt($result->x),
@@ -1517,6 +1544,78 @@ final class Page
             );
         } finally {
             $newPage->inHeaderRender = false;
+        }
+    }
+
+    /**
+     * Column overflow check for cells inside a columns() block. Runs regardless
+     * of autoPageBreak. When the cell would exceed the page bottom, advances to
+     * the next column (or a new page's column 0) and renders there, returning
+     * the result. Returns null when no column overflow is needed. Assumes an
+     * active column layout and !$this->inHeaderRender at the call site.
+     * $text must already be newline-normalized.
+     */
+    private function maybeColumnOverflow(
+        ?float $y,
+        ?float $h,
+        string $text,
+        ?float $x,
+        ?float $w,
+        ?Border $border,
+        ?Color $fill,
+        ?Color $textColor,
+        TextAlign $align,
+        VerticalAlign $verticalAlign,
+        Fit $fit,
+        float|CellPadding|null $padding,
+        NextPosition $ln,
+    ): ?CellResult {
+        $resolvedYPt = $y !== null
+            ? $this->toPt($y)
+            : ($this->cursor->yPt() ?? null);
+
+        if ($resolvedYPt === null) {
+            return null;
+        }
+
+        $estimatedHeightPt = $h !== null
+            ? $this->toPt($h)
+            : $this->estimateCellHeightPt(
+                $text,
+                $this->textState->getFontSize(),
+                $this->textState->customLeading(),
+            );
+
+        $bottomLimitPt = $this->pageHeight - $this->toPt($this->document?->margins()->bottom ?? 0.0);
+
+        if ($resolvedYPt + $estimatedHeightPt <= $bottomLimitPt + self::OVERFLOW_EPSILON_PT) {
+            return null;
+        }
+
+        // Advance to the next column (or new page col 0) and re-render there.
+        // Pass x: null so the target cell picks up the new column's left edge;
+        // pass inHeaderRender=true as a one-shot recursion guard (a cell taller
+        // than a full column draws where it lands instead of looping).
+        $targetPage = $this->advanceColumnFlow();
+        $targetPage->inHeaderRender = true;
+        try {
+            return $targetPage->cell(
+                x: null,
+                y: null,
+                w: $w,
+                h: $h,
+                text: $text,
+                border: $border,
+                fill: $fill,
+                textColor: $textColor,
+                align: $align,
+                verticalAlign: $verticalAlign,
+                fit: $fit,
+                padding: $padding,
+                ln: $ln,
+            );
+        } finally {
+            $targetPage->inHeaderRender = false;
         }
     }
 
