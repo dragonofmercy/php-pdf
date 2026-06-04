@@ -20,12 +20,16 @@ final class ColumnsGoldenTest extends TestCase
 
     public static function buildCells(): string
     {
+        // Page 300x200 pt, margins 10pt -> content 280x180.
+        // 2 cols gap 12 -> colWidth=(280-12)/2=134, col0 left=10, col1 left=156.
+        // Row h=16 -> floor(180/16)=11 rows fit per column. 18 rows: ~11 in col0, ~7 in col1.
         $doc = new Document(Unit::PT);
-        $page = $doc->addPage();
+        $doc->setMargins(10.0);
+        $page = $doc->addPage([300.0, 200.0]);
         $page->setFont(Font::helvetica(), 11.0);
         $page->columns(2, gap: 12.0, render: function (Page $p): void {
-            for ($i = 1; $i <= 24; $i++) {
-                $p->cell(text: 'Row ' . $i . ' - some ascii words here', h: 16.0, border: Border::all(), ln: NextPosition::BELOW);
+            for ($i = 1; $i <= 18; $i++) {
+                $p->cell(text: 'Row ' . $i . ' item', h: 16.0, border: Border::all(), ln: NextPosition::BELOW);
             }
         });
         return $doc->output();
@@ -53,11 +57,15 @@ final class ColumnsGoldenTest extends TestCase
 
     public static function buildMarkdown1Page(): string
     {
+        // Page 300x440 pt, margins 10pt -> content 280x420.
+        // 2 cols gap 12 -> colWidth=134, col0 left=10, col1 left=156.
+        // Article is long enough to overflow col0 into col1 but short enough to stay on 1 page.
         $article = <<<'MD'
 ## Introduction
 
 This document demonstrates multi-column markdown rendering in phppdf.
-The text flows from the first column into the second column seamlessly.
+The text flows from the first column into the second column seamlessly
+as content fills each column top to bottom before advancing to the next.
 
 ## Features
 
@@ -67,14 +75,24 @@ and bullet lists. The cursor advances automatically when a column is full.
 - Item one: fast column-aware layout engine
 - Item two: automatic page break when all columns are full
 - Item three: compatible with all standard markdown constructs
+- Item four: headings rendered in bold at scaled font sizes
+- Item five: paragraphs wrap within the column width boundary
+
+## Details
+
+Each column receives its own content area derived from the page margins
+and the gap width. The engine positions the cursor at the top of the next
+column when the current column overflows, without any caller intervention.
+Inline emphasis and strong emphasis use the standard 14 font variants.
 
 ## Conclusion
 
 The multi-column layout works correctly for single-page documents where
-the total content fits within two columns on one A4 page.
+the total content fits within two columns on a single compact page.
 MD;
         $doc = new Document(Unit::PT);
-        $page = $doc->addPage();
+        $doc->setMargins(10.0);
+        $page = $doc->addPage([300.0, 440.0]);
         $page->setFont(Font::helvetica(), 11.0);
         $page->columns(2, gap: 12.0, render: fn (Page $p) => $p->markdown($article));
         return $doc->output();
@@ -102,6 +120,9 @@ MD;
 
     public static function buildMarkdown2Pages(): string
     {
+        // Page 300x400 pt, margins 10pt -> content 280x380.
+        // 2 cols gap 12 -> colWidth=134, col0 left=10, col1 left=156.
+        // Long article fills both columns of page 1 and overflows onto page 2.
         $section = <<<'MD'
 ## Section A: Background
 
@@ -147,7 +168,8 @@ No column-awareness is required in the callback itself; the engine handles
 all the geometry automatically behind the scenes.
 MD;
         $doc = new Document(Unit::PT);
-        $page = $doc->addPage();
+        $doc->setMargins(10.0);
+        $page = $doc->addPage([300.0, 400.0]);
         $page->setFont(Font::helvetica(), 11.0);
         $page->columns(2, gap: 12.0, render: fn (Page $p) => $p->markdown($section));
         return $doc->output();
