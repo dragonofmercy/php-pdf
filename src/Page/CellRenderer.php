@@ -55,6 +55,7 @@ final class CellRenderer
         $effectiveLeading = $customLeading ?? ($size * 1.2);
         $scales = null;
         $autoWidth = $w === null;
+        $justifyFlags = [];
 
         // Auto-width: Fit::NONE still needs a paragraph-level widest scan to
         // size the cell before tokenized wrapping. CONDENSE and SHRINK measure
@@ -78,6 +79,7 @@ final class CellRenderer
                     $wrap = $this->wrapText($text, $innerW, $engine, $size);
                     $lines = $wrap->lines;
                     $widths = $wrap->widths;
+                    $justifyFlags = $wrap->justify;
                     $brokenWords = $wrap->brokenWords;
                     break;
 
@@ -133,11 +135,13 @@ final class CellRenderer
         }
 
         if ($text !== '') {
+            $justifyActive = $align === TextAlign::JUSTIFY && $fit === Fit::NONE && !$autoWidth;
             $this->emitText(
                 engine: $engine,
                 lines: $lines,
                 widths: $widths,
                 scales: $scales,
+                justify: $justifyActive ? $justifyFlags : [],
                 effectiveSize: $effectiveSize,
                 effectiveLeading: $effectiveLeading,
                 cellX: $x,
@@ -216,12 +220,14 @@ final class CellRenderer
      * @param list<string> $lines
      * @param list<float> $widths
      * @param list<float>|null $scales
+     * @param list<bool> $justify
      */
     private function emitText(
         FontEngine $engine,
         array $lines,
         array $widths,
         ?array $scales,
+        array $justify,
         float $effectiveSize,
         float $effectiveLeading,
         float $cellX,
@@ -251,23 +257,54 @@ final class CellRenderer
             $this->stream->append($textColor->toPdfOperator(stroke: false));
         }
 
+        $innerW = max(0.0, $cellW - $padding->left - $padding->right);
+
         $this->stream->append(Operators::beginText());
         $this->stream->append(Operators::setFontAndSize($fontShortName, $effectiveSize));
         $this->stream->append(Operators::setTextLeading($effectiveLeading));
 
         foreach ($lines as $i => $line) {
             $lineWidth = $widths[$i];
-            $lineX = match ($align) {
-                TextAlign::LEFT, TextAlign::JUSTIFY => $cellX + $padding->left,
-                TextAlign::CENTER => $cellX + ($cellW - $lineWidth) / 2.0,
-                TextAlign::RIGHT  => $cellX + $cellW - $padding->right - $lineWidth,
-            };
+            $isJustified = ($justify[$i] ?? false);
+
+            $segments = [];
+            $gaps = 0;
+            if ($isJustified) {
+                $parts = preg_split('/(\s+)/u', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+                $parts = $parts === false ? [$line] : $parts;
+                $count = count($parts);
+                for ($p = 0; $p < $count; $p += 2) {
+                    $word = $parts[$p];
+                    $ws = $parts[$p + 1] ?? '';
+                    if ($ws !== '') {
+                        $gaps++;
+                    }
+                    $segments[] = $word . $ws;
+                }
+            }
+
+            $extra = $innerW - $lineWidth;
+            $doJustify = $isJustified && $gaps > 0 && $extra > 0.0001;
+
+            $lineX = $doJustify
+                ? $cellX + $padding->left
+                : match ($align) {
+                    TextAlign::LEFT, TextAlign::JUSTIFY => $cellX + $padding->left,
+                    TextAlign::CENTER                   => $cellX + ($cellW - $lineWidth) / 2.0,
+                    TextAlign::RIGHT                    => $cellX + $cellW - $padding->right - $lineWidth,
+                };
+
             $lineBaseline = $firstBaseline + $i * $effectiveLeading;
             $this->stream->append(Operators::textMatrix(1, 0, 0, -1, $lineX, $lineBaseline));
             if ($scales !== null) {
                 $this->stream->append(Operators::setHorizontalScaling($scales[$i]));
             }
-            $engine->emitShowText($this->stream, $line);
+
+            if ($doJustify) {
+                $engine->emitJustifiedLine($this->stream, $segments, $extra / $gaps, $effectiveSize);
+            } else {
+                $engine->emitShowText($this->stream, $line);
+            }
         }
 
         $this->stream->append(Operators::endText());
