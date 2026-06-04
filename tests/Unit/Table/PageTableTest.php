@@ -190,4 +190,45 @@ final class PageTableTest extends TestCase
         );
         self::assertSame(2, $result->rowCount);
     }
+
+    public function testColumnGroupsSpanMismatchThrows(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 11.0);
+
+        $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
+        $this->expectExceptionMessage('Column groups span');
+        $page->table(
+            columns: [
+                \DragonOfMercy\PhpPdf\Table\Column::of('a', 'A')->width(30.0),
+                \DragonOfMercy\PhpPdf\Table\Column::of('b', 'B')->width(30.0),
+            ],
+            rows: [['a' => '1', 'b' => '2']],
+            x: 10.0, y: 20.0, width: 60.0,
+            style: \DragonOfMercy\PhpPdf\Table\TableStyle::default()
+                ->withColumnGroups(\DragonOfMercy\PhpPdf\Table\ColumnGroup::of('G', 3)),
+        );
+    }
+
+    public function testGroupedHeaderRenders(): void
+    {
+        $doc = new \DragonOfMercy\PhpPdf\Document();
+        $page = $doc->addPage();
+        $page->setFont(\DragonOfMercy\PhpPdf\Font::helvetica(), 11.0);
+        $result = $page->table(
+            columns: [
+                \DragonOfMercy\PhpPdf\Table\Column::of('name', 'Name')->width(40.0),
+                \DragonOfMercy\PhpPdf\Table\Column::of('jan', 'Jan')->width(20.0),
+                \DragonOfMercy\PhpPdf\Table\Column::of('feb', 'Feb')->width(20.0),
+            ],
+            rows: [['name' => 'Alice', 'jan' => '1', 'feb' => '2']],
+            x: 10.0, y: 20.0, width: 80.0,
+            style: \DragonOfMercy\PhpPdf\Table\TableStyle::default()->withColumnGroups(
+                \DragonOfMercy\PhpPdf\Table\ColumnGroup::spacer(),
+                \DragonOfMercy\PhpPdf\Table\ColumnGroup::of('Q1', 2),
+            ),
+        );
+        self::assertSame(1, $result->rowCount);
+    }
 }

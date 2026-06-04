@@ -47,13 +47,18 @@ final class TableRenderer
         $widthsUnit = self::distributeWidths($this->columns, $unitWidth);
         $widthsPt = array_map(static fn (float $w): float => $page->toPt($w), $widthsUnit);
 
-        $hasHeader = false;
+        $hasColumnHeader = false;
         foreach ($this->columns as $col) {
             if ($col->header !== null) {
-                $hasHeader = true;
+                $hasColumnHeader = true;
                 break;
             }
         }
+        $groups = $this->style->columnGroups;
+        if ($groups !== null) {
+            $this->validateGroups($groups);
+        }
+        $hasHeader = $hasColumnHeader || $groups !== null;
 
         $rowPaddingPt = $this->rowPaddingPt($page);
         $fontState = $page->captureFontState();
@@ -122,31 +127,115 @@ final class TableRenderer
      */
     private function drawHeaderRow(Page $page, float $xPt, float $yPt, array $widthsPt, CellPadding $padPt, Font $baseFont, float $baseSize, array $fontState): float
     {
-        $height = 0.0;
+        $groups = $this->style->columnGroups;
+
+        // Per-column header row height (unchanged measurement).
+        $headerH = 0.0;
         $i = 0;
         foreach ($this->columns as $col) {
             $colPad = $this->columnPaddingPt($page, $col) ?? $padPt;
             $innerW = max(0.0, $widthsPt[$i] - $colPad->left - $colPad->right);
             $rs = self::resolveCellStyle($col->header ?? '', [], $col, Cell::of($col->header ?? ''), $this->style, -1, true);
             $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
-            $height = max($height, $page->tableTextHeightPt($col->header ?? '', $innerW) + $colPad->top + $colPad->bottom);
+            $headerH = max($headerH, $page->tableTextHeightPt($col->header ?? '', $innerW) + $colPad->top + $colPad->bottom);
             $i++;
         }
 
+        // Band height (0 when no groups), measured over labeled groups only.
+        $bandH = 0.0;
+        if ($groups !== null) {
+            $colStart = 0;
+            foreach ($groups as $g) {
+                if (!$g->isSpacer()) {
+                    $mergedW = 0.0;
+                    for ($k = $colStart; $k < $colStart + $g->span; $k++) {
+                        $mergedW += $widthsPt[$k];
+                    }
+                    $innerW = max(0.0, $mergedW - $padPt->left - $padPt->right);
+                    $this->applyFont($page, $baseFont, $baseSize, ($g->bold ?? $this->style->headerBold) === true);
+                    $bandH = max($bandH, $page->tableTextHeightPt($g->label, $innerW) + $padPt->top + $padPt->bottom);
+                }
+                $colStart += $g->span;
+            }
+        }
+
         $border = $this->borderForCell($page, true);
+
+        // Draw labeled band cells at the top band.
+        if ($groups !== null && $bandH > 0.0) {
+            $cx = $xPt;
+            $colStart = 0;
+            foreach ($groups as $g) {
+                $mergedW = 0.0;
+                for ($k = $colStart; $k < $colStart + $g->span; $k++) {
+                    $mergedW += $widthsPt[$k];
+                }
+                if (!$g->isSpacer()) {
+                    $this->applyFont($page, $baseFont, $baseSize, ($g->bold ?? $this->style->headerBold) === true);
+                    $page->drawTableCell($cx, $yPt, $mergedW, $bandH, $g->label, $border, $g->fill ?? $this->style->headerFill, $g->textColor ?? $this->style->headerTextColor, $g->align, VerticalAlign::MIDDLE, $padPt);
+                }
+                $cx += $mergedW;
+                $colStart += $g->span;
+            }
+        }
+
+        // Draw per-column headers. Spacer columns rise across band + header.
+        $spacerColumns = $this->spacerColumnSet($groups);
         $cx = $xPt;
         $i = 0;
         foreach ($this->columns as $col) {
             $rs = self::resolveCellStyle($col->header ?? '', [], $col, Cell::of($col->header ?? ''), $this->style, -1, true);
             $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
             $colPad = $this->columnPaddingPt($page, $col) ?? $padPt;
-            $page->drawTableCell($cx, $yPt, $widthsPt[$i], $height, $col->header ?? '', $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $col->verticalAlign, $colPad);
+            $isSpacer = isset($spacerColumns[$i]);
+            $cellY = $isSpacer ? $yPt : $yPt + $bandH;
+            $cellH = $isSpacer ? $bandH + $headerH : $headerH;
+            $page->drawTableCell($cx, $cellY, $widthsPt[$i], $cellH, $col->header ?? '', $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $col->verticalAlign, $colPad);
             $cx += $widthsPt[$i];
             $i++;
         }
 
         $page->restoreFontState($fontState);
-        return $yPt + $height;
+        return $yPt + $bandH + $headerH;
+    }
+
+    /**
+     * @param list<ColumnGroup> $groups
+     */
+    private function validateGroups(array $groups): void
+    {
+        $sum = 0;
+        foreach ($groups as $g) {
+            $sum += $g->span;
+        }
+        $count = count($this->columns);
+        if ($sum !== $count) {
+            throw new PdfException('Column groups span ' . $sum . ' columns but the table has ' . $count);
+        }
+    }
+
+    /**
+     * Column indices covered by a spacer group (label === '').
+     *
+     * @param list<ColumnGroup>|null $groups
+     * @return array<int, true>
+     */
+    private function spacerColumnSet(?array $groups): array
+    {
+        $set = [];
+        if ($groups === null) {
+            return $set;
+        }
+        $colStart = 0;
+        foreach ($groups as $g) {
+            if ($g->isSpacer()) {
+                for ($k = $colStart; $k < $colStart + $g->span; $k++) {
+                    $set[$k] = true;
+                }
+            }
+            $colStart += $g->span;
+        }
+        return $set;
     }
 
     /**
