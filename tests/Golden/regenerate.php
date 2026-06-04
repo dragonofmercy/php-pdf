@@ -1008,6 +1008,10 @@ file_put_contents($fixturesDir . '/table/table-avatars.pdf', \DragonOfMercy\PhpP
 echo "Regenerated table/table-avatars.pdf\n";
 file_put_contents($fixturesDir . '/table/table-justify.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildJustified());
 echo "Regenerated table/table-justify.pdf\n";
+file_put_contents($fixturesDir . '/table/table-colspan.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildColspan());
+echo "Regenerated table/table-colspan.pdf\n";
+file_put_contents($fixturesDir . '/table/table-grouped-header.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildGroupedHeader());
+echo "Regenerated table/table-grouped-header.pdf\n";
 
 // Justified cell fixtures (Task 6)
 if (!is_dir($fixturesDir . '/page')) {

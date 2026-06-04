@@ -10,6 +10,7 @@ use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Table\Cell;
 use DragonOfMercy\PhpPdf\Table\CellStyle;
 use DragonOfMercy\PhpPdf\Table\Column;
+use DragonOfMercy\PhpPdf\Table\ColumnGroup;
 use DragonOfMercy\PhpPdf\Table\TableBorders;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
 use DragonOfMercy\PhpPdf\TextAlign;
@@ -247,6 +248,102 @@ final class TableGoldenTest extends TestCase
             self::markTestSkipped('qpdf not on PATH');
         }
         $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-justify.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
+    // --- Cell spanning: colspan ---
+
+    public static function buildColspan(): string
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+        $page->table(
+            columns: [
+                Column::of('a', 'Q1')->width(40.0)->align(TextAlign::RIGHT),
+                Column::of('b', 'Q2')->width(40.0)->align(TextAlign::RIGHT),
+                Column::of('c', 'Q3')->width(40.0)->align(TextAlign::RIGHT),
+            ],
+            rows: [
+                ['a' => '100', 'b' => '120', 'c' => '90'],
+                ['a' => '110', 'b' => '130', 'c' => '95'],
+                ['a' => Cell::of('Total year: 870')->colSpan(3)->bold()->align(TextAlign::CENTER)],
+            ],
+            x: 20.0, y: 30.0, width: 120.0,
+            style: TableStyle::default()
+                ->withBorder(TableBorders::GRID)
+                ->withHeader(fill: Color::gray(238), bold: true),
+        );
+        return $doc->output();
+    }
+
+    public function testColspanMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/table/table-colspan.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildColspan(), 'table-colspan.pdf diverges; regenerate if intended.');
+    }
+
+    public function testColspanPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-colspan.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
+    // --- Cell spanning: grouped header ---
+
+    public static function buildGroupedHeader(): string
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+        $page->table(
+            columns: [
+                Column::of('name', 'Name')->width(40.0),
+                Column::of('jan', 'Jan')->width(20.0)->align(TextAlign::RIGHT),
+                Column::of('feb', 'Feb')->width(20.0)->align(TextAlign::RIGHT),
+                Column::of('mar', 'Mar')->width(20.0)->align(TextAlign::RIGHT),
+                Column::of('apr', 'Apr')->width(20.0)->align(TextAlign::RIGHT),
+                Column::of('may', 'May')->width(20.0)->align(TextAlign::RIGHT),
+                Column::of('jun', 'Jun')->width(20.0)->align(TextAlign::RIGHT),
+            ],
+            rows: [
+                ['name' => 'Alice', 'jan' => '1', 'feb' => '2', 'mar' => '3', 'apr' => '4', 'may' => '5', 'jun' => '6'],
+                ['name' => 'Bob',   'jan' => '7', 'feb' => '8', 'mar' => '9', 'apr' => '1', 'may' => '2', 'jun' => '3'],
+            ],
+            x: 20.0, y: 30.0, width: 160.0,
+            style: TableStyle::default()
+                ->withBorder(TableBorders::GRID)
+                ->withHeader(fill: Color::gray(238), bold: true)
+                ->withColumnGroups(
+                    ColumnGroup::spacer(),
+                    ColumnGroup::of('Q1', 3)->fill(Color::gray(220)),
+                    ColumnGroup::of('Q2', 3)->fill(Color::gray(220)),
+                ),
+        );
+        return $doc->output();
+    }
+
+    public function testGroupedHeaderMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/table/table-grouped-header.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildGroupedHeader(), 'table-grouped-header.pdf diverges; regenerate if intended.');
+    }
+
+    public function testGroupedHeaderPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-grouped-header.pdf']);
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
