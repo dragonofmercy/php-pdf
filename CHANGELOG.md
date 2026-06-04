@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Table cell spanning: `Cell::colSpan($n)` spans a data cell across `$n`
+  adjacent columns (covered column keys in the row are ignored; border and fill
+  cover the merged width). `TableStyle::withColumnGroups(ColumnGroup ...)` adds a
+  grouped-header band above the per-column header row, where each `ColumnGroup`
+  labels a span of columns; `ColumnGroup::spacer()` lets a standalone column's
+  header rise across both bands. Groups must cover every column exactly. Vertical
+  spanning (rowspan) is not yet supported.
 - Multi-column text flow: `Page::columns($count, gap, fill, render)` runs a
   scoped block in which `cell()` and `markdown()` wrap to the column width and
   fill each column top-to-bottom before advancing to the next column, then to a
