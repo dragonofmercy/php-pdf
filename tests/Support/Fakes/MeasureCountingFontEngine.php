@@ -82,4 +82,16 @@ final class MeasureCountingFontEngine implements FontEngine
     {
         return $this->inner->usageKey();
     }
+
+    /**
+     * @param list<string> $segments
+     */
+    public function emitJustifiedLine(
+        ContentStream $stream,
+        array $segments,
+        float $extraPerGapPt,
+        float $size,
+    ): void {
+        $this->inner->emitJustifiedLine($stream, $segments, $extraPerGapPt, $size);
+    }
 }

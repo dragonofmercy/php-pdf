@@ -7,6 +7,8 @@ namespace DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
 use DragonOfMercy\PhpPdf\Page\Operators;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 
 /**
  * FontEngine for the 12 standard PDF fonts. Backed by FontMetrics; emits
@@ -105,5 +107,24 @@ final readonly class StandardFontEngine implements FontEngine
     public function usageKey(): string
     {
         return $this->font->pdfName();
+    }
+
+    public function emitJustifiedLine(
+        ContentStream $stream,
+        array $segments,
+        float $extraPerGapPt,
+        float $size,
+    ): void {
+        $adj = $size === 0.0 ? 0.0 : -$extraPerGapPt / $size * 1000.0;
+        $adjBytes = PdfNumber::ofFloat($adj)->toBytes();
+        $body = '';
+        $last = count($segments) - 1;
+        foreach ($segments as $i => $segment) {
+            $body .= PdfString::of(WinAnsiEncoder::encode($segment))->toBytes();
+            if ($i !== $last) {
+                $body .= $adjBytes;
+            }
+        }
+        $stream->append(Operators::showTextArray($body));
     }
 }

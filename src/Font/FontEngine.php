@@ -52,4 +52,19 @@ interface FontEngine
 
     /** Stable key for Page::$fontsUsed tracking. */
     public function usageKey(): string;
+
+    /**
+     * Appends a justified line as a single TJ array: the segments (each a word
+     * plus its trailing whitespace, in native encoding) interleaved with a gap
+     * adjustment of $extraPerGapPt points inserted after every segment but the
+     * last. $size is the active font size, used to convert points to TJ units.
+     *
+     * @param list<string> $segments
+     */
+    public function emitJustifiedLine(
+        ContentStream $stream,
+        array $segments,
+        float $extraPerGapPt,
+        float $size,
+    ): void;
 }

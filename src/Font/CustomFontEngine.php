@@ -12,6 +12,7 @@ use DragonOfMercy\PhpPdf\Font\Custom\Utf8;
 use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
 use DragonOfMercy\PhpPdf\Page\ContentStream;
 use DragonOfMercy\PhpPdf\Page\Operators;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 
 /**
  * FontEngine for custom TTF fonts. Wraps a ParsedTtf and emits Identity-H
@@ -130,5 +131,24 @@ final readonly class CustomFontEngine implements FontEngine
     public function usageKey(): string
     {
         return $this->key->toRegistryKey();
+    }
+
+    public function emitJustifiedLine(
+        ContentStream $stream,
+        array $segments,
+        float $extraPerGapPt,
+        float $size,
+    ): void {
+        $adj = $size === 0.0 ? 0.0 : -$extraPerGapPt / $size * 1000.0;
+        $adjBytes = PdfNumber::ofFloat($adj)->toBytes();
+        $body = '';
+        $last = count($segments) - 1;
+        foreach ($segments as $i => $segment) {
+            $body .= '<' . $this->encodeHex($segment) . '>';
+            if ($i !== $last) {
+                $body .= $adjBytes;
+            }
+        }
+        $stream->append(Operators::showTextArray($body));
     }
 }
