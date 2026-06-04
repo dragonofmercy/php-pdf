@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-column text flow: `Page::columns($count, gap, fill, render)` runs a
+  scoped block in which `cell()` and `markdown()` wrap to the column width and
+  fill each column top-to-bottom before advancing to the next column, then to a
+  new page (sequential fill, independent of `setAutoPageBreak`). `Page::columnBreak()`
+  forces the next column. Equal-width columns; `ColumnFill::BALANCED` is reserved
+  (throws until implemented); images / barcodes / tables are rejected inside the
+  block in this version.
 - Text justification: `TextAlign::JUSTIFY` fills each wrapped line to the cell's
   inner width by distributing the surplus space across inter-word gaps, for both
   `Page::cell()` and `Page::table()` columns. The last line of each paragraph
