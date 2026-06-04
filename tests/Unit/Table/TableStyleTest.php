@@ -7,6 +7,7 @@ use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\CellStyle;
+use DragonOfMercy\PhpPdf\Table\ColumnGroup;
 use DragonOfMercy\PhpPdf\Table\TableBorders;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
 use PHPUnit\Framework\TestCase;
@@ -72,5 +73,32 @@ final class TableStyleTest extends TestCase
         $cleared = $withFill->withHeader(bold: false);
         self::assertNull($cleared->headerFill);
         self::assertFalse($cleared->headerBold);
+    }
+
+    public function testColumnGroupsDefaultNull(): void
+    {
+        self::assertNull(TableStyle::default()->columnGroups);
+    }
+
+    public function testWithColumnGroupsImmutable(): void
+    {
+        $base = TableStyle::default();
+        $styled = $base->withColumnGroups(
+            ColumnGroup::spacer(),
+            ColumnGroup::of('Q1', 3),
+        );
+        self::assertNull($base->columnGroups, 'original must be unchanged');
+        self::assertIsArray($styled->columnGroups);
+        self::assertCount(2, $styled->columnGroups);
+        self::assertSame('Q1', $styled->columnGroups[1]->label);
+    }
+
+    public function testWithColumnGroupsPreservesOtherFields(): void
+    {
+        $styled = TableStyle::default()
+            ->withRepeatHeader(false)
+            ->withColumnGroups(ColumnGroup::of('A', 1));
+        self::assertFalse($styled->repeatHeader);
+        self::assertIsArray($styled->columnGroups);
     }
 }

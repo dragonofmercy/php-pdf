@@ -14,6 +14,9 @@ use DragonOfMercy\PhpPdf\Color;
  */
 final readonly class TableStyle
 {
+    /**
+     * @param list<ColumnGroup>|null $columnGroups
+     */
     public function __construct(
         public TableBorders $borders = TableBorders::GRID,
         public ?Border $borderStyle = null,
@@ -25,6 +28,7 @@ final readonly class TableStyle
         public mixed $cellStyle = null,
         public bool $repeatHeader = true,
         public ?CellPadding $rowPadding = null,
+        public ?array $columnGroups = null,
     ) {}
 
     public static function default(): self
@@ -34,38 +38,43 @@ final readonly class TableStyle
 
     public function withBorder(TableBorders $borders): self
     {
-        return new self(borders: $borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding);
+        return new self(borders: $borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: $this->columnGroups);
     }
 
     public function withBorderStyle(Border $b): self
     {
-        return new self(borders: $this->borders, borderStyle: $b, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding);
+        return new self(borders: $this->borders, borderStyle: $b, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: $this->columnGroups);
     }
 
     public function withHeader(?Color $fill = null, bool $bold = true, ?Color $textColor = null): self
     {
-        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $fill, headerBold: $bold, headerTextColor: $textColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding);
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $fill, headerBold: $bold, headerTextColor: $textColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: $this->columnGroups);
     }
 
     public function withZebra(Color $even, Color $odd): self
     {
-        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $even, zebraOdd: $odd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding);
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $even, zebraOdd: $odd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: $this->columnGroups);
     }
 
     /** @param CellStyleCallback $fn */
     public function withCellStyle(callable $fn): self
     {
-        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $fn, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding);
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $fn, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: $this->columnGroups);
     }
 
     public function withRepeatHeader(bool $repeat): self
     {
-        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $repeat, rowPadding: $this->rowPadding);
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $repeat, rowPadding: $this->rowPadding, columnGroups: $this->columnGroups);
     }
 
     public function withRowPadding(CellPadding $p): self
     {
-        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $p);
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $p, columnGroups: $this->columnGroups);
+    }
+
+    public function withColumnGroups(ColumnGroup ...$groups): self
+    {
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: array_values($groups));
     }
 
     /**
