@@ -5,5 +5,15 @@
 resources/icc/*.icc binary
 
 # Dev-only assets kept out of the Composer dist archive (composer require uses
-# the dist tarball, which honours export-ignore).
+# the dist tarball, which honours export-ignore). src/, resources/ (runtime ICC
+# profile), composer.json, LICENSE, README.md and CHANGELOG.md ship; everything
+# else here is development tooling and stays out.
+/.github export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/bin export-ignore
 /examples export-ignore
+/tests export-ignore
+/composer.lock export-ignore
+/phpstan.neon export-ignore
+/phpunit.xml export-ignore
