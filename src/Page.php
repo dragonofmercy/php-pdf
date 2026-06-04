@@ -688,9 +688,17 @@ final class Page
         $x = $this->cursor->resolveX($x, 'Markdown');
         $y = $this->cursor->resolveY($y, 'Markdown');
 
-        if ($width === null) {
+        $layout = $this->document?->columnLayout();
+        $columnFlowing = $layout !== null && !$this->inHeaderRender;
+
+        if ($columnFlowing) {
+            $startIndex = $this->document->columnIndex();
+            $x = $this->fromPt($layout->leftPtForColumn($startIndex));
+            $width = $this->fromPt($layout->widthPt);
+        } elseif ($width === null) {
             $width = $this->getPageWidth() - $this->margins->right - $x;
         }
+
         if ($width <= 0) {
             throw new PdfException('Markdown width must be positive, got ' . $width);
         }
@@ -708,7 +716,27 @@ final class Page
         try {
             $flowing = $this->document !== null && $this->document->autoPageBreak() && !$this->inHeaderRender;
 
-            if ($flowing) {
+            if ($columnFlowing) {
+                // Column-FLOW: opening the columns() block is the flow signal;
+                // autoPageBreak is not required. Each overflow advances to the
+                // next column (same page) or a fresh page's column 0.
+                // ($layout is non-null here: $columnFlowing = ($layout !== null) && ...)
+                $stepPt = $layout->stepPt;
+                $topMarginY = $this->fromPt($layout->topPt);
+                $finalPage = $this;
+                $onPageBreak = function () use ($bodyFont, $bodySize, $topMarginY, $startIndex, $stepPt, &$finalPage): array {
+                    $page = $this->advanceColumnFlow();
+                    $page->setFont($bodyFont, $bodySize);
+                    $finalPage = $page;
+                    $xShiftPt = ($this->document->columnIndex() - $startIndex) * $stepPt;
+                    return [$page, $topMarginY, $xShiftPt];
+                };
+
+                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak);
+                $finalStartTop = $finalPage === $this ? $y : $this->fromPt($layout->topPt);
+                $this->advanceMarkdownCursor($finalPage, $ln, $x, $y, $width, $consumedHeight, $finalStartTop);
+                $this->document->recordColumnBottomPt($this->toPt($finalStartTop) + $this->toPt($consumedHeight));
+            } elseif ($flowing) {
                 // FLOW: each break adds a page, re-applies the body font (addPage
                 // seeds the document default, which may differ), and continues at
                 // the document top margin.
@@ -718,7 +746,7 @@ final class Page
                     $newPage = $this->document->addPage();
                     $newPage->setFont($bodyFont, $bodySize);
                     $finalPage = $newPage;
-                    return [$newPage, $topMarginY];
+                    return [$newPage, $topMarginY, 0.0];
                 };
 
                 $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak);

@@ -31,14 +31,17 @@ final class FlowBreaker
     /** Bottom limit (points) of the active page: pageHeight minus its bottom margin. */
     private float $bottomLimitPt;
 
-    /** @var callable():array{0: Page, 1: float} */
+    /** @var callable():array{0: Page, 1: float, 2: float} */
     private $onPageBreak;
+
+    /** X-shift in points applied to horizontal emissions after the most recent break. */
+    private float $xShiftPt = 0.0;
 
     /**
      * @param float $topPt top Y (points) the content starts at on $page; used as
      *        the no-break baseline for {@see lastTopPt()} and the guard that
      *        prevents an infinite break loop on an over-tall first line.
-     * @param callable():array{0: Page, 1: float} $onPageBreak
+     * @param callable():array{0: Page, 1: float, 2: float} $onPageBreak
      */
     public function __construct(Page $page, float $topPt, callable $onPageBreak)
     {
@@ -65,6 +68,16 @@ final class FlowBreaker
     }
 
     /**
+     * X-shift in points to add to every horizontal emission after the most
+     * recent column/page break. Zero before the first break and when no column
+     * layout is active (regular page-break flow).
+     */
+    public function xShiftPt(): float
+    {
+        return $this->xShiftPt;
+    }
+
+    /**
      * Decides whether a line of height $lineHeightPt whose top sits at
      * $cursorYPt would overflow the active page's bottom limit. When it would,
      * triggers the callback (new page + continuation top), rebinds the active
@@ -85,9 +98,10 @@ final class FlowBreaker
             return $cursorYPt;
         }
 
-        [$newPage, $topY] = ($this->onPageBreak)();
+        [$newPage, $topY, $xShiftPt] = ($this->onPageBreak)();
         $this->page = $newPage;
         $this->topPt = $newPage->unit->toPoints($topY);
+        $this->xShiftPt = $xShiftPt;
         $this->bottomLimitPt = $this->bottomLimitOf($newPage);
 
         return $this->topPt;

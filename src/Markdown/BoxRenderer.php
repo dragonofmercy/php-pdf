@@ -75,11 +75,12 @@ final class BoxRenderer
      *        cursor math but skips every drawing emission (text / rect / line /
      *        image / link), returning the same consumed height. Used by callers
      *        that need to size a box before drawing its background/border.
-     * @param ?callable():array{0: Page, 1: float} $onPageBreak when $mode is
+     * @param ?callable():array{0: Page, 1: float, 2: float} $onPageBreak when $mode is
      *        FLOW and this is non-null, invoked before a line that would overflow
-     *        the page bottom limit; it must create/return the next page and the
-     *        top Y (document unit) to continue at. Ignored in ATOMIC mode or when
-     *        $measureOnly is true.
+     *        the page bottom limit; it must create/return the next page, the top
+     *        Y (document unit) to continue at, and the x-shift in points for
+     *        horizontal emissions on the new page/column. Ignored in ATOMIC mode
+     *        or when $measureOnly is true.
      * @return float consumed height in the page's document unit (on the FINAL
      *         page, when FLOW broke across pages)
      */
@@ -291,7 +292,7 @@ final class BoxRenderer
         if ($style->codeBackground !== null) {
             $page->setFillColor($style->codeBackground);
             $page->rect(
-                $this->fromPt($page, $xPt),
+                $this->emitX($page, $xPt),
                 $this->fromPt($page, $topPt),
                 $this->fromPt($page, $widthPt),
                 $this->fromPt($page, $sliceHeightPt),
@@ -305,7 +306,7 @@ final class BoxRenderer
             $baselinePt = $lineTopPt + $bodySizePt;
             $page->setFont($style->codeFont, $bodySizePt);
             $page->text(
-                $this->fromPt($page, $textXPt),
+                $this->emitX($page, $textXPt),
                 $this->fromPt($page, $baselinePt),
                 $line,
             );
@@ -539,7 +540,7 @@ final class BoxRenderer
             $markerPage->setFillColor($this->bodyColor());
             $markerPage->setFont($bodyFont, $bodySizePt);
             $markerPage->text(
-                $this->fromPt($markerPage, $markerXPt),
+                $this->emitX($markerPage, $markerXPt),
                 $this->fromPt($markerPage, $baselinePt),
                 $marker,
             );
@@ -583,9 +584,9 @@ final class BoxRenderer
         $page->setStrokeColor($this->bodyColor());
         $page->setLineWidth($this->fromPt($page, self::DEFAULT_THEMATIC_LINE_WIDTH_PT));
         $page->line(
-            $this->fromPt($page, $xPt),
+            $this->emitX($page, $xPt),
             $this->fromPt($page, $midPt),
-            $this->fromPt($page, $xPt + $widthPt),
+            $this->emitX($page, $xPt + $widthPt),
             $this->fromPt($page, $midPt),
         )->stroke();
 
@@ -642,7 +643,7 @@ final class BoxRenderer
             $page->setFillColor($run->color);
             $page->setFont($run->font, $run->sizePt);
             $page->text(
-                $this->fromPt($page, $segXPt),
+                $this->emitX($page, $segXPt),
                 $this->fromPt($page, $baselinePt),
                 $run->text,
             );
@@ -650,7 +651,7 @@ final class BoxRenderer
             if ($run->url !== null) {
                 $rectTopPt = $lineTopPt;
                 $page->link(
-                    $this->fromPt($page, $segXPt),
+                    $this->emitX($page, $segXPt),
                     $this->fromPt($page, $rectTopPt),
                     $this->fromPt($page, $segment->widthPt),
                     $this->fromPt($page, $line->heightPt),
@@ -662,9 +663,9 @@ final class BoxRenderer
                     $page->setStrokeColor($run->color);
                     $page->setLineWidth($this->fromPt($page, max($run->sizePt * 0.05, 0.2)));
                     $page->line(
-                        $this->fromPt($page, $segXPt),
+                        $this->emitX($page, $segXPt),
                         $this->fromPt($page, $underlinePt),
-                        $this->fromPt($page, $segXPt + $segment->widthPt),
+                        $this->emitX($page, $segXPt + $segment->widthPt),
                         $this->fromPt($page, $underlinePt),
                     )->stroke();
                 }
@@ -799,7 +800,7 @@ final class BoxRenderer
             }
             $page->image(
                 $image,
-                $this->fromPt($page, $xPt),
+                $this->emitX($page, $xPt),
                 $this->fromPt($page, $cursorYPt),
                 $this->fromPt($page, $drawnWPt),
                 $this->fromPt($page, $drawnHPt),
@@ -827,7 +828,7 @@ final class BoxRenderer
     {
         $page->setFillColor($style->blockQuoteBarColor);
         $page->rect(
-            $this->fromPt($page, $xPt),
+            $this->emitX($page, $xPt),
             $this->fromPt($page, $topPt),
             $this->fromPt($page, $barWidthPt),
             $this->fromPt($page, $barHeightPt),
@@ -856,5 +857,11 @@ final class BoxRenderer
     private function fromPt(Page $page, float $value): float
     {
         return $page->unit->fromPoints($value);
+    }
+
+    /** Horizontal coordinate conversion that adds the active flow's column x-shift. */
+    private function emitX(Page $page, float $xPt): float
+    {
+        return $this->fromPt($page, $xPt + ($this->flow?->xShiftPt() ?? 0.0));
     }
 }
