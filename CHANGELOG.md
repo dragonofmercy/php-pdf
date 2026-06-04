@@ -117,6 +117,9 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.4.1]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.4.1
+[1.4.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.4.0
+[1.3.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.3.0
 [1.2.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.2.0
 [1.1.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.1.0
 [1.0.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.0.0
