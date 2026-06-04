@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/dragonofmercy/php-pdf/main/.github/og-image.png" alt="phppdf - modern PHP 8.4 library for PDF generation" width="100%">
+</p>
+
 # phppdf
 
 [![CI](https://img.shields.io/github/actions/workflow/status/dragonofmercy/php-pdf/ci.yml?branch=main&label=CI)](https://github.com/dragonofmercy/php-pdf/actions/workflows/ci.yml)
