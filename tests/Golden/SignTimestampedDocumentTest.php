@@ -44,7 +44,14 @@ final class SignTimestampedDocumentTest extends TestCase
         if (preg_match('~/Contents <([0-9A-F]+)>~', $bytes, $m) !== 1) {
             self::fail('Contents not patched');
         }
-        $der = hex2bin(rtrim($m[1], '0'));
+        // The Contents placeholder is right-padded with '0' nibbles; trim them
+        // off, but keep an even length so hex2bin() never warns (the stripped
+        // padding never contains the OID we look for below).
+        $hex = rtrim($m[1], '0');
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+        $der = hex2bin($hex);
         self::assertIsString($der);
         $oid = Der::oid('1.2.840.113549.1.9.16.2.14');
         self::assertSame(1, substr_count($der, $oid), 'expected exactly one timeStampToken attribute');
