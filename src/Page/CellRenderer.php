@@ -279,12 +279,14 @@ final class CellRenderer
 
         $lines = [];
         $widths = [];
+        $justify = [];
         $brokenWords = 0;
 
         foreach ($paragraphs as $paragraph) {
             if ($paragraph === '') {
                 $lines[] = '';
                 $widths[] = 0.0;
+                $justify[] = false;
                 continue;
             }
 
@@ -310,6 +312,7 @@ final class CellRenderer
                 if ($isSpace) {
                     $lines[] = $currentLine;
                     $widths[] = $currentWidth;
+                    $justify[] = true;
                     $currentLine = '';
                     $currentWidth = 0.0;
                     continue;
@@ -318,6 +321,7 @@ final class CellRenderer
                 if ($currentLine !== '') {
                     $lines[] = $currentLine;
                     $widths[] = $currentWidth;
+                    $justify[] = true;
                     $currentLine = '';
                     $currentWidth = 0.0;
                 }
@@ -329,6 +333,7 @@ final class CellRenderer
                     for ($i = 0; $i < $lastIndex; $i++) {
                         $lines[] = $chunks[$i];
                         $widths[] = $chunkWidths[$i];
+                        $justify[] = true;
                     }
                     $currentLine = $chunks[$lastIndex];
                     $currentWidth = $chunkWidths[$lastIndex];
@@ -340,11 +345,13 @@ final class CellRenderer
 
             $lines[] = $currentLine;
             $widths[] = $currentWidth;
+            $justify[] = false;
         }
 
         return new WrapResult(
             lines: $lines,
             widths: $widths,
+            justify: $justify,
             brokenWords: $brokenWords,
             textOverflow: false,
         );

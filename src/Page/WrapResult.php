@@ -13,12 +13,15 @@ namespace DragonOfMercy\PhpPdf\Page;
 final readonly class WrapResult
 {
     /**
-     * @param list<string> $lines WinAnsi-encoded line bytes
-     * @param list<float>  $widths line widths in points
+     * @param list<string> $lines   line text (engine-encoding native)
+     * @param list<float>  $widths  line widths in points
+     * @param list<bool>   $justify per-line: true when the line may be justified
+     *                              (not the last line of its paragraph)
      */
     public function __construct(
         public array $lines,
         public array $widths,
+        public array $justify,
         public int $brokenWords,
         public bool $textOverflow,
     ) {}
