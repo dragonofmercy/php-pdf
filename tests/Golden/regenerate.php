@@ -1006,6 +1006,21 @@ file_put_contents($fixturesDir . '/table/table-paginated-noheader.pdf', \DragonO
 echo "Regenerated table/table-paginated*.pdf\n";
 file_put_contents($fixturesDir . '/table/table-avatars.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildAvatars());
 echo "Regenerated table/table-avatars.pdf\n";
+file_put_contents($fixturesDir . '/table/table-justify.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TableGoldenTest::buildJustified());
+echo "Regenerated table/table-justify.pdf\n";
+
+// Justified cell fixtures (Task 6)
+if (!is_dir($fixturesDir . '/page')) {
+    mkdir($fixturesDir . '/page', 0755, true);
+}
+file_put_contents($fixturesDir . '/page/cell-justify.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\CellJustifyGoldenTest::buildStandard());
+echo "Regenerated page/cell-justify.pdf\n";
+if (is_file(__DIR__ . '/assets/fonts/FreeSans.ttf')) {
+    file_put_contents($fixturesDir . '/page/cell-justify-custom.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\CellJustifyGoldenTest::buildCustom());
+    echo "Regenerated page/cell-justify-custom.pdf\n";
+} else {
+    echo "Skipped page/cell-justify-custom.pdf (FreeSans asset absent)\n";
+}
 
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {

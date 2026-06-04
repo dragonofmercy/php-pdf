@@ -207,4 +207,47 @@ final class TableGoldenTest extends TestCase
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
+
+    // --- Task 6: justified table column ---
+
+    public static function buildJustified(): string
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+        $page->table(
+            columns: [
+                Column::of('desc', 'Description')->fill()->align(TextAlign::JUSTIFY),
+                Column::of('code', 'Code')->width(25.0),
+            ],
+            rows: [
+                ['desc' => 'Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'code' => 'A001'],
+                ['desc' => 'Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure.', 'code' => 'B002'],
+                ['desc' => 'Excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum perspiciatis.', 'code' => 'C003'],
+            ],
+            x: 20.0, y: 30.0, width: 170.0,
+            style: TableStyle::default()
+                ->withBorder(TableBorders::GRID)
+                ->withHeader(fill: Color::gray(238), bold: true),
+        );
+        return $doc->output();
+    }
+
+    public function testJustifiedMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/table/table-justify.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildJustified(), 'table-justify.pdf diverges; regenerate if intended.');
+    }
+
+    public function testJustifiedPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-justify.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
 }
