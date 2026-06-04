@@ -74,7 +74,7 @@ final readonly class TableStyle
 
     public function withColumnGroups(ColumnGroup ...$groups): self
     {
-        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: array_values($groups));
+        return new self(borders: $this->borders, borderStyle: $this->borderStyle, headerFill: $this->headerFill, headerBold: $this->headerBold, headerTextColor: $this->headerTextColor, zebraEven: $this->zebraEven, zebraOdd: $this->zebraOdd, cellStyle: $this->cellStyle, repeatHeader: $this->repeatHeader, rowPadding: $this->rowPadding, columnGroups: $groups === [] ? null : array_values($groups));
     }
 
     /**

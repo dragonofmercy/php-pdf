@@ -101,4 +101,9 @@ final class TableStyleTest extends TestCase
         self::assertFalse($styled->repeatHeader);
         self::assertIsArray($styled->columnGroups);
     }
+
+    public function testWithColumnGroupsEmptyNormalizesToNull(): void
+    {
+        self::assertNull(TableStyle::default()->withColumnGroups()->columnGroups);
+    }
 }
