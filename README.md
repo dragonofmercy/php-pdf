@@ -30,7 +30,7 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 - **Barcodes & QR codes** - 1D (EAN-13 / 8, Code 128 / 39 / 93, UPC-A, ITF) and 2D (QR, Aztec, DataMatrix, PDF417), all pure-PHP and vector, with optional human-readable text and vertical 1D rendering.
 - **Bookmarks & hyperlinks** - a nested table-of-contents sidebar and clickable areas that open a URL or jump to another page.
 - **Interactive forms** - fillable text fields, checkboxes, radio buttons, dropdowns, listboxes, and push buttons, with per-field styling, JavaScript actions (calculation / formatting / validation), and automatic field linking.
-- **Digital signatures** - sign with a real PKCS#7 / CMS signature via `Document::sign()` and a PKCS#12 credential, with RFC 3161 timestamps, multiple signers, and the strict PAdES profiles (B-B / B-T, plus the LTV / PAdES-B-LT building blocks).
+- **Digital signatures** - sign with a real PKCS#7 / CMS signature via `Document::sign()` and a PKCS#12 credential, with RFC 3161 timestamps, multiple signers, the strict PAdES profiles (B-B / B-T), and long-term-validation (LTV) building blocks.
 - **Markdown** - render a CommonMark core subset, either flowing with automatic page breaks (`Page::markdown()`) or inside an auto-sized cell; styleable via `MarkdownStyle`.
 - **Tables** - data grids via `Page::table()`: fixed or `fill` columns, headers repeated across pages, zebra striping, borders, a per-cell style callback, and text-or-image cells.
 - **Multi-column layout** - flow `cell()` and `markdown()` across equal-width columns with `$page->columns(...)`, filling each column before the next and continuing onto new pages.
