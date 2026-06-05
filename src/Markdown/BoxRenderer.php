@@ -123,7 +123,11 @@ final class BoxRenderer
 
         // Tag blocks only when actually drawing into a tagged document; the
         // measure pass and the off-path (no structure tree) stay byte-identical.
-        $this->tree = $measureOnly ? null : $page->document()?->structureTree();
+        // Inside a page artifact scope (header/footer/decorative), suppress
+        // tagging so the content is emitted purely as artifact.
+        $this->tree = ($measureOnly || $page->isArtifactScope())
+            ? null
+            : $page->document()?->structureTree();
 
         try {
             $cursorYPt = $this->renderBlocks(

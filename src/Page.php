@@ -86,6 +86,9 @@ final class Page
     /** @internal Set by Document while a header callback is running; suppresses auto-break recursion. */
     public bool $inHeaderRender = false;
 
+    /** When true, drawing is bracketed as a single /Artifact run and tagging hooks are suppressed. */
+    private bool $artifactScope = false;
+
     private ?float $defaultBorderWidthPt = null;
 
     public function __construct(
@@ -141,6 +144,39 @@ final class Page
     public function nextMcid(): int
     {
         return $this->mcidCounter++;
+    }
+
+    /**
+     * Runs $body with its content bracketed in /Artifact BDC ... EMC and all
+     * structure tagging suppressed for the duration. Re-entrant safe: nested
+     * calls do not emit a second bracket and restore the prior flag. When the
+     * owning document has tagging off, $body still runs but NO artifact
+     * operators are emitted (off-path byte-identity preserved).
+     *
+     * @param callable():void $body
+     */
+    public function withArtifactScope(callable $body): void
+    {
+        $tree = $this->document?->structureTree();
+        $wasActive = $this->artifactScope;
+        $this->artifactScope = true;
+        if ($tree !== null && !$wasActive) {
+            $this->stream->beginArtifact();
+        }
+        try {
+            $body();
+        } finally {
+            if ($tree !== null && !$wasActive) {
+                $this->stream->endArtifact();
+            }
+            $this->artifactScope = $wasActive;
+        }
+    }
+
+    /** @internal Header/footer rendering and decorative draws check this to suppress tagging. */
+    public function isArtifactScope(): bool
+    {
+        return $this->artifactScope;
     }
 
     /**
@@ -647,7 +683,7 @@ final class Page
         // mint the mcid and record the leaf against $this.
         $tree = $this->document?->structureTree();
         $mcid = null;
-        if ($tree !== null && $text !== '') {
+        if ($tree !== null && !$this->artifactScope && $text !== '') {
             $tree->open(StructureType::P);
             $mcid = $this->nextMcid();
         }
@@ -1216,6 +1252,11 @@ final class Page
      * (x moves to the right edge of the image, y unchanged), which matches the
      * legacy behaviour. Use NEWLINE to start a new line below, BELOW to move the
      * cursor beneath the image, or NONE to leave the cursor untouched.
+     *
+     * When the document has tagging on, $alt sets the alternate text on the
+     * generated Figure element, and $decorative draws the image as a pure
+     * /Artifact (no Figure, no marked content) for purely decorative imagery.
+     * Passing both $alt and $decorative is an error.
      */
     public function image(
         string|Image $image,
@@ -1223,10 +1264,15 @@ final class Page
         ?float $y = null,
         ?float $w = null,
         ?float $h = null,
+        ?string $alt = null,
+        bool $decorative = false,
         NextPosition $ln = NextPosition::RIGHT,
     ): self {
         if ($this->document?->columnLayout() !== null) {
             throw new PdfException('image() is not supported inside a columns() block in this version');
+        }
+        if ($alt !== null && $decorative) {
+            throw new PdfException('image() cannot be both decorative and have alt text');
         }
         if ($w !== null && $w <= 0.0) {
             throw new PdfException("Image width must be positive, got {$w}");
@@ -1252,12 +1298,45 @@ final class Page
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
 
-        $tree = $this->document?->structureTree();
-        $mcid = null;
-        if ($tree !== null) {
-            $mcid = $this->nextMcid();
-            $tree->open(StructureType::Figure);
+        if ($decorative) {
+            // Decorative: draw inside an artifact run, no Figure, no MCID.
+            $this->withArtifactScope(function () use ($shortName, $effWPt, $effHPt, $xPt, $yPt): void {
+                $this->drawImageXObject($shortName, $effWPt, $effHPt, $xPt, $yPt, null);
+            });
+        } else {
+            $tree = $this->document?->structureTree();
+            $mcid = null;
+            if ($tree !== null && !$this->artifactScope) {
+                $mcid = $this->nextMcid();
+                $figure = $tree->open(StructureType::Figure);
+                if ($alt !== null) {
+                    $figure->setAlt($alt);
+                }
+            }
+            $this->drawImageXObject($shortName, $effWPt, $effHPt, $xPt, $yPt, $mcid);
+            if ($tree !== null && $mcid !== null) {
+                $tree->addMarkedContent($this->pageIndex(), $mcid);
+                $tree->close();
+            }
         }
+
+        $this->imagesUsed[$shortName] = true;
+        // Advance the cursor over the image's bounding box per $ln, mirroring
+        // cell()/barcode(). The default RIGHT reproduces the legacy behaviour
+        // (right edge, same top y) so existing callers are unaffected.
+        $this->cursor->advance($ln, $xPt, $yPt, $effWPt, $effHPt);
+        return $this;
+    }
+
+    /**
+     * Emits the image-drawing operators (q / optional BDC / cm / Do / optional
+     * EMC / Q). When $mcid is non-null, the XObject invocation is wrapped in a
+     * /Figure marked-content sequence; otherwise the operators are emitted bare
+     * (the caller supplies any artifact bracketing). Shared by the tagged and
+     * decorative paths so the draw is not duplicated.
+     */
+    private function drawImageXObject(string $shortName, float $effWPt, float $effHPt, float $xPt, float $yPt, ?int $mcid): void
+    {
         $this->stream->append(Operators::saveState());
         if ($mcid !== null) {
             $this->stream->beginMarkedContent(StructureType::Figure->value, $mcid);
@@ -1270,17 +1349,6 @@ final class Page
             $this->stream->endMarkedContent();
         }
         $this->stream->append(Operators::restoreState());
-        if ($tree !== null) {
-            $tree->addMarkedContent($this->pageIndex(), $mcid);
-            $tree->close();
-        }
-
-        $this->imagesUsed[$shortName] = true;
-        // Advance the cursor over the image's bounding box per $ln, mirroring
-        // cell()/barcode(). The default RIGHT reproduces the legacy behaviour
-        // (right edge, same top y) so existing callers are unaffected.
-        $this->cursor->advance($ln, $xPt, $yPt, $effWPt, $effHPt);
-        return $this;
     }
 
     /**
@@ -1375,12 +1443,12 @@ final class Page
         $width ??= $this->fromPt($this->pageWidth) - $this->margins()->right - $x;
 
         $tree = $this->document?->structureTree();
-        if ($tree !== null) {
+        if ($tree !== null && !$this->artifactScope) {
             $tree->open(StructureType::Table);
         }
         $renderer = new TableRenderer($this, $columns, $rows, $style ?? TableStyle::default());
         [$finalYPt, $rowCount, $pageCount, $finalPage] = $renderer->render($this->toPt($x), $this->toPt($y), $this->toPt($width));
-        if ($tree !== null) {
+        if ($tree !== null && !$this->artifactScope) {
             $tree->close();
         }
 
