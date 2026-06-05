@@ -10,9 +10,15 @@ namespace DragonOfMercy\PhpPdf\Outline;
  * and the `Link` payload (URI or internal destination). The Y-flip and
  * `/Rect` serialisation happen later in {@see LinkAnnotationEmitter}.
  *
- * This VO is produced exclusively by `Page::link()`; users do not construct
- * it directly. Width / height positivity is enforced by `Page::link()` before
- * this VO is built, so the constructor itself does no validation.
+ * This VO is produced by `Page::link()` (untagged area links) and by
+ * `Page::cell(link:)` (which may also tag it for PDF/UA). Users do not
+ * construct it directly. Width / height positivity is enforced before this VO
+ * is built, so the constructor itself does no validation.
+ *
+ * When the annotation participates in the logical structure tree, it carries a
+ * 0-based `$structParentTagIndex` (used to derive its `/StructParent` key at
+ * emit time) and the human-readable `$contents` (`/Contents`). Both stay null
+ * for untagged links.
  *
  * @internal
  */
@@ -24,5 +30,13 @@ final readonly class LinkAnnotation
         public float $width,
         public float $height,
         public Link $link,
+        public ?int $structParentTagIndex = null,
+        public ?string $contents = null,
     ) {}
+
+    /** Whether this annotation is tagged into the logical structure tree. */
+    public function isTagged(): bool
+    {
+        return $this->structParentTagIndex !== null;
+    }
 }

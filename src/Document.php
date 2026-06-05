@@ -117,6 +117,7 @@ final class Document
     private bool $uaConformance = false;
     private ?string $language = null;
     private ?StructureTree $structureTree = null;
+    private int $linkStructParentCounter = 0;
 
     /**
      * Stable /ID for the metadata-less document-timestamp path, generated once
@@ -617,6 +618,15 @@ final class Document
     public function structureTree(): ?StructureTree
     {
         return $this->taggingEnabled ? $this->structureTree : null;
+    }
+
+    /**
+     * @internal Returns the next 0-based ordinal for a tagged link annotation's
+     *           /StructParent key. Each call yields 0, 1, 2, ... in draw order.
+     */
+    public function nextLinkStructParentIndex(): int
+    {
+        return $this->linkStructParentCounter++;
     }
 
     /**
