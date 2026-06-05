@@ -970,7 +970,7 @@ final class Document
     {
         $pagesRef = PdfReference::to(2, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef, $linkAnnotationMap] = $this->buildPagesFontsImages(firstObjectNumber: 3, pagesRef: $pagesRef);
         unset($allWidgets); // consumed inside buildPagesFontsImages
 
         $catalogDict = Dictionary::empty()
@@ -985,7 +985,7 @@ final class Document
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
         $nextObjectNumber += count($outlineObjects);
         $catalogDict = $this->withNames($catalogDict, []);
-        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber, $linkAnnotationMap);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -1013,7 +1013,7 @@ final class Document
         $pagesRef = PdfReference::to(2, 0);
         $metadataStreamRef = PdfReference::to(4, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef, $linkAnnotationMap] = $this->buildPagesFontsImages(firstObjectNumber: 5, pagesRef: $pagesRef);
         unset($allWidgets); // consumed inside buildPagesFontsImages
 
         $catalogDict = Dictionary::empty()
@@ -1065,7 +1065,7 @@ final class Document
             $afterOutlines += count($outputIntentObjects);
         }
 
-        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $afterOutlines);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $afterOutlines, $linkAnnotationMap);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -1110,7 +1110,7 @@ final class Document
         $firstObjectNumber = $hasMetadata ? 5 : 3;
         $pagesRef = PdfReference::to(2, 0);
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] =
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef, $linkAnnotationMap] =
             $this->buildPagesFontsImages(firstObjectNumber: $firstObjectNumber, pagesRef: $pagesRef);
         unset($allWidgets);
 
@@ -1128,7 +1128,7 @@ final class Document
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
         $nextObjectNumber += count($outlineObjects);
         $catalogDict = $this->withNames($catalogDict, []);
-        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber, $linkAnnotationMap);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $pages = IndirectObject::of(
@@ -1296,7 +1296,7 @@ final class Document
         $metadataObjectNumber = $hasMetadata ? 4 : null;
         $firstPageObjectNumber = $hasMetadata ? 6 : 4;
 
-        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef] = $this->buildPagesFontsImages(
+        [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef, $linkAnnotationMap] = $this->buildPagesFontsImages(
             firstObjectNumber: $firstPageObjectNumber,
             pagesRef: $pagesRef,
         );
@@ -1317,7 +1317,7 @@ final class Document
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
         $nextObjectNumber += count($outlineObjects);
         $catalogDict = $this->withNames($catalogDict, []);
-        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber, $linkAnnotationMap);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
@@ -1389,9 +1389,9 @@ final class Document
      *
      * All objects share a single numbering starting at $firstObjectNumber.
      *
-     * Returns [allObjects, pageRefs, pageHeightsPt, allWidgets, acroFormRef].
+     * Returns [allObjects, pageRefs, pageHeightsPt, allWidgets, acroFormRef, linkAnnotationMap].
      *
-     * @return array{0: list<IndirectObject>, 1: list<PdfReference>, 2: list<float>, 3: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>, 4: ?PdfReference}
+     * @return array{0: list<IndirectObject>, 1: list<PdfReference>, 2: list<float>, 3: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>, 4: ?PdfReference, 5: \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int>}
      */
     private function buildPagesFontsImages(int $firstObjectNumber, PdfReference $pagesRef): array
     {
@@ -1425,6 +1425,7 @@ final class Document
         $objects = $pageBuild['objects'];
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = $pageBuild['allWidgets'];
+        $linkAnnotationMap = $pageBuild['linkAnnotationMap'];
 
         if ($allWidgets === [] && $this->signature !== null) {
             throw new PdfException(sprintf(
@@ -1503,7 +1504,7 @@ final class Document
             (new SubsettedFontObjectsEmitter($this->glyphUsage))->emit($customEmissions),
         );
 
-        return [$objects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef];
+        return [$objects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef, $linkAnnotationMap];
     }
 
     /**
@@ -1761,18 +1762,17 @@ final class Document
      * must pass the running counter already advanced past every other
      * dynamically numbered object in that path.
      *
-     * @param  list<PdfReference> $pageRefs
+     * @param  list<PdfReference>                                                  $pageRefs
+     * @param  \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int> $linkAnnotationMap each emitted link annotation to its object number (empty storage when no links)
      * @return array{0: Dictionary, 1: list<IndirectObject>}
      */
-    private function withStructTree(Dictionary $catalogDict, array $pageRefs, int &$nextObjectNumber): array
+    private function withStructTree(Dictionary $catalogDict, array $pageRefs, int &$nextObjectNumber, \SplObjectStorage $linkAnnotationMap): array
     {
         if (!$this->taggingEnabled || $this->structureTree === null) {
             return [$catalogDict, []];
         }
 
-        /** @var \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int> $emptyLinkMap */
-        $emptyLinkMap = new \SplObjectStorage();
-        $result = (new StructTreeEmitter())->emit($this->structureTree, $pageRefs, $emptyLinkMap, $nextObjectNumber);
+        $result = (new StructTreeEmitter())->emit($this->structureTree, $pageRefs, $linkAnnotationMap, $nextObjectNumber);
         $nextObjectNumber += count($result->objects);
 
         $catalogDict = $catalogDict
