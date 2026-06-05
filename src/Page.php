@@ -74,6 +74,12 @@ final class Page
 
     private ?int $pageNumber = null;
 
+    /** @var int Per-page marked-content id counter (tagged PDF). */
+    private int $mcidCounter = 0;
+
+    /** @var int Zero-based index of this page in the document, set by Document::addPage(). */
+    private int $pageIndex = 0;
+
     private ?TabOrder $tabOrder = null;
 
     /** @internal Set by Document while a header callback is running; suppresses auto-break recursion. */
@@ -116,6 +122,24 @@ final class Page
     public function contentStream(): ContentStream
     {
         return $this->stream;
+    }
+
+    /** @internal Set the zero-based page index; called by Document::addPage(). */
+    public function setPageIndex(int $index): void
+    {
+        $this->pageIndex = $index;
+    }
+
+    /** The zero-based index of this page within its document. */
+    public function pageIndex(): int
+    {
+        return $this->pageIndex;
+    }
+
+    /** @internal Mint the next per-page marked-content id (tagged PDF). */
+    public function nextMcid(): int
+    {
+        return $this->mcidCounter++;
     }
 
     /**
