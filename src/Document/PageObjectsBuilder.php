@@ -142,6 +142,12 @@ final readonly class PageObjectsBuilder
                 }));
             }
 
+            if ($page->document()?->isTaggingEnabled() === true) {
+                $pageDict = $pageDict
+                    ->withEntry(Name::of('StructParents'), PdfNumber::ofInt($page->pageIndex()))
+                    ->withEntry(Name::of('Tabs'), Name::of('S'));
+            }
+
             if ($contentNum !== null) {
                 $pageDict = $pageDict->withEntry(
                     Name::of('Contents'),

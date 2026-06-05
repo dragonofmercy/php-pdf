@@ -53,16 +53,11 @@ final class EnableTaggingTest extends TestCase
 
     public function testTaggedOutputDiffersFromUntagged(): void
     {
-        $this->markTestIncomplete('wired in Task 8');
-
-        // Task 8 finishes this: a tagged document must NOT serialize identically
-        // to an untagged one (it carries /StructTreeRoot, /MarkInfo, etc.).
-        //
-        // $a = new Document();
-        // $a->addPage();
-        // $c = new Document();
-        // $c->enableTagging();
-        // $c->addPage();
-        // self::assertNotSame($a->output(), $c->output());
+        $a = new Document();
+        $a->addPage();
+        $c = new Document();
+        $c->enableTagging();
+        $c->addPage();
+        self::assertNotSame($a->output(), $c->output());
     }
 }

@@ -61,12 +61,14 @@ use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
+use DragonOfMercy\PhpPdf\Tagging\StructTreeEmitter;
 use DragonOfMercy\PhpPdf\Tagging\StructureTree;
 use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfBoolean;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
@@ -915,7 +917,9 @@ final class Document
 
         $nextObjectNumber = 3 + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
+        $nextObjectNumber += count($outlineObjects);
         $catalogDict = $this->withNames($catalogDict, []);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -929,7 +933,7 @@ final class Document
         );
 
         return (new PdfWriter())->write(
-            [$catalog, $pages, ...$pageAndContentObjects, ...$outlineObjects],
+            [$catalog, $pages, ...$pageAndContentObjects, ...$outlineObjects, ...$structObjects],
             $catalog->reference(),
         );
     }
@@ -992,7 +996,10 @@ final class Document
                 Name::of('OutputIntents'),
                 PdfArray::of(PdfReference::to($intentNumber, 0)),
             );
+            $afterOutlines += count($outputIntentObjects);
         }
+
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $afterOutlines);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
 
@@ -1010,7 +1017,7 @@ final class Document
         $xmpXml = (new XmpWriter())->write($effective, $this->pdfALevel);
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects];
+        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects, ...$structObjects];
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
@@ -1053,7 +1060,9 @@ final class Document
         $catalogDict = $this->withViewerPrefs($catalogDict, $pageRefs);
         $nextObjectNumber = $firstObjectNumber + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
+        $nextObjectNumber += count($outlineObjects);
         $catalogDict = $this->withNames($catalogDict, []);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $pages = IndirectObject::of(
@@ -1080,7 +1089,7 @@ final class Document
         } else {
             $documentId = $this->generatedDocumentId ??= md5(random_bytes(16));
         }
-        array_push($objects, ...$pageAndContentObjects, ...$outlineObjects);
+        array_push($objects, ...$pageAndContentObjects, ...$outlineObjects, ...$structObjects);
 
         $firstPageNumber = $pageRefs[0]->objectNumber;
         $firstPage = null;
@@ -1240,7 +1249,9 @@ final class Document
 
         $nextObjectNumber = $firstPageObjectNumber + count($pageAndContentObjects);
         [$catalogDict, $outlineObjects] = $this->withOutlines($catalogDict, $pageRefs, $pageHeightsPt, $nextObjectNumber);
+        $nextObjectNumber += count($outlineObjects);
         $catalogDict = $this->withNames($catalogDict, []);
+        [$catalogDict, $structObjects] = $this->withStructTree($catalogDict, $pageRefs, $nextObjectNumber);
 
         $catalog = IndirectObject::of(1, 0, $catalogDict);
         $objects[] = $catalog;
@@ -1278,7 +1289,7 @@ final class Document
         $encryptObject = IndirectObject::of($encryptObjectNumber, 0, $encryptDict);
         $objects[] = $encryptObject;
 
-        $objects = array_merge($objects, $pageAndContentObjects, $outlineObjects);
+        $objects = array_merge($objects, $pageAndContentObjects, $outlineObjects, $structObjects);
 
         $documentId = $metadata !== null
             ? ($metadata->documentId ?? $this->deriveDocumentId($effectiveMetadata))
@@ -1665,6 +1676,41 @@ final class Document
         );
         $catalogDict = $catalogDict->withEntry(Name::of('Outlines'), $emit['outlinesRef']);
         return [$catalogDict, $emit['objects']];
+    }
+
+    /**
+     * Serializes the logical structure tree (when tagging is enabled) into
+     * indirect objects and wires /StructTreeRoot, /MarkInfo and /Lang into the
+     * catalog. When tagging is off the catalog dict is returned untouched and
+     * no objects are produced, so the off-path bytes are byte-identical.
+     *
+     * The emitter numbers its objects starting at $nextObjectNumber; the caller
+     * must pass the running counter already advanced past every other
+     * dynamically numbered object in that path.
+     *
+     * @param  list<PdfReference> $pageRefs
+     * @return array{0: Dictionary, 1: list<IndirectObject>}
+     */
+    private function withStructTree(Dictionary $catalogDict, array $pageRefs, int &$nextObjectNumber): array
+    {
+        if (!$this->taggingEnabled || $this->structureTree === null) {
+            return [$catalogDict, []];
+        }
+
+        $result = (new StructTreeEmitter())->emit($this->structureTree, $pageRefs, $nextObjectNumber);
+        $nextObjectNumber += count($result->objects);
+
+        $catalogDict = $catalogDict
+            ->withEntry(Name::of('StructTreeRoot'), $result->structTreeRootRef)
+            ->withEntry(
+                Name::of('MarkInfo'),
+                Dictionary::empty()->withEntry(Name::of('Marked'), PdfBoolean::of(true)),
+            );
+        if ($this->language !== null) {
+            $catalogDict = $catalogDict->withEntry(Name::of('Lang'), PdfString::of($this->language));
+        }
+
+        return [$catalogDict, $result->objects];
     }
 
     /**
