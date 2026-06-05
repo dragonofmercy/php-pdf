@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Outline;
 
+use DragonOfMercy\PhpPdf\Exception\PdfException;
+
 /**
  * One link annotation declared on a page. Carries the clickable rectangle in
  * the document's user unit (top-down Y, same convention as `Page::cell()`)
@@ -38,5 +40,20 @@ final readonly class LinkAnnotation
     public function isTagged(): bool
     {
         return $this->structParentTagIndex !== null;
+    }
+
+    /**
+     * The annotation's /StructParent key (also the ParentTree key the owning
+     * <Link> element resolves through). Annotation keys sit after the per-page
+     * MCID keys 0..pageCount-1, so the key is $pageCount + $structParentTagIndex.
+     *
+     * @throws PdfException when called on an untagged annotation
+     */
+    public function structParentKey(int $pageCount): int
+    {
+        if ($this->structParentTagIndex === null) {
+            throw new PdfException('structParentKey on an untagged link annotation');
+        }
+        return $pageCount + $this->structParentTagIndex;
     }
 }

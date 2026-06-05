@@ -76,8 +76,8 @@ final class StructTreeEmitter
                 } elseif ($child instanceof ObjrRef) {
                     if (!isset($annotObjectNumbers[$child->annotation])) {
                         throw new PdfException(sprintf(
-                            'Tagged link annotation (tag index %d) is missing from the object map',
-                            $child->structParentTagIndex,
+                            'Tagged link annotation (StructParent key %d) is missing from the object map',
+                            $child->annotation->structParentKey(count($pageRefs)),
                         ));
                     }
                     $annotNumber = $annotObjectNumbers[$child->annotation];
@@ -85,7 +85,7 @@ final class StructTreeEmitter
                         ->withEntry(Name::of('Type'), Name::of('OBJR'))
                         ->withEntry(Name::of('Obj'), PdfReference::to($annotNumber, 0))
                         ->withEntry(Name::of('Pg'), $pageRefs[$child->pageIndex]);
-                    $annotParentEntries[count($pageRefs) + $child->structParentTagIndex] = PdfReference::to($elemNumber, 0);
+                    $annotParentEntries[$child->annotation->structParentKey(count($pageRefs))] = PdfReference::to($elemNumber, 0);
                 } elseif ($child instanceof MarkedContentRef) {
                     $kids[] = PdfNumber::ofInt($child->mcid);
                     $parentTree[$child->pageIndex][$child->mcid] = PdfReference::to($elemNumber, 0);

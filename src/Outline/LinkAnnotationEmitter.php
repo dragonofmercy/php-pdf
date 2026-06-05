@@ -32,8 +32,8 @@ final readonly class LinkAnnotationEmitter
      * @param list<PdfReference> $pageRefs       indexed by 0-based pageIndex (for GoTo resolution)
      * @param list<float>        $pageHeightsPt  matched array of page heights (for Y-flip on XYZ/FitH)
      * @param int                $pageCount      total page count; tagged links derive their /StructParent
-     *                                            key as $pageCount + structParentTagIndex (annotation keys
-     *                                            sit after the per-page MCID keys 0..pageCount-1)
+     *                                            key via {@see LinkAnnotation::structParentKey()} (annotation
+     *                                            keys sit after the per-page MCID keys 0..pageCount-1)
      */
     public function emit(
         LinkAnnotation $annot,
@@ -79,9 +79,9 @@ final readonly class LinkAnnotationEmitter
         // PDF/UA: a tagged link annotation carries its /StructParent key (so the
         // ParentTree resolves it back to its <Link> element), the Print flag
         // (/F 4, Hidden clear), and a human-readable /Contents alternate.
-        if ($annot->structParentTagIndex !== null) {
+        if ($annot->isTagged()) {
             $dict = $dict
-                ->withEntry(Name::of('StructParent'), PdfNumber::ofInt($pageCount + $annot->structParentTagIndex))
+                ->withEntry(Name::of('StructParent'), PdfNumber::ofInt($annot->structParentKey($pageCount)))
                 ->withEntry(Name::of('F'), PdfNumber::ofInt(4));
             if ($annot->contents !== null) {
                 $dict = $dict->withEntry(Name::of('Contents'), TextString::of($annot->contents));

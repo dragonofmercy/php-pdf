@@ -59,7 +59,7 @@ final class CellLinkTest extends TestCase
         self::assertInstanceOf(ObjrRef::class, $children[1]);
         self::assertSame(0, $children[0]->mcid);
         self::assertSame(0, $children[0]->pageIndex);
-        self::assertSame(0, $children[1]->structParentTagIndex);
+        self::assertSame(0, $children[1]->annotation->structParentTagIndex);
         self::assertSame(0, $children[1]->pageIndex);
 
         $annotations = $page->getLinkAnnotations();

@@ -147,6 +147,26 @@ final class TaggingGoldenTest extends TestCase
     private const string FONTS_DIR = __DIR__ . '/assets/fonts';
 
     /**
+     * The shared deterministic PDF/UA-1 setup behind buildUaDocument() and
+     * buildUaLinksDocument(): fixed title, embedded font, frozen creationDate /
+     * documentId, and enablePdfUA. Returns a page-less document; each builder
+     * adds its own pages and content. Factored out verbatim so the goldens stay
+     * byte-identical.
+     */
+    private static function deterministicUaDoc(string $title): Document
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title($title)
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->registerFontFamily('Body', regular: self::FONTS_DIR . '/FreeSans.ttf', bold: self::FONTS_DIR . '/FreeSansBold.ttf');
+        $doc->enablePdfUA('en-US');
+
+        return $doc;
+    }
+
+    /**
      * Builds a full PDF/UA-1 document that exercises every clause fixed in
      * Phase 2: title, embedded font, a markdown heading + paragraph, a table
      * with a header row (TH /Scope /Column), and a figure with /Alt. Shared
@@ -155,13 +175,7 @@ final class TaggingGoldenTest extends TestCase
      */
     public static function buildUaDocument(): Document
     {
-        $doc = new Document();
-        $doc->metadata()
-            ->title('Accessible report')
-            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
-            ->documentId('abcdef0123456789abcdef0123456789');
-        $doc->registerFontFamily('Body', regular: self::FONTS_DIR . '/FreeSans.ttf', bold: self::FONTS_DIR . '/FreeSansBold.ttf');
-        $doc->enablePdfUA('en-US');
+        $doc = self::deterministicUaDoc('Accessible report');
 
         $page = $doc->addPage();
         $page->setFont(Font::custom('Body'), 12.0);
@@ -214,13 +228,7 @@ final class TaggingGoldenTest extends TestCase
      */
     public static function buildUaLinksDocument(): Document
     {
-        $doc = new Document();
-        $doc->metadata()
-            ->title('Accessible links')
-            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
-            ->documentId('abcdef0123456789abcdef0123456789');
-        $doc->registerFontFamily('Body', regular: self::FONTS_DIR . '/FreeSans.ttf', bold: self::FONTS_DIR . '/FreeSansBold.ttf');
-        $doc->enablePdfUA('en-US');
+        $doc = self::deterministicUaDoc('Accessible links');
 
         $page = $doc->addPage();
         $page->setFont(Font::custom('Body'), 12.0);

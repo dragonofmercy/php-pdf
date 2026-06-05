@@ -781,7 +781,7 @@ final class Page
             // A non-null $linkElem implies a tagged link cell, so $annot was built
             // above with a non-null structParentTagIndex.
             if ($linkElem !== null) {
-                $linkElem->appendObjr(new ObjrRef($annot, $this->pageIndex(), $annot->structParentTagIndex ?? 0));
+                $linkElem->appendObjr(new ObjrRef($annot, $this->pageIndex()));
             }
             $tree->close();
         }

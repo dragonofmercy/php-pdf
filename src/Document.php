@@ -964,7 +964,7 @@ final class Document
     {
         foreach ($this->pages as $page) {
             foreach ($page->getLinkAnnotations() as $annotation) {
-                if ($annotation->structParentTagIndex === null) {
+                if (!$annotation->isTagged()) {
                     return true;
                 }
             }

@@ -31,7 +31,7 @@ final class StructTreeEmitterObjrTest extends TestCase
         $tree = new StructureTree();
         $link = $tree->open(StructureType::Link);
         $tree->addMarkedContent(0, 0);
-        $link->appendObjr(new ObjrRef($annot, pageIndex: 0, structParentTagIndex: 0));
+        $link->appendObjr(new ObjrRef($annot, pageIndex: 0));
         $tree->close();
 
         return [$annot, $tree];
