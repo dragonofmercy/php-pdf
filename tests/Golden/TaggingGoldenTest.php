@@ -140,4 +140,66 @@ final class TaggingGoldenTest extends TestCase
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
+
+    private const string FONTS_DIR = __DIR__ . '/assets/fonts';
+
+    /**
+     * Builds a full PDF/UA-1 document that exercises every clause fixed in
+     * Phase 2: title, embedded font, a markdown heading + paragraph, a table
+     * with a header row (TH /Scope /Column), and a figure with /Alt. Shared
+     * with the veraPDF conformance gate (VeraPdfUa1Test) so both validate the
+     * exact same bytes.
+     */
+    public static function buildUaDocument(): Document
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Accessible report')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->registerFontFamily('Body', regular: self::FONTS_DIR . '/FreeSans.ttf', bold: self::FONTS_DIR . '/FreeSansBold.ttf');
+        $doc->enablePdfUA('en-US');
+
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('Body'), 12.0);
+        $page->markdown("# Accessible heading\n\nA paragraph of accessible body text.");
+        $page->table(
+            columns: [
+                Column::of('name', 'Article')->fill(),
+                Column::of('price', 'Prix')->width(30.0)->align(TextAlign::RIGHT),
+            ],
+            rows: [
+                ['name' => 'Cafe', 'price' => '5.00'],
+                ['name' => 'Croissant', 'price' => '3.60'],
+            ],
+            x: 20.0, y: 80.0, width: 170.0,
+            style: TableStyle::default()
+                ->withBorder(TableBorders::GRID)
+                ->withHeader(fill: Color::gray(238), bold: true),
+        );
+        $page->image(__DIR__ . '/assets/png-opaque-rgb-24x12.png', x: 20.0, y: 150.0, w: 30.0, h: 30.0, alt: 'Company logo');
+
+        return $doc;
+    }
+
+    public function testUaDocumentMatchesFixture(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/ua-document.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildUaDocument()->output(), 'tagging/ua-document.pdf diverges; regenerate if intended.');
+    }
+
+    public function testUaDocumentPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-document.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
 }
