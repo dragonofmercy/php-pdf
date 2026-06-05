@@ -61,6 +61,7 @@ use DragonOfMercy\PhpPdf\Signature\SignaturePatcher;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
+use DragonOfMercy\PhpPdf\Tagging\StructureTree;
 use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -108,6 +109,10 @@ final class Document
     private bool $ltvEnabled = false;
 
     private ?PdfALevel $pdfALevel = null;
+
+    private bool $taggingEnabled = false;
+    private ?string $language = null;
+    private ?StructureTree $structureTree = null;
 
     /**
      * Stable /ID for the metadata-less document-timestamp path, generated once
@@ -551,6 +556,43 @@ final class Document
     }
 
     /**
+     * Turns on tagged-PDF output: the high-level API (cell, image, table,
+     * markdown) accumulates a logical structure tree that output() serializes
+     * into a StructTreeRoot. The optional language tag (e.g. 'en-US') is written
+     * to the catalog /Lang. Off by default; when off, output is byte-identical
+     * to an untagged document.
+     */
+    public function enableTagging(?string $lang = null): self
+    {
+        if ($lang !== null && preg_match('/^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$/', $lang) !== 1) {
+            throw new PdfException("Invalid language tag for enableTagging, got '{$lang}'");
+        }
+        $this->taggingEnabled = true;
+        $this->language = $lang;
+        $this->structureTree ??= new StructureTree();
+        return $this;
+    }
+
+    public function isTaggingEnabled(): bool
+    {
+        return $this->taggingEnabled;
+    }
+
+    public function language(): ?string
+    {
+        return $this->language;
+    }
+
+    /**
+     * @internal The build-time structure-tree accumulator, or null when tagging
+     *           is disabled. Drawing code opens/closes elements on it.
+     */
+    public function structureTree(): ?StructureTree
+    {
+        return $this->taggingEnabled ? $this->structureTree : null;
+    }
+
+    /**
      * Embeds a file in the document. With enablePdfA(PdfALevel::A3B|A3U) this is a
      * conformant PDF/A-3 associated file (e.g. a Factur-X invoice XML); without
      * PDF/A it is a plain attachment. Rejected at PDF/A-2 (part 2 forbids embedded
@@ -724,6 +766,7 @@ final class Document
             );
         }
         $this->pages[] = $page;
+        $page->setPageIndex(count($this->pages) - 1);
         return $page;
     }
 
