@@ -12,6 +12,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 
 /**
  * Serializes an accumulated StructureTree into PDF indirect objects:
@@ -89,6 +90,24 @@ final class StructTreeEmitter
             $pageIndex = $this->directLeafPageIndex($elem);
             if ($pageIndex !== null && isset($pageRefs[$pageIndex])) {
                 $dict = $dict->withEntry(Name::of('Pg'), $pageRefs[$pageIndex]);
+            }
+
+            // /Alt: human-readable alternate text (e.g. figure description),
+            // encoded as a UTF-16BE text string.
+            $alt = $elem->alt();
+            if ($alt !== null) {
+                $dict = $dict->withEntry(Name::of('Alt'), TextString::of($alt));
+            }
+
+            // /A <</O /Table /Scope /Column|Row>>: header-cell scope on a TH.
+            $scope = $elem->scope();
+            if ($scope !== null) {
+                $dict = $dict->withEntry(
+                    Name::of('A'),
+                    Dictionary::empty()
+                        ->withEntry(Name::of('O'), Name::of('Table'))
+                        ->withEntry(Name::of('Scope'), Name::of($scope->value)),
+                );
             }
 
             $dict = $dict->withEntry(Name::of('K'), $this->kidsValue($kids));
