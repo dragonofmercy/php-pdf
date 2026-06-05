@@ -31,9 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   /DisplayDocTitle true`; always emits an XMP `/Metadata` stream carrying the
   `pdfuaid:part` identifier; and runs a fail-fast conformance guard that
   requires every font to be embedded and a document title to be set, and rejects
-  figures without alternate text, skipped heading levels, and (for now) link
-  annotations. Link / annotation tagging and PDF/A level "a" remain for later
-  phases.
+  figures without alternate text and skipped heading levels.
+- PDF/UA-1 tagged hyperlinks: `cell(text:, link:, linkAlt:)` draws a text cell,
+  makes it a clickable link annotation over the cell box, and - under tagging -
+  tags it as a `<Link>` structure element containing the text and an `/OBJR` to
+  the annotation, with the annotation carrying `/StructParent`, `/Contents`
+  (from `linkAlt`, defaulting to the cell text), and the Print flag. Such links
+  validate under veraPDF PDF/UA-1. The low-level `Page::link()` area link stays
+  untagged and is rejected by the conformance guard under `enablePdfUA()` (use
+  `cell(link:)` for accessible links). Image hyperlinks, `markdown()` inline
+  links, and PDF/A level "a" remain for later phases.
 
 ## [1.5.0] - 2026-06-04
 
