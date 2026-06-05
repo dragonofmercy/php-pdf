@@ -884,12 +884,13 @@ final class Page
         try {
             $flowing = $document !== null && $document->autoPageBreak() && !$this->inHeaderRender;
 
-            if ($columnFlowing && $document !== null) {
+            if ($columnFlowing) {
                 // Column-FLOW: opening the columns() block is the flow signal;
                 // autoPageBreak is not required. Each overflow advances to the
                 // next column (same page) or a fresh page's column 0.
                 // ($columnLayout is non-null: $columnFlowing = ($columnLayout !== null) && ...)
-                // ($document is non-null: guarded by $document !== null above)
+                // ($document is non-null: $columnLayout came from $document->columnLayout(),
+                //  so a non-null $columnLayout implies a non-null $document)
                 $stepPt = $columnLayout->stepPt;
                 $topMarginY = $this->fromPt($columnLayout->topPt);
                 $finalPage = $this;
