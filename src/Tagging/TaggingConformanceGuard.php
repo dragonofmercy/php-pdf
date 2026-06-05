@@ -23,7 +23,7 @@ final class TaggingConformanceGuard
         array $standardFonts,
         ?string $title,
         StructureTree $tree,
-        bool $hasLinkAnnotations,
+        bool $hasUntaggedLinkAnnotations,
     ): void {
         if ($standardFonts !== []) {
             $name = $standardFonts[0]->pdfName();
@@ -42,10 +42,10 @@ final class TaggingConformanceGuard
 
         $this->verifyFiguresAndHeadings($tree->root());
 
-        if ($hasLinkAnnotations) {
+        if ($hasUntaggedLinkAnnotations) {
             throw new PdfException(
-                'PDF/UA-conformant link tagging is not yet supported (planned for Phase 2b); '
-                . 'remove link annotations or use enableTagging() instead of enablePdfUA().',
+                'PDF/UA-conformant links require the cell(link: ...) API; this document has an untagged link '
+                . 'annotation created with Page::link(). Use cell(link: ...) or remove the area link.',
             );
         }
     }

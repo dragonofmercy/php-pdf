@@ -867,7 +867,7 @@ final class Document
                 standardFonts: $this->fontRegistry->registeredFonts(),
                 title: $this->metadata?->title,
                 tree: $tree,
-                hasLinkAnnotations: $this->hasLinkAnnotations(),
+                hasUntaggedLinkAnnotations: $this->hasUntaggedLinkAnnotations(),
             );
         }
         // PDF/A, PDF/UA, and attached files all require the metadata output path
@@ -955,12 +955,18 @@ final class Document
         return $this->documentScripts !== [];
     }
 
-    /** True when any page declares a link annotation (rejected under PDF/UA until Phase 2b). */
-    private function hasLinkAnnotations(): bool
+    /**
+     * True when any page declares an untagged link annotation (one created via
+     * Page::link() rather than the tagged cell(link: ...) API). Such links carry
+     * no /StructParent and break PDF/UA, so the conformance guard rejects them.
+     */
+    private function hasUntaggedLinkAnnotations(): bool
     {
         foreach ($this->pages as $page) {
-            if ($page->getLinkAnnotations() !== []) {
-                return true;
+            foreach ($page->getLinkAnnotations() as $annotation) {
+                if ($annotation->structParentTagIndex === null) {
+                    return true;
+                }
             }
         }
         return false;

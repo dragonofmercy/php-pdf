@@ -21,7 +21,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [Font::helvetica()],
             title: 'T',
             tree: new StructureTree(),
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
     }
 
@@ -33,7 +33,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: null,
             tree: new StructureTree(),
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
     }
 
@@ -45,7 +45,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: '',
             tree: new StructureTree(),
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
     }
 
@@ -61,20 +61,31 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: 'T',
             tree: $tree,
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
     }
 
-    public function testRejectsLinkAnnotations(): void
+    public function testRejectsUntaggedLinkAnnotations(): void
     {
         $this->expectException(PdfException::class);
-        $this->expectExceptionMessage('Phase 2b');
+        $this->expectExceptionMessage('cell(link:');
         (new TaggingConformanceGuard())->verify(
             standardFonts: [],
             title: 'T',
             tree: new StructureTree(),
-            hasLinkAnnotations: true,
+            hasUntaggedLinkAnnotations: true,
         );
+    }
+
+    public function testAcceptsTaggedLinksWhenNoUntaggedAnnotationsPresent(): void
+    {
+        (new TaggingConformanceGuard())->verify(
+            standardFonts: [],
+            title: 'T',
+            tree: new StructureTree(),
+            hasUntaggedLinkAnnotations: false,
+        );
+        $this->expectNotToPerformAssertions();
     }
 
     public function testRejectsSkippedHeadingLevel(): void
@@ -91,7 +102,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: 'T',
             tree: $tree,
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
     }
 
@@ -110,7 +121,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: 'Accessible report',
             tree: $tree,
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
         $this->expectNotToPerformAssertions();
     }
@@ -125,7 +136,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: 'T',
             tree: $tree,
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
         $this->expectNotToPerformAssertions();
     }
@@ -146,7 +157,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: 'T',
             tree: $tree,
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
         $this->expectNotToPerformAssertions();
     }
@@ -167,7 +178,7 @@ final class TaggingConformanceGuardTest extends TestCase
             standardFonts: [],
             title: 'T',
             tree: $tree,
-            hasLinkAnnotations: false,
+            hasUntaggedLinkAnnotations: false,
         );
     }
 }
