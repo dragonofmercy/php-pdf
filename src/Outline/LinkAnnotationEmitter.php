@@ -13,6 +13,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
+use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 
 /**
  * Builds the single `IndirectObject` representing one `/Annot /Link`
@@ -30,6 +31,9 @@ final readonly class LinkAnnotationEmitter
     /**
      * @param list<PdfReference> $pageRefs       indexed by 0-based pageIndex (for GoTo resolution)
      * @param list<float>        $pageHeightsPt  matched array of page heights (for Y-flip on XYZ/FitH)
+     * @param int                $pageCount      total page count; tagged links derive their /StructParent
+     *                                            key as $pageCount + structParentTagIndex (annotation keys
+     *                                            sit after the per-page MCID keys 0..pageCount-1)
      */
     public function emit(
         LinkAnnotation $annot,
@@ -38,6 +42,7 @@ final readonly class LinkAnnotationEmitter
         array $pageHeightsPt,
         int $id,
         string $context,
+        int $pageCount = 0,
     ): IndirectObject {
         $xPt = $this->unit->toPoints($annot->x);
         $yPt = $this->unit->toPoints($annot->y);
@@ -70,6 +75,18 @@ final readonly class LinkAnnotationEmitter
                 PdfNumber::ofInt(0),
             ))
             ->withEntry(Name::of('A'), $action);
+
+        // PDF/UA: a tagged link annotation carries its /StructParent key (so the
+        // ParentTree resolves it back to its <Link> element), the Print flag
+        // (/F 4, Hidden clear), and a human-readable /Contents alternate.
+        if ($annot->structParentTagIndex !== null) {
+            $dict = $dict
+                ->withEntry(Name::of('StructParent'), PdfNumber::ofInt($pageCount + $annot->structParentTagIndex))
+                ->withEntry(Name::of('F'), PdfNumber::ofInt(4));
+            if ($annot->contents !== null) {
+                $dict = $dict->withEntry(Name::of('Contents'), TextString::of($annot->contents));
+            }
+        }
 
         return IndirectObject::of($id, 0, $dict);
     }
