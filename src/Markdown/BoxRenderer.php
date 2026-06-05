@@ -620,13 +620,15 @@ final class BoxRenderer
             $markerWidthPt = $markerPage->measureStringPt($marker, $bodyFont, $bodySizePt);
             $markerGapPt = $bodySizePt * self::LIST_MARKER_GAP_FACTOR;
             $markerXPt = max($xPt, $innerXPt - $markerGapPt - $markerWidthPt);
-            $markerPage->setFillColor($this->bodyColor());
-            $markerPage->setFont($bodyFont, $bodySizePt);
-            $markerPage->text(
-                $this->emitX($markerPage, $markerXPt),
-                $this->fromPt($markerPage, $baselinePt),
-                $marker,
-            );
+            $markerPage->withArtifactScope(function () use ($markerPage, $markerXPt, $baselinePt, $marker, $bodyFont, $bodySizePt): void {
+                $markerPage->setFillColor($this->bodyColor());
+                $markerPage->setFont($bodyFont, $bodySizePt);
+                $markerPage->text(
+                    $this->emitX($markerPage, $markerXPt),
+                    $this->fromPt($markerPage, $baselinePt),
+                    $marker,
+                );
+            });
         }
 
         return $this->tagListItem(fn (): float => $this->renderBlocks(
