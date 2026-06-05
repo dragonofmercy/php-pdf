@@ -129,4 +129,45 @@ final class TaggingConformanceGuardTest extends TestCase
         );
         $this->expectNotToPerformAssertions();
     }
+
+    public function testRepeatedHeadingLevelsDoNotCountAsSkip(): void
+    {
+        $tree = new StructureTree();
+        $tree->open(StructureType::H1);
+        $tree->close();
+        $tree->open(StructureType::H2);
+        $tree->close();
+        $tree->open(StructureType::H1);
+        $tree->close();
+        $tree->open(StructureType::H2);
+        $tree->close();
+
+        (new TaggingConformanceGuard())->verify(
+            standardFonts: [],
+            title: 'T',
+            tree: $tree,
+            hasLinkAnnotations: false,
+        );
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testHeadingJumpFromH2ToH4Throws(): void
+    {
+        $tree = new StructureTree();
+        $tree->open(StructureType::H1);
+        $tree->close();
+        $tree->open(StructureType::H2);
+        $tree->close();
+        $tree->open(StructureType::H4);
+        $tree->close();
+
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('skip');
+        (new TaggingConformanceGuard())->verify(
+            standardFonts: [],
+            title: 'T',
+            tree: $tree,
+            hasLinkAnnotations: false,
+        );
+    }
 }
