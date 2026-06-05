@@ -1044,6 +1044,8 @@ file_put_contents($fixturesDir . '/tagging/figure.pdf', \DragonOfMercy\PhpPdf\Te
 echo "Regenerated tagging/figure.pdf\n";
 file_put_contents($fixturesDir . '/tagging/table.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildTable());
 echo "Regenerated tagging/table.pdf\n";
+file_put_contents($fixturesDir . '/tagging/markdown.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildMarkdown());
+echo "Regenerated tagging/markdown.pdf\n";
 
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {

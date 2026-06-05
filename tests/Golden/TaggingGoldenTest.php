@@ -112,4 +112,32 @@ final class TaggingGoldenTest extends TestCase
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
+
+    public static function buildMarkdown(): string
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->markdown("# Title\n\nA paragraph.\n\n- one\n- two");
+        return $doc->output();
+    }
+
+    public function testMarkdownMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/markdown.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildMarkdown(), 'tagging/markdown.pdf diverges; regenerate if intended.');
+    }
+
+    public function testMarkdownPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/markdown.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
 }

@@ -22,6 +22,8 @@ use DragonOfMercy\PhpPdf\Markdown\Node\TextRun;
 use DragonOfMercy\PhpPdf\Markdown\Node\ThematicBreak;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Tagging\StructureTree;
+use DragonOfMercy\PhpPdf\Tagging\StructureType;
 
 /**
  * Walks a list of Markdown block AST nodes and draws them into a box on a
@@ -70,6 +72,14 @@ final class BoxRenderer
     private ?FlowBreaker $flow = null;
 
     /**
+     * Active logical-structure tree for the duration of a drawing render(), or
+     * null when tagging is off / measuring. When present, each block boundary
+     * opens the mapped structure element and brackets the block's text-show
+     * operators in a marked-content sequence on the emitting page.
+     */
+    private ?StructureTree $tree = null;
+
+    /**
      * @param list<BlockNode> $ast
      * @param bool $measureOnly when true, performs the identical layout and
      *        cursor math but skips every drawing emission (text / rect / line /
@@ -111,6 +121,10 @@ final class BoxRenderer
             ? new FlowBreaker($page, $topPt, $onPageBreak)
             : null;
 
+        // Tag blocks only when actually drawing into a tagged document; the
+        // measure pass and the off-path (no structure tree) stay byte-identical.
+        $this->tree = $measureOnly ? null : $page->document()?->structureTree();
+
         try {
             $cursorYPt = $this->renderBlocks(
                 $ast,
@@ -132,6 +146,7 @@ final class BoxRenderer
             $finalTopPt = $this->flow?->lastTopPt() ?? $topPt;
         } finally {
             $this->flow = null;
+            $this->tree = null;
         }
 
         return $this->fromPt($page, $cursorYPt - $finalTopPt);
@@ -166,9 +181,9 @@ final class BoxRenderer
             $first = false;
 
             $cursorYPt = match (true) {
-                $block instanceof Heading => $this->renderHeading($block, $style, $bodyFont, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly),
-                $block instanceof Paragraph => $this->renderParagraph($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly),
-                $block instanceof CodeBlock => $this->renderCodeBlock($block, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $measureOnly),
+                $block instanceof Heading => $this->tagLeaf(StructureType::headingForLevel($block->level), $page, fn (): float => $this->renderHeading($block, $style, $bodyFont, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly)),
+                $block instanceof Paragraph => $this->renderParagraphBlock($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly),
+                $block instanceof CodeBlock => $this->tagLeaf(StructureType::P, $page, fn (): float => $this->renderCodeBlock($block, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $measureOnly)),
                 $block instanceof BlockQuote => $this->renderBlockQuote($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
                 $block instanceof BulletList => $this->renderBulletList($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
                 $block instanceof OrderedList => $this->renderOrderedList($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
@@ -178,6 +193,45 @@ final class BoxRenderer
         }
 
         return $cursorYPt;
+    }
+
+    /**
+     * Tags one leaf-text block (heading / paragraph / code block): opens the
+     * mapped structure element, brackets the block's text-show operators in a
+     * single marked-content sequence on the emitting page, records the leaf, and
+     * closes - all balanced via try/finally even when the block draws nothing.
+     *
+     * When tagging is off ($this->tree === null) the block is rendered verbatim
+     * so the off-path stays byte-identical. The BDC/EMC pair is written to the
+     * SAME content stream (the page active when the block begins), so a block
+     * that flows across a page break still emits a balanced pair on its starting
+     * page; the marked-content id is minted from that page.
+     *
+     * @param callable(): float $render
+     */
+    private function tagLeaf(StructureType $type, Page $page, callable $render): float
+    {
+        $tree = $this->tree;
+        if ($tree === null) {
+            return $render();
+        }
+
+        $emittingPage = $this->activePage($page);
+        $stream = $emittingPage->contentStream();
+        $mcid = $emittingPage->nextMcid();
+
+        $tree->open($type);
+        try {
+            $stream->beginMarkedContent($type->value, $mcid);
+            try {
+                return $render();
+            } finally {
+                $stream->endMarkedContent();
+            }
+        } finally {
+            $tree->addMarkedContent($emittingPage->pageIndex(), $mcid);
+            $tree->close();
+        }
     }
 
     private function renderHeading(
@@ -211,6 +265,31 @@ final class BoxRenderer
         $cursorYPt += $this->toPt($page, $style->headingSpacingAfter);
 
         return $cursorYPt;
+    }
+
+    /**
+     * Renders a paragraph block, tagging it as <P> for a normal text paragraph.
+     * A paragraph that is solely a block-level image is NOT wrapped in P: the
+     * image is drawn through {@see Page::image()}, which tags itself as <Figure>,
+     * so the structure tree gets a Figure leaf rather than an empty P.
+     */
+    private function renderParagraphBlock(
+        Paragraph $paragraph,
+        MarkdownStyle $style,
+        Font $bodyFont,
+        float $bodySizePt,
+        float $xPt,
+        float $cursorYPt,
+        float $widthPt,
+        Page $page,
+        LineBreaker $breaker,
+        bool $measureOnly,
+    ): float {
+        if ($this->soleImage($paragraph->inlines) !== null) {
+            return $this->renderParagraph($paragraph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly);
+        }
+
+        return $this->tagLeaf(StructureType::P, $page, fn (): float => $this->renderParagraph($paragraph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly));
     }
 
     private function renderParagraph(
@@ -449,7 +528,7 @@ final class BoxRenderer
     ): float {
         $glyph = $style->bulletGlyphs[$depth % count($style->bulletGlyphs)];
 
-        return $this->renderListItems($list->items, static fn (int $i): string => $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
+        return $this->tagList($page, fn (): float => $this->renderListItems($list->items, static fn (int $i): string => $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly));
     }
 
     private function renderOrderedList(
@@ -467,7 +546,7 @@ final class BoxRenderer
     ): float {
         $start = $list->start;
 
-        return $this->renderListItems($list->items, static fn (int $i): string => ($start + $i) . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly);
+        return $this->tagList($page, fn (): float => $this->renderListItems($list->items, static fn (int $i): string => ($start + $i) . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly));
     }
 
     /**
@@ -546,7 +625,7 @@ final class BoxRenderer
             );
         }
 
-        return $this->renderBlocks(
+        return $this->tagListItem(fn (): float => $this->renderBlocks(
             $item->blocks,
             $style,
             $bodyFont,
@@ -558,7 +637,53 @@ final class BoxRenderer
             $breaker,
             $depth + 1,
             $measureOnly,
-        );
+        ));
+    }
+
+    /**
+     * Opens an L element around a whole list's items and closes it afterwards,
+     * balanced via try/finally. Off-path (no tree) renders verbatim.
+     *
+     * @param callable(): float $render
+     */
+    private function tagList(Page $page, callable $render): float
+    {
+        $tree = $this->tree;
+        if ($tree === null) {
+            return $render();
+        }
+        $tree->open(StructureType::L);
+        try {
+            return $render();
+        } finally {
+            $tree->close();
+        }
+    }
+
+    /**
+     * Opens LI then LBody around one list item's block content (the inner
+     * paragraphs tag themselves as P leaves inside the LBody), then closes both,
+     * balanced via try/finally. Off-path (no tree) renders verbatim.
+     *
+     * @param callable(): float $render
+     */
+    private function tagListItem(callable $render): float
+    {
+        $tree = $this->tree;
+        if ($tree === null) {
+            return $render();
+        }
+        $tree->open(StructureType::LI);
+        try {
+            $tree->open(StructureType::LBody);
+            try {
+                return $render();
+            } finally {
+                $tree->close();
+            }
+        } finally {
+            $tree->close();
+        }
     }
 
     private function renderThematicBreak(
