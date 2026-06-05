@@ -846,9 +846,10 @@ final class Document
                 hasAttachmentsAtPart2: !$this->pdfALevel->allowsEmbeddedFiles() && $this->attachments !== [],
             );
         }
-        // PDF/A and attached files both require the metadata output path (XMP +
-        // /ID for PDF/A, the /Names /EmbeddedFiles tree for attachments).
-        if ($this->pdfALevel !== null || $this->attachments !== []) {
+        // PDF/A, PDF/UA, and attached files all require the metadata output path
+        // (XMP + /ID for PDF/A and PDF/UA, the /Names /EmbeddedFiles tree for
+        // attachments). PDF/UA-1 (ISO 14289-1, 7.1) mandates an XMP packet.
+        if ($this->pdfALevel !== null || $this->attachments !== [] || $this->isPdfUA()) {
             $this->metadata();
         }
 
@@ -877,9 +878,9 @@ final class Document
             return $this->outputWithAppendedRevisions();
         }
 
-        $bytes = $this->metadata === null
+        $bytes = ($this->metadata === null && !$this->isPdfUA())
             ? $this->outputWithoutMetadata()
-            : $this->outputWithMetadata($this->metadata);
+            : $this->outputWithMetadata($this->metadata());
 
         if ($this->signature !== null) {
             $bytes = (new SignaturePatcher())->patch($bytes, $this->signature);
