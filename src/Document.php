@@ -750,7 +750,9 @@ final class Document
             $savedFontState = $page->captureFontState();
             $page->inHeaderRender = true;
             try {
-                ($this->header)($page);
+                $page->withArtifactScope(function () use ($page): void {
+                    ($this->header)($page);
+                });
             } finally {
                 $page->inHeaderRender = false;
                 $page->restoreFontState($savedFontState);
@@ -876,7 +878,9 @@ final class Document
                 $this->currentPage = $page;
                 $savedFontState = $page->captureFontState();
                 try {
-                    ($this->footer)($page, $i + 1, $totalPages);
+                    $page->withArtifactScope(function () use ($page, $i, $totalPages): void {
+                        ($this->footer)($page, $i + 1, $totalPages);
+                    });
                 } finally {
                     $page->restoreFontState($savedFontState);
                 }
