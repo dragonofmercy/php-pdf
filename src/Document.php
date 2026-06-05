@@ -113,6 +113,7 @@ final class Document
     private ?PdfALevel $pdfALevel = null;
 
     private bool $taggingEnabled = false;
+    private bool $uaConformance = false;
     private ?string $language = null;
     private ?StructureTree $structureTree = null;
 
@@ -578,6 +579,29 @@ final class Document
     public function isTaggingEnabled(): bool
     {
         return $this->taggingEnabled;
+    }
+
+    /**
+     * Opts the document into PDF/UA-1 (ISO 14289-1) accessible output: implies
+     * enableTagging($lang) for the logical structure tree, then forces a
+     * DisplayDocTitle viewer preference, an XMP /Metadata stream, and a
+     * fail-fast conformance guard at output() (every font must be embedded, a
+     * document title must be set, every figure must carry alternate text,
+     * headings must not skip levels, and link annotations are rejected until
+     * Phase 2b). Off by default; when off, output is byte-identical to an
+     * untagged document. Idempotent.
+     */
+    public function enablePdfUA(?string $lang = null): self
+    {
+        $this->enableTagging($lang);
+        $this->uaConformance = true;
+
+        return $this;
+    }
+
+    public function isPdfUA(): bool
+    {
+        return $this->uaConformance;
     }
 
     public function language(): ?string
