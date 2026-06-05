@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tagging;
 
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -81,8 +82,11 @@ final class StructTreeEmitter
                 : $this->numberOf($this->parents[$elem]);
             $dict = $dict->withEntry(Name::of('P'), PdfReference::to($parentNumber, 0));
 
-            // /Pg: the page of this element's first marked-content leaf, if any.
-            $pageIndex = $this->firstPageIndex($elem);
+            // /Pg: only on elements that DIRECTLY hold a marked-content leaf,
+            // using that leaf's page. Pure container elements (Document, Table,
+            // TR, L, LI...) get no /Pg (it is optional and most useful on
+            // content-bearing elements).
+            $pageIndex = $this->directLeafPageIndex($elem);
             if ($pageIndex !== null && isset($pageRefs[$pageIndex])) {
                 $dict = $dict->withEntry(Name::of('Pg'), $pageRefs[$pageIndex]);
             }
@@ -95,11 +99,12 @@ final class StructTreeEmitter
         $nums = [];
         foreach ($parentTree as $pageIndex => $byMcid) {
             ksort($byMcid);
+            /** @var list<PdfReference> $arr */
             $arr = [];
             $max = $byMcid === [] ? -1 : max(array_keys($byMcid));
             for ($i = 0; $i <= $max; $i++) {
-                // Gap-fill with 0; gaps should not occur for well-formed trees.
-                $arr[] = $byMcid[$i] ?? PdfNumber::ofInt(0);
+                // Every minted MCID is recorded, so a gap is a programming error.
+                $arr[] = $byMcid[$i] ?? throw new PdfException("ParentTree gap at page {$pageIndex}, mcid {$i}");
             }
             $nums[] = PdfNumber::ofInt($pageIndex);
             $nums[] = PdfArray::of(...$arr);
@@ -121,15 +126,9 @@ final class StructTreeEmitter
                 ->withEntry(Name::of('RoleMap'), Dictionary::empty()),
         );
 
-        $pageStructParents = [];
-        foreach (array_keys($pageRefs) as $pageIndex) {
-            $pageStructParents[$pageIndex] = $pageIndex;
-        }
-
         return new StructTreeResult(
             objects: [$rootObject, $parentTreeObject, ...$elemObjects],
             structTreeRootRef: PdfReference::to($rootRefNumber, 0),
-            pageStructParents: $pageStructParents,
         );
     }
 
@@ -165,15 +164,16 @@ final class StructTreeEmitter
         return PdfArray::of(...$kids);
     }
 
-    private function firstPageIndex(StructElem $elem): ?int
+    /**
+     * The page of this element's first DIRECT marked-content leaf, or null when
+     * the element holds no leaf child (a pure container). Used for /Pg, which is
+     * emitted only on direct leaf-holders.
+     */
+    private function directLeafPageIndex(StructElem $elem): ?int
     {
         foreach ($elem->children() as $child) {
             if ($child instanceof MarkedContentRef) {
                 return $child->pageIndex;
-            }
-            $nested = $this->firstPageIndex($child);
-            if ($nested !== null) {
-                return $nested;
             }
         }
         return null;

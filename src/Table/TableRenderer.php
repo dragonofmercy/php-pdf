@@ -24,6 +24,13 @@ use DragonOfMercy\PhpPdf\VerticalAlign;
 final class TableRenderer
 {
     /**
+     * Active logical-structure tree for the duration of a render(), captured
+     * once (it is per-document and stable across page breaks within one render),
+     * or null when tagging is off.
+     */
+    private ?StructureTree $tree = null;
+
+    /**
      * @param list<Column> $columns
      * @param iterable<array<string, mixed>> $rows
      */
@@ -45,6 +52,7 @@ final class TableRenderer
     public function render(float $startXPt, float $startYPt, float $totalWidthPt): array
     {
         $page = $this->page;
+        $this->tree = $page->document()?->structureTree();
         $unitWidth = $page->fromPt($totalWidthPt);
         $widthsUnit = self::distributeWidths($this->columns, $unitWidth);
         $widthsPt = array_map(static fn (float $w): float => $page->toPt($w), $widthsUnit);
@@ -162,7 +170,7 @@ final class TableRenderer
 
         // Auto-tagging: open a <TR> for the whole header row; each header cell
         // becomes a <TH> with its text as a marked-content leaf.
-        $tree = $page->document()?->structureTree();
+        $tree = $this->tree;
         if ($tree !== null) {
             $tree->open(StructureType::TR);
         }
@@ -328,7 +336,7 @@ final class TableRenderer
         // Auto-tagging: open a <TR> for the whole data row; each cell becomes a
         // <TD>. Text cells carry their text as a marked-content leaf; image
         // cells get an empty <TD> (image-in-table tagging is deferred).
-        $tree = $page->document()?->structureTree();
+        $tree = $this->tree;
         if ($tree !== null) {
             $tree->open(StructureType::TR);
         }

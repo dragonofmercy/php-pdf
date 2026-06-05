@@ -25,8 +25,6 @@ final class StructTreeEmitterTest extends TestCase
 
         // StructTreeRoot is the first object, at number 50.
         self::assertSame(50, $result->structTreeRootRef->objectNumber);
-        // Page 0 maps to StructParents value 0.
-        self::assertSame(0, $result->pageStructParents[0]);
         // At least: StructTreeRoot + Document elem + P elem + ParentTree.
         self::assertGreaterThanOrEqual(4, count($result->objects));
 

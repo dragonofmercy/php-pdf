@@ -528,7 +528,7 @@ final class BoxRenderer
     ): float {
         $glyph = $style->bulletGlyphs[$depth % count($style->bulletGlyphs)];
 
-        return $this->tagList($page, fn (): float => $this->renderListItems($list->items, static fn (int $i): string => $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly));
+        return $this->tagList(fn (): float => $this->renderListItems($list->items, static fn (int $i): string => $glyph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly));
     }
 
     private function renderOrderedList(
@@ -546,7 +546,7 @@ final class BoxRenderer
     ): float {
         $start = $list->start;
 
-        return $this->tagList($page, fn (): float => $this->renderListItems($list->items, static fn (int $i): string => ($start + $i) . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly));
+        return $this->tagList(fn (): float => $this->renderListItems($list->items, static fn (int $i): string => ($start + $i) . '.', $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly));
     }
 
     /**
@@ -646,7 +646,7 @@ final class BoxRenderer
      *
      * @param callable(): float $render
      */
-    private function tagList(Page $page, callable $render): float
+    private function tagList(callable $render): float
     {
         $tree = $this->tree;
         if ($tree === null) {

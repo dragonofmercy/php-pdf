@@ -1253,23 +1253,24 @@ final class Page
         $yPt = $this->toPt($y);
 
         $tree = $this->document?->structureTree();
+        $mcid = null;
         if ($tree !== null) {
             $mcid = $this->nextMcid();
             $tree->open(StructureType::Figure);
         }
         $this->stream->append(Operators::saveState());
-        if (isset($mcid)) {
-            $this->stream->beginMarkedContent('Figure', $mcid);
+        if ($mcid !== null) {
+            $this->stream->beginMarkedContent(StructureType::Figure->value, $mcid);
         }
         $this->stream->append(Operators::concatMatrix(
             $effWPt, 0, 0, -$effHPt, $xPt, $yPt + $effHPt,
         ));
         $this->stream->append(Operators::invokeXObject($shortName));
-        if (isset($mcid)) {
+        if ($mcid !== null) {
             $this->stream->endMarkedContent();
         }
         $this->stream->append(Operators::restoreState());
-        if ($tree !== null && isset($mcid)) {
+        if ($tree !== null) {
             $tree->addMarkedContent($this->pageIndex(), $mcid);
             $tree->close();
         }
