@@ -1677,6 +1677,13 @@ final class Document
                 ),
             );
         }
+        if ($this->isPdfUA()) {
+            // PDF/UA-1 (ISO 14289-1, 7.1) requires the viewer to display the
+            // document title from metadata rather than the file name.
+            $viewerPrefs = Dictionary::empty()
+                ->withEntry(Name::of('DisplayDocTitle'), PdfBoolean::of(true));
+            $catalogDict = $catalogDict->withEntry(Name::of('ViewerPreferences'), $viewerPrefs);
+        }
         return $catalogDict;
     }
 
