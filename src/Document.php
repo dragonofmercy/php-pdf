@@ -749,9 +749,10 @@ final class Document
             // produces a new page whose first cell inherits the header's font.
             $savedFontState = $page->captureFontState();
             $page->inHeaderRender = true;
+            $header = $this->header;
             try {
-                $page->withArtifactScope(function () use ($page): void {
-                    ($this->header)($page);
+                $page->withArtifactScope(function () use ($header, $page): void {
+                    $header($page);
                 });
             } finally {
                 $page->inHeaderRender = false;
@@ -871,6 +872,7 @@ final class Document
             return;
         }
         $this->footersRendered = true;
+        $footer = $this->footer;
         $totalPages = count($this->pages);
         $previousCurrent = $this->currentPage;
         try {
@@ -878,8 +880,8 @@ final class Document
                 $this->currentPage = $page;
                 $savedFontState = $page->captureFontState();
                 try {
-                    $page->withArtifactScope(function () use ($page, $i, $totalPages): void {
-                        ($this->footer)($page, $i + 1, $totalPages);
+                    $page->withArtifactScope(function () use ($footer, $page, $i, $totalPages): void {
+                        $footer($page, $i + 1, $totalPages);
                     });
                 } finally {
                     $page->restoreFontState($savedFontState);

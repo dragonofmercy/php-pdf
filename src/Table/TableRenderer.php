@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\Tagging\StructureTree;
 use DragonOfMercy\PhpPdf\Tagging\StructureType;
+use DragonOfMercy\PhpPdf\Tagging\TableScope;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -52,7 +53,10 @@ final class TableRenderer
     public function render(float $startXPt, float $startYPt, float $totalWidthPt): array
     {
         $page = $this->page;
-        $this->tree = $page->document()?->structureTree();
+        // An artifact scope (e.g. a table drawn from a header/footer) must emit
+        // no structure: suppress the tree so TR/TH/TD are not opened onto the
+        // wrong parent.
+        $this->tree = $page->isArtifactScope() ? null : $page->document()?->structureTree();
         $unitWidth = $page->fromPt($totalWidthPt);
         $widthsUnit = self::distributeWidths($this->columns, $unitWidth);
         $widthsPt = array_map(static fn (float $w): float => $page->toPt($w), $widthsUnit);
@@ -390,7 +394,10 @@ final class TableRenderer
         if ($tree === null) {
             return null;
         }
-        $tree->open($type);
+        $elem = $tree->open($type);
+        if ($type === StructureType::TH) {
+            $elem->setScope(TableScope::Column);
+        }
         if ($text === '') {
             return null;
         }
