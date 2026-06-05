@@ -708,6 +708,7 @@ final class Page
             fontShortName: $fontShortName,
             emittingPage: $this,
             markedContentId: $mcid,
+            artifactDecoration: $this->document?->structureTree() !== null && !$this->isArtifactScope(),
         );
 
         if ($tree !== null && $mcid !== null) {
@@ -1135,6 +1136,7 @@ final class Page
             emittingPage: $this,
             markedContentId: $markedContentId,
             markedContentTag: $markedContentTag,
+            artifactDecoration: $this->document?->structureTree() !== null && !$this->isArtifactScope(),
         );
     }
 

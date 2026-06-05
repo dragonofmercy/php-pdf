@@ -48,6 +48,7 @@ final class CellRenderer
         Page $emittingPage,
         ?int $markedContentId = null,
         string $markedContentTag = 'P',
+        bool $artifactDecoration = false,
     ): CellResult {
         $lines = [];
         $widths = [];
@@ -125,15 +126,27 @@ final class CellRenderer
         $this->stream->append(Operators::saveState());
 
         if ($fill !== null) {
+            if ($artifactDecoration) {
+                $this->stream->beginArtifact();
+            }
             $this->stream->append(Operators::saveState());
             $this->stream->append($fill->toPdfOperator(stroke: false));
             $this->stream->append(Operators::rectangle($x, $y, $w, $cellHeight));
             $this->stream->append(Operators::fill());
             $this->stream->append(Operators::restoreState());
+            if ($artifactDecoration) {
+                $this->stream->endArtifact();
+            }
         }
 
         if ($border !== null && !$border->isEmpty()) {
+            if ($artifactDecoration) {
+                $this->stream->beginArtifact();
+            }
             $this->emitBorders($border, $x, $y, $w, $cellHeight);
+            if ($artifactDecoration) {
+                $this->stream->endArtifact();
+            }
         }
 
         if ($text !== '') {
