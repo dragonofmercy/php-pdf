@@ -17,10 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   builds a logical structure tree and emits the catalog `/StructTreeRoot`,
   `/MarkInfo`, ParentTree, per-page `/StructParents`, and `/Tabs /S`, wrapping
   page content in MCID-keyed marked-content sequences. It is opt-in and off by
-  default - output is byte-identical when `enableTagging()` is not called. This
-  is Phase 1 toward PDF/UA-1: figures and links carry no alternate text yet and
-  links and decorative artifacts are not marked, so the output is not yet
-  PDF/UA-1 conformant.
+  default - output is byte-identical when `enableTagging()` is not called.
+  `enableTagging()` alone produces a well-formed structure tree but not a
+  conformant one; for PDF/UA-1 conformance use `enablePdfUA()` (below).
+- PDF/UA-1 conformance: `Document::enablePdfUA(?string $lang = null)` builds on
+  tagging to produce output that validates `isCompliant` under the veraPDF
+  PDF/UA-1 profile for documents built from `cell()` / `table()` / `markdown()`
+  / `image()`. It marks decoration (cell fills and borders, table chrome,
+  Markdown list markers, header and footer content) as `/Artifact`; carries
+  alternate text on figures via `image(alt: '...')`, with `image(decorative:
+  true)` to mark a purely decorative image as an artifact instead; gives table
+  header cells a `/Scope /Column` attribute; sets `/ViewerPreferences
+  /DisplayDocTitle true`; always emits an XMP `/Metadata` stream carrying the
+  `pdfuaid:part` identifier; and runs a fail-fast conformance guard that
+  requires every font to be embedded and a document title to be set, and rejects
+  figures without alternate text, skipped heading levels, and (for now) link
+  annotations. Link / annotation tagging and PDF/A level "a" remain for later
+  phases.
 
 ## [1.5.0] - 2026-06-04
 
