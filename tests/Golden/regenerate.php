@@ -1040,6 +1040,8 @@ if (!is_dir($fixturesDir . '/tagging')) {
 }
 file_put_contents($fixturesDir . '/tagging/cell-paragraph.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildCellParagraph());
 echo "Regenerated tagging/cell-paragraph.pdf\n";
+file_put_contents($fixturesDir . '/tagging/figure.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildFigure());
+echo "Regenerated tagging/figure.pdf\n";
 
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {

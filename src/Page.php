@@ -1248,12 +1248,27 @@ final class Page
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);
 
+        $tree = $this->document?->structureTree();
+        if ($tree !== null) {
+            $mcid = $this->nextMcid();
+            $tree->open(StructureType::Figure);
+        }
         $this->stream->append(Operators::saveState());
+        if (isset($mcid)) {
+            $this->stream->beginMarkedContent('Figure', $mcid);
+        }
         $this->stream->append(Operators::concatMatrix(
             $effWPt, 0, 0, -$effHPt, $xPt, $yPt + $effHPt,
         ));
         $this->stream->append(Operators::invokeXObject($shortName));
+        if (isset($mcid)) {
+            $this->stream->endMarkedContent();
+        }
         $this->stream->append(Operators::restoreState());
+        if ($tree !== null && isset($mcid)) {
+            $tree->addMarkedContent($this->pageIndex(), $mcid);
+            $tree->close();
+        }
 
         $this->imagesUsed[$shortName] = true;
         // Advance the cursor over the image's bounding box per $ln, mirroring
