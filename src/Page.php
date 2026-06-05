@@ -618,6 +618,9 @@ final class Page
         if ($linkAlt !== null && $link === null) {
             throw new PdfException('cell() linkAlt requires a link');
         }
+        if ($link !== null && $markdown) {
+            throw new PdfException('cell() link is not supported with markdown: true');
+        }
         // Capture the link and its validated rectangle up front: a single non-null
         // check below then narrows the link, width, and height together for the
         // LinkAnnotation constructor without an assert or cast (the column-layout
@@ -664,7 +667,7 @@ final class Page
         // exceed the page bottom, flow to the next column (or new page col 0)
         // regardless of whether autoPageBreak is active.
         if ($columnLayout !== null && !$this->inHeaderRender) {
-            $colOverflow = $this->maybeColumnOverflow($y, $h, $text, $x, $w, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln);
+            $colOverflow = $this->maybeColumnOverflow($y, $h, $text, $x, $w, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln);
             if ($colOverflow !== null) {
                 return $colOverflow;
             }
@@ -673,7 +676,7 @@ final class Page
         // Auto-page-break: when active and we are not currently rendering a
         // header, check whether this cell would overflow the bottom margin
         // and if so, delegate to a new page.
-        $broken = $this->maybeAutoBreak($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln);
+        $broken = $this->maybeAutoBreak($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln);
         if ($broken !== null) {
             return $broken;
         }
@@ -1762,6 +1765,8 @@ final class Page
         VerticalAlign $verticalAlign,
         Fit $fit,
         float|CellPadding|null $padding,
+        ?Link $link,
+        ?string $linkAlt,
         NextPosition $ln,
     ): ?CellResult {
         if ($this->document === null
@@ -1813,6 +1818,8 @@ final class Page
                 verticalAlign: $verticalAlign,
                 fit: $fit,
                 padding: $padding,
+                link: $link,
+                linkAlt: $linkAlt,
                 ln: $ln,
             );
         } finally {
@@ -1841,6 +1848,8 @@ final class Page
         VerticalAlign $verticalAlign,
         Fit $fit,
         float|CellPadding|null $padding,
+        ?Link $link,
+        ?string $linkAlt,
         NextPosition $ln,
     ): ?CellResult {
         $resolvedYPt = $y !== null
@@ -1893,6 +1902,8 @@ final class Page
                 verticalAlign: $verticalAlign,
                 fit: $fit,
                 padding: $padding,
+                link: $link,
+                linkAlt: $linkAlt,
                 ln: $ln,
             );
         } finally {
