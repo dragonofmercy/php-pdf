@@ -737,21 +737,24 @@ final class Page
                 // autoPageBreak is not required. Each overflow advances to the
                 // next column (same page) or a fresh page's column 0.
                 // ($layout is non-null here: $columnFlowing = ($layout !== null) && ...)
+                // $this->document is non-null here: $layout came from $this->document?->columnLayout().
+                $columnDocument = $this->document;
+                assert($columnDocument !== null);
                 $stepPt = $layout->stepPt;
                 $topMarginY = $this->fromPt($layout->topPt);
                 $finalPage = $this;
-                $onPageBreak = function () use ($bodyFont, $bodySize, $topMarginY, $startIndex, $stepPt, &$finalPage): array {
+                $onPageBreak = function () use ($bodyFont, $bodySize, $topMarginY, $startIndex, $stepPt, $columnDocument, &$finalPage): array {
                     $page = $this->advanceColumnFlow();
                     $page->setFont($bodyFont, $bodySize);
                     $finalPage = $page;
-                    $xShiftPt = ($this->document->columnIndex() - $startIndex) * $stepPt;
+                    $xShiftPt = ($columnDocument->columnIndex() - $startIndex) * $stepPt;
                     return [$page, $topMarginY, $xShiftPt];
                 };
 
                 $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak);
                 $finalStartTop = $finalPage === $this ? $y : $this->fromPt($layout->topPt);
                 $this->advanceMarkdownCursor($finalPage, $ln, $x, $y, $width, $consumedHeight, $finalStartTop);
-                $this->document->recordColumnBottomPt($this->toPt($finalStartTop) + $this->toPt($consumedHeight));
+                $columnDocument->recordColumnBottomPt($this->toPt($finalStartTop) + $this->toPt($consumedHeight));
             } elseif ($flowing) {
                 // FLOW: each break adds a page, re-applies the body font (addPage
                 // seeds the document default, which may differ), and continues at
