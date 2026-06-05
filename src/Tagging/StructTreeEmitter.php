@@ -66,7 +66,7 @@ final class StructTreeEmitter
             foreach ($elem->children() as $child) {
                 if ($child instanceof StructElem) {
                     $kids[] = PdfReference::to($this->numberOf($child), 0);
-                } else {
+                } elseif ($child instanceof MarkedContentRef) {
                     $kids[] = PdfNumber::ofInt($child->mcid);
                     $parentTree[$child->pageIndex][$child->mcid] = PdfReference::to($elemNumber, 0);
                 }

@@ -6,14 +6,14 @@ namespace DragonOfMercy\PhpPdf\Tagging;
 
 /**
  * One node of the logical structure tree, mutated while content is drawn.
- * Children are nested StructElems and/or MarkedContentRef leaves, in document
- * order. Object numbers are assigned later by StructTreeEmitter.
+ * Children are nested StructElems and/or MarkedContentRef / ObjrRef leaves, in
+ * document order. Object numbers are assigned later by StructTreeEmitter.
  *
  * @internal
  */
 final class StructElem
 {
-    /** @var list<StructElem|MarkedContentRef> */
+    /** @var list<StructElem|MarkedContentRef|ObjrRef> */
     private array $children = [];
 
     private ?string $alt = null;
@@ -59,7 +59,12 @@ final class StructElem
         $this->children[] = $ref;
     }
 
-    /** @return list<StructElem|MarkedContentRef> */
+    public function appendObjr(ObjrRef $ref): void
+    {
+        $this->children[] = $ref;
+    }
+
+    /** @return list<StructElem|MarkedContentRef|ObjrRef> */
     public function children(): array
     {
         return $this->children;
