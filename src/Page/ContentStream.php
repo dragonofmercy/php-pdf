@@ -26,6 +26,16 @@ final class ContentStream
         $this->userBytes .= $bytes;
     }
 
+    public function beginMarkedContent(string $tag, int $mcid): void
+    {
+        $this->userBytes .= "/{$tag} <</MCID {$mcid}>> BDC\n";
+    }
+
+    public function endMarkedContent(): void
+    {
+        $this->userBytes .= "EMC\n";
+    }
+
     public function isEmpty(): bool
     {
         return $this->userBytes === '';
