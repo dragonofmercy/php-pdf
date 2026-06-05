@@ -34,6 +34,7 @@ use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\TableRenderer;
 use DragonOfMercy\PhpPdf\Table\TableResult;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
+use DragonOfMercy\PhpPdf\Tagging\ObjrRef;
 use DragonOfMercy\PhpPdf\Tagging\StructureType;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
@@ -598,6 +599,8 @@ final class Page
         VerticalAlign $verticalAlign = VerticalAlign::TOP,
         Fit $fit = Fit::NONE,
         float|CellPadding|null $padding = null,
+        ?Link $link = null,
+        ?string $linkAlt = null,
         NextPosition $ln = NextPosition::RIGHT,
         bool $markdown = false,
     ): CellResult {
@@ -606,11 +609,29 @@ final class Page
         // document's current page so nothing lands on a stale page.
         $current = $this->columnRedirectTarget();
         if ($current !== null) {
-            return $current->cell($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $ln, $markdown);
+            return $current->cell($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln, $markdown);
         }
 
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
             throw new PdfException('setFont() must be called before cell()');
+        }
+        if ($linkAlt !== null && $link === null) {
+            throw new PdfException('cell() linkAlt requires a link');
+        }
+        // Capture the link and its validated rectangle up front: a single non-null
+        // check below then narrows the link, width, and height together for the
+        // LinkAnnotation constructor without an assert or cast (the column-layout
+        // block further down may reassign $w/$h back to nullable).
+        $linkRect = null;
+        if ($link !== null) {
+            if ($w === null || $h === null || $w <= 0.0 || $h <= 0.0) {
+                throw new PdfException(sprintf(
+                    'cell() with a link requires a positive width and height, got w=%s h=%s',
+                    $w === null ? 'null' : self::formatNumber($w),
+                    $h === null ? 'null' : self::formatNumber($h),
+                ));
+            }
+            $linkRect = ['link' => $link, 'w' => $w, 'h' => $h];
         }
         if ($markdown && $text !== '') {
             return $this->renderMarkdownCell($x, $y, $w, $h, $text, $border, $fill, $padding, $ln);
@@ -692,9 +713,40 @@ final class Page
         // mint the mcid and record the leaf against $this.
         $tree = $this->document?->structureTree();
         $mcid = null;
-        if ($tree !== null && !$this->artifactScope && $text !== '') {
-            $tree->open(StructureType::P);
+        $linkElem = null;
+        if ($this->shouldTag() && $tree !== null && $text !== '') {
+            $linkElem = $link !== null ? $tree->open(StructureType::Link) : null;
+            if ($linkElem === null) {
+                $tree->open(StructureType::P);
+            }
             $mcid = $this->nextMcid();
+        }
+
+        // Register the link annotation over the cell box. It is tagged (carrying a
+        // /StructParent ordinal and /Contents) only when this cell is actually
+        // tagged with text; otherwise it is the plain convenience area link.
+        $annot = null;
+        if ($linkRect !== null) {
+            $tagIndex = null;
+            $contents = null;
+            if ($linkElem !== null) {
+                // shouldTag() && $text !== '' is implied by $linkElem !== null.
+                $document = $this->document;
+                if ($document !== null) {
+                    $tagIndex = $document->nextLinkStructParentIndex();
+                }
+                $contents = $linkAlt ?? $text;
+            }
+            $annot = new LinkAnnotation(
+                x: $x,
+                y: $y,
+                width: $linkRect['w'],
+                height: $linkRect['h'],
+                link: $linkRect['link'],
+                structParentTagIndex: $tagIndex,
+                contents: $contents,
+            );
+            $this->linkAnnotations[] = $annot;
         }
 
         $renderer = new CellRenderer(stream: $this->stream);
@@ -717,11 +769,17 @@ final class Page
             fontShortName: $fontShortName,
             emittingPage: $this,
             markedContentId: $mcid,
+            markedContentTag: $link !== null ? 'Link' : 'P',
             artifactDecoration: $this->shouldTag(),
         );
 
         if ($tree !== null && $mcid !== null) {
             $tree->addMarkedContent($this->pageIndex(), $mcid);
+            // A non-null $linkElem implies a tagged link cell, so $annot was built
+            // above with a non-null structParentTagIndex.
+            if ($linkElem !== null) {
+                $linkElem->appendObjr(new ObjrRef($annot, $this->pageIndex(), $annot->structParentTagIndex ?? 0));
+            }
             $tree->close();
         }
 
