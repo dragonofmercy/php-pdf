@@ -1034,6 +1034,13 @@ echo "Regenerated page/columns-markdown-1page.pdf\n";
 file_put_contents($fixturesDir . '/page/columns-markdown-2pages.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\ColumnsGoldenTest::buildMarkdown2Pages());
 echo "Regenerated page/columns-markdown-2pages.pdf\n";
 
+// Tagged-PDF golden fixtures (Tagged PDF Phase 1)
+if (!is_dir($fixturesDir . '/tagging')) {
+    mkdir($fixturesDir . '/tagging', 0755, true);
+}
+file_put_contents($fixturesDir . '/tagging/cell-paragraph.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildCellParagraph());
+echo "Regenerated tagging/cell-paragraph.pdf\n";
+
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
     mkdir($svgFixturesDir, 0755, true);

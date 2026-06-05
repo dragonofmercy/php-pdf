@@ -34,6 +34,7 @@ use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\TableRenderer;
 use DragonOfMercy\PhpPdf\Table\TableResult;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
+use DragonOfMercy\PhpPdf\Tagging\StructureType;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -638,6 +639,19 @@ final class Page
         // Border width is converted to points before handing the border off to CellRenderer.
         $borderForRenderer = $this->resolveBorderForRenderer($border);
 
+        // Auto-tagging: when a structure tree is active and this cell carries
+        // text, bracket just the text-show operators in a <P> marked-content
+        // sequence. maybeAutoBreak() above already delegated the whole cell to
+        // the destination page when an overflow occurred, so at this point
+        // $this IS the page whose content stream receives the show operators;
+        // mint the mcid and record the leaf against $this.
+        $tree = $this->document?->structureTree();
+        $mcid = null;
+        if ($tree !== null && $text !== '') {
+            $tree->open(StructureType::P);
+            $mcid = $this->nextMcid();
+        }
+
         $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(
             engine: $engine,
@@ -657,7 +671,13 @@ final class Page
             padding: $resolvedPaddingPt,
             fontShortName: $fontShortName,
             emittingPage: $this,
+            markedContentId: $mcid,
         );
+
+        if ($tree !== null && $mcid !== null) {
+            $tree->addMarkedContent($this->pageIndex(), $mcid);
+            $tree->close();
+        }
 
         $xPt = $this->toPt($x);
         $yPt = $this->toPt($y);

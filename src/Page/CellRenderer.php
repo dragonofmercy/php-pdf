@@ -46,6 +46,7 @@ final class CellRenderer
         CellPadding $padding,
         string $fontShortName,
         Page $emittingPage,
+        ?int $markedContentId = null,
     ): CellResult {
         $lines = [];
         $widths = [];
@@ -135,6 +136,9 @@ final class CellRenderer
         }
 
         if ($text !== '') {
+            if ($markedContentId !== null) {
+                $this->stream->beginMarkedContent('P', $markedContentId);
+            }
             $justifyActive = $align === TextAlign::JUSTIFY && $fit === Fit::NONE && !$autoWidth;
             $this->emitText(
                 engine: $engine,
@@ -154,6 +158,9 @@ final class CellRenderer
                 textColor: $textColor,
                 fontShortName: $fontShortName,
             );
+            if ($markedContentId !== null) {
+                $this->stream->endMarkedContent();
+            }
         }
 
         $this->stream->append(Operators::restoreState());
