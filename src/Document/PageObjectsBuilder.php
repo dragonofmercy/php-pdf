@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Form\FormField;
+use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\TabOrder;
@@ -61,7 +62,7 @@ final readonly class PageObjectsBuilder
      * @param list<PdfReference>                    $pageRefs        indexed 0-based, one entry per page
      * @param list<float>                           $pageHeightsPt   matched array of page heights in points
      *
-     * @return array{objects: list<IndirectObject>, allWidgets: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>}
+     * @return array{objects: list<IndirectObject>, allWidgets: list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}>, linkAnnotationMap: \SplObjectStorage<LinkAnnotation, int>}
      */
     public function build(array $pending, array $pageRefs, array $pageHeightsPt): array
     {
@@ -69,6 +70,8 @@ final readonly class PageObjectsBuilder
         $objects = [];
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = [];
+        /** @var \SplObjectStorage<LinkAnnotation, int> $linkAnnotationMap */
+        $linkAnnotationMap = new \SplObjectStorage();
 
         foreach ($pending as [$page, $pageNum, $contentNum]) {
             $pageDict = Dictionary::empty()
@@ -99,8 +102,10 @@ final readonly class PageObjectsBuilder
                         $pageHeightsPt,
                         $annotId,
                         $pageContext,
+                        pageCount: count($pageRefs),
                     );
                     $annotRefs[] = PdfReference::to($annotId, 0);
+                    $linkAnnotationMap[$annot] = $annotId;
                 }
             }
 
@@ -164,7 +169,7 @@ final readonly class PageObjectsBuilder
             }
         }
 
-        return ['objects' => $objects, 'allWidgets' => $allWidgets];
+        return ['objects' => $objects, 'allWidgets' => $allWidgets, 'linkAnnotationMap' => $linkAnnotationMap];
     }
 
     /**
