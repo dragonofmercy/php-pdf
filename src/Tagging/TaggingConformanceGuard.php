@@ -60,7 +60,7 @@ final class TaggingConformanceGuard
                     . 'or mark it decorative with image(decorative: true).',
                 );
             }
-            $level = self::headingLevel($elem->type());
+            $level = $elem->type()->headingLevel();
             if ($level > 0) {
                 if ($level > $highestHeading + 1) {
                     throw new PdfException(sprintf(
@@ -78,18 +78,5 @@ final class TaggingConformanceGuard
             }
         };
         $walk($root);
-    }
-
-    private static function headingLevel(StructureType $type): int
-    {
-        return match ($type) {
-            StructureType::H1 => 1,
-            StructureType::H2 => 2,
-            StructureType::H3 => 3,
-            StructureType::H4 => 4,
-            StructureType::H5 => 5,
-            StructureType::H6 => 6,
-            default => 0,
-        };
     }
 }

@@ -30,9 +30,7 @@ final class CellArtifactTest extends TestCase
 
     public function testCellDecorationNotBracketedWhenTaggingOff(): void
     {
-        $tagged = new Document();
-        $tagged->enableTagging();
-        // No structure tree -> no artifact brackets. Compare to a plain document.
+        // With tagging off there is no structure tree, so no artifact brackets.
         $plain = new Document();
         $page = $plain->addPage();
         $page->setFont(Font::helvetica(), 12);

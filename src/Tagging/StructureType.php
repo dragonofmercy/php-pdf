@@ -47,4 +47,21 @@ enum StructureType: string
             default => self::H6,
         };
     }
+
+    /**
+     * The heading level (1-6) for an H1..H6 type, or 0 for any non-heading
+     * type. Inverse of headingForLevel().
+     */
+    public function headingLevel(): int
+    {
+        return match ($this) {
+            self::H1 => 1,
+            self::H2 => 2,
+            self::H3 => 3,
+            self::H4 => 4,
+            self::H5 => 5,
+            self::H6 => 6,
+            default => 0,
+        };
+    }
 }

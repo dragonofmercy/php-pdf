@@ -180,6 +180,15 @@ final class Page
     }
 
     /**
+     * @internal Whether real content drawn now should be structure-tagged:
+     * a structure tree is active and we are not inside an artifact scope.
+     */
+    public function shouldTag(): bool
+    {
+        return $this->document?->structureTree() !== null && !$this->artifactScope;
+    }
+
+    /**
      * @internal Snapshot the font-related state so a caller (Document) can
      * bracket a header/footer callback and restore the page exactly as it was
      * before the callback ran. Without this, header callbacks would leak their
@@ -708,7 +717,7 @@ final class Page
             fontShortName: $fontShortName,
             emittingPage: $this,
             markedContentId: $mcid,
-            artifactDecoration: $this->document?->structureTree() !== null && !$this->isArtifactScope(),
+            artifactDecoration: $this->shouldTag(),
         );
 
         if ($tree !== null && $mcid !== null) {
@@ -1136,7 +1145,7 @@ final class Page
             emittingPage: $this,
             markedContentId: $markedContentId,
             markedContentTag: $markedContentTag,
-            artifactDecoration: $this->document?->structureTree() !== null && !$this->isArtifactScope(),
+            artifactDecoration: $this->shouldTag(),
         );
     }
 
