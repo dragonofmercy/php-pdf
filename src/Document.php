@@ -63,6 +63,7 @@ use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
 use DragonOfMercy\PhpPdf\Tagging\StructTreeEmitter;
 use DragonOfMercy\PhpPdf\Tagging\StructureTree;
+use DragonOfMercy\PhpPdf\Tagging\TaggingConformanceGuard;
 use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -846,6 +847,19 @@ final class Document
                 hasAttachmentsAtPart2: !$this->pdfALevel->allowsEmbeddedFiles() && $this->attachments !== [],
             );
         }
+
+        if ($this->isPdfUA()) {
+            $tree = $this->structureTree();
+            if ($tree === null) {
+                throw new PdfException('Internal: PDF/UA mode without a structure tree');
+            }
+            (new TaggingConformanceGuard())->verify(
+                standardFonts: $this->fontRegistry->registeredFonts(),
+                title: $this->metadata?->title,
+                tree: $tree,
+                hasLinkAnnotations: $this->hasLinkAnnotations(),
+            );
+        }
         // PDF/A, PDF/UA, and attached files all require the metadata output path
         // (XMP + /ID for PDF/A and PDF/UA, the /Names /EmbeddedFiles tree for
         // attachments). PDF/UA-1 (ISO 14289-1, 7.1) mandates an XMP packet.
@@ -929,6 +943,17 @@ final class Document
     private function hasDocumentScripts(): bool
     {
         return $this->documentScripts !== [];
+    }
+
+    /** True when any page declares a link annotation (rejected under PDF/UA until Phase 2b). */
+    private function hasLinkAnnotations(): bool
+    {
+        foreach ($this->pages as $page) {
+            if ($page->getLinkAnnotations() !== []) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function outputWithoutMetadata(): string
