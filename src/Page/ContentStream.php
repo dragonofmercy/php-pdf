@@ -36,6 +36,16 @@ final class ContentStream
         $this->userBytes .= "EMC\n";
     }
 
+    public function beginArtifact(): void
+    {
+        $this->userBytes .= "/Artifact BDC\n";
+    }
+
+    public function endArtifact(): void
+    {
+        $this->userBytes .= "EMC\n";
+    }
+
     public function isEmpty(): bool
     {
         return $this->userBytes === '';
