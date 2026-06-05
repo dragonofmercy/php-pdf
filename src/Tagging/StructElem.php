@@ -16,6 +16,10 @@ final class StructElem
     /** @var list<StructElem|MarkedContentRef> */
     private array $children = [];
 
+    private ?string $alt = null;
+
+    private ?TableScope $scope = null;
+
     public function __construct(
         private readonly StructureType $type,
     ) {}
@@ -23,6 +27,26 @@ final class StructElem
     public function type(): StructureType
     {
         return $this->type;
+    }
+
+    public function alt(): ?string
+    {
+        return $this->alt;
+    }
+
+    public function setAlt(string $alt): void
+    {
+        $this->alt = $alt;
+    }
+
+    public function scope(): ?TableScope
+    {
+        return $this->scope;
+    }
+
+    public function setScope(TableScope $scope): void
+    {
+        $this->scope = $scope;
     }
 
     public function appendChild(StructElem $child): void
