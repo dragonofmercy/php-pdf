@@ -7,6 +7,9 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\NextPosition;
+use DragonOfMercy\PhpPdf\Outline\Destination;
+use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\TableBorders;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
@@ -199,6 +202,51 @@ final class TaggingGoldenTest extends TestCase
             self::markTestSkipped('qpdf not on PATH');
         }
         $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-document.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
+    /**
+     * A PDF/UA-1 document with tagged text hyperlinks: an external URL link
+     * (carrying /Alt via linkAlt) and an internal go-to-page-1 link. Reuses the
+     * same deterministic setup as buildUaDocument() so both the golden compare
+     * and the veraPDF gate (VeraPdfUa1Test) validate identical bytes.
+     */
+    public static function buildUaLinksDocument(): Document
+    {
+        $doc = new Document();
+        $doc->metadata()
+            ->title('Accessible links')
+            ->creationDate(new \DateTimeImmutable('2026-01-01T12:00:00+00:00'))
+            ->documentId('abcdef0123456789abcdef0123456789');
+        $doc->registerFontFamily('Body', regular: self::FONTS_DIR . '/FreeSans.ttf', bold: self::FONTS_DIR . '/FreeSansBold.ttf');
+        $doc->enablePdfUA('en-US');
+
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('Body'), 12.0);
+        $page->cell(w: 80.0, h: 8.0, text: 'Visit example.com', link: Link::url('https://example.com'), linkAlt: 'Example home page', ln: NextPosition::NEWLINE);
+        $page->cell(w: 80.0, h: 8.0, text: 'Jump to page 1', link: Link::destination(Destination::page(0)));
+
+        return $doc;
+    }
+
+    public function testUaLinksDocumentMatchesFixture(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/ua-links.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildUaLinksDocument()->output(), 'tagging/ua-links.pdf diverges; regenerate if intended.');
+    }
+
+    public function testUaLinksDocumentPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-links.pdf']);
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
