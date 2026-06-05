@@ -147,7 +147,7 @@ final class Page
     }
 
     /**
-     * Runs $body with its content bracketed in /Artifact BDC ... EMC and all
+     * Runs $body with its content bracketed in /Artifact BMC ... EMC and all
      * structure tagging suppressed for the duration. Re-entrant safe: nested
      * calls do not emit a second bracket and restore the prior flag. When the
      * owning document has tagging off, $body still runs but NO artifact

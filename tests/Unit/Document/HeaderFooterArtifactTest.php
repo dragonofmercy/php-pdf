@@ -37,7 +37,7 @@ final class HeaderFooterArtifactTest extends TestCase
 
         // Header and footer content is bracketed as artifacts.
         $bytes = $page->contentStream()->bytes();
-        self::assertGreaterThanOrEqual(1, substr_count($bytes, '/Artifact BDC'));
+        self::assertGreaterThanOrEqual(1, substr_count($bytes, '/Artifact BMC'));
         self::assertStringContainsString('EMC', $bytes);
     }
 

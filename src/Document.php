@@ -1070,7 +1070,7 @@ final class Document
 
         $info = IndirectObject::of(3, 0, $this->buildInfoDictionary($effective));
 
-        $xmpXml = (new XmpWriter())->write($effective, $this->pdfALevel);
+        $xmpXml = (new XmpWriter())->write($effective, $this->pdfALevel, $this->isPdfUA());
         $metadataStream = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
 
         $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects, ...$structObjects];
@@ -1333,7 +1333,7 @@ final class Document
             $objects[] = $infoObject;
             $infoRef = $infoObject->reference();
 
-            $xmpXml = (new XmpWriter())->write($effectiveMetadata);
+            $xmpXml = (new XmpWriter())->write($effectiveMetadata, $this->pdfALevel, $this->isPdfUA());
             $objects[] = IndirectObject::of(4, 0, new MetadataStream($xmpXml));
         }
 

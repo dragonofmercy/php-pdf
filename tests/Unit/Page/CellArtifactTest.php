@@ -23,7 +23,7 @@ final class CellArtifactTest extends TestCase
         $bytes = $page->contentStream()->bytes();
 
         // Fill rectangle and the border strokes are each bracketed as artifacts.
-        self::assertSame(2, substr_count($bytes, '/Artifact BDC'));
+        self::assertSame(2, substr_count($bytes, '/Artifact BMC'));
         // The text show stays inside its /P marked content, not an artifact.
         self::assertStringContainsString('/P <</MCID 0>> BDC', $bytes);
     }
@@ -38,6 +38,6 @@ final class CellArtifactTest extends TestCase
         $page->setFont(Font::helvetica(), 12);
         $page->cell(x: 10, y: 10, w: 40, h: 20, text: 'Hi', border: Border::all(), fill: Color::rgb(200, 200, 200));
 
-        self::assertStringNotContainsString('/Artifact BDC', $page->contentStream()->bytes());
+        self::assertStringNotContainsString('/Artifact BMC', $page->contentStream()->bytes());
     }
 }

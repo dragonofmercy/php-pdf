@@ -13,7 +13,7 @@ use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
  */
 final class XmpWriter
 {
-    public function write(Metadata $metadata, ?PdfALevel $pdfa = null): string
+    public function write(Metadata $metadata, ?PdfALevel $pdfa = null, bool $pdfUa = false): string
     {
         $fields = $this->fields($metadata);
         $fieldsBlock = $fields === '' ? '' : "\n" . $fields;
@@ -24,6 +24,13 @@ final class XmpWriter
                 . ' xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">'
                 . '<pdfaid:part>' . $pdfa->part() . '</pdfaid:part>'
                 . '<pdfaid:conformance>' . $pdfa->conformance() . '</pdfaid:conformance>'
+                . "</rdf:Description>\n";
+        }
+
+        if ($pdfUa) {
+            $descriptions .= '<rdf:Description rdf:about=""'
+                . ' xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">'
+                . '<pdfuaid:part>1</pdfuaid:part>'
                 . "</rdf:Description>\n";
         }
 

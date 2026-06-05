@@ -17,7 +17,7 @@ final class ContentStreamArtifactTest extends TestCase
         $stream->endArtifact();
 
         $bytes = $stream->bytes();
-        self::assertStringContainsString("/Artifact BDC\n0 0 10 10 re f\nEMC\n", $bytes);
+        self::assertStringContainsString("/Artifact BMC\n0 0 10 10 re f\nEMC\n", $bytes);
         self::assertGreaterThan(strpos($bytes, 'BDC'), strpos($bytes, 'EMC'));
     }
 }

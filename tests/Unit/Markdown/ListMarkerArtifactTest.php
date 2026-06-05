@@ -25,8 +25,8 @@ final class ListMarkerArtifactTest extends TestCase
 
         // One artifact bracket per list-item marker (two items); every BDC is
         // closed by an EMC (artifact markers + the /P body marked content).
-        self::assertSame(2, substr_count($bytes, '/Artifact BDC'));
-        self::assertSame(substr_count($bytes, 'BDC'), substr_count($bytes, 'EMC'));
+        self::assertSame(2, substr_count($bytes, '/Artifact BMC'));
+        self::assertSame(substr_count($bytes, 'BMC') + substr_count($bytes, 'BDC'), substr_count($bytes, 'EMC'));
 
         // The list body text stays inside LI/LBody structure, not an artifact.
         $tree = $doc->structureTree();
@@ -42,7 +42,7 @@ final class ListMarkerArtifactTest extends TestCase
         $page->setFont(Font::helvetica(), 11.0);
         $page->markdown("- Alpha\n- Beta", x: 10, y: 10, width: 300);
 
-        self::assertStringNotContainsString('/Artifact BDC', $page->contentStream()->bytes());
+        self::assertStringNotContainsString('/Artifact BMC', $page->contentStream()->bytes());
     }
 
     private function hasType(StructElem $elem, StructureType $type): bool

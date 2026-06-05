@@ -29,7 +29,7 @@ final class ImageTaggingTest extends TestCase
         $figure = $this->firstFigure($tree->root());
         self::assertNotNull($figure);
         self::assertSame('A revenue chart', $figure->alt());
-        self::assertStringNotContainsString('/Artifact BDC', $page->contentStream()->bytes());
+        self::assertStringNotContainsString('/Artifact BMC', $page->contentStream()->bytes());
     }
 
     public function testDecorativeImageProducesArtifactNotFigure(): void
@@ -42,7 +42,7 @@ final class ImageTaggingTest extends TestCase
         $tree = $doc->structureTree();
         self::assertNotNull($tree);
         self::assertNull($this->firstFigure($tree->root()), 'Decorative image must not produce a Figure element');
-        self::assertStringContainsString('/Artifact BDC', $page->contentStream()->bytes());
+        self::assertStringContainsString('/Artifact BMC', $page->contentStream()->bytes());
     }
 
     public function testAltAndDecorativeTogetherThrow(): void
@@ -68,7 +68,7 @@ final class ImageTaggingTest extends TestCase
         self::assertFalse($page->isArtifactScope());
 
         $bytes = $page->contentStream()->bytes();
-        self::assertStringContainsString('/Artifact BDC', $bytes);
+        self::assertStringContainsString('/Artifact BMC', $bytes);
         self::assertStringContainsString('EMC', $bytes);
     }
 
@@ -87,7 +87,7 @@ final class ImageTaggingTest extends TestCase
 
         // Nested calls must not double-bracket: exactly one BDC/EMC pair.
         $bytes = $page->contentStream()->bytes();
-        self::assertSame(1, substr_count($bytes, '/Artifact BDC'));
+        self::assertSame(1, substr_count($bytes, '/Artifact BMC'));
     }
 
     public function testWithArtifactScopeIsNoOpBracketWhenTaggingOff(): void
@@ -103,7 +103,7 @@ final class ImageTaggingTest extends TestCase
         $pageB->rect(0, 0, 10, 10)->fill();
 
         // Off-path: withArtifactScope must run the body but emit no artifact ops.
-        self::assertStringNotContainsString('/Artifact BDC', $pageA->contentStream()->bytes());
+        self::assertStringNotContainsString('/Artifact BMC', $pageA->contentStream()->bytes());
         self::assertSame($pageB->contentStream()->bytes(), $pageA->contentStream()->bytes());
     }
 

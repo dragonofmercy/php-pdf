@@ -64,7 +64,7 @@ final class TableHeaderScopeTest extends TestCase
         }
 
         // The table content is inside the artifact bracket.
-        self::assertStringContainsString('/Artifact BDC', $page->contentStream()->bytes());
+        self::assertStringContainsString('/Artifact BMC', $page->contentStream()->bytes());
     }
 
     /**

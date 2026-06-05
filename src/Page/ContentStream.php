@@ -38,7 +38,7 @@ final class ContentStream
 
     public function beginArtifact(): void
     {
-        $this->userBytes .= "/Artifact BDC\n";
+        $this->userBytes .= "/Artifact BMC\n";
     }
 
     public function endArtifact(): void
