@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Tagged PDF (accessibility): `Document::enableTagging(?string $lang = null)`
+  opts a document into tagged-PDF output and, optionally, sets the document
+  `/Lang` from a BCP-47 language tag. When enabled, the high-level API is
+  tagged automatically (`cell()` text into `<P>`, `image()` into `<Figure>`,
+  `table()` into `<Table>` / `<TR>` / `<TH>` / `<TD>`, and `markdown()` blocks
+  into `<H1>`..`<H6>`, `<P>`, and `<L>` / `<LI>` / `<LBody>`): the library
+  builds a logical structure tree and emits the catalog `/StructTreeRoot`,
+  `/MarkInfo`, ParentTree, per-page `/StructParents`, and `/Tabs /S`, wrapping
+  page content in MCID-keyed marked-content sequences. It is opt-in and off by
+  default - output is byte-identical when `enableTagging()` is not called. This
+  is Phase 1 toward PDF/UA-1: figures and links carry no alternate text yet and
+  links and decorative artifacts are not marked, so the output is not yet
+  PDF/UA-1 conformant.
+
 ## [1.5.0] - 2026-06-04
 
 ### Added

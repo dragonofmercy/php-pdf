@@ -35,6 +35,7 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 - **Tables** - data grids via `Page::table()`: fixed or `fill` columns, headers repeated across pages, zebra striping, borders, a per-cell style callback, text-or-image cells, column spanning (`colSpan`), and grouped headers.
 - **Multi-column layout** - flow `cell()` and `markdown()` across equal-width columns with `$page->columns(...)`, filling each column before the next and continuing onto new pages.
 - **PDF/A archival** - emit PDF/A-2 and PDF/A-3 (levels b and u) with one `enablePdfA()` call, validated against veraPDF; A-3 embeds associated files such as a Factur-X / ZUGFeRD e-invoice.
+- **Tagged PDF (accessibility)** - opt-in structure tagging via `enableTagging()`: cells, images, tables, and Markdown are tagged automatically into a logical structure tree (`StructTreeRoot`, `MarkInfo`, ParentTree, marked content), with an optional document language. This is the foundation for PDF/UA; alternate text and full conformance come in a later phase.
 
 ## Installation
 
