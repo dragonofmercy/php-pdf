@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
+use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Table\Column;
+use DragonOfMercy\PhpPdf\Table\TableBorders;
+use DragonOfMercy\PhpPdf\Table\TableStyle;
+use DragonOfMercy\PhpPdf\TextAlign;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -63,6 +68,47 @@ final class TaggingGoldenTest extends TestCase
             self::markTestSkipped('qpdf not on PATH');
         }
         $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/figure.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
+    public static function buildTable(): string
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 11.0);
+        $page->table(
+            columns: [
+                Column::of('name', 'Article')->fill(),
+                Column::of('price', 'Prix')->width(30.0)->align(TextAlign::RIGHT),
+            ],
+            rows: [
+                ['name' => 'Cafe', 'price' => '5.00'],
+                ['name' => 'Croissant', 'price' => '3.60'],
+            ],
+            x: 20.0, y: 30.0, width: 170.0,
+            style: TableStyle::default()
+                ->withBorder(TableBorders::GRID)
+                ->withHeader(fill: Color::gray(238), bold: true),
+        );
+        return $doc->output();
+    }
+
+    public function testTableMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/table.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildTable(), 'tagging/table.pdf diverges; regenerate if intended.');
+    }
+
+    public function testTablePassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/table.pdf']);
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }

@@ -47,6 +47,7 @@ final class CellRenderer
         string $fontShortName,
         Page $emittingPage,
         ?int $markedContentId = null,
+        string $markedContentTag = 'P',
     ): CellResult {
         $lines = [];
         $widths = [];
@@ -137,7 +138,7 @@ final class CellRenderer
 
         if ($text !== '') {
             if ($markedContentId !== null) {
-                $this->stream->beginMarkedContent('P', $markedContentId);
+                $this->stream->beginMarkedContent($markedContentTag, $markedContentId);
             }
             $justifyActive = $align === TextAlign::JUSTIFY && $fit === Fit::NONE && !$autoWidth;
             $this->emitText(

@@ -9,6 +9,8 @@ use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Tagging\StructureTree;
+use DragonOfMercy\PhpPdf\Tagging\StructureType;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -158,6 +160,13 @@ final class TableRenderer
 
         $border = $this->borderForCell($page, true);
 
+        // Auto-tagging: open a <TR> for the whole header row; each header cell
+        // becomes a <TH> with its text as a marked-content leaf.
+        $tree = $page->document()?->structureTree();
+        if ($tree !== null) {
+            $tree->open(StructureType::TR);
+        }
+
         // Draw labeled band cells at the top band.
         if ($groups !== null && $bandH > 0.0) {
             $cx = $xPt;
@@ -166,7 +175,9 @@ final class TableRenderer
                 $mergedW = self::mergedWidthPt($widthsPt, $colStart, $g->span);
                 if (!$g->isSpacer()) {
                     $this->applyFont($page, $baseFont, $baseSize, ($g->bold ?? $this->style->headerBold) === true);
-                    $page->drawTableCell($cx, $yPt, $mergedW, $bandH, $g->label, $border, $g->fill ?? $this->style->headerFill, $g->textColor ?? $this->style->headerTextColor, $g->align, VerticalAlign::MIDDLE, $padPt);
+                    $mcid = $this->beginCell($tree, $page, StructureType::TH, $g->label);
+                    $page->drawTableCell($cx, $yPt, $mergedW, $bandH, $g->label, $border, $g->fill ?? $this->style->headerFill, $g->textColor ?? $this->style->headerTextColor, $g->align, VerticalAlign::MIDDLE, $padPt, markedContentId: $mcid, markedContentTag: StructureType::TH->value);
+                    $this->endCell($tree, $page, $mcid);
                 }
                 $cx += $mergedW;
                 $colStart += $g->span;
@@ -184,9 +195,16 @@ final class TableRenderer
             $isSpacer = isset($spacerColumns[$i]);
             $cellY = $isSpacer ? $yPt : $yPt + $bandH;
             $cellH = $isSpacer ? $bandH + $headerH : $headerH;
-            $page->drawTableCell($cx, $cellY, $widthsPt[$i], $cellH, $col->header ?? '', $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $col->verticalAlign, $colPad);
+            $headerText = $col->header ?? '';
+            $mcid = $this->beginCell($tree, $page, StructureType::TH, $headerText);
+            $page->drawTableCell($cx, $cellY, $widthsPt[$i], $cellH, $headerText, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $col->verticalAlign, $colPad, markedContentId: $mcid, markedContentTag: StructureType::TH->value);
+            $this->endCell($tree, $page, $mcid);
             $cx += $widthsPt[$i];
             $i++;
+        }
+
+        if ($tree !== null) {
+            $tree->close();
         }
 
         $page->restoreFontState($fontState);
@@ -306,6 +324,15 @@ final class TableRenderer
     private function drawDataRow(Page $page, array $row, float $xPt, float $yPt, array $widthsPt, float $rowHeightPt, CellPadding $padPt, int $rowIndex, Font $baseFont, float $baseSize, array $fontState): void
     {
         $border = $this->borderForCell($page, false);
+
+        // Auto-tagging: open a <TR> for the whole data row; each cell becomes a
+        // <TD>. Text cells carry their text as a marked-content leaf; image
+        // cells get an empty <TD> (image-in-table tagging is deferred).
+        $tree = $page->document()?->structureTree();
+        if ($tree !== null) {
+            $tree->open(StructureType::TR);
+        }
+
         $cx = $xPt;
         $count = count($this->columns);
         $i = 0;
@@ -318,19 +345,63 @@ final class TableRenderer
 
             $image = $cell->image;
             if ($cell->isImage() && $image !== null) {
+                if ($tree !== null) {
+                    $tree->open(StructureType::TD);
+                }
                 // Background + border first (empty text), then the image on top.
                 $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, '', $border, $rs->fill, null, $col->align, $col->verticalAlign, $colPad);
                 $reqW = $cell->imageWidth !== null ? $page->toPt($cell->imageWidth) : null;
                 $reqH = $cell->imageHeight !== null ? $page->toPt($cell->imageHeight) : null;
                 $page->drawTableImage($cx, $yPt, $mergedWidth, $rowHeightPt, $image, $reqW, $reqH, $cell->align ?? TextAlign::CENTER, $cell->verticalAlign ?? VerticalAlign::MIDDLE, $colPad);
+                if ($tree !== null) {
+                    $tree->close();
+                }
             } else {
                 $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
-                $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad);
+                $mcid = $this->beginCell($tree, $page, StructureType::TD, $cell->text);
+                $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad, markedContentId: $mcid, markedContentTag: StructureType::TD->value);
+                $this->endCell($tree, $page, $mcid);
             }
             $cx += $mergedWidth;
             $i += $span;
         }
+
+        if ($tree !== null) {
+            $tree->close();
+        }
         $page->restoreFontState($fontState);
+    }
+
+    /**
+     * Open a TH/TD structure element for one cell and mint an MCID on the
+     * emitting page when the cell carries text. Returns the MCID to bracket the
+     * cell's text-show operators, or null when there is no tree or no text.
+     */
+    private function beginCell(?StructureTree $tree, Page $page, StructureType $type, string $text): ?int
+    {
+        if ($tree === null) {
+            return null;
+        }
+        $tree->open($type);
+        if ($text === '') {
+            return null;
+        }
+        return $page->nextMcid();
+    }
+
+    /**
+     * Record the cell's marked-content leaf (when one was minted) and close the
+     * TH/TD opened by {@see beginCell()}.
+     */
+    private function endCell(?StructureTree $tree, Page $page, ?int $mcid): void
+    {
+        if ($tree === null) {
+            return;
+        }
+        if ($mcid !== null) {
+            $tree->addMarkedContent($page->pageIndex(), $mcid);
+        }
+        $tree->close();
     }
 
     /** @param array<string, mixed> $row */

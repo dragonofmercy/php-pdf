@@ -1066,6 +1066,8 @@ final class Page
         TextAlign $align,
         VerticalAlign $verticalAlign,
         CellPadding $paddingPt,
+        ?int $markedContentId = null,
+        string $markedContentTag = 'P',
     ): void {
         $text = self::normalizeNewlines($text);
 
@@ -1095,6 +1097,8 @@ final class Page
             padding: $paddingPt,
             fontShortName: $fontShortName,
             emittingPage: $this,
+            markedContentId: $markedContentId,
+            markedContentTag: $markedContentTag,
         );
     }
 
@@ -1369,8 +1373,15 @@ final class Page
         }
         $width ??= $this->fromPt($this->pageWidth) - $this->margins()->right - $x;
 
+        $tree = $this->document?->structureTree();
+        if ($tree !== null) {
+            $tree->open(StructureType::Table);
+        }
         $renderer = new TableRenderer($this, $columns, $rows, $style ?? TableStyle::default());
         [$finalYPt, $rowCount, $pageCount, $finalPage] = $renderer->render($this->toPt($x), $this->toPt($y), $this->toPt($width));
+        if ($tree !== null) {
+            $tree->close();
+        }
 
         $finalPage->cursor()->advance($ln, $finalPage->toPt($x), $finalYPt, $finalPage->toPt($width), 0.0);
 
