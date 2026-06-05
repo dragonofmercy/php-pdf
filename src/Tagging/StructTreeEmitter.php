@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tagging;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -39,9 +40,10 @@ final class StructTreeEmitter
     private int $nextElemNumber = 0;
 
     /**
-     * @param list<PdfReference> $pageRefs the page object references in page order
+     * @param list<PdfReference>                            $pageRefs           the page object references in page order
+     * @param \SplObjectStorage<LinkAnnotation, int>        $annotObjectNumbers map of each tagged link annotation to its emitted object number
      */
-    public function emit(StructureTree $tree, array $pageRefs, int $startObjectNumber): StructTreeResult
+    public function emit(StructureTree $tree, array $pageRefs, \SplObjectStorage $annotObjectNumbers, int $startObjectNumber): StructTreeResult
     {
         $rootRefNumber = $startObjectNumber;
         $parentTreeNumber = $startObjectNumber + 1;
@@ -59,6 +61,11 @@ final class StructTreeEmitter
             $parentTree[$pageIndex] = [];
         }
 
+        // Annotation ParentTree entries: key (= pageCount + tagIndex) -> a SINGLE
+        // reference to the owning <Link> element (not an array, unlike MCID pages).
+        /** @var array<int, PdfReference> $annotParentEntries */
+        $annotParentEntries = [];
+
         $elemObjects = [];
         foreach ($this->order as $elem) {
             $elemNumber = $this->numberOf($elem);
@@ -66,6 +73,19 @@ final class StructTreeEmitter
             foreach ($elem->children() as $child) {
                 if ($child instanceof StructElem) {
                     $kids[] = PdfReference::to($this->numberOf($child), 0);
+                } elseif ($child instanceof ObjrRef) {
+                    if (!isset($annotObjectNumbers[$child->annotation])) {
+                        throw new PdfException(sprintf(
+                            'Tagged link annotation (tag index %d) is missing from the object map',
+                            $child->structParentTagIndex,
+                        ));
+                    }
+                    $annotNumber = $annotObjectNumbers[$child->annotation];
+                    $kids[] = Dictionary::empty()
+                        ->withEntry(Name::of('Type'), Name::of('OBJR'))
+                        ->withEntry(Name::of('Obj'), PdfReference::to($annotNumber, 0))
+                        ->withEntry(Name::of('Pg'), $pageRefs[$child->pageIndex]);
+                    $annotParentEntries[count($pageRefs) + $child->structParentTagIndex] = PdfReference::to($elemNumber, 0);
                 } elseif ($child instanceof MarkedContentRef) {
                     $kids[] = PdfNumber::ofInt($child->mcid);
                     $parentTree[$child->pageIndex][$child->mcid] = PdfReference::to($elemNumber, 0);
@@ -128,6 +148,13 @@ final class StructTreeEmitter
             $nums[] = PdfNumber::ofInt($pageIndex);
             $nums[] = PdfArray::of(...$arr);
         }
+        // Annotation entries follow the page entries. Page keys are 0..n-1 and
+        // annotation keys are >= n, so the concatenated /Nums stays ascending.
+        ksort($annotParentEntries);
+        foreach ($annotParentEntries as $key => $ref) {
+            $nums[] = PdfNumber::ofInt($key);
+            $nums[] = $ref;
+        }
         $parentTreeObject = IndirectObject::of(
             $parentTreeNumber,
             0,
@@ -135,15 +162,24 @@ final class StructTreeEmitter
         );
 
         // StructTreeRoot: /K is the Document element (single ref).
-        $rootObject = IndirectObject::of(
-            $rootRefNumber,
-            0,
-            Dictionary::empty()
-                ->withEntry(Name::of('Type'), Name::of('StructTreeRoot'))
-                ->withEntry(Name::of('K'), PdfReference::to($this->numberOf($tree->root()), 0))
-                ->withEntry(Name::of('ParentTree'), PdfReference::to($parentTreeNumber, 0))
-                ->withEntry(Name::of('RoleMap'), Dictionary::empty()),
-        );
+        $rootDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('StructTreeRoot'))
+            ->withEntry(Name::of('K'), PdfReference::to($this->numberOf($tree->root()), 0))
+            ->withEntry(Name::of('ParentTree'), PdfReference::to($parentTreeNumber, 0))
+            ->withEntry(Name::of('RoleMap'), Dictionary::empty());
+
+        // /ParentTreeNextKey is only meaningful once tagged links contribute
+        // annotation keys; gating it on taggedLinkCount keeps the no-link path
+        // byte-identical to Phase 2.
+        $taggedLinkCount = count($annotParentEntries);
+        if ($taggedLinkCount > 0) {
+            $rootDict = $rootDict->withEntry(
+                Name::of('ParentTreeNextKey'),
+                PdfNumber::ofInt(count($pageRefs) + $taggedLinkCount),
+            );
+        }
+
+        $rootObject = IndirectObject::of($rootRefNumber, 0, $rootDict);
 
         return new StructTreeResult(
             objects: [$rootObject, $parentTreeObject, ...$elemObjects],

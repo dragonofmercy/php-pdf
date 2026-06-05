@@ -21,7 +21,9 @@ final class StructTreeEmitterTest extends TestCase
 
         // One page, ref = 10 0 R.
         $pageRefs = [PdfReference::to(10, 0)];
-        $result = (new StructTreeEmitter())->emit($tree, $pageRefs, startObjectNumber: 50);
+        /** @var \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int> $emptyMap */
+        $emptyMap = new \SplObjectStorage();
+        $result = (new StructTreeEmitter())->emit($tree, $pageRefs, $emptyMap, startObjectNumber: 50);
 
         // StructTreeRoot is the first object, at number 50.
         self::assertSame(50, $result->structTreeRootRef->objectNumber);
@@ -50,7 +52,9 @@ final class StructTreeEmitterTest extends TestCase
         $tree->close();
 
         $pageRefs = [PdfReference::to(10, 0)];
-        $result = (new StructTreeEmitter())->emit($tree, $pageRefs, startObjectNumber: 50);
+        /** @var \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int> $emptyMap */
+        $emptyMap = new \SplObjectStorage();
+        $result = (new StructTreeEmitter())->emit($tree, $pageRefs, $emptyMap, startObjectNumber: 50);
 
         // StructTreeRoot=50, ParentTree=51, Document=52, P0=53, P1=54.
         $dump = '';

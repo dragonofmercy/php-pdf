@@ -1770,7 +1770,9 @@ final class Document
             return [$catalogDict, []];
         }
 
-        $result = (new StructTreeEmitter())->emit($this->structureTree, $pageRefs, $nextObjectNumber);
+        /** @var \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int> $emptyLinkMap */
+        $emptyLinkMap = new \SplObjectStorage();
+        $result = (new StructTreeEmitter())->emit($this->structureTree, $pageRefs, $emptyLinkMap, $nextObjectNumber);
         $nextObjectNumber += count($result->objects);
 
         $catalogDict = $catalogDict

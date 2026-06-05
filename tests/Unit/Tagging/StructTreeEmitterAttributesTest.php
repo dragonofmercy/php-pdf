@@ -27,7 +27,9 @@ final class StructTreeEmitterAttributesTest extends TestCase
         $tree->close();
 
         $pageRef = PdfReference::to(1, 0);
-        $result = (new StructTreeEmitter())->emit($tree, [$pageRef], 10);
+        /** @var \SplObjectStorage<\DragonOfMercy\PhpPdf\Outline\LinkAnnotation, int> $emptyMap */
+        $emptyMap = new \SplObjectStorage();
+        $result = (new StructTreeEmitter())->emit($tree, [$pageRef], $emptyMap, 10);
 
         $dump = '';
         foreach ($result->objects as $obj) {
