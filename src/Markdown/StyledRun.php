@@ -15,6 +15,9 @@ use DragonOfMercy\PhpPdf\Font;
  * POINTS (typographic convention). $isCode flags inline code spans; $url is
  * the link target when the run is part of a hyperlink, otherwise null.
  *
+ * $linkGroup is the per-occurrence link id (a distinct integer per LinkSpan,
+ * shared by every run inside that span); it is null outside any link.
+ *
  * @internal
  */
 final readonly class StyledRun
@@ -26,5 +29,6 @@ final readonly class StyledRun
         public float $sizePt,
         public bool $isCode,
         public ?string $url,
+        public ?int $linkGroup = null,
     ) {}
 }

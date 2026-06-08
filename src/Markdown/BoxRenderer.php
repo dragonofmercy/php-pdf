@@ -22,6 +22,8 @@ use DragonOfMercy\PhpPdf\Markdown\Node\TextRun;
 use DragonOfMercy\PhpPdf\Markdown\Node\ThematicBreak;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Tagging\ObjrRef;
+use DragonOfMercy\PhpPdf\Tagging\StructElem;
 use DragonOfMercy\PhpPdf\Tagging\StructureTree;
 use DragonOfMercy\PhpPdf\Tagging\StructureType;
 
@@ -78,6 +80,18 @@ final class BoxRenderer
      * operators in a marked-content sequence on the emitting page.
      */
     private ?StructureTree $tree = null;
+
+    /** True while rendering a text block that contains an inline link (fragmented marked content). */
+    private bool $fragmentedBlock = false;
+
+    /** The structure type of the block being fragmented, used as the BDC tag for its non-link runs. */
+    private ?StructureType $fragmentedBlockType = null;
+
+    /** The link group of the currently-open <Link> element, or null when none is open. */
+    private ?int $openLinkGroup = null;
+
+    /** The currently-open <Link> structure element, kept across lines so a wrapped link stays one element. */
+    private ?StructElem $openLinkElem = null;
 
     /**
      * @param list<BlockNode> $ast
@@ -185,7 +199,7 @@ final class BoxRenderer
             $first = false;
 
             $cursorYPt = match (true) {
-                $block instanceof Heading => $this->tagLeaf(StructureType::headingForLevel($block->level), $page, fn (): float => $this->renderHeading($block, $style, $bodyFont, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly)),
+                $block instanceof Heading => $this->tagTextBlock(StructureType::headingForLevel($block->level), $page, $block->inlines, fn (): float => $this->renderHeading($block, $style, $bodyFont, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly)),
                 $block instanceof Paragraph => $this->renderParagraphBlock($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly),
                 $block instanceof CodeBlock => $this->tagLeaf(StructureType::P, $page, fn (): float => $this->renderCodeBlock($block, $style, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $measureOnly)),
                 $block instanceof BlockQuote => $this->renderBlockQuote($block, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $depth, $measureOnly),
@@ -238,6 +252,78 @@ final class BoxRenderer
         }
     }
 
+    /**
+     * Routes a text block (paragraph / heading) to the monolithic single-MCID
+     * {@see tagLeaf} path when it has no inline link, or to the fragmented path
+     * when it does, so inline links become nested <Link> elements. Off-path
+     * (no tree) and the no-link case stay byte-identical to the prior behaviour.
+     *
+     * @param list<InlineNode>  $inlines
+     * @param callable(): float $render
+     */
+    private function tagTextBlock(StructureType $type, Page $page, array $inlines, callable $render): float
+    {
+        if ($this->tree !== null && $this->inlinesContainLink($inlines)) {
+            return $this->tagFragmentedBlock($type, $render);
+        }
+
+        return $this->tagLeaf($type, $page, $render);
+    }
+
+    /** @param list<InlineNode> $inlines */
+    private function inlinesContainLink(array $inlines): bool
+    {
+        foreach ($inlines as $node) {
+            if ($node instanceof LinkSpan) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Tags a block whose inlines contain a link. Unlike {@see tagLeaf}, no single
+     * enclosing marked-content sequence is emitted: {@see drawLineFragmented}
+     * emits one marked-content run per maximal same-link stretch, attributing
+     * non-link runs to this block element and link runs to nested <Link>
+     * elements. The block element is opened here and closed in the finally,
+     * after any dangling <Link>.
+     *
+     * @param callable(): float $render
+     */
+    private function tagFragmentedBlock(StructureType $type, callable $render): float
+    {
+        $tree = $this->tree;
+        if ($tree === null) {
+            return $render();
+        }
+
+        $tree->open($type);
+        $prevFlag = $this->fragmentedBlock;
+        $prevType = $this->fragmentedBlockType;
+        $this->fragmentedBlock = true;
+        $this->fragmentedBlockType = $type;
+        try {
+            return $render();
+        } finally {
+            $this->closeOpenLink();
+            $this->fragmentedBlock = $prevFlag;
+            $this->fragmentedBlockType = $prevType;
+            $tree->close();
+        }
+    }
+
+    /** Closes the currently-open <Link> element (if any) and clears the link state. */
+    private function closeOpenLink(): void
+    {
+        if ($this->openLinkElem !== null) {
+            $this->tree?->close();
+            $this->openLinkElem = null;
+            $this->openLinkGroup = null;
+        }
+    }
+
     private function renderHeading(
         Heading $heading,
         MarkdownStyle $style,
@@ -261,6 +347,7 @@ final class BoxRenderer
                 $sizePt,
                 false,
                 $flat['url'],
+                $flat['group'],
             );
         }
 
@@ -293,7 +380,7 @@ final class BoxRenderer
             return $this->renderParagraph($paragraph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly);
         }
 
-        return $this->tagLeaf(StructureType::P, $page, fn (): float => $this->renderParagraph($paragraph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly));
+        return $this->tagTextBlock(StructureType::P, $page, $paragraph->inlines, fn (): float => $this->renderParagraph($paragraph, $style, $bodyFont, $bodySizePt, $xPt, $cursorYPt, $widthPt, $page, $breaker, $measureOnly));
     }
 
     private function renderParagraph(
@@ -740,13 +827,14 @@ final class BoxRenderer
         LineBreaker $breaker,
         bool $measureOnly,
     ): float {
+        $linkTexts = $this->collectLinkTexts($runs);
         $lines = $breaker->layout($runs, $widthPt);
         foreach ($lines as $line) {
             if (!$measureOnly) {
                 if ($this->flow !== null) {
                     $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $line->heightPt);
                 }
-                $this->drawLine($line, $xPt, $cursorYPt, $this->activePage($page), $style);
+                $this->drawLine($line, $xPt, $cursorYPt, $this->activePage($page), $style, $linkTexts);
             }
             $cursorYPt += $line->heightPt;
         }
@@ -755,11 +843,133 @@ final class BoxRenderer
     }
 
     /**
+     * Concatenates each link group's full visible text, so a wrapped link's
+     * per-line annotations all carry the complete anchor text in /Contents.
+     *
+     * @param list<StyledRun> $runs
+     * @return array<int, string>
+     */
+    private function collectLinkTexts(array $runs): array
+    {
+        $texts = [];
+        foreach ($runs as $run) {
+            if ($run->linkGroup !== null) {
+                $texts[$run->linkGroup] = ($texts[$run->linkGroup] ?? '') . $run->text;
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
+     * Dispatches to the fragmented tagging path for a link-bearing block, or to
+     * the legacy path (untagged area link + underline) otherwise. The legacy
+     * path is reached for measure passes, the off-path, and link-free blocks,
+     * keeping their output byte-identical.
+     *
+     * @param array<int, string> $linkTexts
+     */
+    private function drawLine(Line $line, float $xPt, float $lineTopPt, Page $page, MarkdownStyle $style, array $linkTexts): void
+    {
+        if ($this->tree !== null && $this->fragmentedBlock) {
+            $this->drawLineFragmented($line, $xPt, $lineTopPt, $page, $style, $linkTexts);
+
+            return;
+        }
+
+        $this->drawLineLegacy($line, $xPt, $lineTopPt, $page, $style);
+    }
+
+    /**
+     * Draws one line in the fragmented tagging path. Segments are grouped into
+     * maximal stretches sharing a link group (or none). A non-link stretch emits
+     * one marked-content run attributed to the block element; a link stretch
+     * opens (or continues across lines) a <Link> element, emits its
+     * marked-content run, registers a tagged annotation over the merged
+     * rectangle, appends an OBJR, and draws the optional underline.
+     *
+     * @param array<int, string> $linkTexts
+     */
+    private function drawLineFragmented(Line $line, float $xPt, float $lineTopPt, Page $page, MarkdownStyle $style, array $linkTexts): void
+    {
+        $tree = $this->tree;
+        if ($tree === null) {
+            return;
+        }
+        $blockTag = ($this->fragmentedBlockType ?? StructureType::P)->value;
+
+        $segments = $line->segments;
+        $count = count($segments);
+        $i = 0;
+        while ($i < $count) {
+            $group = $segments[$i]->run->linkGroup;
+            $j = $i;
+            while ($j < $count && $segments[$j]->run->linkGroup === $group) {
+                $j++;
+            }
+            $stretch = array_slice($segments, $i, $j - $i);
+            $i = $j;
+
+            if ($group !== $this->openLinkGroup) {
+                $this->closeOpenLink();
+                if ($group !== null) {
+                    $this->openLinkElem = $tree->open(StructureType::Link);
+                    $this->openLinkGroup = $group;
+                }
+            }
+
+            $mcid = $page->nextMcid();
+            $page->contentStream()->beginMarkedContent($group === null ? $blockTag : StructureType::Link->value, $mcid);
+            foreach ($stretch as $segment) {
+                $run = $segment->run;
+                $segXPt = $xPt + $segment->xOffsetPt;
+                $baselinePt = $lineTopPt + $run->sizePt;
+                $page->setFillColor($run->color);
+                $page->setFont($run->font, $run->sizePt);
+                $page->text($this->emitX($page, $segXPt), $this->fromPt($page, $baselinePt), $run->text);
+            }
+            $page->contentStream()->endMarkedContent();
+            $tree->addMarkedContent($page->pageIndex(), $mcid);
+
+            if ($group !== null) {
+                $firstXPt = $xPt + $stretch[0]->xOffsetPt;
+                $widthPt = 0.0;
+                foreach ($stretch as $segment) {
+                    $widthPt += $segment->widthPt;
+                }
+                $url = $stretch[0]->run->url ?? '';
+                $annot = $page->registerTaggedMarkdownLink(
+                    $this->emitX($page, $firstXPt),
+                    $this->fromPt($page, $lineTopPt),
+                    $this->fromPt($page, $widthPt),
+                    $this->fromPt($page, $line->heightPt),
+                    Link::url($url),
+                    $linkTexts[$group] ?? '',
+                );
+                $this->openLinkElem?->appendObjr(new ObjrRef($annot, $page->pageIndex()));
+
+                if ($style->linkUnderline) {
+                    $run = $stretch[0]->run;
+                    $underlinePt = $lineTopPt + $run->sizePt + $run->sizePt * 0.1;
+                    $page->setStrokeColor($run->color);
+                    $page->setLineWidth($this->fromPt($page, max($run->sizePt * 0.05, 0.2)));
+                    $page->line(
+                        $this->emitX($page, $firstXPt),
+                        $this->fromPt($page, $underlinePt),
+                        $this->emitX($page, $firstXPt + $widthPt),
+                        $this->fromPt($page, $underlinePt),
+                    )->stroke();
+                }
+            }
+        }
+    }
+
+    /**
      * Draws one laid-out line. Each segment is shown at its measured offset; the
      * baseline sits at lineTopPt + segment size (ascent approximation). Link
      * segments register a clickable area and an optional underline.
      */
-    private function drawLine(
+    private function drawLineLegacy(
         Line $line,
         float $xPt,
         float $lineTopPt,
@@ -830,7 +1040,7 @@ final class BoxRenderer
 
             $color = $flat['url'] !== null ? $style->linkColor : $this->bodyColor();
 
-            $runs[] = new StyledRun($flat['text'], $font, $color, $bodySizePt, $flat['code'], $flat['url']);
+            $runs[] = new StyledRun($flat['text'], $font, $color, $bodySizePt, $flat['code'], $flat['url'], $flat['group']);
         }
 
         return $runs;
@@ -838,37 +1048,49 @@ final class BoxRenderer
 
     /**
      * Flattens an inline tree (TextRun / LinkSpan / ImageSpan) into a flat list
-     * of text fragments carrying their formatting flags and an optional link
-     * url. Images inside flowing text are reduced to their alt text (block-level
-     * image placement is handled separately by {@see soleImage()}); inline image
+     * of text fragments carrying their formatting flags, an optional link url,
+     * and a per-occurrence link group id (null outside any link; a distinct
+     * integer per LinkSpan, so two links sharing a URL stay separate). Images
+     * inside flowing text are reduced to their alt text (block-level image
+     * placement is handled separately by {@see soleImage()}); inline image
      * rendering is deferred.
      *
      * @param list<InlineNode> $inlines
-     * @return list<array{text: string, bold: bool, italic: bool, code: bool, url: ?string}>
+     * @return list<array{text: string, bold: bool, italic: bool, code: bool, url: ?string, group: ?int}>
      */
-    private function flattenInlines(array $inlines, ?string $url = null): array
+    private function flattenInlines(array $inlines): array
+    {
+        $counter = 0;
+
+        return $this->flattenInlinesInner($inlines, null, null, $counter);
+    }
+
+    /**
+     * Recursive worker for {@see flattenInlines}: carries the enclosing link url
+     * and group down into LinkSpan children, minting a fresh group id (from the
+     * by-ref counter, local to one block) for each LinkSpan occurrence.
+     *
+     * @param list<InlineNode> $inlines
+     * @return list<array{text: string, bold: bool, italic: bool, code: bool, url: ?string, group: ?int}>
+     */
+    private function flattenInlinesInner(array $inlines, ?string $url, ?int $group, int &$counter): array
     {
         $out = [];
         foreach ($inlines as $node) {
             if ($node instanceof TextRun) {
-                $out[] = [
-                    'text' => $node->text,
-                    'bold' => $node->bold,
-                    'italic' => $node->italic,
-                    'code' => $node->code,
-                    'url' => $url,
-                ];
+                $out[] = ['text' => $node->text, 'bold' => $node->bold, 'italic' => $node->italic, 'code' => $node->code, 'url' => $url, 'group' => $group];
                 continue;
             }
             if ($node instanceof LinkSpan) {
-                foreach ($this->flattenInlines($node->children, $node->url) as $child) {
+                $linkGroup = $counter++;
+                foreach ($this->flattenInlinesInner($node->children, $node->url, $linkGroup, $counter) as $child) {
                     $out[] = $child;
                 }
                 continue;
             }
             if ($node instanceof ImageSpan) {
                 if ($node->alt !== '') {
-                    $out[] = ['text' => $node->alt, 'bold' => false, 'italic' => false, 'code' => false, 'url' => $url];
+                    $out[] = ['text' => $node->alt, 'bold' => false, 'italic' => false, 'code' => false, 'url' => $url, 'group' => $group];
                 }
                 continue;
             }

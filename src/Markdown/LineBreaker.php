@@ -171,7 +171,7 @@ final class LineBreaker
 
     private function makeSegment(StyledRun $run, string $text, float $xOffsetPt, float $widthPt): PositionedSegment
     {
-        $placed = new StyledRun($text, $run->font, $run->color, $run->sizePt, $run->isCode, $run->url);
+        $placed = new StyledRun($text, $run->font, $run->color, $run->sizePt, $run->isCode, $run->url, $run->linkGroup);
 
         return new PositionedSegment($placed, $xOffsetPt, $widthPt);
     }
