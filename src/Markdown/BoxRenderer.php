@@ -951,7 +951,7 @@ final class BoxRenderer
                     $widthPt += $segment->widthPt;
                 }
                 $url = $stretch[0]->run->url ?? '';
-                $annot = $page->registerTaggedMarkdownLink(
+                $annot = $page->registerTaggedLink(
                     $this->emitX($page, $firstXPt),
                     $this->fromPt($page, $lineTopPt),
                     $this->fromPt($page, $widthPt),

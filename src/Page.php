@@ -1690,15 +1690,15 @@ final class Page
     }
 
     /**
-     * Registers a tagged hyperlink annotation for one Markdown link rectangle
-     * and returns it so the Markdown renderer can wrap it in an /OBJR under the
-     * owning <Link> structure element. Mirrors the tagged branch of
-     * {@see cell()}: a /StructParent ordinal is allocated and /Contents is set.
-     * Coordinates are in the page unit. Used only on the tagged Markdown path.
+     * Registers a tagged hyperlink annotation for one link rectangle and returns
+     * it so the caller can wrap it in an /OBJR under the owning <Link> structure
+     * element. Mirrors the tagged branch of {@see cell()}: a /StructParent ordinal
+     * is allocated and /Contents is set. Coordinates are in the page unit. Used by
+     * the Markdown renderer and by image() for tagged links.
      *
      * @internal
      */
-    public function registerTaggedMarkdownLink(float $x, float $y, float $width, float $height, Link $link, string $contents): LinkAnnotation
+    public function registerTaggedLink(float $x, float $y, float $width, float $height, Link $link, string $contents): LinkAnnotation
     {
         if ($width <= 0 || $height <= 0) {
             throw new PdfException(sprintf(

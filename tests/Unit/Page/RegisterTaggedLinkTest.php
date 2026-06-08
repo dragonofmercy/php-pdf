@@ -9,7 +9,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use PHPUnit\Framework\TestCase;
 
-final class RegisterTaggedMarkdownLinkTest extends TestCase
+final class RegisterTaggedLinkTest extends TestCase
 {
     public function testRegistersTaggedAnnotationWithStructParentAndContents(): void
     {
@@ -17,7 +17,7 @@ final class RegisterTaggedMarkdownLinkTest extends TestCase
         $doc->enableTagging('en-US');
         $page = $doc->addPage();
 
-        $annot = $page->registerTaggedMarkdownLink(10.0, 20.0, 30.0, 8.0, Link::url('https://example.com'), 'example');
+        $annot = $page->registerTaggedLink(10.0, 20.0, 30.0, 8.0, Link::url('https://example.com'), 'example');
 
         self::assertTrue($annot->isTagged());
         self::assertSame('example', $annot->contents);
@@ -30,8 +30,8 @@ final class RegisterTaggedMarkdownLinkTest extends TestCase
         $doc->enableTagging('en-US');
         $page = $doc->addPage();
 
-        $page->registerTaggedMarkdownLink(0.0, 0.0, 10.0, 5.0, Link::url('https://example.com'), 'link text');
-        $page->registerTaggedMarkdownLink(0.0, 10.0, 10.0, 5.0, Link::url('https://example.org'), 'other link');
+        $page->registerTaggedLink(0.0, 0.0, 10.0, 5.0, Link::url('https://example.com'), 'link text');
+        $page->registerTaggedLink(0.0, 10.0, 10.0, 5.0, Link::url('https://example.org'), 'other link');
 
         self::assertCount(2, $page->getLinkAnnotations());
     }
@@ -43,6 +43,6 @@ final class RegisterTaggedMarkdownLinkTest extends TestCase
         $page = $doc->addPage();
 
         $this->expectException(PdfException::class);
-        $page->registerTaggedMarkdownLink(0.0, 0.0, 0.0, 5.0, Link::url('https://example.com'), 'bad link');
+        $page->registerTaggedLink(0.0, 0.0, 0.0, 5.0, Link::url('https://example.com'), 'bad link');
     }
 }
