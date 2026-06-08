@@ -531,148 +531,187 @@ final class Parser
         $transform = isset($attrs['transform']) ? TransformParser::parse($attrs['transform']) : null;
         $textStyle = TextStyleResolver::resolve($inheritedText, $attrs, $css, $attrs['style'] ?? '');
 
-        switch ($local) {
-            case 'g':
-            case 'svg':
-            case 'defs':
-            case 'symbol':
-            case 'marker':
-            case 'mask':
-            case 'filter':
-                if ($local === 'defs' || $local === 'symbol' || $local === 'marker' || $local === 'mask' || $local === 'filter') {
-                    // <defs>, <symbol>, <marker>, <mask>, and <filter> contents are only reachable via reference; do not render directly.
-                    return null;
-                }
-                $children = [];
-                foreach ($this->childElements($el) as $child) {
-                    $node = $this->parseNode($child, $paint, $newCurrentColor, $textStyle, $useStack, $depth + 1, $allowClip);
-                    if ($node !== null) {
-                        $children[] = $node;
-                    }
-                }
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgGroup($transform, $children), $allowClip, $attrs, $css), $paint), $attrs, $css);
+        // <defs>, <symbol>, <marker>, <mask>, and <filter> contents are only reachable via
+        // reference; <title>/<desc> carry no geometry. All resolve to a null node here.
+        $node = match ($local) {
+            'g', 'svg' => $this->parseGroup($el, $paint, $newCurrentColor, $textStyle, $useStack, $depth, $allowClip, $transform),
+            'rect' => $this->buildRect($attrs, $transform, $paint),
+            'circle' => $this->buildCircle($attrs, $transform, $paint),
+            'ellipse' => $this->buildEllipse($attrs, $transform, $paint),
+            'line' => $this->buildLine($attrs, $transform, $paint),
+            'polygon', 'polyline' => $this->buildPoly($local, $attrs, $transform, $paint),
+            'path' => $this->buildPath($attrs, $transform, $paint),
+            'text' => $this->buildText($el, $attrs, $transform, $paint, $textStyle),
+            'use' => $this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip),
+            'image' => $this->buildImage($attrs, $transform, $paint),
+            default => null,
+        };
 
-            case 'rect':
-                $x = (float) ($attrs['x'] ?? 0);
-                $y = (float) ($attrs['y'] ?? 0);
-                $w = (float) ($attrs['width'] ?? 0);
-                $h = (float) ($attrs['height'] ?? 0);
-                if ($w <= 0.0 || $h <= 0.0) {
-                    return null;
-                }
-                $rx = (float) ($attrs['rx'] ?? 0);
-                $ry = (float) ($attrs['ry'] ?? 0);
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry), $allowClip, $attrs, $css), $paint), $attrs, $css);
+        return $this->decorate($node, $allowClip, $attrs, $css, $paint);
+    }
 
-            case 'circle':
-                $cx = (float) ($attrs['cx'] ?? 0);
-                $cy = (float) ($attrs['cy'] ?? 0);
-                $r = (float) ($attrs['r'] ?? 0);
-                if ($r <= 0.0) {
-                    return null;
-                }
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgCircle($transform, $paint, $cx, $cy, $r), $allowClip, $attrs, $css), $paint), $attrs, $css);
+    /**
+     * Applies the clip / mask / filter wrappers shared by every renderable node, in the
+     * canonical filter-outside-mask-outside-clip order. A null node passes straight through.
+     *
+     * @param array<string, string> $attrs
+     * @param array<string, string> $css
+     */
+    private function decorate(?SvgNode $node, bool $allowClip, array $attrs, array $css, SvgPaint $paint): ?SvgNode
+    {
+        return $this->wrapFilter($this->wrapMask($this->wrapClip($node, $allowClip, $attrs, $css), $paint), $attrs, $css);
+    }
 
-            case 'ellipse':
-                $cx = (float) ($attrs['cx'] ?? 0);
-                $cy = (float) ($attrs['cy'] ?? 0);
-                $rx = (float) ($attrs['rx'] ?? 0);
-                $ry = (float) ($attrs['ry'] ?? 0);
-                if ($rx <= 0.0 || $ry <= 0.0) {
-                    return null;
-                }
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry), $allowClip, $attrs, $css), $paint), $attrs, $css);
-
-            case 'line':
-                $x1 = (float) ($attrs['x1'] ?? 0);
-                $y1 = (float) ($attrs['y1'] ?? 0);
-                $x2 = (float) ($attrs['x2'] ?? 0);
-                $y2 = (float) ($attrs['y2'] ?? 0);
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgLine($transform, $paint, $x1, $y1, $x2, $y2), $allowClip, $attrs, $css), $paint), $attrs, $css);
-
-            case 'polygon':
-            case 'polyline':
-                $points = $this->parsePoints($attrs['points'] ?? '');
-                if ($points === []) {
-                    return null;
-                }
-                return $this->wrapFilter(
-                    $this->wrapMask(
-                        $this->wrapClip(
-                            $local === 'polygon'
-                                ? new SvgPolygon($transform, $paint, $points)
-                                : new SvgPolyline($transform, $paint, $points),
-                            $allowClip,
-                            $attrs,
-                            $css,
-                        ),
-                        $paint,
-                    ),
-                    $attrs,
-                    $css,
-                );
-
-            case 'path':
-                $d = $attrs['d'] ?? '';
-                if ($d === '') {
-                    return null;
-                }
-                $commands = PathDataParser::parse($d);
-                if ($commands === []) {
-                    return null;
-                }
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgPath($transform, $paint, $commands), $allowClip, $attrs, $css), $paint), $attrs, $css);
-
-            case 'text':
-                if ($this->inPattern || $this->inMarker) {
-                    return null;
-                }
-                $textPathChild = $this->firstChildElement($el, 'textPath');
-                if ($textPathChild !== null) {
-                    return $this->wrapFilter($this->wrapMask($this->wrapClip(
-                        $this->parseTextPath($textPathChild, $paint, $textStyle, $transform),
-                        $allowClip, $attrs, $css,
-                    ), $paint), $attrs, $css);
-                }
-                return $this->wrapFilter($this->wrapMask($this->wrapClip($this->parseText($el, $paint, $textStyle, $transform), $allowClip, $attrs, $css), $paint), $attrs, $css);
-
-            case 'use':
-                return $this->wrapFilter($this->wrapMask($this->wrapClip($this->resolveUse($el, $attrs, $paint, $newCurrentColor, $textStyle, $transform, $useStack, $depth, $allowClip), $allowClip, $attrs, $css), $paint), $attrs, $css);
-
-            case 'image':
-                if ($this->inPattern || $this->inMarker) {
-                    return null;
-                }
-                $w = (float) ($attrs['width'] ?? 0);
-                $h = (float) ($attrs['height'] ?? 0);
-                if ($w <= 0.0 || $h <= 0.0) {
-                    return null;
-                }
-                $href = $attrs['href'] ?? $attrs['xlink:href'] ?? '';
-                $raster = $this->decodeDataUriRaster($href);
-                if ($raster === null) {
-                    return null;
-                }
-                $hash = $raster->contentHash;
-                if (isset($this->imageIndexByHash[$hash])) {
-                    $index = $this->imageIndexByHash[$hash];
-                } else {
-                    $index = count($this->embeddedImages);
-                    $this->embeddedImages[] = $raster;
-                    $this->imageIndexByHash[$hash] = $index;
-                }
-                $x = (float) ($attrs['x'] ?? 0);
-                $y = (float) ($attrs['y'] ?? 0);
-                $ar = isset($attrs['preserveAspectRatio'])
-                    ? PreserveAspectRatio::parse($attrs['preserveAspectRatio'])
-                    : PreserveAspectRatio::default();
-                return $this->wrapFilter($this->wrapMask($this->wrapClip(new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height), $allowClip, $attrs, $css), $paint), $attrs, $css);
-
-            case 'title':
-            case 'desc':
-            default:
-                return null;
+    /**
+     * @param list<string> $useStack
+     */
+    private function parseGroup(DOMElement $el, SvgPaint $paint, SvgColor $currentColor, SvgTextStyle $textStyle, array $useStack, int $depth, bool $allowClip, ?SvgMatrix $transform): SvgGroup
+    {
+        $children = [];
+        foreach ($this->childElements($el) as $child) {
+            $node = $this->parseNode($child, $paint, $currentColor, $textStyle, $useStack, $depth + 1, $allowClip);
+            if ($node !== null) {
+                $children[] = $node;
+            }
         }
+        return new SvgGroup($transform, $children);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildRect(array $attrs, ?SvgMatrix $transform, SvgPaint $paint): ?SvgRect
+    {
+        $x = (float) ($attrs['x'] ?? 0);
+        $y = (float) ($attrs['y'] ?? 0);
+        $w = (float) ($attrs['width'] ?? 0);
+        $h = (float) ($attrs['height'] ?? 0);
+        if ($w <= 0.0 || $h <= 0.0) {
+            return null;
+        }
+        $rx = (float) ($attrs['rx'] ?? 0);
+        $ry = (float) ($attrs['ry'] ?? 0);
+        return new SvgRect($transform, $paint, $x, $y, $w, $h, $rx, $ry);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildCircle(array $attrs, ?SvgMatrix $transform, SvgPaint $paint): ?SvgCircle
+    {
+        $cx = (float) ($attrs['cx'] ?? 0);
+        $cy = (float) ($attrs['cy'] ?? 0);
+        $r = (float) ($attrs['r'] ?? 0);
+        if ($r <= 0.0) {
+            return null;
+        }
+        return new SvgCircle($transform, $paint, $cx, $cy, $r);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildEllipse(array $attrs, ?SvgMatrix $transform, SvgPaint $paint): ?SvgEllipse
+    {
+        $cx = (float) ($attrs['cx'] ?? 0);
+        $cy = (float) ($attrs['cy'] ?? 0);
+        $rx = (float) ($attrs['rx'] ?? 0);
+        $ry = (float) ($attrs['ry'] ?? 0);
+        if ($rx <= 0.0 || $ry <= 0.0) {
+            return null;
+        }
+        return new SvgEllipse($transform, $paint, $cx, $cy, $rx, $ry);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildLine(array $attrs, ?SvgMatrix $transform, SvgPaint $paint): SvgLine
+    {
+        $x1 = (float) ($attrs['x1'] ?? 0);
+        $y1 = (float) ($attrs['y1'] ?? 0);
+        $x2 = (float) ($attrs['x2'] ?? 0);
+        $y2 = (float) ($attrs['y2'] ?? 0);
+        return new SvgLine($transform, $paint, $x1, $y1, $x2, $y2);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildPoly(string $local, array $attrs, ?SvgMatrix $transform, SvgPaint $paint): SvgPolygon|SvgPolyline|null
+    {
+        $points = $this->parsePoints($attrs['points'] ?? '');
+        if ($points === []) {
+            return null;
+        }
+        return $local === 'polygon'
+            ? new SvgPolygon($transform, $paint, $points)
+            : new SvgPolyline($transform, $paint, $points);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildPath(array $attrs, ?SvgMatrix $transform, SvgPaint $paint): ?SvgPath
+    {
+        $d = $attrs['d'] ?? '';
+        if ($d === '') {
+            return null;
+        }
+        $commands = PathDataParser::parse($d);
+        if ($commands === []) {
+            return null;
+        }
+        return new SvgPath($transform, $paint, $commands);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildText(DOMElement $el, array $attrs, ?SvgMatrix $transform, SvgPaint $paint, SvgTextStyle $textStyle): ?SvgNode
+    {
+        if ($this->inPattern || $this->inMarker) {
+            return null;
+        }
+        $textPathChild = $this->firstChildElement($el, 'textPath');
+        if ($textPathChild !== null) {
+            return $this->parseTextPath($textPathChild, $paint, $textStyle, $transform);
+        }
+        return $this->parseText($el, $paint, $textStyle, $transform);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function buildImage(array $attrs, ?SvgMatrix $transform, SvgPaint $paint): ?SvgImage
+    {
+        if ($this->inPattern || $this->inMarker) {
+            return null;
+        }
+        $w = (float) ($attrs['width'] ?? 0);
+        $h = (float) ($attrs['height'] ?? 0);
+        if ($w <= 0.0 || $h <= 0.0) {
+            return null;
+        }
+        $href = $attrs['href'] ?? $attrs['xlink:href'] ?? '';
+        $raster = $this->decodeDataUriRaster($href);
+        if ($raster === null) {
+            return null;
+        }
+        $hash = $raster->contentHash;
+        if (isset($this->imageIndexByHash[$hash])) {
+            $index = $this->imageIndexByHash[$hash];
+        } else {
+            $index = count($this->embeddedImages);
+            $this->embeddedImages[] = $raster;
+            $this->imageIndexByHash[$hash] = $index;
+        }
+        $x = (float) ($attrs['x'] ?? 0);
+        $y = (float) ($attrs['y'] ?? 0);
+        $ar = isset($attrs['preserveAspectRatio'])
+            ? PreserveAspectRatio::parse($attrs['preserveAspectRatio'])
+            : PreserveAspectRatio::default();
+        return new SvgImage($transform, $x, $y, $w, $h, $ar, $paint->opacity, $index, $raster->width, $raster->height);
     }
 
     /**
