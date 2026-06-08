@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Inter-document TTF parse cache: parsed custom fonts are memoized in-process
+  and shared across every `Document`, so repeated PDF generation with the same
+  fonts no longer re-reads or re-parses the font files. The cache is transparent
+  and leaves output byte-identical; on shared web hosting (mod_php / php-fpm)
+  PHP static state resets between requests, so it only accumulates in
+  long-lived CLI batch jobs and queue workers. Call `ParsedTtfCache::clear()`
+  to reset it in a long-running worker.
+
 ## [1.6.0] - 2026-06-08
 
 ### Added
