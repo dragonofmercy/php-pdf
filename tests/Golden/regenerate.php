@@ -1050,6 +1050,8 @@ file_put_contents($fixturesDir . '/tagging/markdown.pdf', \DragonOfMercy\PhpPdf\
 echo "Regenerated tagging/markdown.pdf\n";
 file_put_contents($fixturesDir . '/tagging/markdown-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildMarkdownLinks());
 echo "Regenerated tagging/markdown-links.pdf\n";
+file_put_contents($fixturesDir . '/tagging/markdown-image-link.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildMarkdownImageLink());
+echo "Regenerated tagging/markdown-image-link.pdf\n";
 file_put_contents($fixturesDir . '/tagging/ua-document.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaDocument()->output());
 echo "Regenerated tagging/ua-document.pdf\n";
 file_put_contents($fixturesDir . '/tagging/ua-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaLinksDocument()->output());

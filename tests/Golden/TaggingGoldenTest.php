@@ -201,6 +201,35 @@ final class TaggingGoldenTest extends TestCase
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
 
+    public static function buildMarkdownImageLink(): string
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->markdown('[![Company logo](' . __DIR__ . '/assets/png-opaque-rgb-24x12.png)](https://example.com)');
+
+        return $doc->output();
+    }
+
+    public function testMarkdownImageLinkMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/markdown-image-link.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildMarkdownImageLink(), 'tagging/markdown-image-link.pdf diverges; regenerate if intended.');
+    }
+
+    public function testMarkdownImageLinkPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/markdown-image-link.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
     private const string FONTS_DIR = __DIR__ . '/assets/fonts';
 
     /**
