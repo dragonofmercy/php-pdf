@@ -39,8 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (from `linkAlt`, defaulting to the cell text), and the Print flag. Such links
   validate under veraPDF PDF/UA-1. The low-level `Page::link()` area link stays
   untagged and is rejected by the conformance guard under `enablePdfUA()` (use
-  `cell(link:)` for accessible links). Image hyperlinks, `markdown()` inline
-  links, and PDF/A level "a" remain for later phases.
+  `cell(link:)` for accessible links). Image hyperlinks and PDF/A level "a"
+  remain for later phases.
+- Markdown inline hyperlinks are now tagged as `<Link>` structure elements (OBJR + /StructParent + /Contents, underline marked as /Artifact) when tagging is enabled, so Markdown containing links is PDF/UA-1 conformant. A link wrapping across lines is a single `<Link>` with one rectangle per line. With tagging off the output is unchanged.
 
 ## [1.5.0] - 2026-06-04
 
