@@ -1135,6 +1135,7 @@ final class Page
         $newPage = $this->document->addPage();
         $newPage->inHeaderRender = true;
         try {
+            // Markdown cells do not carry a bidi direction yet (markdown RTL is deferred).
             return $newPage->cell(
                 x: $x,
                 y: null,
@@ -1859,7 +1860,7 @@ final class Page
         ?Link $link,
         ?string $linkAlt,
         NextPosition $ln,
-        Direction $direction = Direction::LTR,
+        Direction $direction = Direction::LTR, // always provided by cell(); default is a safety net
     ): ?CellResult {
         if ($this->document === null
             || !$this->document->autoPageBreak()
@@ -1944,7 +1945,7 @@ final class Page
         ?Link $link,
         ?string $linkAlt,
         NextPosition $ln,
-        Direction $direction = Direction::LTR,
+        Direction $direction = Direction::LTR, // always provided by cell(); default is a safety net
     ): ?CellResult {
         $resolvedYPt = $y !== null
             ? $this->toPt($y)
