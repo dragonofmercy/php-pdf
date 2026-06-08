@@ -1186,8 +1186,14 @@ final class Page
         CellPadding $paddingPt,
         ?int $markedContentId = null,
         string $markedContentTag = 'P',
+        ?Direction $direction = null,
     ): void {
         $text = self::normalizeNewlines($text);
+
+        $baseDirection = BidiProcessor::resolveBaseDirection(
+            $text,
+            $direction ?? $this->document?->baseDirection() ?? Direction::LTR,
+        );
 
         $engine = $this->textState->activeEngine();
         $fontShortName = '';
@@ -1218,6 +1224,7 @@ final class Page
             markedContentId: $markedContentId,
             markedContentTag: $markedContentTag,
             artifactDecoration: $this->shouldTag(),
+            direction: $baseDirection,
         );
     }
 

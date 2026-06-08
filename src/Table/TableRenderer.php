@@ -371,7 +371,7 @@ final class TableRenderer
             } else {
                 $this->applyFont($page, $baseFont, $baseSize, $rs->bold === true);
                 $mcid = $this->beginCell($tree, $page, StructureType::TD, $cell->text);
-                $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad, markedContentId: $mcid, markedContentTag: StructureType::TD->value);
+                $page->drawTableCell($cx, $yPt, $mergedWidth, $rowHeightPt, $cell->text, $border, $rs->fill, $rs->textColor, $rs->align ?? $col->align, $cell->verticalAlign ?? $col->verticalAlign, $colPad, markedContentId: $mcid, markedContentTag: StructureType::TD->value, direction: $cell->direction);
                 $this->endCell($tree, $page, $mcid);
             }
             $cx += $mergedWidth;

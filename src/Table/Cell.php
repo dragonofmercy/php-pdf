@@ -6,6 +6,7 @@ use DragonOfMercy\PhpPdf\CellPadding;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image;
+use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -28,6 +29,7 @@ final readonly class Cell
         public ?Color $fill = null,
         public ?CellPadding $padding = null,
         public int $colSpan = 1,
+        public ?Direction $direction = null,
     ) {}
 
     public static function of(string|\Stringable $text): self
@@ -68,6 +70,11 @@ final readonly class Cell
         return $this->copy(align: $align);
     }
 
+    public function direction(Direction $direction): self
+    {
+        return $this->copy(direction: $direction);
+    }
+
     public function verticalAlign(VerticalAlign $verticalAlign): self
     {
         return $this->copy(verticalAlign: $verticalAlign);
@@ -96,6 +103,7 @@ final readonly class Cell
         ?Color $fill = null,
         ?CellPadding $padding = null,
         ?int $colSpan = null,
+        ?Direction $direction = null,
     ): self {
         return new self(
             text: $this->text,
@@ -109,6 +117,7 @@ final readonly class Cell
             fill: $fill ?? $this->fill,
             padding: $padding ?? $this->padding,
             colSpan: $colSpan ?? $this->colSpan,
+            direction: $direction ?? $this->direction,
         );
     }
 }
