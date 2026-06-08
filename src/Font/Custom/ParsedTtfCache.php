@@ -18,29 +18,29 @@ namespace DragonOfMercy\PhpPdf\Font\Custom;
  *
  * Final but intentionally NOT readonly: it holds a mutable static array.
  *
- * @internal Only clear() is intended for public use.
+ * @internal The class is internal; clear() is the supported reset for
+ *           long-running workers.
  */
 final class ParsedTtfCache
 {
     /** @var array<string, ParsedTtf> */
     private static array $cache = [];
 
-    public static function lookup(string $path): ?ParsedTtf
+    /**
+     * Returns the cached ParsedTtf for $path, or invokes $parse to produce and
+     * cache it on a miss. $parse runs only on a miss, so a cache hit skips both
+     * the file read and the parse. When the path cannot be stat-ed, the result
+     * is parsed but not cached (graceful degradation).
+     *
+     * @param callable(): ParsedTtf $parse
+     */
+    public static function getOrParse(string $path, callable $parse): ParsedTtf
     {
         $key = self::keyFor($path);
         if ($key === null) {
-            return null;
+            return $parse();
         }
-        return self::$cache[$key] ?? null;
-    }
-
-    public static function store(string $path, ParsedTtf $parsed): void
-    {
-        $key = self::keyFor($path);
-        if ($key === null) {
-            return;
-        }
-        self::$cache[$key] = $parsed;
+        return self::$cache[$key] ??= $parse();
     }
 
     public static function clear(): void
@@ -54,11 +54,10 @@ final class ParsedTtfCache
         if ($real === false) {
             return null;
         }
-        $size = @filesize($path);
-        $mtime = @filemtime($path);
-        if ($size === false || $mtime === false) {
+        $stat = @stat($real);
+        if ($stat === false) {
             return null;
         }
-        return $real . '|' . $size . '|' . $mtime;
+        return $real . '|' . $stat['size'] . '|' . $stat['mtime'];
     }
 }

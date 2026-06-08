@@ -11,22 +11,25 @@ use PHPUnit\Framework\TestCase;
 
 final class ParsedTtfCacheTest extends TestCase
 {
-    private const string FONT = __DIR__ . '/../../../Golden/assets/fonts/FreeSans.ttf';
-
-    private ?string $tempFont = null;
+    private string $font;
 
     protected function setUp(): void
     {
         ParsedTtfCache::clear();
+        $tmp = tempnam(sys_get_temp_dir(), 'ttfcache');
+        if ($tmp === false) {
+            self::fail('Could not create a temp file for the cache test');
+        }
+        $this->font = $tmp;
+        file_put_contents($this->font, 'dummy-font-bytes');
     }
 
     protected function tearDown(): void
     {
         ParsedTtfCache::clear();
-        if ($this->tempFont !== null && is_file($this->tempFont)) {
-            unlink($this->tempFont);
+        if (is_file($this->font)) {
+            unlink($this->font);
         }
-        $this->tempFont = null;
     }
 
     private function makeDummy(): ParsedTtf
@@ -49,38 +52,71 @@ final class ParsedTtfCacheTest extends TestCase
         );
     }
 
-    public function testLookupReturnsNullWhenCold(): void
-    {
-        self::assertNull(ParsedTtfCache::lookup(self::FONT));
-    }
-
-    public function testStoreThenLookupReturnsSameInstance(): void
+    public function testParsesOnceThenReturnsCachedInstance(): void
     {
         $dummy = $this->makeDummy();
-        ParsedTtfCache::store(self::FONT, $dummy);
-        self::assertSame($dummy, ParsedTtfCache::lookup(self::FONT));
+        $calls = 0;
+        $parse = function () use ($dummy, &$calls): ParsedTtf {
+            $calls++;
+            return $dummy;
+        };
+
+        $first = ParsedTtfCache::getOrParse($this->font, $parse);
+        $second = ParsedTtfCache::getOrParse($this->font, $parse);
+
+        self::assertSame($dummy, $first);
+        self::assertSame($dummy, $second);
+        self::assertSame(1, $calls);
     }
 
-    public function testClearEmptiesCache(): void
+    public function testClearForcesReparse(): void
     {
-        ParsedTtfCache::store(self::FONT, $this->makeDummy());
+        $calls = 0;
+        $parse = function () use (&$calls): ParsedTtf {
+            $calls++;
+            return $this->makeDummy();
+        };
+
+        ParsedTtfCache::getOrParse($this->font, $parse);
         ParsedTtfCache::clear();
-        self::assertNull(ParsedTtfCache::lookup(self::FONT));
+        ParsedTtfCache::getOrParse($this->font, $parse);
+
+        self::assertSame(2, $calls);
     }
 
-    public function testMtimeChangeMisses(): void
+    public function testMtimeChangeForcesReparse(): void
     {
-        $this->tempFont = tempnam(sys_get_temp_dir(), 'ttfcache') ?: null;
-        self::assertNotNull($this->tempFont);
-        copy(self::FONT, $this->tempFont);
+        $calls = 0;
+        $parse = function () use (&$calls): ParsedTtf {
+            $calls++;
+            return $this->makeDummy();
+        };
 
-        $dummy = $this->makeDummy();
-        ParsedTtfCache::store($this->tempFont, $dummy);
-        self::assertSame($dummy, ParsedTtfCache::lookup($this->tempFont));
+        ParsedTtfCache::getOrParse($this->font, $parse);
 
-        // Force a different mtime: the key changes, so the entry no longer matches.
-        touch($this->tempFont, time() + 10);
-        clearstatcache(true, $this->tempFont);
-        self::assertNull(ParsedTtfCache::lookup($this->tempFont));
+        // Force a different mtime: the key changes, so the cached entry no
+        // longer matches and $parse runs again.
+        touch($this->font, time() + 10);
+        clearstatcache(true, $this->font);
+        ParsedTtfCache::getOrParse($this->font, $parse);
+
+        self::assertSame(2, $calls);
+    }
+
+    public function testUncomputableKeyAlwaysParses(): void
+    {
+        $calls = 0;
+        $parse = function () use (&$calls): ParsedTtf {
+            $calls++;
+            return $this->makeDummy();
+        };
+
+        // realpath() fails on a non-existent path: no key, so nothing is cached
+        // and $parse runs on every call.
+        $missing = $this->font . '.does-not-exist';
+        ParsedTtfCache::getOrParse($missing, $parse);
+        ParsedTtfCache::getOrParse($missing, $parse);
+
+        self::assertSame(2, $calls);
     }
 }

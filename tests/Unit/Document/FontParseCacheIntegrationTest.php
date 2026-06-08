@@ -15,6 +15,9 @@ final class FontParseCacheIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        if (!is_file(self::FONT)) {
+            self::markTestSkipped('FreeSans font asset is absent');
+        }
         ParsedTtfCache::clear();
     }
 

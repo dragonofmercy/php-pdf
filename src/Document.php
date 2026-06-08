@@ -254,17 +254,13 @@ final class Document
         if (!is_file($path)) {
             throw new PdfException("Font file not found for alias '{$alias}' ({$variant}): {$path}");
         }
-        $cached = ParsedTtfCache::lookup($path);
-        if ($cached !== null) {
-            return $cached;
-        }
-        $bytes = @file_get_contents($path);
-        if ($bytes === false) {
-            throw new PdfException("Cannot read font file for alias '{$alias}' ({$variant}): {$path}");
-        }
-        $parsed = TtfParser::parse($bytes, "{$alias} ({$variant})");
-        ParsedTtfCache::store($path, $parsed);
-        return $parsed;
+        return ParsedTtfCache::getOrParse($path, function () use ($alias, $variant, $path): ParsedTtf {
+            $bytes = @file_get_contents($path);
+            if ($bytes === false) {
+                throw new PdfException("Cannot read font file for alias '{$alias}' ({$variant}): {$path}");
+            }
+            return TtfParser::parse($bytes, "{$alias} ({$variant})");
+        });
     }
 
     /**
