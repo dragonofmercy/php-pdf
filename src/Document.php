@@ -65,6 +65,7 @@ use DragonOfMercy\PhpPdf\Svg\SvgFontResolver;
 use DragonOfMercy\PhpPdf\Tagging\StructTreeEmitter;
 use DragonOfMercy\PhpPdf\Tagging\StructureTree;
 use DragonOfMercy\PhpPdf\Tagging\TaggingConformanceGuard;
+use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -119,6 +120,8 @@ final class Document
     private ?string $language = null;
     private ?StructureTree $structureTree = null;
     private int $linkStructParentCounter = 0;
+
+    private Direction $baseDirection = Direction::LTR;
 
     /**
      * Stable /ID for the metadata-less document-timestamp path, generated once
@@ -314,6 +317,22 @@ final class Document
     public function defaultBorderWidth(): float
     {
         return $this->unit->fromPoints($this->defaultBorderWidthPt);
+    }
+
+    /**
+     * Default text direction for the document. Pages and cells inherit it; a
+     * per-call direction: argument or a per-Cell direction overrides it. AUTO
+     * derives the base from the first strong character of each text run.
+     */
+    public function setBaseDirection(Direction $direction): self
+    {
+        $this->baseDirection = $direction;
+        return $this;
+    }
+
+    public function baseDirection(): Direction
+    {
+        return $this->baseDirection;
     }
 
     /**
