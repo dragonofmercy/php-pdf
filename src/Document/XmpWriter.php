@@ -34,6 +34,16 @@ final class XmpWriter
                 . "</rdf:Description>\n";
         }
 
+        // PDF/A (ISO 19005 clause 6.6.2.3.1) only admits XMP properties that are
+        // predefined or declared in an extension schema. The pdfuaid namespace is
+        // not a predefined PDF/A schema, so when a document is simultaneously
+        // PDF/A and PDF/UA the pdfuaid:part property must be described through a
+        // PDF/A extension schema. Pure-UA (pdfa null) and pure-A (pdfUa false)
+        // documents are untouched, preserving their byte-identical goldens.
+        if ($pdfa !== null && $pdfUa) {
+            $descriptions .= $this->pdfUaExtensionSchema();
+        }
+
         $descriptions .= '<rdf:Description rdf:about=""'
             . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
             . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/"'
@@ -48,6 +58,31 @@ final class XmpWriter
             . "</rdf:RDF>\n"
             . "</x:xmpmeta>\n"
             . '<?xpacket end="w"?>';
+    }
+
+    /**
+     * PDF/A extension schema description for the PDF/UA identification schema,
+     * declaring the single pdfuaid:part property (Integer). Required so a
+     * combined PDF/A + PDF/UA document satisfies ISO 19005 clause 6.6.2.3.1.
+     */
+    private function pdfUaExtensionSchema(): string
+    {
+        return '<rdf:Description rdf:about=""'
+            . ' xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"'
+            . ' xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#"'
+            . ' xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">'
+            . '<pdfaExtension:schemas><rdf:Bag><rdf:li rdf:parseType="Resource">'
+            . '<pdfaSchema:schema>PDF/UA identification schema</pdfaSchema:schema>'
+            . '<pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI>'
+            . '<pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix>'
+            . '<pdfaSchema:property><rdf:Seq><rdf:li rdf:parseType="Resource">'
+            . '<pdfaProperty:name>part</pdfaProperty:name>'
+            . '<pdfaProperty:valueType>Integer</pdfaProperty:valueType>'
+            . '<pdfaProperty:category>internal</pdfaProperty:category>'
+            . '<pdfaProperty:description>Indicates the PDF/UA version to which a document conforms</pdfaProperty:description>'
+            . '</rdf:li></rdf:Seq></pdfaSchema:property>'
+            . '</rdf:li></rdf:Bag></pdfaExtension:schemas>'
+            . "</rdf:Description>\n";
     }
 
     private function fields(Metadata $m): string

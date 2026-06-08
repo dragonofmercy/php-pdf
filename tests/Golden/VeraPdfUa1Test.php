@@ -99,4 +99,25 @@ final class VeraPdfUa1Test extends TestCase
             'veraPDF ua1 report was not compliant: ' . $xml,
         );
     }
+
+    public function testPdfA2aUaDocumentIsPdfUa1Compliant(): void
+    {
+        if (!is_file(self::JAVA) || !is_file(self::JAR)) {
+            self::markTestSkipped('veraPDF oracle not installed (C:\\tmp\\pdfa).');
+        }
+
+        $pdf = PdfA2aUaTest::buildDocument()->output();
+        $tmp = tempnam(sys_get_temp_dir(), 'ua') . '.pdf';
+        file_put_contents($tmp, $pdf);
+
+        $cmd = sprintf('"%s" -jar "%s" --flavour ua1 "%s" 2>&1', self::JAVA, self::JAR, $tmp);
+        $xml = (string) shell_exec($cmd);
+        @unlink($tmp);
+
+        self::assertMatchesRegularExpression(
+            '/isCompliant="true"/',
+            $xml,
+            'veraPDF ua1 report was not compliant: ' . $xml,
+        );
+    }
 }

@@ -31,6 +31,7 @@ final class PdfA2ConformanceTest extends TestCase
             '3b' => ['3b', static fn (): Document => PdfA3bTest::buildDocument()],
             '2a' => ['2a', static fn (): Document => PdfA2aTest::buildDocument()],
             '3a' => ['3a', static fn (): Document => PdfA3aTest::buildDocument()],
+            '2a-ua' => ['2a', static fn (): Document => PdfA2aUaTest::buildDocument()],
         ];
     }
 
