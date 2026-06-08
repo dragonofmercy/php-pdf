@@ -547,16 +547,26 @@ final class Document
     }
 
     /**
-     * Makes output() emit a PDF/A conformant file at the given level (ISO 19005-2
-     * part 2, conformance B or U). Forces the metadata output path so the XMP
-     * packet, Info dictionary, and document /ID are always present, embeds an
+     * Makes output() emit a PDF/A conformant file at the given level (ISO 19005
+     * part 2 or 3, conformance B / U / A). Forces the metadata output path so the
+     * XMP packet, Info dictionary, and document /ID are always present, embeds an
      * sRGB output intent, and stamps the pdfaid schema. Throws at output() if the
-     * document uses a non-embedded standard font, encryption, document scripts,
-     * or appended revisions.
+     * document uses a non-embedded standard font, encryption, document scripts, or
+     * appended revisions.
+     *
+     * Conformance level A additionally requires a tagged logical structure tree,
+     * so this method calls enableTagging($lang) for level-A levels (A2A / A3A);
+     * $lang is the catalog /Lang (e.g. 'en-US'). For B / U levels $lang is
+     * ignored. To produce a document that is both PDF/A-2a and PDF/UA-1, call
+     * enablePdfUA() as well (order-independent).
      */
-    public function enablePdfA(PdfALevel $level): self
+    public function enablePdfA(PdfALevel $level, ?string $lang = null): self
     {
         $this->pdfALevel = $level;
+        if ($level->requiresTagging()) {
+            $this->enableTagging($lang);
+        }
+
         return $this;
     }
 
