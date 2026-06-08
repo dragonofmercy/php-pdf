@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Text\Bidi;
 
 use DragonOfMercy\PhpPdf\Text\Bidi\BidiCharacterType;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class BidiCharacterTypeTest extends TestCase
 {
-    /**
-     * @dataProvider cases
-     */
+    #[DataProvider('cases')]
     public function testClassOf(int $codepoint, string $expected): void
     {
         self::assertSame($expected, BidiCharacterType::of($codepoint));
