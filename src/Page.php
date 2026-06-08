@@ -597,7 +597,7 @@ final class Page
         ?Border $border = null,
         ?Color $fill = null,
         ?Color $textColor = null,
-        TextAlign $align = TextAlign::LEFT,
+        ?TextAlign $align = null,
         VerticalAlign $verticalAlign = VerticalAlign::TOP,
         Fit $fit = Fit::NONE,
         float|CellPadding|null $padding = null,
@@ -605,13 +605,14 @@ final class Page
         ?string $linkAlt = null,
         NextPosition $ln = NextPosition::RIGHT,
         bool $markdown = false,
+        ?Direction $direction = null,
     ): CellResult {
         // Inside a columns() block, earlier content may have flowed onto a newer
         // page than the one a render callback captured; always draw on the
         // document's current page so nothing lands on a stale page.
         $current = $this->columnRedirectTarget();
         if ($current !== null) {
-            return $current->cell($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln, $markdown);
+            return $current->cell($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln, $markdown, $direction);
         }
 
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
@@ -652,6 +653,14 @@ final class Page
         // explode-on-\n in the renderer, which WinAnsiEncoder maps to '?'.
         $text = self::normalizeNewlines($text);
 
+        // Resolve the concrete base direction (per-call argument, else document
+        // default, with AUTO collapsed from the text) and the effective
+        // alignment: an unset alignment follows the base direction - right for
+        // RTL, left otherwise. An explicit align argument always wins.
+        $requestedDirection = $direction ?? $this->document?->baseDirection() ?? Direction::LTR;
+        $baseDirection = BidiProcessor::resolveBaseDirection($text, $requestedDirection);
+        $align ??= $baseDirection === Direction::RTL ? TextAlign::RIGHT : TextAlign::LEFT;
+
         // When inside a columns() block, default x to the active column's left
         // edge and default w to the column width so that callers do not have to
         // hard-code geometry that depends on the layout.
@@ -669,7 +678,7 @@ final class Page
         // exceed the page bottom, flow to the next column (or new page col 0)
         // regardless of whether autoPageBreak is active.
         if ($columnLayout !== null && !$this->inHeaderRender) {
-            $colOverflow = $this->maybeColumnOverflow($y, $h, $text, $x, $w, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln);
+            $colOverflow = $this->maybeColumnOverflow($y, $h, $text, $x, $w, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln, $baseDirection);
             if ($colOverflow !== null) {
                 return $colOverflow;
             }
@@ -678,7 +687,7 @@ final class Page
         // Auto-page-break: when active and we are not currently rendering a
         // header, check whether this cell would overflow the bottom margin
         // and if so, delegate to a new page.
-        $broken = $this->maybeAutoBreak($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln);
+        $broken = $this->maybeAutoBreak($x, $y, $w, $h, $text, $border, $fill, $textColor, $align, $verticalAlign, $fit, $padding, $link, $linkAlt, $ln, $baseDirection);
         if ($broken !== null) {
             return $broken;
         }
@@ -751,8 +760,6 @@ final class Page
                 $this->linkAnnotations[] = $annot;
             }
         }
-
-        $baseDirection = BidiProcessor::resolveBaseDirection($text, $this->document?->baseDirection() ?? Direction::LTR);
 
         $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(
@@ -1845,6 +1852,7 @@ final class Page
         ?Link $link,
         ?string $linkAlt,
         NextPosition $ln,
+        Direction $direction = Direction::LTR,
     ): ?CellResult {
         if ($this->document === null
             || !$this->document->autoPageBreak()
@@ -1898,6 +1906,7 @@ final class Page
                 link: $link,
                 linkAlt: $linkAlt,
                 ln: $ln,
+                direction: $direction,
             );
         } finally {
             $newPage->inHeaderRender = false;
@@ -1928,6 +1937,7 @@ final class Page
         ?Link $link,
         ?string $linkAlt,
         NextPosition $ln,
+        Direction $direction = Direction::LTR,
     ): ?CellResult {
         $resolvedYPt = $y !== null
             ? $this->toPt($y)
@@ -1982,6 +1992,7 @@ final class Page
                 link: $link,
                 linkAlt: $linkAlt,
                 ln: $ln,
+                direction: $direction,
             );
         } finally {
             $targetPage->inHeaderRender = false;
