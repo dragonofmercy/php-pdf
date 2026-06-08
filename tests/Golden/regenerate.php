@@ -1046,6 +1046,8 @@ file_put_contents($fixturesDir . '/tagging/table.pdf', \DragonOfMercy\PhpPdf\Tes
 echo "Regenerated tagging/table.pdf\n";
 file_put_contents($fixturesDir . '/tagging/markdown.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildMarkdown());
 echo "Regenerated tagging/markdown.pdf\n";
+file_put_contents($fixturesDir . '/tagging/markdown-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildMarkdownLinks());
+echo "Regenerated tagging/markdown-links.pdf\n";
 file_put_contents($fixturesDir . '/tagging/ua-document.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaDocument()->output());
 echo "Regenerated tagging/ua-document.pdf\n";
 file_put_contents($fixturesDir . '/tagging/ua-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaLinksDocument()->output());

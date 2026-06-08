@@ -144,6 +144,35 @@ final class TaggingGoldenTest extends TestCase
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
 
+    public static function buildMarkdownLinks(): string
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->markdown("A paragraph with an [inline link](https://example.com) in the middle.\n\n# A [heading link](https://example.org)");
+
+        return $doc->output();
+    }
+
+    public function testMarkdownLinksMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/markdown-links.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildMarkdownLinks(), 'tagging/markdown-links.pdf diverges; regenerate if intended.');
+    }
+
+    public function testMarkdownLinksPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/markdown-links.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
     private const string FONTS_DIR = __DIR__ . '/assets/fonts';
 
     /**
