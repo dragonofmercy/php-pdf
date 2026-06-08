@@ -657,8 +657,7 @@ final class Page
         // default, with AUTO collapsed from the text) and the effective
         // alignment: an unset alignment follows the base direction - right for
         // RTL, left otherwise. An explicit align argument always wins.
-        $requestedDirection = $direction ?? $this->document?->baseDirection() ?? Direction::LTR;
-        $baseDirection = BidiProcessor::resolveBaseDirection($text, $requestedDirection);
+        $baseDirection = $this->resolveDirection($text, $direction);
         $align ??= $baseDirection === Direction::RTL ? TextAlign::RIGHT : TextAlign::LEFT;
 
         // When inside a columns() block, default x to the active column's left
@@ -1191,10 +1190,7 @@ final class Page
     ): void {
         $text = self::normalizeNewlines($text);
 
-        $baseDirection = BidiProcessor::resolveBaseDirection(
-            $text,
-            $direction ?? $this->document?->baseDirection() ?? Direction::LTR,
-        );
+        $baseDirection = $this->resolveDirection($text, $direction);
 
         $engine = $this->textState->activeEngine();
         $fontShortName = '';
@@ -2071,6 +2067,19 @@ final class Page
             right: $this->fromPt($p->right),
             bottom: $this->fromPt($p->bottom),
             left: $this->fromPt($p->left),
+        );
+    }
+
+    /**
+     * Resolve the concrete base direction for a run of text: the explicit
+     * per-call direction, else the document default, with AUTO collapsed from
+     * the text's first strong character.
+     */
+    private function resolveDirection(string $text, ?Direction $direction): Direction
+    {
+        return BidiProcessor::resolveBaseDirection(
+            $text,
+            $direction ?? $this->document?->baseDirection() ?? Direction::LTR,
         );
     }
 }

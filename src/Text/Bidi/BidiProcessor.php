@@ -48,6 +48,12 @@ final class BidiProcessor
         if ($line === '') {
             return $line;
         }
+        // Fast path: a pure-ASCII line with a non-RTL base has no RTL content and
+        // no reordering to do; skip the UTF-8 decode entirely. (preg_match returns
+        // 0 when the line is all bytes 0x00-0x7F.)
+        if ($base !== Direction::RTL && preg_match('/[^\x00-\x7F]/', $line) === 0) {
+            return $line;
+        }
         $cps = self::codepoints($line);
         if ($base !== Direction::RTL && !self::hasRtl($cps)) {
             return $line; // byte-identity fast path

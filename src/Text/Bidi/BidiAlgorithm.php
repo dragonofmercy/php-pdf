@@ -41,6 +41,9 @@ final class BidiAlgorithm
     /** BD16 caps the bracket-pair stack at 63 entries. */
     private const int BRACKET_STACK_LIMIT = 63;
 
+    /** Bidi classes treated as neutral for rules N1/N2 (ON plus separators/whitespace). */
+    private const array NEUTRAL = ['ON' => true, 'WS' => true, 'B' => true, 'S' => true];
+
     /**
      * Resolve the embedding level of every codepoint on a line.
      *
@@ -168,21 +171,19 @@ final class BidiAlgorithm
     {
         $n = count($types);
         $e = $paragraphLevel % 2 === 1 ? 'R' : 'L';
-        $sor = $e; // Phase A is a single level run: sor = eor = e; kept for UAX #9 readability.
-        $eor = $e;
+        // Phase A single level run: start/end-of-run context is the embedding dir e.
 
         $types = self::resolveBrackets($cps, $types, $originalTypes, $e);
 
-        $neutral = ['ON', 'WS', 'B', 'S'];
         $i = 0;
         while ($i < $n) {
-            if (in_array($types[$i], $neutral, true)) {
+            if (isset(self::NEUTRAL[$types[$i]])) {
                 $start = $i;
-                while ($i < $n && in_array($types[$i], $neutral, true)) {
+                while ($i < $n && isset(self::NEUTRAL[$types[$i]])) {
                     $i++;
                 }
-                $before = $start > 0 ? self::dirClass($types[$start - 1]) : $sor;
-                $after = $i < $n ? self::dirClass($types[$i]) : $eor;
+                $before = $start > 0 ? self::dirClass($types[$start - 1]) : $e;
+                $after = $i < $n ? self::dirClass($types[$i]) : $e;
                 $resolved = ($before === $after && ($before === 'L' || $before === 'R'))
                     ? $before
                     : $e;
@@ -374,12 +375,7 @@ final class BidiAlgorithm
         // L2: from the highest level down to the lowest odd level, reverse any
         // contiguous run of characters at that level or higher.
         $order = range(0, $n - 1);
-        $maxLevel = $paragraphLevel;
-        foreach ($levels as $lvl) {
-            if ($lvl > $maxLevel) {
-                $maxLevel = $lvl;
-            }
-        }
+        $maxLevel = max($paragraphLevel, ...$levels);
         $minOdd = $maxLevel + 1;
         foreach ($levels as $lvl) {
             if ($lvl % 2 === 1 && $lvl < $minOdd) {
@@ -394,8 +390,9 @@ final class BidiAlgorithm
                     while ($i < $n && $levels[$order[$i]] >= $lvl) {
                         $i++;
                     }
-                    $slice = array_reverse(array_slice($order, $start, $i - $start));
-                    array_splice($order, $start, count($slice), $slice);
+                    $len = $i - $start;
+                    $slice = array_reverse(array_slice($order, $start, $len));
+                    array_splice($order, $start, $len, $slice);
                 } else {
                     $i++;
                 }
