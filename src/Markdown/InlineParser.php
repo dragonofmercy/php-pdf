@@ -184,18 +184,28 @@ final class InlineParser
     }
 
     /**
-     * Finds the matching unescaped `]` for a label opened at $from.
+     * Finds the matching unescaped `]` for a label opened at $from, balancing
+     * nested `[...]` pairs so a link wrapping an image (`[![alt](img)](url)`)
+     * closes on its own bracket rather than the inner image's.
      */
     private static function findClosingBracket(string $text, int $from): ?int
     {
         $length = strlen($text);
+        $depth = 0;
         for($i = $from; $i < $length; $i++) {
             if($text[$i] === '\\' && $i + 1 < $length) {
                 $i++;
                 continue;
             }
+            if($text[$i] === '[') {
+                $depth++;
+                continue;
+            }
             if($text[$i] === ']') {
-                return $i;
+                if($depth === 0) {
+                    return $i;
+                }
+                $depth--;
             }
         }
 

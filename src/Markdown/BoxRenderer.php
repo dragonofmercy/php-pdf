@@ -397,7 +397,9 @@ final class BoxRenderer
         // A paragraph made solely of a single image renders the image block-level.
         $imageOnly = $this->soleImage($paragraph->inlines);
         if ($imageOnly !== null) {
-            return $this->drawBlockImage($imageOnly, $xPt, $cursorYPt, $widthPt, $page, $measureOnly);
+            $link = $imageOnly->linkUrl !== null ? Link::url($imageOnly->linkUrl) : null;
+
+            return $this->drawBlockImage($imageOnly->image, $xPt, $cursorYPt, $widthPt, $page, $measureOnly, $link);
         }
 
         $runs = $this->inlineRuns($paragraph->inlines, $style, $bodyFont, $bodySizePt);
@@ -1111,37 +1113,55 @@ final class BoxRenderer
     }
 
     /**
-     * Returns the lone ImageSpan when $inlines is exactly one image (ignoring
-     * empty text), otherwise null.
+     * Returns the lone image of a paragraph (ignoring empty text), with its link
+     * url when the image is wrapped in a sole link (`[![alt](img)](url)`), or null
+     * when the paragraph is not a single (possibly linked) image.
      *
      * @param list<InlineNode> $inlines
      */
-    private function soleImage(array $inlines): ?ImageSpan
+    private function soleImage(array $inlines): ?SoleImage
     {
-        $image = null;
+        $node = $this->soleContentNode($inlines);
+        if ($node instanceof ImageSpan) {
+            return new SoleImage($node, null);
+        }
+        if ($node instanceof LinkSpan) {
+            $inner = $this->soleContentNode($node->children);
+            if ($inner instanceof ImageSpan) {
+                return new SoleImage($inner, $node->url);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The single non-empty inline node of $inlines (empty text runs ignored), or
+     * null when there is not exactly one.
+     *
+     * @param list<InlineNode> $inlines
+     */
+    private function soleContentNode(array $inlines): ?InlineNode
+    {
+        $found = null;
         foreach ($inlines as $node) {
             if ($node instanceof TextRun && trim($node->text) === '') {
                 continue;
             }
-            if ($node instanceof ImageSpan) {
-                if ($image !== null) {
-                    return null;
-                }
-                $image = $node;
-                continue;
+            if ($found !== null) {
+                return null;
             }
-
-            return null;
+            $found = $node;
         }
 
-        return $image;
+        return $found;
     }
 
     /**
      * Places an image block-level at the current cursor, clamped to the box
      * width, and returns the cursor advanced past its drawn height.
      */
-    private function drawBlockImage(ImageSpan $span, float $xPt, float $cursorYPt, float $widthPt, Page $page, bool $measureOnly): float
+    private function drawBlockImage(ImageSpan $span, float $xPt, float $cursorYPt, float $widthPt, Page $page, bool $measureOnly, ?Link $link = null): float
     {
         $image = $this->loadImage($span->src);
 
@@ -1168,6 +1188,8 @@ final class BoxRenderer
                 $this->fromPt($page, $cursorYPt),
                 $this->fromPt($page, $drawnWPt),
                 $this->fromPt($page, $drawnHPt),
+                alt: $span->alt === '' ? null : $span->alt,
+                link: $link,
             );
         }
 
