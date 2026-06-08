@@ -383,4 +383,41 @@ final class TaggingGoldenTest extends TestCase
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
+
+    /**
+     * A PDF/UA-1 document exercising both image-link surfaces: a direct-API
+     * image link and a Markdown block image link. Both must validate isCompliant.
+     */
+    public static function buildUaImageLinks(): Document
+    {
+        $doc = self::deterministicUaDoc('Accessible image links');
+
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('Body'), 12.0);
+        $page->image(__DIR__ . '/assets/png-opaque-rgb-24x12.png', x: 20.0, y: 30.0, w: 30.0, h: 30.0, alt: 'Company logo', link: Link::url('https://example.com'));
+        $page->markdown('[![Brand mark](' . __DIR__ . '/assets/png-opaque-rgb-24x12.png)](https://example.org)', x: 20.0, y: 80.0, width: 80.0);
+
+        return $doc;
+    }
+
+    public function testUaImageLinksMatchesFixture(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/ua-image-links.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildUaImageLinks()->output(), 'tagging/ua-image-links.pdf diverges; regenerate if intended.');
+    }
+
+    public function testUaImageLinksPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-image-links.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
 }
