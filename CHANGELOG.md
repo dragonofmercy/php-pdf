@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cell(link:)` for accessible links).
 - Markdown inline hyperlinks are now tagged as `<Link>` structure elements (OBJR + /StructParent + /Contents, underline marked as /Artifact) when tagging is enabled, so Markdown containing links is PDF/UA-1 conformant. A link wrapping across lines is a single `<Link>` with one rectangle per line. With tagging off the output is unchanged.
 - Image hyperlinks are now tagged as `<Link>` structure elements wrapping the image `<Figure>` (OBJR + /StructParent + /Contents) when tagging is enabled, via `Page::image(link: ..., linkAlt: ...)` and Markdown block image links `[![alt](img)](url)`, so documents with image links are PDF/UA-1 conformant. Markdown block images now also carry their alt text as `/Alt`.
+- PDF/A conformance level A: `enablePdfA(PdfALevel::A2A)` and `A3A` emit PDF/A-2a / PDF/A-3a (level A = the Unicode requirements plus a tagged logical structure tree). Level A auto-enables tagging; pass the catalog language as the second argument, e.g. `enablePdfA(PdfALevel::A2A, 'en-US')`, and draw content through the tagged high-level API. Combining it with `enablePdfUA()` produces a single file that is both PDF/A-2a and PDF/UA-1 (validated against veraPDF 2a and ua1). This completes PDF/A level support (B, U, A across parts 2 and 3).
 
 ## [1.5.0] - 2026-06-04
 
