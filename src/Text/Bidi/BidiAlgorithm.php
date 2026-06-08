@@ -24,10 +24,17 @@ final class BidiAlgorithm
         0x2039 => 0x203A, 0x203A => 0x2039,
     ];
 
-    /** Bracket pairs for rule N0 (BD14/BD15/BD16), open => close. */
-    private const array BRACKET_PAIRS = [
-        0x0028 => 0x0029, 0x005B => 0x005D, 0x007B => 0x007D,
+    /**
+     * Canonical singleton equivalences relevant to bracket matching (BD16): a
+     * left/right angle bracket pairs with its CJK angle-bracket counterpart.
+     * codepoint => canonical codepoint used when comparing brackets.
+     */
+    private const array CANONICAL_BRACKET = [
+        0x2329 => 0x3008, 0x232A => 0x3009,
     ];
+
+    /** BD16 caps the bracket-pair stack at 63 entries. */
+    private const int BRACKET_STACK_LIMIT = 63;
 
     /**
      * Resolve the embedding level of every codepoint on a line.
@@ -47,9 +54,12 @@ final class BidiAlgorithm
         foreach ($cps as $cp) {
             $types[] = BidiCharacterType::of($cp);
         }
+        // Snapshot the original classes before W1 mutates NSM; rule N0 needs to
+        // know which characters were NSM to propagate a bracket resolution.
+        $originalTypes = $types;
 
         $types = self::resolveWeak($types, $paragraphLevel);
-        $types = self::resolveNeutral($cps, $types, $paragraphLevel);
+        $types = self::resolveNeutral($cps, $types, $originalTypes, $paragraphLevel);
 
         return self::resolveImplicit($types, $paragraphLevel);
     }
@@ -146,16 +156,17 @@ final class BidiAlgorithm
     /**
      * @param list<int> $cps
      * @param array<int, string> $types
+     * @param array<int, string> $originalTypes
      * @return array<int, string>
      */
-    private static function resolveNeutral(array $cps, array $types, int $paragraphLevel): array
+    private static function resolveNeutral(array $cps, array $types, array $originalTypes, int $paragraphLevel): array
     {
         $n = count($types);
         $e = $paragraphLevel % 2 === 1 ? 'R' : 'L';
         $sor = $e;
         $eor = $e;
 
-        $types = self::resolveBrackets($cps, $types, $e);
+        $types = self::resolveBrackets($cps, $types, $originalTypes, $e);
 
         $neutral = ['ON', 'WS', 'B', 'S'];
         $i = 0;
@@ -191,27 +202,39 @@ final class BidiAlgorithm
     }
 
     /**
+     * Rule N0: resolve paired brackets. Identify bracket pairs by BD16 (a
+     * stack of at most 63 open brackets, popped on a matching close under
+     * canonical equivalence), then resolve each pair (in order of its opening
+     * position) from the strong type enclosed or the preceding context, and
+     * propagate the result onto any immediately following original-NSM run.
+     *
      * @param list<int> $cps
      * @param array<int, string> $types
+     * @param array<int, string> $originalTypes
      * @return array<int, string>
      */
-    private static function resolveBrackets(array $cps, array $types, string $e): array
+    private static function resolveBrackets(array $cps, array $types, array $originalTypes, string $e): array
     {
         $n = count($cps);
-        /** @var list<array{0:int,1:int}> $stack */
+        /** @var list<array{0:int,1:int}> $stack open index, canonical close cp */
         $stack = [];
-        /** @var list<array{0:int,1:int}> $pairs */
+        /** @var list<array{0:int,1:int}> $pairs open index, close index */
         $pairs = [];
         for ($i = 0; $i < $n; $i++) {
             if ($types[$i] !== 'ON') {
                 continue;
             }
             $cp = $cps[$i];
-            if (isset(self::BRACKET_PAIRS[$cp])) {
-                $stack[] = [$i, self::BRACKET_PAIRS[$cp]];
+            if (isset(BidiBracketData::OPEN_TO_CLOSE[$cp])) {
+                if (count($stack) >= self::BRACKET_STACK_LIMIT) {
+                    // BD16: stack overflow stops bracket-pair identification.
+                    break;
+                }
+                $stack[] = [$i, self::canonicalBracket(BidiBracketData::OPEN_TO_CLOSE[$cp])];
             } else {
+                $cpCanon = self::canonicalBracket($cp);
                 for ($s = count($stack) - 1; $s >= 0; $s--) {
-                    if ($stack[$s][1] === $cp) {
+                    if ($stack[$s][1] === $cpCanon) {
                         $pairs[] = [$stack[$s][0], $i];
                         $stack = array_slice($stack, 0, $s);
                         break;
@@ -219,6 +242,11 @@ final class BidiAlgorithm
                 }
             }
         }
+
+        // N0 resolves pairs in order of their opening bracket position so that
+        // an enclosing pair already resolved by the time an inner pair consults
+        // the preceding strong context.
+        usort($pairs, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
 
         $opposite = $e === 'L' ? 'R' : 'L';
         foreach ($pairs as [$open, $close]) {
@@ -234,9 +262,9 @@ final class BidiAlgorithm
                     $foundOpp = true;
                 }
             }
+            $resolved = null;
             if ($foundE) {
-                $types[$open] = $e;
-                $types[$close] = $e;
+                $resolved = $e;
             } elseif ($foundOpp) {
                 $ctx = $e;
                 for ($k = $open - 1; $k >= 0; $k--) {
@@ -247,12 +275,36 @@ final class BidiAlgorithm
                     }
                 }
                 $resolved = $ctx === $opposite ? $opposite : $e;
+            }
+            if ($resolved !== null) {
                 $types[$open] = $resolved;
                 $types[$close] = $resolved;
+                self::propagateBracketToNsm($types, $originalTypes, $open, $resolved);
+                self::propagateBracketToNsm($types, $originalTypes, $close, $resolved);
             }
         }
 
         return $types;
+    }
+
+    /**
+     * N0 tail clause: characters that were originally NSM and immediately
+     * follow a bracket whose type changed under N0 take that bracket's type.
+     *
+     * @param array<int, string> $types
+     * @param array<int, string> $originalTypes
+     */
+    private static function propagateBracketToNsm(array &$types, array $originalTypes, int $bracketIndex, string $resolved): void
+    {
+        $n = count($types);
+        for ($k = $bracketIndex + 1; $k < $n && $originalTypes[$k] === 'NSM'; $k++) {
+            $types[$k] = $resolved;
+        }
+    }
+
+    private static function canonicalBracket(int $cp): int
+    {
+        return self::CANONICAL_BRACKET[$cp] ?? $cp;
     }
 
     /**
