@@ -1690,6 +1690,35 @@ final class Page
     }
 
     /**
+     * Registers a tagged hyperlink annotation for one Markdown link rectangle
+     * and returns it so the Markdown renderer can wrap it in an /OBJR under the
+     * owning <Link> structure element. Mirrors the tagged branch of
+     * {@see cell()}: a /StructParent ordinal is allocated and /Contents is set.
+     * Coordinates are in the page unit. Used only on the tagged Markdown path.
+     *
+     * @internal
+     */
+    public function registerTaggedMarkdownLink(float $x, float $y, float $width, float $height, Link $link, string $contents): LinkAnnotation
+    {
+        $document = $this->document;
+        if ($document === null) {
+            throw new PdfException('Tagged Markdown link requires a document context');
+        }
+        $annot = new LinkAnnotation(
+            x: $x,
+            y: $y,
+            width: $width,
+            height: $height,
+            link: $link,
+            structParentTagIndex: $document->nextLinkStructParentIndex(),
+            contents: $contents,
+        );
+        $this->linkAnnotations[] = $annot;
+
+        return $annot;
+    }
+
+    /**
      * @return list<LinkAnnotation>
      * @internal Consumed by Document::buildPagesFontsImages() to emit /Annots.
      */
