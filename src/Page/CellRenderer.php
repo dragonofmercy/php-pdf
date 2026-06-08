@@ -12,6 +12,8 @@ use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Fit;
 use DragonOfMercy\PhpPdf\Font\FontEngine;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Text\Bidi\BidiProcessor;
+use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -49,6 +51,7 @@ final class CellRenderer
         ?int $markedContentId = null,
         string $markedContentTag = 'P',
         bool $artifactDecoration = false,
+        Direction $direction = Direction::LTR,
     ): CellResult {
         $lines = [];
         $widths = [];
@@ -171,6 +174,7 @@ final class CellRenderer
                 verticalAlign: $verticalAlign,
                 textColor: $textColor,
                 fontShortName: $fontShortName,
+                direction: $direction,
             );
             if ($markedContentId !== null) {
                 $this->stream->endMarkedContent();
@@ -260,6 +264,7 @@ final class CellRenderer
         VerticalAlign $verticalAlign,
         ?Color $textColor,
         string $fontShortName,
+        Direction $direction,
     ): void {
         $lineCount = count($lines);
         $capHeight = $engine->capHeightAt($effectiveSize);
@@ -285,6 +290,7 @@ final class CellRenderer
         $this->stream->append(Operators::setTextLeading($effectiveLeading));
 
         foreach ($lines as $i => $line) {
+            $line = BidiProcessor::reorder($line, $direction);
             $lineWidth = $widths[$i];
 
             $segments = [];

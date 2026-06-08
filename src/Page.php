@@ -36,6 +36,8 @@ use DragonOfMercy\PhpPdf\Table\TableResult;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
 use DragonOfMercy\PhpPdf\Tagging\ObjrRef;
 use DragonOfMercy\PhpPdf\Tagging\StructureType;
+use DragonOfMercy\PhpPdf\Text\Bidi\BidiProcessor;
+use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\VerticalAlign;
 
@@ -750,6 +752,8 @@ final class Page
             }
         }
 
+        $baseDirection = BidiProcessor::resolveBaseDirection($text, $this->document?->baseDirection() ?? Direction::LTR);
+
         $renderer = new CellRenderer(stream: $this->stream);
         $result = $renderer->render(
             engine: $engine,
@@ -772,6 +776,7 @@ final class Page
             markedContentId: $mcid,
             markedContentTag: $link !== null ? 'Link' : 'P',
             artifactDecoration: $this->shouldTag(),
+            direction: $baseDirection,
         );
 
         if ($tree !== null && $mcid !== null) {
