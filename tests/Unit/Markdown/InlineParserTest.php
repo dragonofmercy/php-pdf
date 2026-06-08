@@ -71,6 +71,32 @@ final class InlineParserTest extends TestCase
         self::assertSame('logo.png', $image->src);
     }
 
+    public function testImageWrappedInLink(): void
+    {
+        $n = InlineParser::parse('[![alt](img)](url)');
+        self::assertCount(1, $n);
+        $link = $n[0];
+        self::assertInstanceOf(LinkSpan::class, $link);
+        self::assertSame('url', $link->url);
+        self::assertCount(1, $link->children);
+        $image = $link->children[0];
+        self::assertInstanceOf(ImageSpan::class, $image);
+        self::assertSame('alt', $image->alt);
+        self::assertSame('img', $image->src);
+    }
+
+    public function testLinkWithBracketedLabel(): void
+    {
+        $n = InlineParser::parse('[a [b] c](url)');
+        self::assertCount(1, $n);
+        $link = $n[0];
+        self::assertInstanceOf(LinkSpan::class, $link);
+        self::assertSame('url', $link->url);
+        $label = $link->children[0];
+        self::assertInstanceOf(TextRun::class, $label);
+        self::assertSame('a [b] c', $label->text);
+    }
+
     public function testBackslashEscapeKeepsLiteralAsterisk(): void
     {
         $n = InlineParser::parse('a \\* b');

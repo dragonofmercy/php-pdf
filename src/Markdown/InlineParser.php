@@ -205,7 +205,7 @@ final class InlineParser
                 if($depth === 0) {
                     return $i;
                 }
-                $depth--;
+                $depth--; // nested close: consume and keep scanning for the outer ]
             }
         }
 
