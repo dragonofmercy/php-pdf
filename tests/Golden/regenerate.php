@@ -992,6 +992,10 @@ echo "Regenerated pdfa/a2b.pdf\n";
 echo "Regenerated pdfa/a2u.pdf\n";
 \DragonOfMercy\PhpPdf\Tests\Golden\PdfA3bTest::buildDocument()->save($fixturesDir . '/pdfa/a3b.pdf');
 echo "Regenerated pdfa/a3b.pdf\n";
+file_put_contents($fixturesDir . '/pdfa/a2a.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\PdfA2aTest::buildDocument()->output());
+echo "Regenerated pdfa/a2a.pdf\n";
+file_put_contents($fixturesDir . '/pdfa/a3a.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\PdfA3aTest::buildDocument()->output());
+echo "Regenerated pdfa/a3a.pdf\n";
 
 // Table golden fixtures (Tasks 10-13)
 if (!is_dir($fixturesDir . '/table')) {
