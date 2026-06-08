@@ -81,10 +81,12 @@ final class BoxRenderer
      */
     private ?StructureTree $tree = null;
 
-    /** True while rendering a text block that contains an inline link (fragmented marked content). */
-    private bool $fragmentedBlock = false;
-
-    /** The structure type of the block being fragmented, used as the BDC tag for its non-link runs. */
+    /**
+     * The structure type of the link-bearing block currently being fragmented,
+     * or null when no fragmented block is active. Non-null is the single signal
+     * that the fragmented tagging path is in effect; it also supplies the BDC
+     * tag for that block's non-link runs.
+     */
     private ?StructureType $fragmentedBlockType = null;
 
     /** The link group of the currently-open <Link> element, or null when none is open. */
@@ -300,15 +302,12 @@ final class BoxRenderer
         }
 
         $tree->open($type);
-        $prevFlag = $this->fragmentedBlock;
         $prevType = $this->fragmentedBlockType;
-        $this->fragmentedBlock = true;
         $this->fragmentedBlockType = $type;
         try {
             return $render();
         } finally {
             $this->closeOpenLink();
-            $this->fragmentedBlock = $prevFlag;
             $this->fragmentedBlockType = $prevType;
             $tree->close();
         }
@@ -827,7 +826,9 @@ final class BoxRenderer
         LineBreaker $breaker,
         bool $measureOnly,
     ): float {
-        $linkTexts = $this->collectLinkTexts($runs);
+        // Only a fragmented (link-bearing) block consults $linkTexts; skip the
+        // run scan entirely for the common link-free block.
+        $linkTexts = $this->fragmentedBlockType !== null ? $this->collectLinkTexts($runs) : [];
         $lines = $breaker->layout($runs, $widthPt);
         foreach ($lines as $line) {
             if (!$measureOnly) {
@@ -862,6 +863,23 @@ final class BoxRenderer
     }
 
     /**
+     * Shows one positioned segment's text at its measured offset on $page (the
+     * baseline sits at lineTopPt + the run size, an ascent approximation). The
+     * text-show kernel shared by both the fragmented and legacy line paths.
+     */
+    private function showSegment(PositionedSegment $segment, float $xPt, float $lineTopPt, Page $page): void
+    {
+        $run = $segment->run;
+        $page->setFillColor($run->color);
+        $page->setFont($run->font, $run->sizePt);
+        $page->text(
+            $this->emitX($page, $xPt + $segment->xOffsetPt),
+            $this->fromPt($page, $lineTopPt + $run->sizePt),
+            $run->text,
+        );
+    }
+
+    /**
      * Dispatches to the fragmented tagging path for a link-bearing block, or to
      * the legacy path (untagged area link + underline) otherwise. The legacy
      * path is reached for measure passes, the off-path, and link-free blocks,
@@ -871,7 +889,7 @@ final class BoxRenderer
      */
     private function drawLine(Line $line, float $xPt, float $lineTopPt, Page $page, MarkdownStyle $style, array $linkTexts): void
     {
-        if ($this->tree !== null && $this->fragmentedBlock) {
+        if ($this->tree !== null && $this->fragmentedBlockType !== null) {
             $this->drawLineFragmented($line, $xPt, $lineTopPt, $page, $style, $linkTexts);
 
             return;
@@ -921,12 +939,7 @@ final class BoxRenderer
             $mcid = $page->nextMcid();
             $page->contentStream()->beginMarkedContent($group === null ? $blockTag : StructureType::Link->value, $mcid);
             foreach ($stretch as $segment) {
-                $run = $segment->run;
-                $segXPt = $xPt + $segment->xOffsetPt;
-                $baselinePt = $lineTopPt + $run->sizePt;
-                $page->setFillColor($run->color);
-                $page->setFont($run->font, $run->sizePt);
-                $page->text($this->emitX($page, $segXPt), $this->fromPt($page, $baselinePt), $run->text);
+                $this->showSegment($segment, $xPt, $lineTopPt, $page);
             }
             $page->contentStream()->endMarkedContent();
             $tree->addMarkedContent($page->pageIndex(), $mcid);
@@ -982,19 +995,12 @@ final class BoxRenderer
         MarkdownStyle $style,
     ): void {
         foreach ($line->segments as $segment) {
+            $this->showSegment($segment, $xPt, $lineTopPt, $page);
+
             $run = $segment->run;
-            $segXPt = $xPt + $segment->xOffsetPt;
-            $baselinePt = $lineTopPt + $run->sizePt;
-
-            $page->setFillColor($run->color);
-            $page->setFont($run->font, $run->sizePt);
-            $page->text(
-                $this->emitX($page, $segXPt),
-                $this->fromPt($page, $baselinePt),
-                $run->text,
-            );
-
             if ($run->url !== null) {
+                $segXPt = $xPt + $segment->xOffsetPt;
+                $baselinePt = $lineTopPt + $run->sizePt;
                 $rectTopPt = $lineTopPt;
                 $page->link(
                     $this->emitX($page, $segXPt),
