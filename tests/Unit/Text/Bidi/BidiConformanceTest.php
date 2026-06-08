@@ -34,6 +34,7 @@ final class BidiConformanceTest extends TestCase
         self::assertIsResource($handle);
 
         $checked = 0;
+        $totalFailures = 0;
         /** @var list<string> $failures */
         $failures = [];
         $lineNo = 0;
@@ -114,6 +115,7 @@ final class BidiConformanceTest extends TestCase
             $gotOrder = self::visualIndexOrder($cps, $gotLevels, $paraDir);
 
             if ($gotLevels !== $expectedLevels || $gotOrder !== $expectedOrder) {
+                $totalFailures++;
                 if (count($failures) < 20) {
                     $failures[] = sprintf(
                         "line %d: cps=[%s] para=%d\n  levels exp=[%s] got=[%s]\n  order  exp=[%s] got=[%s]",
@@ -132,16 +134,16 @@ final class BidiConformanceTest extends TestCase
         fclose($handle);
 
         self::assertGreaterThan(
-            1000,
+            50000,
             $checked,
-            'Sanity: a substantial in-scope subset must be exercised.',
+            'Sanity: a substantial in-scope subset must be exercised (actual is ~91592).',
         );
         self::assertSame(
             [],
             $failures,
             sprintf(
                 "%d in-scope conformance case(s) failed (showing up to 20):\n%s",
-                count($failures),
+                $totalFailures,
                 implode("\n", $failures),
             ),
         );

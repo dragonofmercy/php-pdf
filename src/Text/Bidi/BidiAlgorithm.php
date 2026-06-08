@@ -14,7 +14,12 @@ namespace DragonOfMercy\PhpPdf\Text\Bidi;
  */
 final class BidiAlgorithm
 {
-    /** Common mirrored bracket pairs (rule L4). codepoint => mirror codepoint. */
+    /**
+     * Curated subset of the Unicode Bidi_Mirroring_Glyph property for rule L4.
+     * Covers the bracket/quote pairs most common in PDF text content; a full
+     * table (generated from BidiMirroring.txt) is Phase B scope.
+     * codepoint => mirror codepoint.
+     */
     private const array MIRROR = [
         0x0028 => 0x0029, 0x0029 => 0x0028,
         0x005B => 0x005D, 0x005D => 0x005B,
@@ -163,7 +168,7 @@ final class BidiAlgorithm
     {
         $n = count($types);
         $e = $paragraphLevel % 2 === 1 ? 'R' : 'L';
-        $sor = $e;
+        $sor = $e; // Phase A is a single level run: sor = eor = e; kept for UAX #9 readability.
         $eor = $e;
 
         $types = self::resolveBrackets($cps, $types, $originalTypes, $e);
@@ -352,6 +357,7 @@ final class BidiAlgorithm
         }
 
         // L1: reset separators and trailing whitespace to the paragraph level.
+        // L1 here resets trailing WS and boundary B/S to the paragraph level. Mid-line S (tab) reset (L1 rule 1) is out of Phase A scope: segment separators are not expected inside PDF text runs.
         $resetFrom = $n;
         for ($i = $n - 1; $i >= 0; $i--) {
             $type = BidiCharacterType::of($cps[$i]);

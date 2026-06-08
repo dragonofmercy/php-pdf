@@ -48,10 +48,10 @@ final class BidiProcessor
         if ($line === '') {
             return $line;
         }
-        if ($base !== Direction::RTL && !self::containsRtl($line)) {
-            return $line;
-        }
         $cps = self::codepoints($line);
+        if ($base !== Direction::RTL && !self::hasRtl($cps)) {
+            return $line; // byte-identity fast path
+        }
         $paragraphLevel = $base === Direction::RTL ? 1 : 0;
         $levels = BidiAlgorithm::resolveLevels($cps, $paragraphLevel);
         $visual = BidiAlgorithm::reorderLine($cps, $levels, $paragraphLevel);
@@ -62,9 +62,10 @@ final class BidiProcessor
         return $out;
     }
 
-    private static function containsRtl(string $text): bool
+    /** @param list<int> $cps */
+    private static function hasRtl(array $cps): bool
     {
-        foreach (self::codepoints($text) as $cp) {
+        foreach ($cps as $cp) {
             $class = BidiCharacterType::of($cp);
             if ($class === 'R' || $class === 'AL' || $class === 'AN') {
                 return true;
@@ -77,9 +78,8 @@ final class BidiProcessor
     private static function codepoints(string $text): array
     {
         $out = [];
-        $len = mb_strlen($text, 'UTF-8');
-        for ($i = 0; $i < $len; $i++) {
-            $out[] = mb_ord(mb_substr($text, $i, 1, 'UTF-8'), 'UTF-8');
+        foreach (mb_str_split($text, 1, 'UTF-8') as $c) {
+            $out[] = mb_ord($c, 'UTF-8');
         }
         return $out;
     }
