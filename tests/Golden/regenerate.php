@@ -1067,6 +1067,16 @@ echo "Regenerated tagging/ua-markdown-links.pdf\n";
 file_put_contents($fixturesDir . '/tagging/ua-image-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaImageLinks()->output());
 echo "Regenerated tagging/ua-image-links.pdf\n";
 
+// Fixture: RTL Hebrew cell + table (Phase A bidi)
+$rtlDir = $fixturesDir . '/rtl';
+if (!is_dir($rtlDir)) {
+    mkdir($rtlDir, 0755, true);
+}
+file_put_contents($rtlDir . '/hebrew-cell.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\RtlHebrewCellTest::buildPdfBytes());
+echo "Regenerated rtl/hebrew-cell.pdf\n";
+file_put_contents($rtlDir . '/hebrew-table.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\RtlHebrewTableTest::buildPdfBytes());
+echo "Regenerated rtl/hebrew-table.pdf\n";
+
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
     mkdir($svgFixturesDir, 0755, true);
