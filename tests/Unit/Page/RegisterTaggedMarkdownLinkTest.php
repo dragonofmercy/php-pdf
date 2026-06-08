@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Page;
 
 use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use PHPUnit\Framework\TestCase;
 
@@ -23,7 +24,7 @@ final class RegisterTaggedMarkdownLinkTest extends TestCase
         self::assertContains($annot, $page->getLinkAnnotations());
     }
 
-    public function testAnnotationIsStoredOnce(): void
+    public function testEachCallAddsOneAnnotation(): void
     {
         $doc = new Document();
         $doc->enableTagging('en-US');
@@ -33,5 +34,15 @@ final class RegisterTaggedMarkdownLinkTest extends TestCase
         $page->registerTaggedMarkdownLink(0.0, 10.0, 10.0, 5.0, Link::url('https://example.org'), 'other link');
 
         self::assertCount(2, $page->getLinkAnnotations());
+    }
+
+    public function testRejectsNonPositiveDimensions(): void
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+
+        $this->expectException(PdfException::class);
+        $page->registerTaggedMarkdownLink(0.0, 0.0, 0.0, 5.0, Link::url('https://example.com'), 'bad link');
     }
 }

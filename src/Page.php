@@ -1700,6 +1700,13 @@ final class Page
      */
     public function registerTaggedMarkdownLink(float $x, float $y, float $width, float $height, Link $link, string $contents): LinkAnnotation
     {
+        if ($width <= 0 || $height <= 0) {
+            throw new PdfException(sprintf(
+                'Link annotation width and height must be positive, got w=%s h=%s',
+                self::formatNumber($width),
+                self::formatNumber($height),
+            ));
+        }
         $document = $this->document;
         if ($document === null) {
             throw new PdfException('Tagged Markdown link requires a document context');
