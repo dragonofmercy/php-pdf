@@ -1042,6 +1042,8 @@ file_put_contents($fixturesDir . '/tagging/cell-paragraph.pdf', \DragonOfMercy\P
 echo "Regenerated tagging/cell-paragraph.pdf\n";
 file_put_contents($fixturesDir . '/tagging/figure.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildFigure());
 echo "Regenerated tagging/figure.pdf\n";
+file_put_contents($fixturesDir . '/tagging/image-link.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildImageLink());
+echo "Regenerated tagging/image-link.pdf\n";
 file_put_contents($fixturesDir . '/tagging/table.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildTable());
 echo "Regenerated tagging/table.pdf\n";
 file_put_contents($fixturesDir . '/tagging/markdown.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildMarkdown());

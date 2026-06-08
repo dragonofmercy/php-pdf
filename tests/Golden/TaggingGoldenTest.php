@@ -75,6 +75,34 @@ final class TaggingGoldenTest extends TestCase
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
 
+    public static function buildImageLink(): string
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->image(__DIR__ . '/assets/png-opaque-rgb-24x12.png', x: 10, y: 10, w: 30, h: 30, alt: 'Company logo', link: Link::url('https://example.com'));
+
+        return $doc->output();
+    }
+
+    public function testImageLinkMatchesFixture(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/image-link.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildImageLink(), 'tagging/image-link.pdf diverges; regenerate if intended.');
+    }
+
+    public function testImageLinkPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/image-link.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
+
     public static function buildTable(): string
     {
         $doc = new Document();
