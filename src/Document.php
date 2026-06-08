@@ -575,7 +575,9 @@ final class Document
      * markdown) accumulates a logical structure tree that output() serializes
      * into a StructTreeRoot. The optional language tag (e.g. 'en-US') is written
      * to the catalog /Lang. Off by default; when off, output is byte-identical
-     * to an untagged document.
+     * to an untagged document. A null $lang leaves any previously set language
+     * untouched, so composing enableTagging / enablePdfA / enablePdfUA stays
+     * order-independent for the language.
      */
     public function enableTagging(?string $lang = null): self
     {
@@ -583,7 +585,7 @@ final class Document
             throw new PdfException("Invalid language tag for enableTagging, got '{$lang}'");
         }
         $this->taggingEnabled = true;
-        $this->language = $lang;
+        $this->language = $lang ?? $this->language;
         $this->structureTree ??= new StructureTree();
         return $this;
     }

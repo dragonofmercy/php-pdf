@@ -37,4 +37,15 @@ final class EnablePdfALevelATest extends TestCase
         self::assertTrue($doc->isTaggingEnabled());
         self::assertNull($doc->language());
     }
+
+    public function testComboKeepsLanguageRegardlessOfOrder(): void
+    {
+        // A later enableTagging(null) - e.g. enablePdfUA() with no arg - must not
+        // wipe the language set by enablePdfA(A2A, 'en-US'). Order-independent.
+        $a = (new Document())->enablePdfA(PdfALevel::A2A, 'en-US')->enablePdfUA();
+        self::assertSame('en-US', $a->language());
+
+        $b = (new Document())->enablePdfUA('en-US')->enablePdfA(PdfALevel::A2A);
+        self::assertSame('en-US', $b->language());
+    }
 }
