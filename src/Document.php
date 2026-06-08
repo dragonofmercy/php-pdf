@@ -31,6 +31,7 @@ use DragonOfMercy\PhpPdf\Font\Custom\CustomFontKey;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtfCache;
 use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
@@ -253,11 +254,17 @@ final class Document
         if (!is_file($path)) {
             throw new PdfException("Font file not found for alias '{$alias}' ({$variant}): {$path}");
         }
+        $cached = ParsedTtfCache::lookup($path);
+        if ($cached !== null) {
+            return $cached;
+        }
         $bytes = @file_get_contents($path);
         if ($bytes === false) {
             throw new PdfException("Cannot read font file for alias '{$alias}' ({$variant}): {$path}");
         }
-        return TtfParser::parse($bytes, "{$alias} ({$variant})");
+        $parsed = TtfParser::parse($bytes, "{$alias} ({$variant})");
+        ParsedTtfCache::store($path, $parsed);
+        return $parsed;
     }
 
     /**
