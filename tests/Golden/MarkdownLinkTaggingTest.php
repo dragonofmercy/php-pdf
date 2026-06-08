@@ -39,4 +39,28 @@ final class MarkdownLinkTaggingTest extends TestCase
 
         self::assertSame(2, preg_match_all('#/S\s*/Link\b#', $pdf), 'two distinct <Link> elements');
     }
+
+    public function testWrappedLinkIsOneElementWithTwoObjr(): void
+    {
+        // A long link in a narrow column wraps onto two lines: one <Link>
+        // element, two annotation rectangles (two OBJR).
+        $pdf = self::taggedMarkdown('Prefix text [a deliberately long anchor that must wrap across two lines](https://example.com) suffix.', 70.0);
+
+        self::assertSame(1, preg_match_all('#/S\s*/Link\b#', $pdf), 'one <Link> element for the wrapped link');
+        self::assertSame(2, preg_match_all('#/Type\s*/OBJR#', $pdf), 'two OBJR leaves, one per line rectangle');
+    }
+
+    public function testTaggingOffEmitsPlainUntaggedLink(): void
+    {
+        $doc = new Document();
+        // No enableTagging(): the off-path must keep emitting a plain area link.
+        $page = $doc->addPage();
+        $page->setFont(Font::helvetica(), 12);
+        $page->markdown('See [the site](https://example.com) now.');
+        $pdf = $doc->output();
+
+        self::assertDoesNotMatchRegularExpression('#/S\s*/Link\b#', $pdf, 'no structure element off-path');
+        self::assertDoesNotMatchRegularExpression('#/StructParent\b#', $pdf, 'no /StructParent off-path');
+        self::assertMatchesRegularExpression('#/Subtype\s*/Link#', $pdf, 'a plain link annotation is still emitted');
+    }
 }
