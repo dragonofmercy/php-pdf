@@ -1330,6 +1330,11 @@ final class Page
      * generated Figure element, and $decorative draws the image as a pure
      * /Artifact (no Figure, no marked content) for purely decorative imagery.
      * Passing both $alt and $decorative is an error.
+     *
+     * Pass $link to make the image a clickable hyperlink. When tagging is active
+     * the annotation is a tagged <Link> wrapping the <Figure> (OBJR + /StructParent
+     * + /Contents); otherwise a plain area annotation is used. $linkAlt sets
+     * /Contents on the annotation, falling back to $alt, then empty.
      */
     public function image(
         string|Image $image,

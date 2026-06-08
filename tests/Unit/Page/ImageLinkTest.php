@@ -53,4 +53,22 @@ final class ImageLinkTest extends TestCase
         self::assertDoesNotMatchRegularExpression('#/S\s*/Link\b#', $pdf, 'no structure element off-path');
         self::assertMatchesRegularExpression('#/Subtype\s*/Link#', $pdf, 'a plain link annotation is still emitted');
     }
+
+    public function testLinkAltTakesPrecedenceOverAlt(): void
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->image(self::PNG, x: 10, y: 10, w: 30, h: 30, alt: 'Image alt', link: Link::url('https://example.com'), linkAlt: 'Link alt');
+        self::assertSame('Link alt', $page->getLinkAnnotations()[0]->contents);
+    }
+
+    public function testAltFallsBackWhenNoLinkAlt(): void
+    {
+        $doc = new Document();
+        $doc->enableTagging('en-US');
+        $page = $doc->addPage();
+        $page->image(self::PNG, x: 10, y: 10, w: 30, h: 30, alt: 'Image alt', link: Link::url('https://example.com'));
+        self::assertSame('Image alt', $page->getLinkAnnotations()[0]->contents);
+    }
 }
