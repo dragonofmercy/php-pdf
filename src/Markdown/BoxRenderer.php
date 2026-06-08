@@ -951,14 +951,19 @@ final class BoxRenderer
                 if ($style->linkUnderline) {
                     $run = $stretch[0]->run;
                     $underlinePt = $lineTopPt + $run->sizePt + $run->sizePt * 0.1;
-                    $page->setStrokeColor($run->color);
-                    $page->setLineWidth($this->fromPt($page, max($run->sizePt * 0.05, 0.2)));
-                    $page->line(
-                        $this->emitX($page, $firstXPt),
-                        $this->fromPt($page, $underlinePt),
-                        $this->emitX($page, $firstXPt + $widthPt),
-                        $this->fromPt($page, $underlinePt),
-                    )->stroke();
+                    // The underline is a visual decoration of the link, not
+                    // semantic content: bracket it as an /Artifact so PDF/UA-1
+                    // does not flag it as untagged real content.
+                    $page->withArtifactScope(function () use ($page, $run, $firstXPt, $widthPt, $underlinePt): void {
+                        $page->setStrokeColor($run->color);
+                        $page->setLineWidth($this->fromPt($page, max($run->sizePt * 0.05, 0.2)));
+                        $page->line(
+                            $this->emitX($page, $firstXPt),
+                            $this->fromPt($page, $underlinePt),
+                            $this->emitX($page, $firstXPt + $widthPt),
+                            $this->fromPt($page, $underlinePt),
+                        )->stroke();
+                    });
                 }
             }
         }

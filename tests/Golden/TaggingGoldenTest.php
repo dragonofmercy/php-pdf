@@ -287,4 +287,43 @@ final class TaggingGoldenTest extends TestCase
         $p->run();
         self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
     }
+
+    /**
+     * A PDF/UA-1 document whose body is Markdown containing an inline link. This
+     * is the regression that the Markdown-links work unlocks: before tagging the
+     * link, enablePdfUA() rejected any Markdown link as an untagged annotation.
+     * Shared with VeraPdfUa1Test so the golden and the oracle validate identical
+     * bytes.
+     */
+    public static function buildUaMarkdownLinks(): Document
+    {
+        $doc = self::deterministicUaDoc('Accessible markdown links');
+
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('Body'), 12.0);
+        $page->markdown("See the [example site](https://example.com) for the full report and details.");
+
+        return $doc;
+    }
+
+    public function testUaMarkdownLinksMatchesFixture(): void
+    {
+        if (!is_file(self::FONTS_DIR . '/FreeSans.ttf')) {
+            self::markTestSkipped('FreeSans fixtures absent');
+        }
+        $expected = file_get_contents(__DIR__ . '/fixtures/tagging/ua-markdown-links.pdf');
+        self::assertIsString($expected);
+        self::assertSame($expected, self::buildUaMarkdownLinks()->output(), 'tagging/ua-markdown-links.pdf diverges; regenerate if intended.');
+    }
+
+    public function testUaMarkdownLinksPassesQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf not on PATH');
+        }
+        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-markdown-links.pdf']);
+        $p->run();
+        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+    }
 }

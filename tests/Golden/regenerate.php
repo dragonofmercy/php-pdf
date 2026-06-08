@@ -1052,6 +1052,8 @@ file_put_contents($fixturesDir . '/tagging/ua-document.pdf', \DragonOfMercy\PhpP
 echo "Regenerated tagging/ua-document.pdf\n";
 file_put_contents($fixturesDir . '/tagging/ua-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaLinksDocument()->output());
 echo "Regenerated tagging/ua-links.pdf\n";
+file_put_contents($fixturesDir . '/tagging/ua-markdown-links.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\TaggingGoldenTest::buildUaMarkdownLinks()->output());
+echo "Regenerated tagging/ua-markdown-links.pdf\n";
 
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
