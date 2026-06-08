@@ -1339,6 +1339,8 @@ final class Page
         ?float $h = null,
         ?string $alt = null,
         bool $decorative = false,
+        ?Link $link = null,
+        ?string $linkAlt = null,
         NextPosition $ln = NextPosition::RIGHT,
     ): self {
         if ($this->document?->columnLayout() !== null) {
@@ -1346,6 +1348,12 @@ final class Page
         }
         if ($alt !== null && $decorative) {
             throw new PdfException('image() cannot be both decorative and have alt text');
+        }
+        if ($linkAlt !== null && $link === null) {
+            throw new PdfException('image() linkAlt requires a link');
+        }
+        if ($link !== null && $decorative) {
+            throw new PdfException('image() link is not supported with decorative: true');
         }
         if ($w !== null && $w <= 0.0) {
             throw new PdfException("Image width must be positive, got {$w}");
@@ -1378,18 +1386,42 @@ final class Page
             });
         } else {
             $tree = $this->document?->structureTree();
+            $linkElem = null;
             $mcid = null;
             if ($tree !== null && !$this->artifactScope) {
+                if ($link !== null) {
+                    $linkElem = $tree->open(StructureType::Link);
+                }
                 $mcid = $this->nextMcid();
                 $figure = $tree->open(StructureType::Figure);
                 if ($alt !== null) {
                     $figure->setAlt($alt);
                 }
             }
+
+            // Register the link annotation over the image box: tagged (OBJR +
+            // /StructParent + /Contents) when the figure is tagged, otherwise a
+            // plain area link (unchanged in non-UA; rejected by the UA guard,
+            // like any untagged link).
+            if ($link !== null) {
+                $linkWidth = $this->fromPt($effWPt);
+                $linkHeight = $this->fromPt($effHPt);
+                if ($linkElem !== null) {
+                    $annot = $this->registerTaggedLink($x, $y, $linkWidth, $linkHeight, $link, $linkAlt ?? $alt ?? '');
+                    $linkElem->appendObjr(new ObjrRef($annot, $this->pageIndex()));
+                } else {
+                    $this->link($x, $y, $linkWidth, $linkHeight, $link);
+                }
+            }
+
             $this->drawImageXObject($shortName, $effWPt, $effHPt, $xPt, $yPt, $mcid);
+
             if ($tree !== null && $mcid !== null) {
                 $tree->addMarkedContent($this->pageIndex(), $mcid);
-                $tree->close();
+                $tree->close(); // Figure
+                if ($linkElem !== null) {
+                    $tree->close(); // Link
+                }
             }
         }
 
