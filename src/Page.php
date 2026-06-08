@@ -730,26 +730,24 @@ final class Page
         // tagged with text; otherwise it is the plain convenience area link.
         $annot = null;
         if ($linkRect !== null) {
-            $tagIndex = null;
-            $contents = null;
             if ($linkElem !== null) {
-                // shouldTag() && $text !== '' is implied by $linkElem !== null.
-                $document = $this->document;
-                if ($document !== null) {
-                    $tagIndex = $document->nextLinkStructParentIndex();
-                }
-                $contents = $linkAlt ?? $text;
+                // shouldTag() && $text !== '' is implied by $linkElem !== null,
+                // which implies a tagged document. The shared seam allocates the
+                // /StructParent ordinal and sets /Contents (= linkAlt or the text).
+                $annot = $this->registerTaggedLink($x, $y, $linkRect['w'], $linkRect['h'], $linkRect['link'], $linkAlt ?? $text);
+            } else {
+                // Plain convenience area link: no structure, no ordinal, no /Contents.
+                $annot = new LinkAnnotation(
+                    x: $x,
+                    y: $y,
+                    width: $linkRect['w'],
+                    height: $linkRect['h'],
+                    link: $linkRect['link'],
+                    structParentTagIndex: null,
+                    contents: null,
+                );
+                $this->linkAnnotations[] = $annot;
             }
-            $annot = new LinkAnnotation(
-                x: $x,
-                y: $y,
-                width: $linkRect['w'],
-                height: $linkRect['h'],
-                link: $linkRect['link'],
-                structParentTagIndex: $tagIndex,
-                contents: $contents,
-            );
-            $this->linkAnnotations[] = $annot;
         }
 
         $renderer = new CellRenderer(stream: $this->stream);
