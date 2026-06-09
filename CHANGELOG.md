@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- RTL Markdown: bidi reordering and Arabic shaping in `Page::markdown()` and
+  `cell(markdown: true)`, with right-aligned RTL blocks and mirrored list
+  markers / blockquote bars. Opt in via the `direction:` argument or
+  `Document::setBaseDirection()`.
 - Inter-document TTF parse cache: parsed custom fonts are memoized in-process
   and shared across every `Document`, so repeated PDF generation with the same
   fonts no longer re-reads or re-parses the font files. The cache is transparent
