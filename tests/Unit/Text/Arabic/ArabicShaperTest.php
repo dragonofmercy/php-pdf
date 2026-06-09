@@ -67,4 +67,34 @@ final class ArabicShaperTest extends TestCase
             ArabicShaper::shape('ab' . self::u(0x0646, 0x0645, 0x0631)),
         );
     }
+
+    public function testLamAlefIsolatedLigature(): void
+    {
+        // lam + alef (start of run) -> isolated ligature FEFB (one codepoint)
+        self::assertSame(self::u(0xFEFB), ArabicShaper::shape(self::u(0x0644, 0x0627)));
+    }
+
+    public function testLamAlefFinalLigatureAfterJoiner(): void
+    {
+        // beh + lam + alef -> initial beh FE91, final lam-alef FEFC
+        self::assertSame(
+            self::u(0xFE91, 0xFEFC),
+            ArabicShaper::shape(self::u(0x0628, 0x0644, 0x0627)),
+        );
+    }
+
+    #[DataProvider('lamAlefVariantProvider')]
+    public function testLamAlefVariants(int $alef, int $isoLigature): void
+    {
+        self::assertSame(self::u($isoLigature), ArabicShaper::shape(self::u(0x0644, $alef)));
+    }
+
+    /** @return iterable<string, array{int, int}> */
+    public static function lamAlefVariantProvider(): iterable
+    {
+        yield 'plain 0627'       => [0x0627, 0xFEFB];
+        yield 'madda 0622'       => [0x0622, 0xFEF5];
+        yield 'hamza above 0623' => [0x0623, 0xFEF7];
+        yield 'hamza below 0625' => [0x0625, 0xFEF9];
+    }
 }

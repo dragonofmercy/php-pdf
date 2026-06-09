@@ -48,9 +48,28 @@ final class ArabicShaper
 
             $ownType = self::joiningType($cp);
             $prevType = self::neighbourType($cps, $i, -1);
-            $nextType = self::neighbourType($cps, $i, +1);
-
             $joinsRight = self::canJoinRight($ownType) && self::canJoinLeftNeighbour($prevType);
+
+            // Mandatory lam-alef ligature: lam (0644) immediately followed
+            // (across transparent marks) by an alef variant present in LAM_ALEF.
+            if ($cp === 0x0644) {
+                $alefIndex = self::nextNonTransparentIndex($cps, $i);
+                if ($alefIndex !== null) {
+                    $ligature = ArabicShapingData::LAM_ALEF[$cps[$alefIndex]] ?? null;
+                    if ($ligature !== null) {
+                        // [isolated, final]: final when a preceding letter joins.
+                        $out[] = $joinsRight ? $ligature[1] : $ligature[0];
+                        // Preserve any transparent marks that sat between lam and alef.
+                        for ($k = $i + 1; $k < $alefIndex; $k++) {
+                            $out[] = $cps[$k];
+                        }
+                        $i = $alefIndex; // consume the alef
+                        continue;
+                    }
+                }
+            }
+
+            $nextType = self::neighbourType($cps, $i, +1);
             $joinsLeft = self::canJoinLeft($ownType) && self::canJoinRightNeighbour($nextType);
 
             $position = match (true) {
@@ -93,6 +112,22 @@ final class ArabicShaper
             }
         }
         return 'U';
+    }
+
+    /**
+     * Index of the next non-transparent codepoint after $i, or null at the edge.
+     *
+     * @param list<int> $cps
+     */
+    private static function nextNonTransparentIndex(array $cps, int $i): ?int
+    {
+        $count = count($cps);
+        for ($j = $i + 1; $j < $count; $j++) {
+            if (self::joiningType($cps[$j]) !== 'T') {
+                return $j;
+            }
+        }
+        return null;
     }
 
     /** Current char can connect to the previous char (its right side joins). */
