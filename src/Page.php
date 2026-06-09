@@ -641,7 +641,7 @@ final class Page
             $linkRect = ['link' => $link, 'w' => $w, 'h' => $h];
         }
         if ($markdown && $text !== '') {
-            return $this->renderMarkdownCell($x, $y, $w, $h, $text, $border, $fill, $padding, $ln);
+            return $this->renderMarkdownCell($x, $y, $w, $h, $text, $border, $fill, $padding, $ln, $direction);
         }
         if ($w !== null && $w <= 0) {
             throw new PdfException('Cell width must be positive, got ' . $w);
@@ -852,13 +852,14 @@ final class Page
         ?float $width = null,
         ?MarkdownStyle $style = null,
         NextPosition $ln = NextPosition::BELOW,
+        ?Direction $direction = null,
     ): self {
         // Inside a columns() block, earlier content may have flowed onto a newer
         // page than the one a render callback captured; always draw on the
         // document's current page so nothing lands on a stale page.
         $current = $this->columnRedirectTarget();
         if ($current !== null) {
-            return $current->markdown($markdown, $x, $y, $width, $style, $ln);
+            return $current->markdown($markdown, $x, $y, $width, $style, $ln, $direction);
         }
 
         if ($this->textState->currentFont() === null || $this->textState->currentSize() === null) {
@@ -918,7 +919,7 @@ final class Page
                     return [$page, $topMarginY, $xShiftPt];
                 };
 
-                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak);
+                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak, direction: $direction);
                 $finalStartTop = $finalPage === $this ? $y : $this->fromPt($columnLayout->topPt);
                 $this->advanceMarkdownCursor($finalPage, $ln, $x, $y, $width, $consumedHeight, $finalStartTop);
                 $document->recordColumnBottomPt($this->toPt($finalStartTop) + $this->toPt($consumedHeight));
@@ -936,13 +937,13 @@ final class Page
                     return [$newPage, $topMarginY, 0.0];
                 };
 
-                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak);
+                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::FLOW, false, $onPageBreak, direction: $direction);
 
                 // Advance the cursor on the final page (where the last line landed).
                 $this->advanceMarkdownCursor($finalPage, $ln, $x, $y, $width, $consumedHeight, $finalPage === $this ? $y : $document->margins()->top);
             } else {
                 // Fallback: render the whole document atomically on this page.
-                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::ATOMIC);
+                $consumedHeight = $renderer->render($ast, $style, $x, $y, $width, $this, BreakMode::ATOMIC, direction: $direction);
                 $this->advanceMarkdownCursor($this, $ln, $x, $y, $width, $consumedHeight, $y);
             }
         } finally {
@@ -992,6 +993,7 @@ final class Page
         ?Color $fill,
         float|CellPadding|null $padding,
         NextPosition $ln,
+        ?Direction $direction = null,
     ): CellResult {
         if ($w === null) {
             throw new PdfException('Markdown cell requires an explicit width (w)');
@@ -1023,6 +1025,7 @@ final class Page
                 $this,
                 BreakMode::ATOMIC,
                 measureOnly: true,
+                direction: $direction,
             ));
 
             $computedHeightPt = $contentHeightPt + $padTopBottomPt;
@@ -1031,7 +1034,7 @@ final class Page
             // Auto-break against the measured height, mirroring the text path: a
             // markdown cell that would overflow the bottom margin is re-rendered on
             // a fresh page (suppressing recursion via inHeaderRender there).
-            $broken = $this->maybeAutoBreakMarkdown($x, $y, $w, $this->fromPt($cellHeightPt), $text, $border, $fill, $padding, $ln);
+            $broken = $this->maybeAutoBreakMarkdown($x, $y, $w, $this->fromPt($cellHeightPt), $text, $border, $fill, $padding, $ln, $direction);
             if ($broken !== null) {
                 return $broken;
             }
@@ -1082,6 +1085,7 @@ final class Page
                 $this->fromPt($innerWidthPt),
                 $this,
                 BreakMode::ATOMIC,
+                direction: $direction,
             );
         } finally {
             $this->restoreFontState($fontState);
@@ -1117,6 +1121,7 @@ final class Page
         ?Color $fill,
         float|CellPadding|null $padding,
         NextPosition $ln,
+        ?Direction $direction = null,
     ): ?CellResult {
         if ($this->document === null
             || !$this->document->autoPageBreak()
@@ -1141,7 +1146,6 @@ final class Page
         $newPage = $this->document->addPage();
         $newPage->inHeaderRender = true;
         try {
-            // Markdown cells do not carry a bidi direction yet (markdown RTL is deferred).
             return $newPage->cell(
                 x: $x,
                 y: null,
@@ -1153,6 +1157,7 @@ final class Page
                 padding: $padding,
                 ln: $ln,
                 markdown: true,
+                direction: $direction,
             );
         } finally {
             $newPage->inHeaderRender = false;

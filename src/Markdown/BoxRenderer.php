@@ -7,6 +7,8 @@ namespace DragonOfMercy\PhpPdf\Markdown;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Image;
+use DragonOfMercy\PhpPdf\Text\Arabic\ArabicShaper;
+use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\Markdown\Node\BlockNode;
 use DragonOfMercy\PhpPdf\Markdown\Node\BlockQuote;
 use DragonOfMercy\PhpPdf\Markdown\Node\BulletList;
@@ -120,6 +122,7 @@ final class BoxRenderer
         BreakMode $mode,
         bool $measureOnly = false,
         ?callable $onPageBreak = null,
+        ?Direction $direction = null,
     ): float {
         $bodyFont = $page->getFont();
         $bodySizePt = $style->bodySize ?? $page->getFontSize();
@@ -1053,7 +1056,7 @@ final class BoxRenderer
 
             $color = $flat['url'] !== null ? $style->linkColor : $this->bodyColor();
 
-            $runs[] = new StyledRun($flat['text'], $font, $color, $bodySizePt, $flat['code'], $flat['url'], $flat['group']);
+            $runs[] = new StyledRun(ArabicShaper::shape($flat['text']), $font, $color, $bodySizePt, $flat['code'], $flat['url'], $flat['group']);
         }
 
         return $runs;
