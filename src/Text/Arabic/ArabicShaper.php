@@ -7,7 +7,8 @@ namespace DragonOfMercy\PhpPdf\Text\Arabic;
 /**
  * Pure-PHP Arabic cursive shaper. Rewrites a logical-order string so Arabic
  * letters use their contextual presentation forms (isolated/initial/medial/
- * final), using the generated ArabicShapingData tables.
+ * final) and lam-alef pairs become their mandatory ligatures, using the
+ * generated ArabicShapingData tables.
  *
  * Runs BEFORE measurement and bidi reordering: it operates in logical order,
  * the Unicode-correct stage for cursive joining. A fast scan returns the input
