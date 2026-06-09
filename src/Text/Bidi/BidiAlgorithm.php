@@ -342,23 +342,23 @@ final class BidiAlgorithm
     }
 
     /**
-     * Apply line rules L1 (reset trailing whitespace/separators to the
-     * paragraph level), L2 (reorder by level), then L4 (mirror brackets at odd
-     * levels). Returns visual-order codepoints.
+     * The L1+L2 visual reordering as a permutation: returns the original
+     * indices in visual (left-to-right) order. L1 resets trailing WS/B/S to the
+     * paragraph level on a LOCAL copy of the levels; the caller's $levels are
+     * not mutated.
      *
      * @param list<int> $cps
      * @param list<int> $levels
      * @return list<int>
      */
-    public static function reorderLine(array $cps, array $levels, int $paragraphLevel): array
+    public static function reorderIndices(array $cps, array $levels, int $paragraphLevel): array
     {
         $n = count($cps);
         if ($n === 0) {
             return [];
         }
 
-        // L1: reset separators and trailing whitespace to the paragraph level.
-        // L1 here resets trailing WS and boundary B/S to the paragraph level. Mid-line S (tab) reset (L1 rule 1) is out of Phase A scope: segment separators are not expected inside PDF text runs.
+        // L1: reset trailing WS/B/S to the paragraph level (local copy).
         $resetFrom = $n;
         for ($i = $n - 1; $i >= 0; $i--) {
             $type = BidiCharacterType::of($cps[$i]);
@@ -399,6 +399,26 @@ final class BidiAlgorithm
             }
         }
 
+        return $order;
+    }
+
+    /**
+     * Apply line rules L1 (reset trailing whitespace/separators to the
+     * paragraph level), L2 (reorder by level), then L4 (mirror brackets at odd
+     * levels). Returns visual-order codepoints.
+     *
+     * L4 uses the ORIGINAL levels: byte-identical to the pre-refactor code
+     * because L1 only resets trailing WS/B/S, which are never bracket/mirror
+     * candidates, so the odd/even status L4 reads is unchanged.
+     *
+     * @param list<int> $cps
+     * @param list<int> $levels
+     * @return list<int>
+     */
+    public static function reorderLine(array $cps, array $levels, int $paragraphLevel): array
+    {
+        $order = self::reorderIndices($cps, $levels, $paragraphLevel);
+
         $visual = [];
         foreach ($order as $idx) {
             $cp = $cps[$idx];
@@ -407,6 +427,7 @@ final class BidiAlgorithm
             }
             $visual[] = $cp;
         }
+
         return $visual;
     }
 }

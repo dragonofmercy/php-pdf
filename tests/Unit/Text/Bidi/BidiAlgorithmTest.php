@@ -70,4 +70,24 @@ final class BidiAlgorithmTest extends TestCase
         $visual = BidiAlgorithm::reorderLine($cps, $levels, 1);
         self::assertSame("(\u{05D0})", self::str($visual));
     }
+
+    public function testReorderIndicesReturnsVisualToLogicalPermutation(): void
+    {
+        // alef, bet, space, A at paragraph level 1 (RTL).
+        $cps = [0x05D0, 0x05D1, 0x0020, 0x0041];
+        $levels = \DragonOfMercy\PhpPdf\Text\Bidi\BidiAlgorithm::resolveLevels($cps, 1);
+        $order = \DragonOfMercy\PhpPdf\Text\Bidi\BidiAlgorithm::reorderIndices($cps, $levels, 1);
+
+        // It is a permutation of 0..3.
+        $sorted = $order;
+        sort($sorted);
+        self::assertSame([0, 1, 2, 3], $sorted);
+
+        // Gathering cps by $order equals reorderLine here (no brackets to mirror).
+        $gathered = array_map(static fn (int $i): int => $cps[$i], $order);
+        self::assertSame(
+            \DragonOfMercy\PhpPdf\Text\Bidi\BidiAlgorithm::reorderLine($cps, $levels, 1),
+            $gathered,
+        );
+    }
 }
