@@ -36,6 +36,7 @@ use DragonOfMercy\PhpPdf\Table\TableResult;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
 use DragonOfMercy\PhpPdf\Tagging\ObjrRef;
 use DragonOfMercy\PhpPdf\Tagging\StructureType;
+use DragonOfMercy\PhpPdf\Text\Arabic\ArabicShaper;
 use DragonOfMercy\PhpPdf\Text\Bidi\BidiProcessor;
 use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\TextAlign;
@@ -653,6 +654,12 @@ final class Page
         // explode-on-\n in the renderer, which WinAnsiEncoder maps to '?'.
         $text = self::normalizeNewlines($text);
 
+        // Arabic cursive shaping in logical order, BEFORE direction resolution
+        // and measurement so wrapping/justification see the shaped widths. No-op
+        // (byte-identical) for any text without Arabic. Bidi reorder at emit is
+        // unchanged: presentation forms keep bidi class AL.
+        $text = ArabicShaper::shape($text);
+
         // Resolve the concrete base direction (per-call argument, else document
         // default, with AUTO collapsed from the text) and the effective
         // alignment: an unset alignment follows the base direction - right for
@@ -1189,6 +1196,7 @@ final class Page
         ?Direction $direction = null,
     ): void {
         $text = self::normalizeNewlines($text);
+        $text = ArabicShaper::shape($text);
 
         $baseDirection = $this->resolveDirection($text, $direction);
 
