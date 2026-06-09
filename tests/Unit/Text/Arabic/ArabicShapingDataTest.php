@@ -35,4 +35,9 @@ final class ArabicShapingDataTest extends TestCase
         self::assertSame([0xFEF7, 0xFEF8], ArabicShapingData::LAM_ALEF[0x0623]); // hamza above
         self::assertSame([0xFEF9, 0xFEFA], ArabicShapingData::LAM_ALEF[0x0625]); // hamza below
     }
+
+    public function testLamAlefContainsExactlyTheFourMandatoryAlefVariants(): void
+    {
+        self::assertSame([0x0622, 0x0623, 0x0625, 0x0627], array_keys(ArabicShapingData::LAM_ALEF));
+    }
 }

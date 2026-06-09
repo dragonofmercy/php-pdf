@@ -13,8 +13,9 @@ declare(strict_types=1);
  *  - FORMS: base codepoint => [isolated, initial, medial, final] presentation
  *    form codepoints (0 where a form does not exist), from the
  *    <isolated|initial|medial|final> decompositions in UnicodeData.txt.
- *  - LAM_ALEF: alef codepoint => [ligature_isolated, ligature_final], from the
- *    <isolated|final> 0644 06xx decompositions.
+ *  - LAM_ALEF: alef codepoint => [ligature_isolated, ligature_final], restricted
+ *    to the four mandatory alef variants (0622 madda, 0623 hamza-above, 0625
+ *    hamza-below, 0627 plain), from the <isolated|final> 0644 06xx decompositions.
  *
  * Usage: php build/bin/generate-arabic-data.php
  */
@@ -89,7 +90,12 @@ foreach ($unicodeLines as $line) {
         }
         $forms[$base] ??= [0, 0, 0, 0];
         $forms[$base][$posIndex[$tag]] = $cp;
-    } elseif (count($bases) === 2 && $bases[0] === 0x0644 && ($tag === 'isolated' || $tag === 'final')) {
+    } elseif (
+        count($bases) === 2
+        && $bases[0] === 0x0644
+        && in_array($bases[1], [0x0622, 0x0623, 0x0625, 0x0627], true) // mandatory lam-alef: madda, hamza-above, hamza-below, plain
+        && ($tag === 'isolated' || $tag === 'final')
+    ) {
         $alef = $bases[1];
         $lamAlef[$alef] ??= [0, 0];
         $lamAlef[$alef][$tag === 'isolated' ? 0 : 1] = $cp;
