@@ -49,7 +49,7 @@ final class ArabicShaper
 
             $ownType = self::joiningType($cp);
             $prevType = self::neighbourType($cps, $i, -1);
-            $joinsRight = self::canJoinRight($ownType) && self::canJoinLeftNeighbour($prevType);
+            $joinsRight = self::joinsOnRightSide($ownType) && self::joinsOnLeftSide($prevType);
 
             // Mandatory lam-alef ligature: lam (0644) immediately followed
             // (across transparent marks) by an alef variant present in LAM_ALEF.
@@ -71,7 +71,7 @@ final class ArabicShaper
             }
 
             $nextType = self::neighbourType($cps, $i, +1);
-            $joinsLeft = self::canJoinLeft($ownType) && self::canJoinRightNeighbour($nextType);
+            $joinsLeft = self::joinsOnLeftSide($ownType) && self::joinsOnRightSide($nextType);
 
             $position = match (true) {
                 $joinsRight && $joinsLeft => self::FORM_MEDIAL,
@@ -131,28 +131,16 @@ final class ArabicShaper
         return null;
     }
 
-    /** Current char can connect to the previous char (its right side joins). */
-    private static function canJoinRight(string $ownType): bool
-    {
-        return $ownType === 'R' || $ownType === 'D' || $ownType === 'C';
-    }
-
-    /** Current char can connect to the next char (its left side joins). */
-    private static function canJoinLeft(string $ownType): bool
-    {
-        return $ownType === 'L' || $ownType === 'D' || $ownType === 'C';
-    }
-
-    /** Previous neighbour can connect on its left side. */
-    private static function canJoinLeftNeighbour(string $type): bool
-    {
-        return $type === 'L' || $type === 'D' || $type === 'C';
-    }
-
-    /** Next neighbour can connect on its right side. */
-    private static function canJoinRightNeighbour(string $type): bool
+    /** A joining type that connects on its right side: R, D, or C. */
+    private static function joinsOnRightSide(string $type): bool
     {
         return $type === 'R' || $type === 'D' || $type === 'C';
+    }
+
+    /** A joining type that connects on its left side: L, D, or C. */
+    private static function joinsOnLeftSide(string $type): bool
+    {
+        return $type === 'L' || $type === 'D' || $type === 'C';
     }
 
     /**

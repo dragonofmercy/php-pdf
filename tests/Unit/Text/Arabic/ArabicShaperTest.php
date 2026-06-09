@@ -56,7 +56,7 @@ final class ArabicShaperTest extends TestCase
         yield 'empty' => [''];
         yield 'ascii' => ['Hello, World 2026!'];
         yield 'hebrew' => ["\u{05E9}\u{05DC}\u{05D5}\u{05DD}"];
-        yield 'latin accents' => ['cafe resume'];
+        yield 'latin accents' => ["caf\u{00E9} r\u{00E9}sum\u{00E9}"];
     }
 
     public function testMixedArabicAndLatinShapesOnlyArabic(): void

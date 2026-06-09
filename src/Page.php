@@ -1170,7 +1170,10 @@ final class Page
         $sizePt = $this->textState->getFontSize();
         $leading = $this->textState->customLeading() ?? ($sizePt * 1.2);
         $renderer = new CellRenderer(stream: $this->stream);
-        $wrap = $renderer->wrapText(self::normalizeNewlines($text), $innerWidthPt, $engine, $sizePt);
+        // Shape Arabic before measuring (matches drawTableCell): presentation
+        // forms have their own widths, so the wrap that sizes the row must see
+        // the same shaped text the draw will. No-op for non-Arabic text.
+        $wrap = $renderer->wrapText(ArabicShaper::shape(self::normalizeNewlines($text)), $innerWidthPt, $engine, $sizePt);
 
         return max(1, count($wrap->lines)) * $leading;
     }
