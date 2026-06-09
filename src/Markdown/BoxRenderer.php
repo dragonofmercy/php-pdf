@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Text\Arabic\ArabicShaper;
+use DragonOfMercy\PhpPdf\Text\Bidi\BidiProcessor;
 use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\Markdown\Node\BlockNode;
 use DragonOfMercy\PhpPdf\Markdown\Node\BlockQuote;
@@ -97,6 +98,9 @@ final class BoxRenderer
     /** The currently-open <Link> structure element, kept across lines so a wrapped link stays one element. */
     private ?StructElem $openLinkElem = null;
 
+    /** Requested base direction for this render pass; resolved per block. */
+    private Direction $requestedDirection = Direction::LTR;
+
     /**
      * @param list<BlockNode> $ast
      * @param bool $measureOnly when true, performs the identical layout and
@@ -126,6 +130,10 @@ final class BoxRenderer
     ): float {
         $bodyFont = $page->getFont();
         $bodySizePt = $style->bodySize ?? $page->getFontSize();
+
+        $this->requestedDirection = $direction
+            ?? $page->document()?->baseDirection()
+            ?? Direction::LTR;
 
         $measure = static fn (string $t, Font $f, float $s): float => $page->measureStringPt($t, $f, $s);
         $breaker = new LineBreaker($measure);
@@ -834,13 +842,21 @@ final class BoxRenderer
         // Only a fragmented (link-bearing) block consults $linkTexts; skip the
         // run scan entirely for the common link-free block.
         $linkTexts = $this->fragmentedBlockType !== null ? $this->collectLinkTexts($runs) : [];
+        $base = $this->blockDirection($runs);
+        $measure = static fn (string $t, Font $f, float $s): float => $page->measureStringPt($t, $f, $s);
         $lines = $breaker->layout($runs, $widthPt);
         foreach ($lines as $line) {
+            if ($base === Direction::RTL || $this->lineHasRtl($line)) {
+                $line = LineReorderer::reorder($line, $base, $measure);
+            }
             if (!$measureOnly) {
                 if ($this->flow !== null) {
                     $cursorYPt = $this->flow->breakIfNeeded($cursorYPt, $line->heightPt);
                 }
-                $this->drawLine($line, $xPt, $cursorYPt, $this->activePage($page), $style, $linkTexts);
+                $lineXPt = $base === Direction::RTL
+                    ? $xPt + max(0.0, $widthPt - $line->widthPt())
+                    : $xPt;
+                $this->drawLine($line, $lineXPt, $cursorYPt, $this->activePage($page), $style, $linkTexts);
             }
             $cursorYPt += $line->heightPt;
         }
@@ -1028,6 +1044,35 @@ final class BoxRenderer
                 }
             }
         }
+    }
+
+    /**
+     * Resolve the base direction for a block from its concatenated run text
+     * under the render pass's requested direction (LTR/RTL force; AUTO detects
+     * from the first strong character).
+     *
+     * @param list<StyledRun> $runs
+     */
+    private function blockDirection(array $runs): Direction
+    {
+        $text = '';
+        foreach ($runs as $run) {
+            $text .= $run->text;
+        }
+
+        return BidiProcessor::resolveBaseDirection($text, $this->requestedDirection);
+    }
+
+    /** True when any segment of the line contains an RTL codepoint. */
+    private function lineHasRtl(Line $line): bool
+    {
+        foreach ($line->segments as $segment) {
+            if (preg_match('/[\x{0590}-\x{08FF}\x{FB1D}-\x{FDFF}\x{FE70}-\x{FEFF}]/u', $segment->run->text) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -972,9 +972,10 @@ echo "Regenerated barcode/gallery.pdf\n";
 // The build code is shared verbatim with the matching golden test classes via
 // their public static buildPdfBytes() helpers, so input never drifts.
 $markdownGoldens = [
-    'markdown/cell.pdf'      => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownCellTest::class,
-    'markdown/flow.pdf'      => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownFlowTest::class,
-    'markdown/multipage.pdf' => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownMultiPageTest::class,
+    'markdown/cell.pdf'       => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownCellTest::class,
+    'markdown/flow.pdf'       => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownFlowTest::class,
+    'markdown/multipage.pdf'  => \DragonOfMercy\PhpPdf\Tests\Golden\MarkdownMultiPageTest::class,
+    'markdown/rtl-blocks.pdf' => \DragonOfMercy\PhpPdf\Tests\Golden\RtlMarkdownTest::class,
 ];
 
 foreach ($markdownGoldens as $name => $class) {
