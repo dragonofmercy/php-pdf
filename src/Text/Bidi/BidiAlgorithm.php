@@ -417,6 +417,22 @@ final class BidiAlgorithm
      */
     public static function reorderLine(array $cps, array $levels, int $paragraphLevel): array
     {
+        return self::reorderForVisual($cps, $levels, $paragraphLevel)[1];
+    }
+
+    /**
+     * The L1+L2 permutation AND the L4-mirrored visual codepoints in one pass,
+     * for callers (e.g. the Markdown line reorderer) that need both the visual
+     * glyphs and each visual position's original index. Returns
+     * [order, visual] where order[v] is the logical index drawn at visual
+     * position v and visual[v] is the (possibly mirrored) codepoint to draw.
+     *
+     * @param list<int> $cps
+     * @param list<int> $levels
+     * @return array{list<int>, list<int>}
+     */
+    public static function reorderForVisual(array $cps, array $levels, int $paragraphLevel): array
+    {
         $order = self::reorderIndices($cps, $levels, $paragraphLevel);
 
         $visual = [];
@@ -428,6 +444,6 @@ final class BidiAlgorithm
             $visual[] = $cp;
         }
 
-        return $visual;
+        return [$order, $visual];
     }
 }

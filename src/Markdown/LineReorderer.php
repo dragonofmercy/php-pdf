@@ -52,10 +52,9 @@ final class LineReorderer
         $paragraphLevel = $base === Direction::RTL ? 1 : 0;
         $levels = BidiAlgorithm::resolveLevels($cps, $paragraphLevel);
 
-        // reorderIndices gives the logical-index permutation (visual order).
-        // reorderLine applies the same permutation plus L4 bracket mirroring.
-        $order = BidiAlgorithm::reorderIndices($cps, $levels, $paragraphLevel);
-        $visual = BidiAlgorithm::reorderLine($cps, $levels, $paragraphLevel);
+        // One pass yields both the visual->logical index permutation (for style
+        // provenance) and the L4-mirrored visual codepoints (to draw).
+        [$order, $visual] = BidiAlgorithm::reorderForVisual($cps, $levels, $paragraphLevel);
 
         /** @var list<PositionedSegment> $segments */
         $segments = [];

@@ -567,14 +567,13 @@ final class BoxRenderer
         bool $measureOnly,
     ): float {
         $indentPt = $this->toPt($page, $style->blockQuoteIndent);
-        $base = BidiProcessor::resolveBaseDirection($this->blockText($quote->blocks), $this->requestedDirection);
-        if ($base === Direction::RTL) {
-            $innerXPt = $xPt;
-            $innerWidthPt = max(0.0, $widthPt - $indentPt);
-        } else {
-            $innerXPt = $xPt + $indentPt;
-            $innerWidthPt = max(0.0, $widthPt - $indentPt);
-        }
+        // A forced LTR/RTL needs no text scan; only AUTO inspects the content.
+        $base = $this->requestedDirection !== Direction::AUTO
+            ? $this->requestedDirection
+            : BidiProcessor::resolveBaseDirection($this->blockText($quote->blocks), Direction::AUTO);
+        $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        // RTL keeps content in the left portion; the bar is mirrored to the right.
+        $innerXPt = $base === Direction::RTL ? $xPt : $xPt + $indentPt;
 
         // Remember the page the quote starts on so we can detect whether its
         // content flowed onto a later page (the bar is then drawn per-page).
@@ -707,15 +706,13 @@ final class BoxRenderer
         bool $measureOnly,
     ): float {
         $indentPt = $this->toPt($page, $style->listIndent);
-        $base = BidiProcessor::resolveBaseDirection($this->listItemText($item), $this->requestedDirection);
-        if ($base === Direction::RTL) {
-            // Content occupies the LEFT portion; marker sits to its right.
-            $innerXPt = $xPt;
-            $innerWidthPt = max(0.0, $widthPt - $indentPt);
-        } else {
-            $innerXPt = $xPt + $indentPt;
-            $innerWidthPt = max(0.0, $widthPt - $indentPt);
-        }
+        // A forced LTR/RTL needs no text scan; only AUTO inspects the content.
+        $base = $this->requestedDirection !== Direction::AUTO
+            ? $this->requestedDirection
+            : BidiProcessor::resolveBaseDirection($this->listItemText($item), Direction::AUTO);
+        // RTL keeps content in the left portion; the marker sits to its right.
+        $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        $innerXPt = $base === Direction::RTL ? $xPt : $xPt + $indentPt;
 
         // The marker sits on the first line baseline of the item content. In
         // FLOW mode, break BEFORE the marker if a single body line would not fit
@@ -1071,12 +1068,17 @@ final class BoxRenderer
      */
     private function blockDirection(array $runs): Direction
     {
+        // A forced LTR/RTL needs no text scan; only AUTO inspects the content.
+        if ($this->requestedDirection !== Direction::AUTO) {
+            return $this->requestedDirection;
+        }
+
         $text = '';
         foreach ($runs as $run) {
             $text .= $run->text;
         }
 
-        return BidiProcessor::resolveBaseDirection($text, $this->requestedDirection);
+        return BidiProcessor::resolveBaseDirection($text, Direction::AUTO);
     }
 
     /** Concatenated inline text of a list item's first paragraph/heading, for direction resolution. */
