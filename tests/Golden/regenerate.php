@@ -1076,6 +1076,10 @@ file_put_contents($rtlDir . '/hebrew-cell.pdf', \DragonOfMercy\PhpPdf\Tests\Gold
 echo "Regenerated rtl/hebrew-cell.pdf\n";
 file_put_contents($rtlDir . '/hebrew-table.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\RtlHebrewTableTest::buildPdfBytes());
 echo "Regenerated rtl/hebrew-table.pdf\n";
+file_put_contents($rtlDir . '/arabic-cell.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\RtlArabicCellTest::buildPdfBytes());
+echo "Regenerated rtl/arabic-cell.pdf\n";
+file_put_contents($rtlDir . '/arabic-table.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\RtlArabicTableTest::buildPdfBytes());
+echo "Regenerated rtl/arabic-table.pdf\n";
 
 $svgFixturesDir = __DIR__ . '/fixtures-svg';
 if (!is_dir($svgFixturesDir)) {
