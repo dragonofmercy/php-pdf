@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   long-lived CLI batch jobs and queue workers. Call `ParsedTtfCache::clear()`
   to reset it in a long-running worker.
 - Right-to-left text support (Phase A): Unicode bidirectional algorithm reordering for Hebrew on cells and tables, with `Document::setBaseDirection()`, a per-`cell()` `direction:` argument, `Cell::direction()` for table cells, and the `Direction` enum. RTL base direction right-aligns by default. Byte-identical output when no RTL text is present.
+- Arabic shaping: contextual presentation forms (isolated/initial/medial/final)
+  and mandatory lam-alef ligatures for `cell()` and table cells, in pure PHP.
+  Requires a font whose cmap contains the Arabic presentation forms.
 
 ## [1.6.0] - 2026-06-08
 
