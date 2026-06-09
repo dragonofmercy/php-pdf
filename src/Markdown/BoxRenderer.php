@@ -567,8 +567,14 @@ final class BoxRenderer
         bool $measureOnly,
     ): float {
         $indentPt = $this->toPt($page, $style->blockQuoteIndent);
-        $innerXPt = $xPt + $indentPt;
-        $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        $base = BidiProcessor::resolveBaseDirection($this->blockText($quote->blocks), $this->requestedDirection);
+        if ($base === Direction::RTL) {
+            $innerXPt = $xPt;
+            $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        } else {
+            $innerXPt = $xPt + $indentPt;
+            $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        }
 
         // Remember the page the quote starts on so we can detect whether its
         // content flowed onto a later page (the bar is then drawn per-page).
@@ -594,12 +600,13 @@ final class BoxRenderer
 
         $endPage = $this->activePage($page);
         $barWidthPt = $this->toPt($page, $style->blockQuoteBarWidth);
+        $barXPt = $base === Direction::RTL ? ($xPt + $widthPt - $barWidthPt) : $xPt;
 
         if ($endPage === $startPage) {
             // No break: a single bar spans the whole quote on this page.
             $barHeightPt = $innerBottomPt - $cursorYPt;
             if ($barHeightPt > 0.0) {
-                $this->drawQuoteBar($endPage, $style, $xPt, $cursorYPt, $barWidthPt, $barHeightPt);
+                $this->drawQuoteBar($endPage, $style, $barXPt, $cursorYPt, $barWidthPt, $barHeightPt);
             }
         } else {
             // The quote flowed across a break: draw the bar segment on the final
@@ -609,7 +616,7 @@ final class BoxRenderer
             $finalTopPt = $this->flow?->lastTopPt() ?? $cursorYPt;
             $barHeightPt = $innerBottomPt - $finalTopPt;
             if ($barHeightPt > 0.0) {
-                $this->drawQuoteBar($endPage, $style, $xPt, $finalTopPt, $barWidthPt, $barHeightPt);
+                $this->drawQuoteBar($endPage, $style, $barXPt, $finalTopPt, $barWidthPt, $barHeightPt);
             }
         }
 
@@ -700,8 +707,15 @@ final class BoxRenderer
         bool $measureOnly,
     ): float {
         $indentPt = $this->toPt($page, $style->listIndent);
-        $innerXPt = $xPt + $indentPt;
-        $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        $base = BidiProcessor::resolveBaseDirection($this->listItemText($item), $this->requestedDirection);
+        if ($base === Direction::RTL) {
+            // Content occupies the LEFT portion; marker sits to its right.
+            $innerXPt = $xPt;
+            $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        } else {
+            $innerXPt = $xPt + $indentPt;
+            $innerWidthPt = max(0.0, $widthPt - $indentPt);
+        }
 
         // The marker sits on the first line baseline of the item content. In
         // FLOW mode, break BEFORE the marker if a single body line would not fit
@@ -718,7 +732,9 @@ final class BoxRenderer
             // between marker and text is tight and consistent across markers.
             $markerWidthPt = $markerPage->measureStringPt($marker, $bodyFont, $bodySizePt);
             $markerGapPt = $bodySizePt * self::LIST_MARKER_GAP_FACTOR;
-            $markerXPt = max($xPt, $innerXPt - $markerGapPt - $markerWidthPt);
+            $markerXPt = $base === Direction::RTL
+                ? min($xPt + $widthPt - $markerWidthPt, $innerXPt + $innerWidthPt + $markerGapPt)
+                : max($xPt, $innerXPt - $markerGapPt - $markerWidthPt);
             $markerPage->withArtifactScope(function () use ($markerPage, $markerXPt, $baselinePt, $marker, $bodyFont, $bodySizePt): void {
                 $markerPage->setFillColor($this->bodyColor());
                 $markerPage->setFont($bodyFont, $bodySizePt);
@@ -1061,6 +1077,47 @@ final class BoxRenderer
         }
 
         return BidiProcessor::resolveBaseDirection($text, $this->requestedDirection);
+    }
+
+    /** Concatenated inline text of a list item's first paragraph/heading, for direction resolution. */
+    private function listItemText(ListItem $item): string
+    {
+        foreach ($item->blocks as $block) {
+            if ($block instanceof Paragraph || $block instanceof Heading) {
+                return $this->inlineText($block->inlines);
+            }
+        }
+
+        return '';
+    }
+
+    /** @param list<InlineNode> $inlines */
+    private function inlineText(array $inlines): string
+    {
+        $text = '';
+        foreach ($this->flattenInlines($inlines) as $flat) {
+            $text .= $flat['text'];
+        }
+
+        return $text;
+    }
+
+    /**
+     * Concatenated inline text of a block sequence's paragraphs/headings, for
+     * direction resolution of a container (blockquote).
+     *
+     * @param list<BlockNode> $blocks
+     */
+    private function blockText(array $blocks): string
+    {
+        $text = '';
+        foreach ($blocks as $block) {
+            if ($block instanceof Paragraph || $block instanceof Heading) {
+                $text .= $this->inlineText($block->inlines) . ' ';
+            }
+        }
+
+        return $text;
     }
 
     /** True when any segment of the line contains an RTL codepoint. */

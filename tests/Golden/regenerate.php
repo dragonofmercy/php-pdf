@@ -983,6 +983,12 @@ foreach ($markdownGoldens as $name => $class) {
     echo "Regenerated {$name}\n";
 }
 
+file_put_contents(
+    __DIR__ . '/fixtures/markdown/rtl-lists.pdf',
+    \DragonOfMercy\PhpPdf\Tests\Golden\RtlMarkdownTest::buildListsPdfBytes(),
+);
+echo "Regenerated markdown/rtl-lists.pdf\n";
+
 // PDF/A-2 fixtures (Task 8)
 if (!is_dir($fixturesDir . '/pdfa')) {
     mkdir($fixturesDir . '/pdfa', 0755, true);

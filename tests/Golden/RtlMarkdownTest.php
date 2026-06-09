@@ -65,4 +65,59 @@ final class RtlMarkdownTest extends TestCase
 
         return $doc->output();
     }
+
+    public function testListsMatchFixtureBytes(): void
+    {
+        $expected = file_get_contents(__DIR__ . '/fixtures/markdown/rtl-lists.pdf');
+        self::assertIsString($expected);
+        self::assertSame(
+            $expected,
+            self::buildListsPdfBytes(),
+            'Output diverges from fixture. If intentional, run: php tests/Golden/regenerate.php',
+        );
+    }
+
+    public function testListsPassQpdfCheck(): void
+    {
+        $qpdf = (new ExecutableFinder())->find('qpdf');
+        if ($qpdf === null) {
+            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
+        }
+        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/markdown/rtl-lists.pdf']);
+        $process->run();
+        self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+    }
+
+    public static function buildListsPdfBytes(): string
+    {
+        $doc = new Document(Unit::MM);
+        $doc->registerFontFamily('FS', regular: __DIR__ . '/assets/fonts/FreeSerif.ttf');
+        $page = $doc->addPage();
+        $page->setFont(Font::custom('FS'), 14);
+
+        // RTL bullet list (Hebrew/Arabic items), an ordered list, and a
+        // blockquote of Hebrew text: markers and the quote bar must mirror to
+        // the right while content stays right-aligned in the left box.
+        $bulletA = "\u{05E9}\u{05DC}\u{05D5}\u{05DD}";          // Hebrew "shalom"
+        $bulletB = "\u{0646}\u{0645}\u{0631}";                  // Arabic "namir"
+        $bulletC = "\u{05E2}\u{05D5}\u{05DC}\u{05DD}";          // Hebrew "olam"
+        $orderA = "\u{05D0}\u{05D7}\u{05EA}";                   // Hebrew "ehad" (one)
+        $orderB = "\u{05E9}\u{05EA}\u{05D9}\u{05DD}";           // Hebrew "shtayim" (two)
+        $quote = "\u{05E9}\u{05DC}\u{05D5}\u{05DD} \u{05E2}\u{05D5}\u{05DC}\u{05DD}"; // "shalom olam"
+
+        $md = implode("\n", [
+            "- " . $bulletA,
+            "- " . $bulletB,
+            "- " . $bulletC,
+            "",
+            "1. " . $orderA,
+            "2. " . $orderB,
+            "",
+            "> " . $quote,
+        ]);
+
+        $page->markdown($md, 20.0, 20.0, 170.0, null, NextPosition::BELOW, Direction::RTL);
+
+        return $doc->output();
+    }
 }
