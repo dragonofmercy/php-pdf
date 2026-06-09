@@ -5,9 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.0] - 2026-06-09
 
 ### Added
+- Right-to-left text support (Phase A): Unicode bidirectional algorithm reordering for Hebrew on cells and tables, with `Document::setBaseDirection()`, a per-`cell()` `direction:` argument, `Cell::direction()` for table cells, and the `Direction` enum. RTL base direction right-aligns by default. Byte-identical output when no RTL text is present.
+- Arabic shaping: contextual presentation forms (isolated/initial/medial/final)
+  and mandatory lam-alef ligatures for `cell()` and table cells, in pure PHP.
+  Requires a font whose cmap contains the Arabic presentation forms.
 - RTL Markdown: bidi reordering and Arabic shaping in `Page::markdown()` and
   `cell(markdown: true)`, with right-aligned RTL blocks and mirrored list
   markers / blockquote bars. Opt in via the `direction:` argument or
@@ -19,10 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PHP static state resets between requests, so it only accumulates in
   long-lived CLI batch jobs and queue workers. Call `ParsedTtfCache::clear()`
   to reset it in a long-running worker.
-- Right-to-left text support (Phase A): Unicode bidirectional algorithm reordering for Hebrew on cells and tables, with `Document::setBaseDirection()`, a per-`cell()` `direction:` argument, `Cell::direction()` for table cells, and the `Direction` enum. RTL base direction right-aligns by default. Byte-identical output when no RTL text is present.
-- Arabic shaping: contextual presentation forms (isolated/initial/medial/final)
-  and mandatory lam-alef ligatures for `cell()` and table cells, in pure PHP.
-  Requires a font whose cmap contains the Arabic presentation forms.
 
 ## [1.6.0] - 2026-06-08
 
@@ -209,6 +209,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.7.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.7.0
 [1.6.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.6.0
 [1.5.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.5.0
 [1.4.2]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.4.2
