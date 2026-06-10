@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Reader;
 
 use DragonOfMercy\PhpPdf\Exception\PdfParseException;
+use DragonOfMercy\PhpPdf\Reader\Filter\StreamDecoder;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 
 /**
  * Locates and parses the cross-reference data of a PDF file: classic xref
@@ -57,7 +59,79 @@ final readonly class XrefReader
         if ($lexer->peek()->isKeyword('xref')) {
             return $this->readClassicSection($lexer);
         }
-        throw new PdfParseException("No xref table at offset {$offset}"); // xref streams arrive in Task 8
+        return $this->readStreamSection($lexer, $offset);
+    }
+
+    private function readStreamSection(Lexer $lexer, int $offset): XrefData
+    {
+        $object = (new ObjectParser($lexer))->parseIndirectObjectAt($lexer->position());
+        $payload = $object->payload();
+        if (!$payload instanceof ReadStream) {
+            throw new PdfParseException("Expected an xref stream object at offset {$offset}");
+        }
+        $dict = $payload->dict;
+        $identity = static fn (PdfObject $o): PdfObject => $o; // xref stream dict entries are direct per spec
+        $widths = DictReader::intList($dict, 'W', $identity);
+        if ($widths === null || count($widths) < 3) {
+            throw new PdfParseException("xref stream at offset {$offset} has a missing or malformed /W entry");
+        }
+        $size = DictReader::int($dict, 'Size', $identity);
+        if ($size === null) {
+            throw new PdfParseException("xref stream at offset {$offset} has no /Size entry");
+        }
+        $index = DictReader::intList($dict, 'Index', $identity) ?? [0, $size];
+        if (count($index) % 2 !== 0) {
+            throw new PdfParseException("xref stream at offset {$offset} has an odd /Index entry");
+        }
+
+        $data = (new StreamDecoder())->decode($payload, $identity);
+        $rowLength = $widths[0] + $widths[1] + $widths[2];
+        if ($rowLength <= 0) {
+            throw new PdfParseException("xref stream at offset {$offset} has zero-width rows");
+        }
+
+        $entries = [];
+        $position = 0;
+        $available = strlen($data);
+        $indexCount = count($index);
+        for ($pair = 0; $pair < $indexCount; $pair += 2) {
+            $start = $index[$pair];
+            $count = $index[$pair + 1];
+            for ($i = 0; $i < $count; $i++) {
+                if ($position + $rowLength > $available) {
+                    throw new PdfParseException(sprintf(
+                        'Truncated xref stream at offset %d: needed %d rows of %d bytes',
+                        $offset,
+                        $count,
+                        $rowLength,
+                    ));
+                }
+                $type = $widths[0] === 0 ? 1 : $this->bigEndian($data, $position, $widths[0]);
+                $field2 = $this->bigEndian($data, $position + $widths[0], $widths[1]);
+                $field3 = $this->bigEndian($data, $position + $widths[0] + $widths[1], $widths[2]);
+                $position += $rowLength;
+                $objectNumber = $start + $i;
+                $entry = match ($type) {
+                    0 => XrefEntry::free(),
+                    1 => XrefEntry::inFile($field2, $field3),
+                    2 => XrefEntry::inObjectStream($field2, $field3),
+                    default => null, // unknown types must be treated as absent (7.5.8.3)
+                };
+                if ($entry !== null) {
+                    $entries[$objectNumber] ??= $entry;
+                }
+            }
+        }
+        return new XrefData($entries, $dict);
+    }
+
+    private function bigEndian(string $data, int $offset, int $width): int
+    {
+        $value = 0;
+        for ($i = 0; $i < $width; $i++) {
+            $value = ($value << 8) | ord($data[$offset + $i]);
+        }
+        return $value;
     }
 
     private function readClassicSection(Lexer $lexer): XrefData
