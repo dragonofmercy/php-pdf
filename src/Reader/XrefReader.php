@@ -107,17 +107,30 @@ final readonly class XrefReader
      * Leniency: the startxref value is slightly wrong (a few bytes off, e.g.
      * because another tool inserted bytes without adjusting the offset). Scan
      * a window around the recorded position for a classic "xref" table header.
+     *
+     * A match of 'xref' is only accepted as a keyword when the byte immediately
+     * preceding it in the file is NOT an ASCII letter - this prevents matching
+     * the 'xref' tail inside the word 'startxref'.
      */
     private function recoverXrefNear(int $absolute, int $offset): XrefData
     {
         $windowStart = max($this->headerOffset, $absolute - self::XREF_RECOVERY_WINDOW);
         $window = substr($this->bytes, $windowStart, 2 * self::XREF_RECOVERY_WINDOW);
-        $pos = strpos($window, 'xref');
-        if ($pos !== false) {
-            $lexer = new Lexer($this->bytes, $windowStart + $pos);
+        $search = 0;
+        while (($found = strpos($window, 'xref', $search)) !== false) {
+            // Determine the byte that precedes this 'xref' match in the full file.
+            $filePos = $windowStart + $found;
+            if ($filePos > 0 && ctype_alpha($this->bytes[$filePos - 1])) {
+                // Preceded by an alpha character - this is the tail of a word like
+                // 'startxref', not a standalone keyword; skip it.
+                $search = $found + 1;
+                continue;
+            }
+            $lexer = new Lexer($this->bytes, $filePos);
             if ($lexer->peek()->isKeyword('xref')) {
                 return $this->readClassicSection($lexer);
             }
+            $search = $found + 1;
         }
         throw new PdfParseException("xref section not found near offset {$offset} (recovery scan failed)");
     }

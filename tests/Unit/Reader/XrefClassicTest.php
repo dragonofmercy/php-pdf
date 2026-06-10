@@ -81,4 +81,26 @@ final class XrefClassicTest extends TestCase
         $this->expectException(PdfParseException::class);
         (new XrefReader($pdf, 0))->read();
     }
+
+    public function testRecoveryScanDoesNotMatchInsideStartxref(): void
+    {
+        // The only 'xref' substring in the recovery window is the tail of
+        // 'startxref' itself; the scan must not treat that as a table header.
+        $pdf = "%PDF-1.4\nNOT AN XREF HERE AT ALL\nstartxref\n9\n%%EOF\n";
+        $this->expectException(PdfParseException::class);
+        $this->expectExceptionMessage('xref');
+        (new XrefReader($pdf, 0))->read();
+    }
+
+    public function testRecoveryScanFindsShiftedClassicTable(): void
+    {
+        $pdf = self::minimalPdf();
+        // Inject junk right before the real xref table without adjusting startxref,
+        // so the recorded offset points 5 bytes before the real table header.
+        $at = strpos($pdf, "xref\n0 3");
+        self::assertIsInt($at);
+        $pdf = substr($pdf, 0, $at) . "JUNK\n" . substr($pdf, $at);
+        $data = (new XrefReader($pdf, 0))->read();
+        self::assertSame(XrefEntryKind::InFile, $data->entries[1]->kind);
+    }
 }
