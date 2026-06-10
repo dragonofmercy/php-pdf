@@ -65,6 +65,7 @@ final class Lexer
      */
     public function beginStreamData(): int
     {
+        $this->peeked = null; // a pending peek would desynchronize the cursor
         $byte = $this->bytes[$this->pos] ?? '';
         if ($byte === "\r") {
             $this->pos++;
