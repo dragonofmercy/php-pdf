@@ -146,7 +146,75 @@ final readonly class ObjectParser
 
     private function parseStream(Dictionary $dict): PdfObject
     {
-        // Implemented in Task 4. Until then:
-        throw new PdfParseException('Stream parsing not implemented yet (resolver set: ' . ($this->lengthResolver !== null ? 'yes' : 'no') . ', entries: ' . count($dict->entries()) . ')');
+        $streamKeyword = $this->lexer->next(); // consume 'stream'
+        $dataStart = $this->lexer->beginStreamData();
+
+        $data = null;
+        $declared = $this->declaredLength($dict);
+        if ($declared !== null && $declared >= 0) {
+            $endstreamAt = $this->endstreamAt($dataStart + $declared);
+            if ($endstreamAt !== null) {
+                $data = $this->lexer->slice($dataStart, $declared);
+                $this->lexer->seek($endstreamAt);
+            }
+        }
+        if ($data === null) {
+            // /Length missing, wrong, or unresolvable: scan for the marker
+            $end = $this->lexer->indexOf('endstream', $dataStart);
+            if ($end === null) {
+                throw new PdfParseException("Stream starting at offset {$streamKeyword->offset} has no endstream marker");
+            }
+            $data = $this->trimOneTrailingEol($this->lexer->slice($dataStart, $end - $dataStart));
+            $this->lexer->seek($end);
+        }
+
+        $keyword = $this->lexer->next();
+        if (!$keyword->isKeyword('endstream')) {
+            throw new PdfParseException("Expected 'endstream' at offset {$keyword->offset}, got '{$keyword->lexeme}'");
+        }
+        return new ReadStream($dict, $data);
+    }
+
+    /** Returns the offset of the endstream keyword found at/after $from across optional EOL/whitespace, or null. */
+    private function endstreamAt(int $from): ?int
+    {
+        $pos = $from;
+        $limit = min($this->lexer->length(), $from + 4);
+        while ($pos < $limit) {
+            $byte = $this->lexer->slice($pos, 1);
+            if ($byte !== "\r" && $byte !== "\n" && $byte !== ' ' && $byte !== "\t") {
+                break;
+            }
+            $pos++;
+        }
+        return $this->lexer->slice($pos, 9) === 'endstream' ? $pos : null;
+    }
+
+    private function declaredLength(Dictionary $dict): ?int
+    {
+        $length = $dict->get(Name::of('Length'));
+        if ($length instanceof PdfReference && $this->lengthResolver !== null) {
+            try {
+                $length = ($this->lengthResolver)($length);
+            } catch (PdfParseException) {
+                return null; // fall back to endstream scan
+            }
+        }
+        if (!$length instanceof PdfNumber) {
+            return null;
+        }
+        $value = $length->value();
+        return is_int($value) ? $value : (int) $value;
+    }
+
+    private function trimOneTrailingEol(string $data): string
+    {
+        if (str_ends_with($data, "\r\n")) {
+            return substr($data, 0, -2);
+        }
+        if (str_ends_with($data, "\n") || str_ends_with($data, "\r")) {
+            return substr($data, 0, -1);
+        }
+        return $data;
     }
 }
