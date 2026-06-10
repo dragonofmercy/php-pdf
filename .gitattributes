@@ -4,6 +4,10 @@
 *.pdf binary
 resources/icc/*.icc binary
 
+# AFM font-metric sources carry CRLF line endings and are the exact byte source
+# the committed src/Font/Metrics tables are generated from; never normalize them.
+bin/afm-source/*.afm -text
+
 # Dev-only assets kept out of the Composer dist archive (composer require uses
 # the dist tarball, which honours export-ignore). src/, resources/ (runtime ICC
 # profile), composer.json, LICENSE, README.md and CHANGELOG.md ship; everything

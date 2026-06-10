@@ -9,5 +9,4 @@
 *.log
 .DS_Store
 Thumbs.db
-/bin/afm-source/
 bash.exe.stackdump
