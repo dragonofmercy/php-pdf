@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Modify;
 
+use DragonOfMercy\PhpPdf\Page;
+
 /**
  * Mutable accumulator of pending modifications on an opened PDF.
  *
@@ -17,6 +19,9 @@ final class PendingChanges
     public ?string $keywords = null;
     public ?string $creator = null;
 
+    /** @var list<Page> */
+    public array $pages = [];
+
     public function hasMetadata(): bool
     {
         return $this->title !== null || $this->author !== null || $this->subject !== null
@@ -25,6 +30,6 @@ final class PendingChanges
 
     public function isEmpty(): bool
     {
-        return !$this->hasMetadata();
+        return !$this->hasMetadata() && $this->pages === [];
     }
 }

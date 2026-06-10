@@ -6,19 +6,33 @@ namespace DragonOfMercy\PhpPdf;
 
 use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Document\MetadataStream;
+use DragonOfMercy\PhpPdf\Document\PageSetEmitter;
 use DragonOfMercy\PhpPdf\Document\XmpWriter;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
+use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
+use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
+use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtfCache;
+use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
+use DragonOfMercy\PhpPdf\Font\FontRegistry;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Modify\PendingChanges;
 use DragonOfMercy\PhpPdf\Modify\RevisionWriter;
+use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use DragonOfMercy\PhpPdf\Writer\Object\TextString;
+use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
 
 /**
  * Opens an existing PDF for modification. Changes are written as an APPENDED
@@ -36,6 +50,21 @@ final class Pdf
     private readonly string $bytes;
     private PendingChanges $pending;
 
+    private readonly Unit $unit;
+    private readonly FontRegistry $fontRegistry;
+    private readonly MetricsRegistry $metricsRegistry;
+    private readonly ImageRegistry $imageRegistry;
+    private readonly GlyphUsage $glyphUsage;
+    private ?FontResolver $fontResolver = null;
+
+    /** @var array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> */
+    private array $customFontFamilies = [];
+
+    private PageFormat $lastFormat = PageFormat::A4;
+    /** @var array{float, float}|null Custom dimensions [w, h] in user unit; takes precedence over $lastFormat when set. */
+    private ?array $lastCustom = null;
+    private Orientation $lastOrientation = Orientation::PORTRAIT;
+
     private function __construct(string $bytes)
     {
         if (!str_starts_with($bytes, '%PDF-')) {
@@ -44,6 +73,14 @@ final class Pdf
         $this->reader = PdfReader::fromBytes($bytes);
         $this->bytes = $bytes;
         $this->pending = new PendingChanges();
+
+        // Appended pages are built with the document unit (points) and a fresh
+        // set of registries; the existing tree is never reparsed into them.
+        $this->unit = Unit::PT;
+        $this->glyphUsage = new GlyphUsage();
+        $this->fontRegistry = new FontRegistry();
+        $this->metricsRegistry = new MetricsRegistry();
+        $this->imageRegistry = new ImageRegistry();
     }
 
     public static function open(string $path): self
@@ -88,6 +125,128 @@ final class Pdf
     {
         $this->pending->creator = $creator;
         return $this;
+    }
+
+    /**
+     * Registers a custom TTF font family by alias for use on appended pages.
+     * The regular variant is required; bold/italic/boldItalic are optional and
+     * fall back to regular. Files are read and parsed eagerly (mirrors
+     * {@see Document::registerFontFamily}).
+     */
+    public function registerFontFamily(
+        string $alias,
+        string $regular,
+        ?string $bold = null,
+        ?string $italic = null,
+        ?string $boldItalic = null,
+    ): self {
+        if (isset($this->customFontFamilies[$alias])) {
+            throw new PdfException("Font family '{$alias}' is already registered; each alias can be registered only once");
+        }
+        $this->customFontFamilies[$alias] = [
+            'regular' => $this->parseFontFile($alias, 'regular', $regular),
+            'bold' => $bold !== null ? $this->parseFontFile($alias, 'bold', $bold) : null,
+            'italic' => $italic !== null ? $this->parseFontFile($alias, 'italic', $italic) : null,
+            'boldItalic' => $boldItalic !== null ? $this->parseFontFile($alias, 'boldItalic', $boldItalic) : null,
+        ];
+        $this->fontResolver = new FontResolver(
+            $this->customFontFamilies,
+            $this->metricsRegistry,
+            $this->glyphUsage,
+        );
+        return $this;
+    }
+
+    /**
+     * Appends a new page to the document. Returns a real {@see Page} with the
+     * full writing API. The page is emitted in the appended revision at
+     * {@see output()}; existing pages stay untouched. Size resolution mirrors
+     * {@see Document::addPage} (default A4 portrait).
+     *
+     * @param PageFormat|array{float|int, float|int}|null $format
+     */
+    public function appendPage(PageFormat|array|null $format = null, ?Orientation $orientation = null): Page
+    {
+        if ($format !== null) {
+            if (is_array($format)) {
+                $this->lastCustom = $this->validateCustom($format);
+            } else {
+                $this->lastFormat = $format;
+                $this->lastCustom = null;
+            }
+        }
+        if ($orientation !== null) {
+            $this->lastOrientation = $orientation;
+        }
+
+        if ($this->lastCustom !== null) {
+            [$w, $h] = $this->lastCustom;
+            $widthPoints = $this->unit->toPoints($w);
+            $heightPoints = $this->unit->toPoints($h);
+        } else {
+            [$mmW, $mmH] = $this->lastFormat->dimensionsMm();
+            if ($this->lastOrientation === Orientation::LANDSCAPE) {
+                [$mmW, $mmH] = [$mmH, $mmW];
+            }
+            $widthPoints = Unit::MM->toPoints($mmW);
+            $heightPoints = Unit::MM->toPoints($mmH);
+        }
+
+        // document: null keeps header/footer/tagging machinery off; the page is
+        // a standalone surface emitted by PageSetEmitter.
+        $page = new Page(
+            pageWidth: $widthPoints,
+            pageHeight: $heightPoints,
+            fontRegistry: $this->fontRegistry,
+            metricsRegistry: $this->metricsRegistry,
+            imageRegistry: $this->imageRegistry,
+            unit: $this->unit,
+            defaultFont: null,
+            defaultSize: null,
+            defaultCellsPadding: null,
+            fontResolver: $this->fontResolver,
+            margins: null,
+            document: null,
+        );
+        $page->setPageIndex(count($this->pending->pages));
+        $this->pending->pages[] = $page;
+        return $page;
+    }
+
+    /**
+     * @param array<int|string, mixed> $format
+     * @return array{float, float}
+     */
+    private function validateCustom(array $format): array
+    {
+        if (count($format) !== 2 || !array_is_list($format)) {
+            throw new PdfException('Custom page format must be [width, height]');
+        }
+        [$w, $h] = $format;
+        if ((!is_int($w) && !is_float($w)) || (!is_int($h) && !is_float($h))) {
+            throw new PdfException('Custom page format dimensions must be numeric');
+        }
+        if ($w <= 0) {
+            throw new PdfException('Page width must be positive, got ' . $w);
+        }
+        if ($h <= 0) {
+            throw new PdfException('Page height must be positive, got ' . $h);
+        }
+        return [(float) $w, (float) $h];
+    }
+
+    private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
+    {
+        if (!is_file($path)) {
+            throw new PdfException("Font file not found for alias '{$alias}' ({$variant}): {$path}");
+        }
+        return ParsedTtfCache::getOrParse($path, function () use ($alias, $variant, $path): ParsedTtf {
+            $bytes = @file_get_contents($path);
+            if ($bytes === false) {
+                throw new PdfException("Cannot read font file for alias '{$alias}' ({$variant}): {$path}");
+            }
+            return TtfParser::parse($bytes, "{$alias} ({$variant})");
+        });
     }
 
     public function output(): string
@@ -145,12 +304,90 @@ final class Pdf
             );
         }
 
+        if ($this->pending->pages !== []) {
+            $nextNumber = $this->emitAppendedPages($newObjects, $nextNumber);
+        }
+
         return (new RevisionWriter())->append(
             reader: $this->reader,
             priorBytes: $this->bytes,
             newObjects: $newObjects,
             trailerEntries: $trailerEntries,
             size: max($this->reader->maxObjectNumber() + 1, $nextNumber),
+        );
+    }
+
+    /**
+     * Builds the appended pages' objects via the shared {@see PageSetEmitter}
+     * and re-emits the source /Pages root with the new kids appended and
+     * /Count increased. Returns the next free object number.
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function emitAppendedPages(array &$newObjects, int $nextNumber): int
+    {
+        $pagesRootRef = $this->reader->catalog()->get(Name::of('Pages'));
+        if (!$pagesRootRef instanceof PdfReference) {
+            throw new PdfException('The opened PDF has no indirect /Pages reference');
+        }
+        $this->guardGenerationZero($pagesRootRef->objectNumber, '/Pages');
+
+        $allocator = new PdfObjectAllocator($nextNumber);
+        $emitter = new PageSetEmitter(
+            fontRegistry: $this->fontRegistry,
+            fontResolver: $this->fontResolver,
+            imageRegistry: $this->imageRegistry,
+            svgFilterDpi: 300,
+            glyphUsage: $this->glyphUsage,
+            unit: $this->unit,
+            customFontFamilies: $this->customFontFamilies,
+        );
+        $build = $emitter->emit($this->pending->pages, $allocator, $pagesRootRef);
+        $pageObjectNumbers = [];
+        foreach ($build['pageRefs'] as $pageRef) {
+            $pageObjectNumbers[$pageRef->objectNumber] = true;
+        }
+        foreach ($build['objects'] as $object) {
+            $newObjects[] = $this->withRotateZeroOnPages($object, $pageObjectNumbers);
+        }
+
+        // rewrite the source /Pages root: kids + count
+        $rootDict = $this->reader->resolve($pagesRootRef);
+        if (!$rootDict instanceof Dictionary) {
+            throw new PdfException('/Pages does not resolve to a dictionary');
+        }
+        $kids = $this->reader->resolve($rootDict->get(Name::of('Kids')) ?? PdfNull::instance());
+        $kidElements = $kids instanceof PdfArray ? $kids->elements() : [];
+        foreach ($build['pageRefs'] as $pageRef) {
+            $kidElements[] = $pageRef;
+        }
+        $count = DictReader::int($rootDict, 'Count', $this->reader->resolve(...)) ?? count($kidElements);
+        $newObjects[] = IndirectObject::of(
+            $pagesRootRef->objectNumber,
+            0,
+            $rootDict
+                ->withEntry(Name::of('Kids'), PdfArray::of(...$kidElements))
+                ->withEntry(Name::of('Count'), PdfNumber::ofInt($count + count($this->pending->pages))),
+        );
+
+        return $allocator->peek();
+    }
+
+    /**
+     * Returns an appended page object extended with /Rotate 0 (so no rotation
+     * is inherited from the existing tree); non-page objects pass through.
+     *
+     * @param array<int, true> $pageObjectNumbers
+     */
+    private function withRotateZeroOnPages(IndirectObject $object, array $pageObjectNumbers): IndirectObject
+    {
+        if (!isset($pageObjectNumbers[$object->objectNumber])) {
+            return $object;
+        }
+        return IndirectObject::of(
+            $object->objectNumber,
+            $object->generation,
+            $object->dictionaryPayload()->withEntry(Name::of('Rotate'), PdfNumber::ofInt(0)),
         );
     }
 
