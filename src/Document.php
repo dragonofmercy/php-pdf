@@ -96,6 +96,9 @@ final class Document
     private readonly MetricsRegistry $metricsRegistry;
     private readonly ImageRegistry $imageRegistry;
 
+    /** @var array<int, array{0: string, 1: ImportedPageTemplate}> keyed by spl_object_id */
+    private array $importedTemplates = [];
+
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
     private ?Signature $signature = null;
@@ -260,6 +263,35 @@ final class Document
     public function importPdfBytes(string $bytes): ImportedPdf
     {
         return new ImportedPdf(PdfReader::fromBytes($bytes));
+    }
+
+    /**
+     * Assigns (or returns) the document-wide short name for an imported page
+     * template (Tpl1, Tpl2, ...).
+     *
+     * @internal
+     */
+    public function registerTemplate(ImportedPageTemplate $template): string
+    {
+        $id = spl_object_id($template);
+        if (!isset($this->importedTemplates[$id])) {
+            $shortName = 'Tpl' . (count($this->importedTemplates) + 1);
+            $this->importedTemplates[$id] = [$shortName, $template];
+        }
+        return $this->importedTemplates[$id][0];
+    }
+
+    /**
+     * @internal
+     * @return array<string, ImportedPageTemplate> short name => template
+     */
+    public function registeredTemplates(): array
+    {
+        $byName = [];
+        foreach ($this->importedTemplates as [$shortName, $template]) {
+            $byName[$shortName] = $template;
+        }
+        return $byName;
     }
 
     private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
@@ -1450,6 +1482,7 @@ final class Document
             unit: $this->unit,
             customFontFamilies: $this->customFontFamilies,
             signature: $this->signature,
+            importedTemplates: $this->registeredTemplates(),
         );
         $emit = $emitter->emit($this->pages, new PdfObjectAllocator($firstObjectNumber), $pagesRef);
 
