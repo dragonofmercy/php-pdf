@@ -128,9 +128,9 @@ final readonly class TemplateEmitter
     {
         $numbers = [];
         foreach ($values as $value) {
-            $numbers[] = $value === floor($value)
-                ? PdfNumber::ofInt((int) $value)
-                : PdfNumber::ofFloat($value);
+            // PdfNumber::ofFloat() already collapses whole-valued floats to an
+            // integer literal at serialization, so no int/float split is needed.
+            $numbers[] = PdfNumber::ofFloat($value);
         }
         return PdfArray::of(...$numbers);
     }

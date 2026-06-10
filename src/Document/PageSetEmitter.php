@@ -109,7 +109,7 @@ final readonly class PageSetEmitter
         // imported page templates: emit each used template once, as a Form
         // XObject plus its deep-copied resource subgraph. Numbers are drawn
         // from the same allocator (after images, before per-page annotations).
-        ['refs' => $templateRefs, 'objects' => $templateObjects] = $this->emitTemplates($pages, $allocator);
+        ['refs' => $templateRefs, 'objects' => $templateObjects] = $this->emitTemplates($allocator);
 
         $pageBuild = (new PageObjectsBuilder(
             allocator: $allocator,
@@ -377,23 +377,16 @@ final readonly class PageSetEmitter
     }
 
     /**
-     * Emits every registered template that at least one page uses. Each is
-     * emitted exactly once (the document-wide registry already deduplicates by
-     * template instance), so the same template placed on many pages shares one
-     * Form XObject.
+     * Emits every registered template, each exactly once. The document-wide
+     * registry holds exactly the templates some page drew (a template is only
+     * registered from Page::template(), deduplicated by instance), so the same
+     * template placed on many pages shares one Form XObject.
      *
-     * @param list<Page> $pages
      * @return array{refs: array<string, PdfReference>, objects: list<IndirectObject>}
      */
-    private function emitTemplates(array $pages, PdfObjectAllocator $allocator): array
+    private function emitTemplates(PdfObjectAllocator $allocator): array
     {
-        $usedTemplateNames = [];
-        foreach ($pages as $page) {
-            foreach ($page->templatesUsed() as $shortName) {
-                $usedTemplateNames[$shortName] = true;
-            }
-        }
-        if ($usedTemplateNames === []) {
+        if ($this->importedTemplates === []) {
             return ['refs' => [], 'objects' => []];
         }
 
@@ -401,9 +394,6 @@ final readonly class PageSetEmitter
         $objects = [];
         $emitter = new TemplateEmitter();
         foreach ($this->importedTemplates as $shortName => $template) {
-            if (!isset($usedTemplateNames[$shortName])) {
-                continue;
-            }
             $emitted = $emitter->emit($template, $allocator);
             $refs[$shortName] = $emitted['xobject']->reference();
             $objects[] = $emitted['xobject'];

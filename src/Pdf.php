@@ -308,12 +308,15 @@ final class Pdf
             $nextNumber = $this->emitAppendedPages($newObjects, $nextNumber);
         }
 
+        // $nextNumber starts at maxObjectNumber() + 1 and only ever advances
+        // (Info/XMP increments + the monotonic page allocator), so it is already
+        // the next free object number the revision's xref must announce as /Size.
         return (new RevisionWriter())->append(
             reader: $this->reader,
             priorBytes: $this->bytes,
             newObjects: $newObjects,
             trailerEntries: $trailerEntries,
-            size: max($this->reader->maxObjectNumber() + 1, $nextNumber),
+            size: $nextNumber,
         );
     }
 
