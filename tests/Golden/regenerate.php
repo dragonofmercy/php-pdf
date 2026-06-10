@@ -1104,3 +1104,17 @@ foreach ($svgBarcodeGoldens as $name => [$class, $method]) {
     file_put_contents($svgFixturesDir . '/' . $name, $bytes);
     echo "Regenerated {$name}\n";
 }
+
+// Template import golden fixtures (Phase 2: importPdf + Page::template)
+$importGoldens = [
+    'import/letterhead-overlay.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\TemplateImportTest::class, 'buildLetterheadOverlayBytes'],
+    'import/rotated-source.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\TemplateImportTest::class, 'buildRotatedImportBytes'],
+];
+foreach ($importGoldens as $name => [$class, $method]) {
+    $path = $fixturesDir . '/' . $name;
+    if (!is_dir(dirname($path))) {
+        mkdir(dirname($path), 0755, true);
+    }
+    file_put_contents($path, $class::$method());
+    echo "Regenerated {$name}\n";
+}
