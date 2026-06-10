@@ -30,7 +30,6 @@ final readonly class XrefReader
     {
         $entries = [];
         $trailer = Dictionary::empty();
-        $identity = static fn (PdfObject $o): PdfObject => $o;
         $pending = [$this->findStartxref()];
         $visited = [];
         while ($pending !== []) {
@@ -50,11 +49,11 @@ final readonly class XrefReader
             }
             // hybrid-reference file: the /XRefStm section supplements this
             // revision and must be consulted BEFORE older /Prev revisions
-            $xrefStm = DictReader::int($section->trailer, 'XRefStm', $identity);
+            $xrefStm = DictReader::int($section->trailer, 'XRefStm');
             if ($xrefStm !== null) {
                 $pending[] = $xrefStm;
             }
-            $prev = DictReader::int($section->trailer, 'Prev', $identity);
+            $prev = DictReader::int($section->trailer, 'Prev');
             if ($prev !== null) {
                 $pending[] = $prev;
             }
@@ -143,21 +142,21 @@ final readonly class XrefReader
             throw new PdfParseException("Expected an xref stream object at offset {$offset}");
         }
         $dict = $payload->dict;
-        $identity = static fn (PdfObject $o): PdfObject => $o; // xref stream dict entries are direct per spec
-        $widths = DictReader::intList($dict, 'W', $identity);
+        // No resolver needed: xref stream dict entries are direct per spec.
+        $widths = DictReader::intList($dict, 'W');
         if ($widths === null || count($widths) < 3) {
             throw new PdfParseException("xref stream at offset {$offset} has a missing or malformed /W entry");
         }
-        $size = DictReader::int($dict, 'Size', $identity);
+        $size = DictReader::int($dict, 'Size');
         if ($size === null) {
             throw new PdfParseException("xref stream at offset {$offset} has no /Size entry");
         }
-        $index = DictReader::intList($dict, 'Index', $identity) ?? [0, $size];
+        $index = DictReader::intList($dict, 'Index') ?? [0, $size];
         if (count($index) % 2 !== 0) {
             throw new PdfParseException("xref stream at offset {$offset} has an odd /Index entry");
         }
 
-        $data = (new StreamDecoder())->decode($payload, $identity);
+        $data = (new StreamDecoder())->decode($payload, static fn (PdfObject $o): PdfObject => $o);
         $rowLength = $widths[0] + $widths[1] + $widths[2];
         if ($rowLength <= 0) {
             throw new PdfParseException("xref stream at offset {$offset} has zero-width rows");

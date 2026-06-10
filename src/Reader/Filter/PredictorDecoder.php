@@ -52,7 +52,7 @@ final readonly class PredictorDecoder
         $bytesPerPixel = max(1, intdiv($colors * $bitsPerComponent, 8));
         $rowLength = (int) ceil($colors * $bitsPerComponent * $columns / 8);
         $out = '';
-        $previous = str_repeat("\x00", $rowLength);
+        $previous = array_fill(0, $rowLength, 0);
         $offset = 0;
         $length = strlen($data);
         while ($offset < $length) {
@@ -66,11 +66,10 @@ final readonly class PredictorDecoder
             }
             $filter = ord($data[$offset]);
             $row = self::unpackBytes(substr($data, $offset + 1, $rowLength), $offset);
-            $prev = self::unpackBytes($previous, $offset);
             for ($i = 0; $i < $rowLength; $i++) {
                 $left = $i >= $bytesPerPixel ? $row[$i - $bytesPerPixel] : 0;
-                $up = $prev[$i];
-                $upLeft = $i >= $bytesPerPixel ? $prev[$i - $bytesPerPixel] : 0;
+                $up = $previous[$i];
+                $upLeft = $i >= $bytesPerPixel ? $previous[$i - $bytesPerPixel] : 0;
                 $row[$i] = ($row[$i] + match ($filter) {
                     0 => 0,
                     1 => $left,
@@ -80,9 +79,8 @@ final readonly class PredictorDecoder
                     default => throw new PdfParseException("Unknown PNG predictor filter byte {$filter} at offset {$offset}"),
                 }) & 0xFF;
             }
-            $decodedRow = pack('C*', ...$row);
-            $out .= $decodedRow;
-            $previous = $decodedRow;
+            $out .= pack('C*', ...$row);
+            $previous = $row;
             $offset += 1 + $rowLength;
         }
         return $out;

@@ -181,7 +181,7 @@ final readonly class ObjectParser
         $pos = $from;
         $limit = min($this->lexer->length(), $from + 4);
         while ($pos < $limit) {
-            $byte = $this->lexer->slice($pos, 1);
+            $byte = $this->lexer->byteAt($pos);
             if ($byte !== "\r" && $byte !== "\n" && $byte !== ' ' && $byte !== "\t") {
                 break;
             }

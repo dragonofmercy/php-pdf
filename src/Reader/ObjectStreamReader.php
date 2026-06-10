@@ -27,21 +27,23 @@ final class ObjectStreamReader
 
     public function objectAt(int $index): PdfObject
     {
-        $pairs = $this->pairs();
-        if (!isset($pairs[$index])) {
-            throw new PdfParseException("Object stream has {$this->count} objects, index {$index} is out of range");
-        }
-        $lexer = new Lexer($this->data, $this->first + $pairs[$index][1]);
+        $lexer = new Lexer($this->data, $this->first + $this->pairAt($index)[1]);
         return (new ObjectParser($lexer))->parseObject();
     }
 
     public function objectNumberAt(int $index): int
     {
+        return $this->pairAt($index)[0];
+    }
+
+    /** @return array{0: int, 1: int} */
+    private function pairAt(int $index): array
+    {
         $pairs = $this->pairs();
         if (!isset($pairs[$index])) {
             throw new PdfParseException("Object stream has {$this->count} objects, index {$index} is out of range");
         }
-        return $pairs[$index][0];
+        return $pairs[$index];
     }
 
     /** @return list<array{0: int, 1: int}> */

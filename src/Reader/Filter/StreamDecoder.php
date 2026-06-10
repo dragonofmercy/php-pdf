@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Reader\Filter;
 
 use DragonOfMercy\PhpPdf\Exception\PdfParseException;
+use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 
 /**
@@ -107,18 +107,6 @@ final readonly class StreamDecoder
      */
     private function intParm(?Dictionary $parms, string $key, int $default, \Closure $resolve): int
     {
-        if ($parms === null) {
-            return $default;
-        }
-        $value = $parms->get(Name::of($key));
-        if ($value === null) {
-            return $default;
-        }
-        $value = $resolve($value);
-        if (!$value instanceof PdfNumber) {
-            return $default;
-        }
-        $number = $value->value();
-        return is_int($number) ? $number : (int) $number;
+        return $parms === null ? $default : (DictReader::int($parms, $key, $resolve) ?? $default);
     }
 }

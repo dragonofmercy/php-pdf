@@ -18,12 +18,14 @@ final class Lexer
     private const string WHITESPACE = "\x00\t\n\x0C\r ";
     private const string DELIMITERS = '()<>[]{}/%';
 
+    private readonly int $length;
     private int $pos;
     private ?Token $peeked = null;
     private int $peekedStart = 0;
 
     public function __construct(private readonly string $bytes, int $offset = 0)
     {
+        $this->length = strlen($bytes);
         $this->pos = $offset;
     }
 
@@ -91,13 +93,19 @@ final class Lexer
 
     public function length(): int
     {
-        return strlen($this->bytes);
+        return $this->length;
+    }
+
+    /** Single byte at $offset without allocation churn; '' past the end. */
+    public function byteAt(int $offset): string
+    {
+        return $this->bytes[$offset] ?? '';
     }
 
     private function lex(): Token
     {
         $this->skipWhitespaceAndComments();
-        if ($this->pos >= strlen($this->bytes)) {
+        if ($this->pos >= $this->length) {
             return new Token(TokenType::EndOfInput, '', $this->pos);
         }
         $start = $this->pos;
@@ -141,7 +149,7 @@ final class Lexer
 
     private function skipWhitespaceAndComments(): void
     {
-        $length = strlen($this->bytes);
+        $length = $this->length;
         while ($this->pos < $length) {
             $byte = $this->bytes[$this->pos];
             if (str_contains(self::WHITESPACE, $byte)) {
@@ -162,7 +170,7 @@ final class Lexer
     {
         $this->pos++; // consume '/'
         $value = '';
-        $length = strlen($this->bytes);
+        $length = $this->length;
         while ($this->pos < $length) {
             $byte = $this->bytes[$this->pos];
             if (str_contains(self::WHITESPACE, $byte) || str_contains(self::DELIMITERS, $byte)) {
@@ -184,7 +192,7 @@ final class Lexer
         $this->pos++; // consume '('
         $value = '';
         $depth = 1;
-        $length = strlen($this->bytes);
+        $length = $this->length;
         while ($this->pos < $length) {
             $byte = $this->bytes[$this->pos];
             if ($byte === '\\') {
@@ -262,7 +270,7 @@ final class Lexer
     {
         $this->pos++; // consume '<'
         $hex = '';
-        $length = strlen($this->bytes);
+        $length = $this->length;
         while ($this->pos < $length) {
             $byte = $this->bytes[$this->pos];
             if ($byte === '>') {
@@ -284,7 +292,7 @@ final class Lexer
 
     private function lexNumber(int $start): Token
     {
-        $length = strlen($this->bytes);
+        $length = $this->length;
         $sawDot = false;
         $sawDigit = false;
         $lexeme = '';
@@ -313,7 +321,7 @@ final class Lexer
     private function lexKeyword(int $start): Token
     {
         $word = '';
-        $length = strlen($this->bytes);
+        $length = $this->length;
         while ($this->pos < $length && ctype_alpha($this->bytes[$this->pos])) {
             $word .= $this->bytes[$this->pos];
             $this->pos++;
