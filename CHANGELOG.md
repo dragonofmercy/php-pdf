@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inherited attributes (`PdfReader::fromFile()`, `pageCount()`, `page()`).
   Groundwork for template import and incremental modification of existing
   files; encrypted input is rejected with a clear error.
+- Modify existing PDFs: `Pdf::open($path)` / `Pdf::fromBytes($bytes)` open any
+  non-encrypted PDF and write changes as an appended incremental revision (the
+  original bytes - and any signatures they carry - stay untouched): update
+  metadata (`setTitle` / `setAuthor` / `setSubject` / `setKeywords` /
+  `setCreator`, with the XMP stream refreshed when present) and append new
+  pages with the full page API (`appendPage()`). Works on classic xref tables
+  AND cross-reference streams (the appended revision matches the source
+  format, as ISO 32000-1 requires). AcroForm filling and signing existing
+  files build on this next.
 
 ## [1.7.0] - 2026-06-09
 

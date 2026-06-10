@@ -1104,3 +1104,17 @@ foreach ($svgBarcodeGoldens as $name => [$class, $method]) {
     file_put_contents($svgFixturesDir . '/' . $name, $bytes);
     echo "Regenerated {$name}\n";
 }
+
+// Incremental modification golden (Pdf::open + metadata + appendPage).
+// The source asset (assets/modify/contract.pdf) is committed and read as-is.
+$modifyGoldens = [
+    'modify/amended-contract.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\PdfModifyTest::class, 'buildAmendedContractBytes'],
+];
+foreach ($modifyGoldens as $name => [$class, $method]) {
+    $path = $fixturesDir . '/' . $name;
+    if (!is_dir(dirname($path))) {
+        mkdir(dirname($path), 0755, true);
+    }
+    file_put_contents($path, $class::$method());
+    echo "Regenerated {$name}\n";
+}
