@@ -33,9 +33,12 @@ use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Import\ImportedPageTemplate;
+use DragonOfMercy\PhpPdf\Import\ImportedPdf;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Page\ColumnLayout;
+use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\AppendedFieldRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
@@ -242,6 +245,21 @@ final class Document
     public function fontResolver(): ?FontResolver
     {
         return $this->fontResolver;
+    }
+
+    /**
+     * Parses an existing PDF file so its pages can be drawn as templates
+     * via Page::template(). Encrypted files are rejected.
+     */
+    public function importPdf(string $path): ImportedPdf
+    {
+        return new ImportedPdf(PdfReader::fromFile($path));
+    }
+
+    /** Same as importPdf() but from in-memory bytes. */
+    public function importPdfBytes(string $bytes): ImportedPdf
+    {
+        return new ImportedPdf(PdfReader::fromBytes($bytes));
     }
 
     private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
