@@ -17,6 +17,8 @@ use DragonOfMercy\PhpPdf\Image;
 use DragonOfMercy\PhpPdf\Image\ImageEmbedder;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
+use DragonOfMercy\PhpPdf\Import\ImportedPageTemplate;
+use DragonOfMercy\PhpPdf\Import\TemplateEmitter;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotation;
 use DragonOfMercy\PhpPdf\Outline\LinkAnnotationEmitter;
 use DragonOfMercy\PhpPdf\Page;
@@ -55,6 +57,7 @@ final readonly class PageSetEmitter
 {
     /**
      * @param array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> $customFontFamilies registered families, used to resolve subset emissions by CustomFontKey
+     * @param array<string, ImportedPageTemplate> $importedTemplates document-wide short name => imported page template
      */
     public function __construct(
         private FontRegistry $fontRegistry,
@@ -65,6 +68,7 @@ final readonly class PageSetEmitter
         private Unit $unit,
         private array $customFontFamilies,
         private ?Signature $signature = null,
+        private array $importedTemplates = [],
     ) {}
 
     /**
@@ -102,6 +106,11 @@ final readonly class PageSetEmitter
         $imageRefs = $alloc['imageRefs'];
         $imageEmissions = $alloc['imageEmissions'];
 
+        // imported page templates: emit each used template once, as a Form
+        // XObject plus its deep-copied resource subgraph. Numbers are drawn
+        // from the same allocator (after images, before per-page annotations).
+        ['refs' => $templateRefs, 'objects' => $templateObjects] = $this->emitTemplates($pages, $allocator);
+
         $pageBuild = (new PageObjectsBuilder(
             allocator: $allocator,
             fontRegistry: $this->fontRegistry,
@@ -111,9 +120,13 @@ final readonly class PageSetEmitter
             fontRefs: $fontRefs,
             customRefs: $customRefs,
             imageRefs: $imageRefs,
+            templateRefs: $templateRefs,
         ))->build($pending, $pageRefs, $pageHeightsPt);
 
         $objects = $pageBuild['objects'];
+        foreach ($templateObjects as $templateObject) {
+            $objects[] = $templateObject;
+        }
         /** @var list<array{field: FormField, widgetRef: PdfReference, pageRef: PdfReference, pageHeightPt: float}> $allWidgets */
         $allWidgets = $pageBuild['allWidgets'];
         $linkAnnotationMap = $pageBuild['linkAnnotationMap'];
@@ -361,6 +374,44 @@ final readonly class PageSetEmitter
             'imageRefs' => $imageRefs,
             'imageEmissions' => $imageEmissions,
         ];
+    }
+
+    /**
+     * Emits every registered template that at least one page uses. Each is
+     * emitted exactly once (the document-wide registry already deduplicates by
+     * template instance), so the same template placed on many pages shares one
+     * Form XObject.
+     *
+     * @param list<Page> $pages
+     * @return array{refs: array<string, PdfReference>, objects: list<IndirectObject>}
+     */
+    private function emitTemplates(array $pages, PdfObjectAllocator $allocator): array
+    {
+        $usedTemplateNames = [];
+        foreach ($pages as $page) {
+            foreach ($page->templatesUsed() as $shortName) {
+                $usedTemplateNames[$shortName] = true;
+            }
+        }
+        if ($usedTemplateNames === []) {
+            return ['refs' => [], 'objects' => []];
+        }
+
+        $refs = [];
+        $objects = [];
+        $emitter = new TemplateEmitter();
+        foreach ($this->importedTemplates as $shortName => $template) {
+            if (!isset($usedTemplateNames[$shortName])) {
+                continue;
+            }
+            $emitted = $emitter->emit($template, $allocator);
+            $refs[$shortName] = $emitted['xobject']->reference();
+            $objects[] = $emitted['xobject'];
+            foreach ($emitted['objects'] as $copied) {
+                $objects[] = $copied;
+            }
+        }
+        return ['refs' => $refs, 'objects' => $objects];
     }
 
     private function resolveTtfByKey(CustomFontKey $key): ParsedTtf
