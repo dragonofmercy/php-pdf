@@ -27,7 +27,39 @@ final readonly class XrefReader
 
     public function read(): XrefData
     {
-        return $this->readSection($this->findStartxref());
+        $entries = [];
+        $trailer = Dictionary::empty();
+        $identity = static fn (PdfObject $o): PdfObject => $o;
+        $pending = [$this->findStartxref()];
+        $visited = [];
+        while ($pending !== []) {
+            $offset = array_shift($pending);
+            if (isset($visited[$offset])) {
+                continue; // /Prev loop guard
+            }
+            $visited[$offset] = true;
+            $section = $this->readSection($offset);
+            foreach ($section->entries as $objectNumber => $entry) {
+                $entries[$objectNumber] ??= $entry; // first seen (newest revision) wins
+            }
+            foreach ($section->trailer->entries() as [$name, $value]) {
+                if ($trailer->get($name) === null) {
+                    $trailer = $trailer->withEntry($name, $value);
+                }
+            }
+            // hybrid-reference file: the /XRefStm section supplements this
+            // revision and must be consulted BEFORE older /Prev revisions
+            $xrefStm = DictReader::int($section->trailer, 'XRefStm', $identity);
+            if ($xrefStm !== null) {
+                $pending[] = $xrefStm;
+            }
+            $prev = DictReader::int($section->trailer, 'Prev', $identity);
+            if ($prev !== null) {
+                $pending[] = $prev;
+            }
+        }
+        ksort($entries);
+        return new XrefData($entries, $trailer);
     }
 
     private function findStartxref(): int
@@ -100,9 +132,9 @@ final readonly class XrefReader
             for ($i = 0; $i < $count; $i++) {
                 if ($position + $rowLength > $available) {
                     throw new PdfParseException(sprintf(
-                        'Truncated xref stream at offset %d: needed %d rows of %d bytes',
+                        'Truncated xref stream at offset %d: needed %d more rows of %d bytes',
                         $offset,
-                        $count,
+                        $count - $i,
                         $rowLength,
                     ));
                 }
@@ -127,6 +159,9 @@ final readonly class XrefReader
 
     private function bigEndian(string $data, int $offset, int $width): int
     {
+        if ($width > 8) {
+            throw new PdfParseException("xref stream field width {$width} exceeds 8 bytes");
+        }
         $value = 0;
         for ($i = 0; $i < $width; $i++) {
             $value = ($value << 8) | ord($data[$offset + $i]);
