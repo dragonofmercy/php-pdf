@@ -1521,6 +1521,12 @@ final class Page
         if ($naturalWPt <= 0 || $naturalHPt <= 0) {
             throw new PdfException('Imported template has a degenerate page box');
         }
+        if ($width !== null && $width <= 0.0) {
+            throw new PdfException("Template width must be positive, got {$width}");
+        }
+        if ($height !== null && $height <= 0.0) {
+            throw new PdfException("Template height must be positive, got {$height}");
+        }
         $wPt = $width !== null ? $this->toPt($width) : null;
         $hPt = $height !== null ? $this->toPt($height) : null;
         $effWPt = $wPt ?? ($hPt !== null ? $hPt * $naturalWPt / $naturalHPt : $naturalWPt);

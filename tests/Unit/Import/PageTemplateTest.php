@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Import;
 
 use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
@@ -108,5 +109,25 @@ final class PageTemplateTest extends TestCase
         $content = $page->contentStream()->bytes();
         self::assertStringContainsString('/Tpl1 Do', $content);
         self::assertStringContainsString('0.5 0 0 -0.5 0 ', $content); // 105mm is exactly half of A4 210mm width
+    }
+
+    public function testNonPositiveWidthThrows(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $template = $doc->importPdfBytes(self::sourcePdfBytes())->page(1);
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Template width must be positive, got -1');
+        $page->template($template, x: 0, y: 0, width: -1);
+    }
+
+    public function testNonPositiveHeightThrows(): void
+    {
+        $doc = new Document(Unit::PT);
+        $page = $doc->addPage();
+        $template = $doc->importPdfBytes(self::sourcePdfBytes())->page(1);
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Template height must be positive, got 0');
+        $page->template($template, x: 0, y: 0, height: 0);
     }
 }
