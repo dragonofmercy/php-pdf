@@ -18,6 +18,12 @@ final readonly class Name implements PdfObject
         return new self($value);
     }
 
+    /** @internal */
+    public function value(): string
+    {
+        return $this->value;
+    }
+
     public function toBytes(): string
     {
         $encoded = '';

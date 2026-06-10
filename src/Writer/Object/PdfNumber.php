@@ -26,6 +26,12 @@ final readonly class PdfNumber implements PdfObject
         return new self($value, false);
     }
 
+    /** @internal */
+    public function value(): int|float
+    {
+        return $this->value;
+    }
+
     public function toBytes(): string
     {
         if ($this->isInteger) {

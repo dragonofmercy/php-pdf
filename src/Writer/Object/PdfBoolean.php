@@ -28,6 +28,12 @@ final readonly class PdfBoolean implements PdfObject
         return new self($value);
     }
 
+    /** @internal */
+    public function value(): bool
+    {
+        return $this->value;
+    }
+
     public function toBytes(): string
     {
         return $this->value ? 'true' : 'false';
