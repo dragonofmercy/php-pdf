@@ -38,4 +38,9 @@ final class NameTest extends TestCase
     {
         self::assertSame('/', Name::of('')->toBytes());
     }
+
+    public function testNameExposesValue(): void
+    {
+        self::assertSame('XRef', Name::of('XRef')->value());
+    }
 }

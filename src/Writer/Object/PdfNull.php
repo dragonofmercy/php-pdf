@@ -9,6 +9,8 @@ namespace DragonOfMercy\PhpPdf\Writer\Object;
  *
  * @internal
  */
+// Not readonly: PHP 8.5 propagates readonly to static properties, which is
+// incompatible with the lazily initialized self::$instance singleton.
 final class PdfNull implements PdfObject
 {
     private static ?self $instance = null;

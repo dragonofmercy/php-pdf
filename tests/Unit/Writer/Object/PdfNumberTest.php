@@ -34,4 +34,10 @@ final class PdfNumberTest extends TestCase
         self::assertSame('0', PdfNumber::ofInt(0)->toBytes());
         self::assertSame('0', PdfNumber::ofFloat(0.0)->toBytes());
     }
+
+    public function testNumberExposesValue(): void
+    {
+        self::assertSame(42, PdfNumber::ofInt(42)->value());
+        self::assertSame(2.5, PdfNumber::ofFloat(2.5)->value());
+    }
 }

@@ -24,4 +24,10 @@ final class PdfBooleanTest extends TestCase
         self::assertSame('true', PdfBoolean::of(true)->toBytes());
         self::assertSame('false', PdfBoolean::of(false)->toBytes());
     }
+
+    public function testBooleanExposesValue(): void
+    {
+        self::assertTrue(PdfBoolean::true()->value());
+        self::assertFalse(PdfBoolean::false()->value());
+    }
 }
