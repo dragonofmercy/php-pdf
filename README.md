@@ -38,8 +38,11 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 - **PDF/A archival** - emit PDF/A-2 and PDF/A-3 (levels b, u, and a) with one `enablePdfA()` call, validated against veraPDF; A-3 embeds associated files such as a Factur-X / ZUGFeRD e-invoice. Level A (`PdfALevel::A2A` / `A3A`) auto-enables tagging and requires the catalog language, e.g. `enablePdfA(PdfALevel::A2A, 'en-US')`. Combining `enablePdfA(PdfALevel::A2A, 'en-US')` with `enablePdfUA('en-US')` produces a single file that is both PDF/A-2a and PDF/UA-1.
 - **Tagged PDF & PDF/UA-1 accessibility** - opt-in structure tagging via `enableTagging()`: cells, images, tables, and Markdown are tagged automatically into a logical structure tree (`StructTreeRoot`, `MarkInfo`, ParentTree, marked content), with an optional document language. `enablePdfUA()` goes further and produces output that validates as PDF/UA-1 (`isCompliant` under veraPDF): decoration is marked as `/Artifact`, figures carry alternate text (`image(alt: ...)`), table headers get a scope, `DisplayDocTitle` and an XMP `pdfuaid` are emitted, and a fail-fast guard enforces embedded fonts, a title, and figure alt text. Text hyperlinks made with `cell(link: ...)` are tagged as accessible `<Link>` elements (with `/OBJR`, `/StructParent`, and a description). Markdown inline links are also tagged automatically as `<Link>` elements when tagging is on, so `markdown()` with links is PDF/UA-1 conformant. Image hyperlinks are tagged on both surfaces: `Page::image(link: ..., linkAlt: ...)` and Markdown block image links `[![alt](img)](url)` both emit a `<Link>` wrapping the `<Figure>`, keeping documents with image links PDF/UA-1 conformant.
 
+- **Reading existing PDFs (low-level)** - `PdfReader` parses any non-encrypted PDF (classic xref tables and cross-reference streams, incremental revisions, object streams, the common stream filters) and exposes its objects and page tree. This is the foundation for the upcoming template import and modification features.
+
 ## Not yet implemented
 
+- Importing pages of an existing PDF as templates, and modifying existing PDFs (fill AcroForm fields, sign, append pages) - in progress, built on `PdfReader`.
 - Bidi explicit embedding/override/isolate controls, and per-column-header direction in tables.
 
 ## Installation
