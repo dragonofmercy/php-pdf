@@ -30,8 +30,11 @@ final readonly class XrefReader
     {
         $entries = [];
         $trailer = Dictionary::empty();
-        $pending = [$this->findStartxref()];
+        $startxref = $this->findStartxref();
+        $pending = [$startxref];
         $visited = [];
+        $newestIsStream = false;
+        $first = true;
         while ($pending !== []) {
             $offset = array_shift($pending);
             if (isset($visited[$offset])) {
@@ -39,6 +42,10 @@ final readonly class XrefReader
             }
             $visited[$offset] = true;
             $section = $this->readSection($offset);
+            if ($first) {
+                $newestIsStream = $section->usesXrefStreams;
+                $first = false;
+            }
             foreach ($section->entries as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry; // first seen (newest revision) wins
             }
@@ -59,7 +66,7 @@ final readonly class XrefReader
             }
         }
         ksort($entries);
-        return new XrefData($entries, $trailer);
+        return new XrefData($entries, $trailer, $newestIsStream, $startxref);
     }
 
     private function findStartxref(): int
@@ -194,7 +201,7 @@ final readonly class XrefReader
                 }
             }
         }
-        return new XrefData($entries, $dict);
+        return new XrefData($entries, $dict, usesXrefStreams: true);
     }
 
     private function bigEndian(string $data, int $offset, int $width): int

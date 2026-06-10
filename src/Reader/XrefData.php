@@ -19,5 +19,7 @@ final readonly class XrefData
     public function __construct(
         public array $entries,
         public Dictionary $trailer,
+        public bool $usesXrefStreams = false,
+        public int $startxref = 0,
     ) {}
 }

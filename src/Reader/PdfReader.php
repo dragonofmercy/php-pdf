@@ -89,6 +89,33 @@ final class PdfReader
         return $catalog;
     }
 
+    /** Whether the file's NEWEST revision uses a cross-reference stream (an appended revision must match, ISO 32000-1 7.5.8). */
+    public function usesXrefStreams(): bool
+    {
+        return $this->xref->usesXrefStreams;
+    }
+
+    /** Byte offset (relative to the %PDF header) of the newest revision's xref - the /Prev of an appended revision. */
+    public function lastStartxref(): int
+    {
+        return $this->xref->startxref;
+    }
+
+    /** Highest object number in use; new objects start at maxObjectNumber() + 1. */
+    public function maxObjectNumber(): int
+    {
+        $highest = $this->xref->entries === [] ? 0 : max(array_keys($this->xref->entries));
+        $size = DictReader::int($this->xref->trailer, 'Size', $this->resolve(...)) ?? 0;
+        return max($highest, $size - 1);
+    }
+
+    /** Generation recorded in the xref for an in-file object (0 when absent). */
+    public function generationOf(int $objectNumber): int
+    {
+        $entry = $this->xref->entries[$objectNumber] ?? null;
+        return $entry !== null && $entry->kind === XrefEntryKind::InFile ? $entry->second : 0;
+    }
+
     public function version(): string
     {
         $override = DictReader::name($this->catalog(), 'Version', $this->resolve(...));
