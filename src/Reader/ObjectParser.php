@@ -28,8 +28,8 @@ final readonly class ObjectParser
 {
     /**
      * @param ?\Closure(PdfReference): PdfObject $lengthResolver resolves an
-     *        indirect /Length while reading a stream payload (Task 4); when
-     *        null or failing, the parser falls back to scanning for endstream
+     *        indirect /Length while reading a stream payload; when null or
+     *        failing, the parser falls back to scanning for endstream
      */
     public function __construct(
         private Lexer $lexer,

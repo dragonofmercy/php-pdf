@@ -11,8 +11,8 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 
 /**
  * Locates and parses the cross-reference data of a PDF file: classic xref
- * tables and (Task 8) cross-reference streams, following /Prev chains across
- * incremental revisions (Task 9).
+ * tables and cross-reference streams, following /Prev chains across
+ * incremental revisions and /XRefStm in hybrid-reference files.
  *
  * @internal
  */
