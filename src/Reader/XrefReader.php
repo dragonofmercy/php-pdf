@@ -19,6 +19,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 final readonly class XrefReader
 {
     private const int STARTXREF_SEARCH_WINDOW = 2048;
+    private const int XREF_RECOVERY_WINDOW = 512;
 
     public function __construct(
         private string $bytes,
@@ -88,10 +89,37 @@ final readonly class XrefReader
             throw new PdfParseException("xref offset {$offset} is outside the file");
         }
         $lexer = new Lexer($this->bytes, $absolute);
-        if ($lexer->peek()->isKeyword('xref')) {
+        $first = $lexer->peek();
+        if ($first->isKeyword('xref')) {
             return $this->readClassicSection($lexer);
         }
-        return $this->readStreamSection($lexer, $offset);
+        if ($first->type === TokenType::Integer) {
+            // The offset points to what looks like an indirect object - parse it as an xref stream.
+            // Content-level errors (bad /W, truncated data) must propagate unchanged.
+            return $this->readStreamSection($lexer, $offset);
+        }
+        // The offset is wrong: no "xref" keyword and no object-number integer.
+        // Scan nearby for a classic xref table.
+        return $this->recoverXrefNear($absolute, $offset);
+    }
+
+    /**
+     * Leniency: the startxref value is slightly wrong (a few bytes off, e.g.
+     * because another tool inserted bytes without adjusting the offset). Scan
+     * a window around the recorded position for a classic "xref" table header.
+     */
+    private function recoverXrefNear(int $absolute, int $offset): XrefData
+    {
+        $windowStart = max($this->headerOffset, $absolute - self::XREF_RECOVERY_WINDOW);
+        $window = substr($this->bytes, $windowStart, 2 * self::XREF_RECOVERY_WINDOW);
+        $pos = strpos($window, 'xref');
+        if ($pos !== false) {
+            $lexer = new Lexer($this->bytes, $windowStart + $pos);
+            if ($lexer->peek()->isKeyword('xref')) {
+                return $this->readClassicSection($lexer);
+            }
+        }
+        throw new PdfParseException("xref section not found near offset {$offset} (recovery scan failed)");
     }
 
     private function readStreamSection(Lexer $lexer, int $offset): XrefData
