@@ -18,6 +18,7 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\FormField;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Import\ImportedPageTemplate;
 use DragonOfMercy\PhpPdf\Markdown\BoxRenderer;
 use DragonOfMercy\PhpPdf\Markdown\BreakMode;
 use DragonOfMercy\PhpPdf\Markdown\MarkdownParser;
@@ -68,6 +69,9 @@ final class Page
 
     /** @var array<string, true> Short names of images this page references */
     private array $imagesUsed = [];
+
+    /** @var array<string, true> Short names of imported templates this page references */
+    private array $templatesUsed = [];
 
     /** @var list<LinkAnnotation> Link annotations declared via {@see link()}, emitted by Document. */
     private array $linkAnnotations = [];
@@ -322,6 +326,15 @@ final class Page
     public function imagesUsed(): array
     {
         return array_keys($this->imagesUsed);
+    }
+
+    /**
+     * @internal
+     * @return list<string>
+     */
+    public function templatesUsed(): array
+    {
+        return array_keys($this->templatesUsed);
     }
 
     // ----- Primitives -----
@@ -1488,6 +1501,60 @@ final class Page
         if ($mcid !== null) {
             $this->stream->endMarkedContent();
         }
+        $this->stream->append(Operators::restoreState());
+    }
+
+    /**
+     * Draws an imported PDF page (Document::importPdf()) as an opaque
+     * background/template at (x, y) in document units. Width only scales
+     * proportionally; height only likewise; both stretch; neither uses the
+     * template's natural size. The cursor does not move. Under tagging the
+     * template is marked as an artifact (imported content has no structure).
+     */
+    public function template(ImportedPageTemplate $template, float $x, float $y, ?float $width = null, ?float $height = null): self
+    {
+        if ($this->document === null) {
+            throw new PdfException('template() requires a page created via Document::addPage()');
+        }
+        $naturalWPt = $template->widthPt();
+        $naturalHPt = $template->heightPt();
+        if ($naturalWPt <= 0 || $naturalHPt <= 0) {
+            throw new PdfException('Imported template has a degenerate page box');
+        }
+        if ($width !== null && $width <= 0.0) {
+            throw new PdfException("Template width must be positive, got {$width}");
+        }
+        if ($height !== null && $height <= 0.0) {
+            throw new PdfException("Template height must be positive, got {$height}");
+        }
+        $wPt = $width !== null ? $this->toPt($width) : null;
+        $hPt = $height !== null ? $this->toPt($height) : null;
+        $effWPt = $wPt ?? ($hPt !== null ? $hPt * $naturalWPt / $naturalHPt : $naturalWPt);
+        $effHPt = $hPt ?? ($wPt !== null ? $wPt * $naturalHPt / $naturalWPt : $naturalHPt);
+        $xPt = $this->toPt($x);
+        $yPt = $this->toPt($y);
+        $shortName = $this->document->registerTemplate($template);
+
+        if ($this->shouldTag()) {
+            $this->withArtifactScope(function () use ($shortName, $effWPt, $effHPt, $naturalWPt, $naturalHPt, $xPt, $yPt): void {
+                $this->drawTemplateXObject($shortName, $effWPt, $effHPt, $naturalWPt, $naturalHPt, $xPt, $yPt);
+            });
+        } else {
+            $this->drawTemplateXObject($shortName, $effWPt, $effHPt, $naturalWPt, $naturalHPt, $xPt, $yPt);
+        }
+        $this->templatesUsed[$shortName] = true;
+        return $this;
+    }
+
+    private function drawTemplateXObject(string $shortName, float $effWPt, float $effHPt, float $naturalWPt, float $naturalHPt, float $xPt, float $yPt): void
+    {
+        $this->stream->append(Operators::saveState());
+        // form XObjects have intrinsic size, so the cm scales by eff/natural;
+        // the -sy and the y offset compensate the page's global top-down flip
+        $this->stream->append(Operators::concatMatrix(
+            $effWPt / $naturalWPt, 0, 0, -($effHPt / $naturalHPt), $xPt, $yPt + $effHPt,
+        ));
+        $this->stream->append(Operators::invokeXObject($shortName));
         $this->stream->append(Operators::restoreState());
     }
 

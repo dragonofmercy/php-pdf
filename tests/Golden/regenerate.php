@@ -1110,7 +1110,14 @@ foreach ($svgBarcodeGoldens as $name => [$class, $method]) {
 $modifyGoldens = [
     'modify/amended-contract.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\PdfModifyTest::class, 'buildAmendedContractBytes'],
 ];
-foreach ($modifyGoldens as $name => [$class, $method]) {
+
+// Template import golden fixtures (Phase 2: importPdf + Page::template)
+$importGoldens = [
+    'import/letterhead-overlay.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\TemplateImportTest::class, 'buildLetterheadOverlayBytes'],
+    'import/rotated-source.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\TemplateImportTest::class, 'buildRotatedImportBytes'],
+];
+
+foreach (array_merge($modifyGoldens, $importGoldens) as $name => [$class, $method]) {
     $path = $fixturesDir . '/' . $name;
     if (!is_dir(dirname($path))) {
         mkdir(dirname($path), 0755, true);

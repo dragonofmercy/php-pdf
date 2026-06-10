@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Encryption;
 use DragonOfMercy\PhpPdf\Document\MetadataStream;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image\ImageStream;
+use DragonOfMercy\PhpPdf\Reader\ReadStream;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -75,6 +76,7 @@ final class ObjectTransformer
             $value instanceof Dictionary => $this->transformDictionary($value),
             $value instanceof PdfArray => $this->transformArray($value),
             $value instanceof Stream => $this->encryptRawStream($value->content()),
+            $value instanceof ReadStream => $this->encryptReadStream($value),
             $value instanceof CompressedStream => $this->encryptCompressedStream($value),
             $value instanceof ImageStream => $this->encryptImageStream($value),
             $value instanceof MetadataStream => $this->encryptRawStream($value->xmpContent())
@@ -112,6 +114,16 @@ final class ObjectTransformer
     {
         $encrypted = $this->cipher->encrypt($content, $this->fileKey, $this->randomSource);
         return new EncryptedStreamBytes(Dictionary::empty(), $encrypted);
+    }
+
+    private function encryptReadStream(ReadStream $stream): EncryptedStreamBytes
+    {
+        // Imported (template) streams: encrypt the raw, still-encoded payload and
+        // transform any strings in the stream dictionary. EncryptedStreamBytes
+        // rewrites /Length from the ciphertext size (correct for AES, whose
+        // output is longer than the plaintext by the IV and padding).
+        $encrypted = $this->cipher->encrypt($stream->rawData(), $this->fileKey, $this->randomSource);
+        return new EncryptedStreamBytes($this->transformDictionary($stream->dict), $encrypted);
     }
 
     private function encryptCompressedStream(CompressedStream $stream): EncryptedStreamBytes

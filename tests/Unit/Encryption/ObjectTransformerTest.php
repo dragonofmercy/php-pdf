@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Document\MetadataStream;
 use DragonOfMercy\PhpPdf\Encryption\Cipher;
 use DragonOfMercy\PhpPdf\Encryption\ObjectTransformer;
 use DragonOfMercy\PhpPdf\Image\ImageStream;
+use DragonOfMercy\PhpPdf\Reader\ReadStream;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -116,6 +117,27 @@ final class ObjectTransformerTest extends TestCase
         self::assertStringNotContainsString($body, $bytes, 'image body must not appear unencrypted');
         // AES-CBC: 16-byte IV + PKCS7-padded ciphertext (a 14-byte body pads to 16).
         self::assertStringContainsString('/Length 32', $bytes);
+    }
+
+    public function testReadStreamRawDataIsEncryptedAndDictionaryPreserved(): void
+    {
+        // imported (template) streams arrive as Reader\ReadStream with their raw,
+        // still-encoded payload; encryption must cipher that payload and keep the
+        // dictionary (recursing into any strings it holds).
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('Note'), PdfString::of('keep me'));
+        $body = 'q Q imported content';
+        $obj = IndirectObject::of(8, 0, new ReadStream($dict, $body));
+
+        $bytes = $this->make()->transform($obj)->toBytes();
+
+        self::assertStringContainsString('/Type /XObject', $bytes);
+        self::assertStringContainsString('/Subtype /Form', $bytes);
+        self::assertStringNotContainsString($body, $bytes, 'template body must not appear unencrypted');
+        self::assertStringNotContainsString('keep me', $bytes, 'dictionary strings must be encrypted too');
+        self::assertSame(1, preg_match('/\/Note <[0-9A-F]+>/', $bytes));
     }
 
     public function testMetadataStreamNotEncryptedWhenFlagFalse(): void

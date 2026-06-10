@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Template import: `Document::importPdf()` / `importPdfBytes()` parse an existing
+  PDF and `Page::template($tpl, $x, $y, $width, $height)` draws any of its pages
+  as an opaque background or stamp (FPDI-style) - letterheads, overlays on scanned
+  forms, watermarking. Page rotation is honored, resources are carried over with
+  renumbering, and templates work together with encryption, tagging (marked as
+  artifacts), and signatures. Encrypted source files are rejected.
 - PDF reader foundation (`PdfReader`): parse existing non-encrypted PDFs -
   classic xref tables and cross-reference streams (with /Prev revision chains
   and hybrid-reference files), object streams, FlateDecode (PNG/TIFF

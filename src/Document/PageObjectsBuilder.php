@@ -39,9 +39,10 @@ use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
 final readonly class PageObjectsBuilder
 {
     /**
-     * @param array<string, PdfReference> $fontRefs   standard-font short name => reference
-     * @param array<string, PdfReference> $customRefs custom-font short name => Type0 reference
-     * @param array<string, PdfReference> $imageRefs  image short name => main image reference
+     * @param array<string, PdfReference> $fontRefs     standard-font short name => reference
+     * @param array<string, PdfReference> $customRefs    custom-font short name => Type0 reference
+     * @param array<string, PdfReference> $imageRefs     image short name => main image reference
+     * @param array<string, PdfReference> $templateRefs  imported-template short name => Form XObject reference
      */
     public function __construct(
         private PdfObjectAllocator $allocator,
@@ -52,6 +53,7 @@ final readonly class PageObjectsBuilder
         private array $fontRefs,
         private array $customRefs,
         private array $imageRefs,
+        private array $templateRefs = [],
     ) {}
 
     /**
@@ -208,12 +210,19 @@ final readonly class PageObjectsBuilder
             }
             $resources = $resources->withEntry(Name::of('Font'), $fontDict);
         }
-        if ($pageImages !== []) {
+        $pageTemplates = $page->templatesUsed();
+        if ($pageImages !== [] || $pageTemplates !== []) {
             $xObjectDict = Dictionary::empty();
             foreach ($pageImages as $imageShort) {
                 $xObjectDict = $xObjectDict->withEntry(
                     Name::of($imageShort),
                     $this->imageRefs[$imageShort],
+                );
+            }
+            foreach ($pageTemplates as $templateShort) {
+                $xObjectDict = $xObjectDict->withEntry(
+                    Name::of($templateShort),
+                    $this->templateRefs[$templateShort],
                 );
             }
             $resources = $resources->withEntry(Name::of('XObject'), $xObjectDict);

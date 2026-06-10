@@ -33,9 +33,12 @@ use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
+use DragonOfMercy\PhpPdf\Import\ImportedPageTemplate;
+use DragonOfMercy\PhpPdf\Import\ImportedPdf;
 use DragonOfMercy\PhpPdf\Outline\OutlineEmitter;
 use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Page\ColumnLayout;
+use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\AppendedFieldRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
@@ -92,6 +95,9 @@ final class Document
     private readonly FontRegistry $fontRegistry;
     private readonly MetricsRegistry $metricsRegistry;
     private readonly ImageRegistry $imageRegistry;
+
+    /** @var array<int, array{0: string, 1: ImportedPageTemplate}> keyed by spl_object_id */
+    private array $importedTemplates = [];
 
     private ?Metadata $metadata = null;
     private ?Encryption $encryption = null;
@@ -242,6 +248,50 @@ final class Document
     public function fontResolver(): ?FontResolver
     {
         return $this->fontResolver;
+    }
+
+    /**
+     * Parses an existing PDF file so its pages can be drawn as templates
+     * via Page::template(). Encrypted files are rejected.
+     */
+    public function importPdf(string $path): ImportedPdf
+    {
+        return new ImportedPdf(PdfReader::fromFile($path));
+    }
+
+    /** Same as importPdf() but from in-memory bytes. */
+    public function importPdfBytes(string $bytes): ImportedPdf
+    {
+        return new ImportedPdf(PdfReader::fromBytes($bytes));
+    }
+
+    /**
+     * Assigns (or returns) the document-wide short name for an imported page
+     * template (Tpl1, Tpl2, ...).
+     *
+     * @internal
+     */
+    public function registerTemplate(ImportedPageTemplate $template): string
+    {
+        $id = spl_object_id($template);
+        if (!isset($this->importedTemplates[$id])) {
+            $shortName = 'Tpl' . (count($this->importedTemplates) + 1);
+            $this->importedTemplates[$id] = [$shortName, $template];
+        }
+        return $this->importedTemplates[$id][0];
+    }
+
+    /**
+     * @internal
+     * @return array<string, ImportedPageTemplate> short name => template
+     */
+    public function registeredTemplates(): array
+    {
+        $byName = [];
+        foreach ($this->importedTemplates as [$shortName, $template]) {
+            $byName[$shortName] = $template;
+        }
+        return $byName;
     }
 
     private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
@@ -1432,6 +1482,7 @@ final class Document
             unit: $this->unit,
             customFontFamilies: $this->customFontFamilies,
             signature: $this->signature,
+            importedTemplates: $this->registeredTemplates(),
         );
         $emit = $emitter->emit($this->pages, new PdfObjectAllocator($firstObjectNumber), $pagesRef);
 
