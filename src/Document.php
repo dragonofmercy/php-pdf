@@ -40,14 +40,12 @@ use DragonOfMercy\PhpPdf\Outline\OutlineNode;
 use DragonOfMercy\PhpPdf\Page\ColumnLayout;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
-use DragonOfMercy\PhpPdf\Signature\AppendedFieldRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
 use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
-use DragonOfMercy\PhpPdf\Signature\ContentRangePatcher;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
+use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
 use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
-use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevisionBuilder;
 use DragonOfMercy\PhpPdf\Signature\Ltv\HttpCrlValidationDataSource;
 use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationDataSource;
 use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
@@ -61,7 +59,6 @@ use DragonOfMercy\PhpPdf\Tagging\StructTreeEmitter;
 use DragonOfMercy\PhpPdf\Tagging\StructureTree;
 use DragonOfMercy\PhpPdf\Tagging\TaggingConformanceGuard;
 use DragonOfMercy\PhpPdf\Text\Direction;
-use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -1278,55 +1275,7 @@ final class Document
     private function outputWithAppendedRevisions(): string
     {
         ['bytes' => $bytes, 'context' => $ctx] = $this->buildRevisionOne();
-
-        $builder = new AppendedFieldRevisionBuilder();
-        foreach ($this->appendedRevisions as $revision) {
-            if ($revision instanceof DssRevision) {
-                $built = (new DssRevisionBuilder())->build($ctx, $revision->material);
-                $prevStartxref = $this->lastStartxrefOffset($bytes);
-                $bytes = (new IncrementalWriter())->append(
-                    priorBytes: $bytes,
-                    newObjects: $built['objects'],
-                    root: $ctx->catalog->reference(),
-                    documentId: $ctx->documentId,
-                    prevStartxref: $prevStartxref,
-                    size: $built['size'],
-                );
-                $ctx = $built['context'];
-                continue;
-            }
-
-            $built = $builder->build($ctx, $revision->valueDict(...), $revision->fieldName());
-
-            $searchFrom = strlen($bytes);
-            $prevStartxref = $this->lastStartxrefOffset($bytes);
-            $bytes = (new IncrementalWriter())->append(
-                priorBytes: $bytes,
-                newObjects: $built['objects'],
-                root: $ctx->catalog->reference(),
-                documentId: $ctx->documentId,
-                prevStartxref: $prevStartxref,
-                size: $built['size'],
-            );
-            $bytes = (new ContentRangePatcher())->patch(
-                $bytes,
-                $searchFrom,
-                $revision->maxSignatureBytes() * 2,
-                $revision->fill(...),
-            );
-
-            $ctx = $built['context'];
-        }
-
-        return $bytes;
-    }
-
-    private function lastStartxrefOffset(string $bytes): int
-    {
-        if (preg_match('~startxref\n(\d+)\n%%EOF\n?$~', $bytes, $m) !== 1) {
-            throw new PdfException('Could not locate the revision-1 startxref offset');
-        }
-        return (int) $m[1];
+        return (new IncrementalRevisionStacker())->stack($bytes, $ctx, $this->appendedRevisions);
     }
 
     /**
