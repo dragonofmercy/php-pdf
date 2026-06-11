@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Signature;
 
 use Closure;
+use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -131,6 +132,116 @@ final readonly class AppendedFieldRevisionBuilder
             catalog: $newCatalog,
             acroForm: $newAcroForm,
             firstPage: $ctx->firstPage,
+            maxObjectNumber: $maxObjectNumber,
+            documentId: $ctx->documentId,
+        );
+
+        return ['objects' => $objects, 'size' => $maxObjectNumber + 1, 'context' => $context];
+    }
+
+    /**
+     * Creates a NEW visible /FT /Sig field on $targetPage: non-zero /Rect, an
+     * /AP /N Form XObject rendering the caption with a self-contained Helvetica
+     * font, threaded into the AcroForm /Fields and the page /Annots, /SigFlags 3.
+     *
+     * @param Closure(int): IndirectObject $valueDictFactory
+     * @param list<float> $rect [llx, lly, urx, ury]
+     * @return array{objects: list<IndirectObject>, size: int, context: RevisionContext}
+     */
+    public function buildVisible(
+        RevisionContext $ctx,
+        Closure $valueDictFactory,
+        string $fieldName,
+        IndirectObject $targetPage,
+        array $rect,
+        SignatureAppearance $appearance,
+    ): array {
+        $valueId = $ctx->maxObjectNumber + 1;
+        $fontId = $ctx->maxObjectNumber + 2;
+        $apId = $ctx->maxObjectNumber + 3;
+        $fieldId = $ctx->maxObjectNumber + 4;
+        $acroFormId = $ctx->maxObjectNumber + 5; // standalone case only
+        $fieldRef = PdfReference::to($fieldId, 0);
+
+        $objects = [];
+        $objects[] = $valueDictFactory($valueId);
+
+        $fontDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Font'))
+            ->withEntry(Name::of('Subtype'), Name::of('Type1'))
+            ->withEntry(Name::of('BaseFont'), Name::of('Helvetica'));
+        $objects[] = IndirectObject::of($fontId, 0, $fontDict);
+
+        $appearanceBuilt = (new SignatureAppearanceBuilder())->build($appearance);
+        $bbox = $appearanceBuilt['bbox'];
+        $apDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($bbox[0]),
+                PdfNumber::ofFloat($bbox[1]),
+                PdfNumber::ofFloat($bbox[2]),
+                PdfNumber::ofFloat($bbox[3]),
+            ))
+            ->withEntry(Name::of('Resources'), Dictionary::empty()
+                ->withEntry(Name::of('Font'),
+                    Dictionary::empty()->withEntry(Name::of('Helv'), PdfReference::to($fontId, 0))));
+        $objects[] = IndirectObject::of($apId, 0, CompressedStream::of($appearanceBuilt['content'], $apDict));
+
+        $fieldDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('Annot'))
+            ->withEntry(Name::of('Subtype'), Name::of('Widget'))
+            ->withEntry(Name::of('FT'), Name::of('Sig'))
+            ->withEntry(Name::of('Rect'), PdfArray::of(
+                PdfNumber::ofFloat($rect[0]),
+                PdfNumber::ofFloat($rect[1]),
+                PdfNumber::ofFloat($rect[2]),
+                PdfNumber::ofFloat($rect[3]),
+            ))
+            ->withEntry(Name::of('T'), PdfString::of($fieldName))
+            ->withEntry(Name::of('V'), PdfReference::to($valueId, 0))
+            ->withEntry(Name::of('AP'), Dictionary::empty()
+                ->withEntry(Name::of('N'), PdfReference::to($apId, 0)))
+            ->withEntry(Name::of('F'), PdfNumber::ofInt(4));
+        $objects[] = IndirectObject::of($fieldId, 0, $fieldDict);
+
+        if ($ctx->acroForm === null) {
+            $acroFormDict = Dictionary::empty()
+                ->withEntry(Name::of('Fields'), PdfArray::of($fieldRef))
+                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
+            $newAcroForm = IndirectObject::of($acroFormId, 0, $acroFormDict);
+            $objects[] = $newAcroForm;
+
+            $catalogDict = $ctx->catalog->dictionaryPayload()
+                ->withEntry(Name::of('AcroForm'), PdfReference::to($acroFormId, 0));
+            $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
+            $objects[] = $newCatalog;
+            $maxObjectNumber = $acroFormId;
+        } else {
+            $acroFormDict = $ctx->acroForm->dictionaryPayload();
+            $fields = self::arrayEntry($acroFormDict, 'Fields');
+            $acroFormDict = $acroFormDict
+                ->withEntry(Name::of('Fields'), PdfArray::of(...[...$fields, $fieldRef]))
+                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
+            $newAcroForm = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroFormDict);
+            $objects[] = $newAcroForm;
+            $newCatalog = $ctx->catalog;
+            $maxObjectNumber = max($fieldId, $ctx->acroForm->objectNumber);
+        }
+
+        $pageDict = $targetPage->dictionaryPayload();
+        $annots = self::arrayEntry($pageDict, 'Annots');
+        $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...[...$annots, $fieldRef]));
+        $newPage = IndirectObject::of($targetPage->objectNumber, 0, $pageDict);
+        $objects[] = $newPage;
+        $maxObjectNumber = max($maxObjectNumber, $targetPage->objectNumber);
+
+        $newFirstPage = $newPage->objectNumber === $ctx->firstPage->objectNumber ? $newPage : $ctx->firstPage;
+
+        $context = new RevisionContext(
+            catalog: $newCatalog,
+            acroForm: $newAcroForm,
+            firstPage: $newFirstPage,
             maxObjectNumber: $maxObjectNumber,
             documentId: $ctx->documentId,
         );

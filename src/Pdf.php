@@ -34,6 +34,8 @@ use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
+use DragonOfMercy\PhpPdf\Signature\SignatureAppearance;
+use DragonOfMercy\PhpPdf\Signature\SignatureFieldPlan;
 use DragonOfMercy\PhpPdf\Signature\SignatureFormat;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
@@ -69,6 +71,9 @@ final class Pdf
 
     /** @var list<AppendedRevision|DssRevision> */
     private array $appendedRevisions = [];
+
+    /** @var array<string, SignatureAppearance> */
+    private array $signatureAppearances = [];
 
     private readonly Unit $unit;
     private readonly FontRegistry $fontRegistry;
@@ -486,9 +491,10 @@ final class Pdf
         int $maxSignatureBytes = 16384,
         ?Tsa $timestamp = null,
         SignatureFormat $format = SignatureFormat::Pkcs7Detached,
+        ?SignatureAppearance $appearance = null,
     ): self {
         $this->queueSignature($field, $certificate, $reason, $location, $contactInfo,
-            $signedAt, $maxSignatureBytes, $timestamp, $format);
+            $signedAt, $maxSignatureBytes, $timestamp, $format, $appearance);
         return $this;
     }
 
@@ -505,10 +511,11 @@ final class Pdf
         int $maxSignatureBytes = 16384,
         ?Tsa $timestamp = null,
         SignatureFormat $format = SignatureFormat::Pkcs7Detached,
+        ?SignatureAppearance $appearance = null,
     ): self {
         $name = 'Signature' . (count($this->appendedRevisions) + 1);
         $this->queueSignature($name, $certificate, $reason, $location, $contactInfo,
-            $signedAt, $maxSignatureBytes, $timestamp, $format);
+            $signedAt, $maxSignatureBytes, $timestamp, $format, $appearance);
         return $this;
     }
 
@@ -522,6 +529,7 @@ final class Pdf
         int $maxSignatureBytes,
         ?Tsa $timestamp,
         SignatureFormat $format,
+        ?SignatureAppearance $appearance,
     ): void {
         $signature = new Signature(
             $certificate,
@@ -535,6 +543,9 @@ final class Pdf
             $format,
         );
         $this->appendedRevisions[] = new AppendedSignature($signature);
+        if ($appearance !== null) {
+            $this->signatureAppearances[$field] = $appearance;
+        }
     }
 
     public function output(): string
@@ -548,22 +559,26 @@ final class Pdf
         }
 
         ['bytes' => $bytes, 'context' => $ctx] = $this->buildSigningBase();
-        $reuse = $this->resolveSignatureFields();
-        return (new IncrementalRevisionStacker())->stack($bytes, $ctx, $this->appendedRevisions, $reuse);
+        $plans = $this->resolveSignatureFields();
+        return (new IncrementalRevisionStacker())->stack($bytes, $ctx, $this->appendedRevisions, $plans);
     }
 
     /**
-     * For each queued signature, decides reuse vs create and validates the field:
-     * - name matches an existing terminal /FT /Sig field with no /V  -> reuse it
-     * - name matches an existing field that is NOT a signature field -> throw
-     * - name matches an existing signature field already signed       -> throw
-     * - no match -> create a new field (no map entry)
+     * For each queued signature, decides how its field is realized and validates:
+     * - appearance != null -> create a VISIBLE field on the chosen page; if a
+     *   field of that name already exists, throw (a visible signature creates a
+     *   new field).
+     * - appearance == null + existing empty /FT /Sig field -> reuse it.
+     * - appearance == null + non-signature field           -> throw.
+     * - appearance == null + already-signed field          -> throw.
+     * - appearance == null + no field                      -> create invisible
+     *   (no plan entry).
      *
-     * @return array<string, IndirectObject>
+     * @return array<string, SignatureFieldPlan>
      */
     private function resolveSignatureFields(): array
     {
-        $reuse = [];
+        $plans = [];
         $terminals = [];
         foreach ($this->fieldTree()->terminalFields() as $rf) {
             $terminals[$rf->name] = $rf;
@@ -573,7 +588,19 @@ final class Pdf
                 continue;
             }
             $name = $rev->fieldName();
+            $appearance = $this->signatureAppearances[$name] ?? null;
             $rf = $terminals[$name] ?? null;
+
+            if ($appearance !== null) {
+                if ($rf !== null) {
+                    throw new PdfException("A field named '{$name}' already exists; omit the appearance to sign it in place, or use a new field name for a visible signature");
+                }
+                $page = $this->pageObjectAt($appearance->pageIndex);
+                $rect = $this->appearanceRect($appearance, $page);
+                $plans[$name] = SignatureFieldPlan::visible($page, $rect, $appearance);
+                continue;
+            }
+
             if ($rf === null) {
                 continue;
             }
@@ -584,9 +611,49 @@ final class Pdf
                 throw new PdfException("Field '{$name}' is already signed");
             }
             $this->guardGenerationZero($rf->objectNumber, "signature field '{$name}'");
-            $reuse[$name] = IndirectObject::of($rf->objectNumber, 0, $rf->dict);
+            $plans[$name] = SignatureFieldPlan::reuse(IndirectObject::of($rf->objectNumber, 0, $rf->dict));
         }
-        return $reuse;
+        return $plans;
+    }
+
+    /**
+     * Converts an appearance box (document unit, y top-down) to a PDF /Rect
+     * [llx, lly, urx, ury] in points, flipped against the target page MediaBox.
+     *
+     * @return list<float>
+     */
+    private function appearanceRect(SignatureAppearance $appearance, IndirectObject $page): array
+    {
+        $mediaBox = $this->pageMediaBox($page);
+        $llx = $mediaBox[0] + $appearance->x;
+        $urx = $mediaBox[0] + $appearance->x + $appearance->width;
+        $ury = $mediaBox[3] - $appearance->y;
+        $lly = $mediaBox[3] - $appearance->y - $appearance->height;
+        return [$llx, $lly, $urx, $ury];
+    }
+
+    /**
+     * Reads the /MediaBox of a page object (corner-normalized [llx,lly,urx,ury]
+     * in points). Library-emitted pages always carry their own /MediaBox.
+     *
+     * @return list<float>
+     */
+    private function pageMediaBox(IndirectObject $page): array
+    {
+        $raw = $page->dictionaryPayload()->get(Name::of('MediaBox'));
+        $resolved = $raw !== null ? $this->reader->resolve($raw) : null;
+        if (!$resolved instanceof PdfArray || count($resolved->elements()) !== 4) {
+            throw new PdfException('Cannot place a visible signature: the target page has no usable /MediaBox');
+        }
+        $out = [];
+        foreach ($resolved->elements() as $el) {
+            $n = $this->reader->resolve($el);
+            if (!$n instanceof PdfNumber) {
+                throw new PdfException('Target page /MediaBox contains a non-numeric element');
+            }
+            $out[] = (float) $n->value();
+        }
+        return $out;
     }
 
     public function save(string $path): void
