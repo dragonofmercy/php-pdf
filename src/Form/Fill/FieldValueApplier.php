@@ -47,6 +47,8 @@ final class FieldValueApplier
             FormFieldType::Text => $this->applyText($rf, $value, $allocate),
             FormFieldType::Checkbox => $this->applyCheckbox($rf, $value),
             FormFieldType::Radio => $this->applyRadio($rf, $value),
+            FormFieldType::Combobox => $this->applyCombobox($rf, $value, $allocate),
+            FormFieldType::Listbox => $this->applyListbox($rf, $value, $allocate),
             default => throw new PdfException(
                 "FieldValueApplier: type not yet supported: {$rf->type->name} (field '{$rf->name}')",
             ),
@@ -188,6 +190,326 @@ final class FieldValueApplier
             }
         }
         return null;
+    }
+
+    /**
+     * Builds an export->display map and export->index map from /Opt in the merged field dict.
+     *
+     * /Opt elements are either:
+     *   - a plain text string (export == display), or
+     *   - a 2-element PdfArray [export, display].
+     *
+     * @return array{exportToDisplay: array<string, string>, exportToIndex: array<string, int>}
+     */
+    private function parseOptMap(ResolvedField $rf): array
+    {
+        $optRaw = $rf->dict->get(Name::of('Opt'));
+        if ($optRaw === null) {
+            return ['exportToDisplay' => [], 'exportToIndex' => []];
+        }
+        $opt = $this->reader->resolve($optRaw);
+        if (!$opt instanceof PdfArray) {
+            return ['exportToDisplay' => [], 'exportToIndex' => []];
+        }
+        $exportToDisplay = [];
+        $exportToIndex = [];
+        foreach ($opt->elements() as $i => $element) {
+            $resolved = $this->reader->resolve($element);
+            if ($resolved instanceof PdfArray) {
+                $subelements = $resolved->elements();
+                $export = DictReader::decodeText($this->reader->resolve($subelements[0] ?? Name::of(''))) ?? '';
+                $display = DictReader::decodeText($this->reader->resolve($subelements[1] ?? Name::of(''))) ?? $export;
+            } else {
+                $text = DictReader::decodeText($resolved) ?? '';
+                $export = $text;
+                $display = $text;
+            }
+            $exportToDisplay[$export] = $display;
+            $exportToIndex[$export] = $i;
+        }
+        return ['exportToDisplay' => $exportToDisplay, 'exportToIndex' => $exportToIndex];
+    }
+
+    /**
+     * @param string|bool|array<mixed> $value
+     * @param callable(): int $allocate
+     */
+    private function applyCombobox(ResolvedField $rf, string|bool|array $value, callable $allocate): AppliedField
+    {
+        // 1. Validate value type
+        if (!is_string($value)) {
+            $options = implode(', ', $rf->options);
+            throw new PdfException(
+                "Field '{$rf->name}' is a combobox; value must be a string (one of: {$options})",
+            );
+        }
+
+        // 2. Validate value is a known export value
+        if (!in_array($value, $rf->options, true)) {
+            $options = implode(', ', $rf->options);
+            throw new PdfException(
+                "Field '{$rf->name}': '{$value}' is not a valid option (expected one of: {$options})",
+            );
+        }
+
+        // 3. Get the display text for this export value
+        $optMap = $this->parseOptMap($rf);
+        $displayText = $optMap['exportToDisplay'][$value] ?? $value;
+
+        // 4. Determine the widget object number (combobox = field == widget, single object)
+        $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
+
+        // 5. Read /Rect to get w,h
+        $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
+        if (!$widgetResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': widget object {$widgetNum} does not resolve to a Dictionary",
+            );
+        }
+        $widgetDict = $widgetResolved;
+
+        $rectRaw = $widgetDict->get(Name::of('Rect'));
+        if ($rectRaw === null) {
+            throw new PdfException(
+                "Field '{$rf->name}': widget object {$widgetNum} has no /Rect entry",
+            );
+        }
+        $rectObj = $this->reader->resolve($rectRaw);
+        if (!$rectObj instanceof PdfArray) {
+            throw new PdfException(
+                "Field '{$rf->name}': /Rect in widget object {$widgetNum} is not an array",
+            );
+        }
+        $rectElements = $rectObj->elements();
+        if (count($rectElements) !== 4) {
+            throw new PdfException(
+                "Field '{$rf->name}': /Rect must have 4 numbers, got " . count($rectElements),
+            );
+        }
+        $coords = [];
+        foreach ($rectElements as $el) {
+            $resolved = $this->reader->resolve($el);
+            if (!$resolved instanceof PdfNumber) {
+                throw new PdfException(
+                    "Field '{$rf->name}': /Rect contains a non-numeric element",
+                );
+            }
+            $coords[] = (float) $resolved->value();
+        }
+        [$llx, $lly, $urx, $ury] = $coords;
+        $w = abs($urx - $llx);
+        $h = abs($ury - $lly);
+
+        // 6. Effective DA
+        $daString = $rf->defaultAppearance ?? $this->acroFormDefaultDA() ?? '0 g /Helv 10 Tf';
+        $da = DefaultAppearance::parse($daString);
+
+        // 7. Resolve DR font
+        [$font, $drFontRef, $usedAlias] = $this->resolveDrFont($rf, $da->fontAlias);
+
+        // 8. Quadding
+        $q = DictReader::int($rf->dict, 'Q', $this->reader->resolve(...)) ?? 0;
+
+        // 9. Build single-line appearance using TextAppearanceBuilder
+        $builder = new TextAppearanceBuilder($this->metrics);
+        $result = $builder->build($displayText, $w, $h, $da, $font, $usedAlias, $q, false);
+        $content = $result['content'];
+        $bbox = $result['bbox'];
+
+        // 10. Assemble Form XObject
+        $apDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($bbox[0]),
+                PdfNumber::ofFloat($bbox[1]),
+                PdfNumber::ofFloat($bbox[2]),
+                PdfNumber::ofFloat($bbox[3]),
+            ))
+            ->withEntry(Name::of('Resources'), Dictionary::empty()
+                ->withEntry(Name::of('Font'),
+                    Dictionary::empty()->withEntry(Name::of($usedAlias), $drFontRef)));
+        $apStream = CompressedStream::of($content, $apDict);
+        $apNum = $allocate();
+        $apObj = IndirectObject::of($apNum, 0, $apStream);
+
+        // 11. Re-emit the field/widget object from its ORIGINAL dict
+        $fieldObjNum = $rf->objectNumber;
+        $fieldResolved = $this->reader->resolve($this->reader->object($fieldObjNum));
+        if (!$fieldResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': field object {$fieldObjNum} does not resolve to a Dictionary",
+            );
+        }
+        $apAnnotDict = Dictionary::empty()
+            ->withEntry(Name::of('N'), PdfReference::to($apNum, 0));
+
+        $combined = $fieldResolved
+            ->withEntry(Name::of('V'), TextString::of($value))
+            ->withEntry(Name::of('AP'), $apAnnotDict);
+
+        return new AppliedField([IndirectObject::of($fieldObjNum, 0, $combined), $apObj]);
+    }
+
+    /**
+     * @param string|bool|array<mixed> $value
+     * @param callable(): int $allocate
+     */
+    private function applyListbox(ResolvedField $rf, string|bool|array $value, callable $allocate): AppliedField
+    {
+        // 1. Validate and normalize value
+        if (is_bool($value)) {
+            throw new PdfException(
+                "Field '{$rf->name}' is a listbox; value must be a string or array of strings",
+            );
+        }
+
+        if (is_array($value)) {
+            if (!$rf->isMultiSelect()) {
+                throw new PdfException(
+                    "Field '{$rf->name}' is single-select; value must be a string",
+                );
+            }
+            /** @var list<string> $selected */
+            $selected = array_values($value);
+        } else {
+            $selected = [$value];
+        }
+
+        // 2. Validate all selected values exist in options
+        $optMap = $this->parseOptMap($rf);
+        $exportToDisplay = $optMap['exportToDisplay'];
+        $exportToIndex = $optMap['exportToIndex'];
+
+        foreach ($selected as $sel) {
+            if (!in_array($sel, $rf->options, true)) {
+                $options = implode(', ', $rf->options);
+                throw new PdfException(
+                    "Field '{$rf->name}': '{$sel}' is not a valid option (expected one of: {$options})",
+                );
+            }
+        }
+
+        // 3. Build /V value object
+        if (count($selected) === 1) {
+            $vObject = TextString::of($selected[0]);
+        } else {
+            $textStrings = [];
+            foreach ($selected as $sel) {
+                $textStrings[] = TextString::of($sel);
+            }
+            $vObject = PdfArray::of(...$textStrings);
+        }
+
+        // 4. Build /I indices (sorted ascending)
+        $indices = [];
+        foreach ($selected as $sel) {
+            if (isset($exportToIndex[$sel])) {
+                $indices[] = $exportToIndex[$sel];
+            }
+        }
+        sort($indices);
+        $iNumbers = [];
+        foreach ($indices as $idx) {
+            $iNumbers[] = PdfNumber::ofInt($idx);
+        }
+        $iObject = PdfArray::of(...$iNumbers);
+
+        // 5. Determine widget and read /Rect
+        $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
+        $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
+        if (!$widgetResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': widget object {$widgetNum} does not resolve to a Dictionary",
+            );
+        }
+        $widgetDict = $widgetResolved;
+
+        $rectRaw = $widgetDict->get(Name::of('Rect'));
+        if ($rectRaw === null) {
+            throw new PdfException(
+                "Field '{$rf->name}': widget object {$widgetNum} has no /Rect entry",
+            );
+        }
+        $rectObj = $this->reader->resolve($rectRaw);
+        if (!$rectObj instanceof PdfArray) {
+            throw new PdfException(
+                "Field '{$rf->name}': /Rect in widget object {$widgetNum} is not an array",
+            );
+        }
+        $rectElements = $rectObj->elements();
+        if (count($rectElements) !== 4) {
+            throw new PdfException(
+                "Field '{$rf->name}': /Rect must have 4 numbers, got " . count($rectElements),
+            );
+        }
+        $coords = [];
+        foreach ($rectElements as $el) {
+            $resolved = $this->reader->resolve($el);
+            if (!$resolved instanceof PdfNumber) {
+                throw new PdfException(
+                    "Field '{$rf->name}': /Rect contains a non-numeric element",
+                );
+            }
+            $coords[] = (float) $resolved->value();
+        }
+        [$llx, $lly, $urx, $ury] = $coords;
+        $w = abs($urx - $llx);
+        $h = abs($ury - $lly);
+
+        // 6. Effective DA
+        $daString = $rf->defaultAppearance ?? $this->acroFormDefaultDA() ?? '0 g /Helv 10 Tf';
+        $da = DefaultAppearance::parse($daString);
+
+        // 7. Resolve DR font
+        [$font, $drFontRef, $usedAlias] = $this->resolveDrFont($rf, $da->fontAlias);
+
+        // 8. Build display options list (preserving /Opt order)
+        $displayOptions = [];
+        foreach ($rf->options as $exportVal) {
+            $displayOptions[] = $exportToDisplay[$exportVal] ?? $exportVal;
+        }
+
+        // 9. Build listbox appearance
+        $builder = new ListboxAppearanceBuilder();
+        $result = $builder->build($displayOptions, $indices, $w, $h, $da, $font, $usedAlias);
+        $content = $result['content'];
+        $bbox = $result['bbox'];
+
+        // 10. Assemble Form XObject
+        $apDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($bbox[0]),
+                PdfNumber::ofFloat($bbox[1]),
+                PdfNumber::ofFloat($bbox[2]),
+                PdfNumber::ofFloat($bbox[3]),
+            ))
+            ->withEntry(Name::of('Resources'), Dictionary::empty()
+                ->withEntry(Name::of('Font'),
+                    Dictionary::empty()->withEntry(Name::of($usedAlias), $drFontRef)));
+        $apStream = CompressedStream::of($content, $apDict);
+        $apNum = $allocate();
+        $apObj = IndirectObject::of($apNum, 0, $apStream);
+
+        // 11. Re-emit field/widget object from ORIGINAL dict
+        $fieldObjNum = $rf->objectNumber;
+        $fieldResolved = $this->reader->resolve($this->reader->object($fieldObjNum));
+        if (!$fieldResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': field object {$fieldObjNum} does not resolve to a Dictionary",
+            );
+        }
+        $apAnnotDict = Dictionary::empty()
+            ->withEntry(Name::of('N'), PdfReference::to($apNum, 0));
+
+        $combined = $fieldResolved
+            ->withEntry(Name::of('V'), $vObject)
+            ->withEntry(Name::of('I'), $iObject)
+            ->withEntry(Name::of('AP'), $apAnnotDict);
+
+        return new AppliedField([IndirectObject::of($fieldObjNum, 0, $combined), $apObj]);
     }
 
     /**
