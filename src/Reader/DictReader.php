@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Reader;
 
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
+use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 
 /**
  * Typed extraction of Dictionary entries with optional reference resolution.
@@ -66,6 +69,35 @@ final readonly class DictReader
     {
         $value = self::entry($dict, $key, $resolve);
         return $value instanceof Dictionary ? $value : null;
+    }
+
+    /**
+     * Decodes a PDF text-string object (TextString, PdfString, or HexString
+     * with optional UTF-16BE BOM \xFE\xFF) to a PHP UTF-8 string.
+     * Returns null for a null input, an invalid hex payload, or any other type.
+     */
+    public static function decodeText(?PdfObject $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof TextString) {
+            return $value->value();
+        }
+        if ($value instanceof PdfString) {
+            return $value->value();
+        }
+        if ($value instanceof HexString) {
+            $binary = hex2bin($value->hex());
+            if ($binary === false) {
+                return null;
+            }
+            if (str_starts_with($binary, "\xFE\xFF")) {
+                return mb_convert_encoding(substr($binary, 2), 'UTF-8', 'UTF-16BE');
+            }
+            return $binary;
+        }
+        return null;
     }
 
     /** @param ?\Closure(PdfObject): PdfObject $resolve */

@@ -8,13 +8,10 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
-use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
-use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 
 /**
  * Walks the AcroForm field tree of an opened PDF, resolving inheritance and
@@ -58,7 +55,7 @@ final class FieldTree
         }
 
         // Seed the inherited /DA from the AcroForm dict
-        $inheritedDa = $this->extractString($acroForm->get(Name::of('DA')));
+        $inheritedDa = DictReader::decodeText($acroForm->get(Name::of('DA')));
 
         /** @var array{ft: ?string, ff: int, v: ?PdfObject, da: ?string} $inherited */
         $inherited = ['ft' => null, 'ff' => 0, 'v' => null, 'da' => $inheritedDa];
@@ -66,6 +63,8 @@ final class FieldTree
         $results = [];
         foreach ($fields->elements() as $fieldRef) {
             $resolved = $this->reader->resolve($fieldRef);
+            // 0 is the free-list head sentinel used for directly-inlined (non-indirect)
+            // field dicts; conforming PDFs always use indirect field objects.
             $objNum = $fieldRef instanceof PdfReference ? $fieldRef->objectNumber : 0;
             if (!$resolved instanceof Dictionary) {
                 continue;
@@ -89,18 +88,18 @@ final class FieldTree
         int $depth,
     ): void {
         if ($depth > self::MAX_DEPTH) {
-            throw new PdfException('AcroForm field tree depth exceeds ' . self::MAX_DEPTH . '; possible circular reference');
+            throw new PdfException('AcroForm field tree depth exceeds ' . self::MAX_DEPTH . '; possible circular reference or unusually deep hierarchy');
         }
 
         // Merge inheritable attributes: own value wins over inherited
         $ft = DictReader::name($dict, 'FT', $this->reader->resolve(...)) ?? $inherited['ft'];
         $ownFf = DictReader::int($dict, 'Ff', $this->reader->resolve(...));
         $ff = $ownFf !== null ? $ownFf : $inherited['ff'];
-        $ownDa = $this->extractString($dict->get(Name::of('DA')));
+        $ownDa = DictReader::decodeText($dict->get(Name::of('DA')));
         $da = $ownDa ?? $inherited['da'];
 
         // Build qualified name from /T partial name
-        $partialT = $this->extractString($dict->get(Name::of('T')));
+        $partialT = DictReader::decodeText($dict->get(Name::of('T')));
         if ($partialT !== null && $partialT !== '') {
             $qualifiedName = $qualifiedPrefix !== '' ? $qualifiedPrefix . '.' . $partialT : $partialT;
         } else {
@@ -111,7 +110,7 @@ final class FieldTree
         $kidsRaw = $dict->get(Name::of('Kids'));
         if ($kidsRaw === null) {
             // No kids: this is a terminal field that is its own single widget
-            $resolved = $this->buildResolvedField($objNum, $dict, [$objNum], $qualifiedName, $ft, $ff, $da);
+            $resolved = $this->buildResolvedField($objNum, $dict, [$objNum], $qualifiedName, $ft, $ff, $da, $inherited['v']);
             if ($resolved !== null) {
                 $results[] = $resolved;
             }
@@ -130,22 +129,23 @@ final class FieldTree
 
         // Determine if kids have /T (non-terminal = recurse) or no /T (terminal = widgets)
         // A field's kids that carry /T are sub-fields; kids without /T are widget annotations
-        $firstKidWithT = false;
+        $anyKidHasPartialName = false;
         foreach ($kidElements as $kidRef) {
             $kidDict = $this->reader->resolve($kidRef);
             if (!$kidDict instanceof Dictionary) {
                 continue;
             }
-            $kidT = $this->extractString($kidDict->get(Name::of('T')));
+            $kidT = DictReader::decodeText($kidDict->get(Name::of('T')));
             if ($kidT !== null && $kidT !== '') {
-                $firstKidWithT = true;
+                $anyKidHasPartialName = true;
                 break;
             }
         }
 
-        if ($firstKidWithT) {
+        if ($anyKidHasPartialName) {
             // Non-terminal: recurse into each kid as a sub-field
-            $childInherited = ['ft' => $ft, 'ff' => $ff, 'v' => $inherited['v'], 'da' => $da];
+            $inheritedV = $dict->get(Name::of('V')) ?? $inherited['v'];
+            $childInherited = ['ft' => $ft, 'ff' => $ff, 'v' => $inheritedV, 'da' => $da];
             foreach ($kidElements as $kidRef) {
                 $kidObjNum = $kidRef instanceof PdfReference ? $kidRef->objectNumber : 0;
                 $kidDict = $this->reader->resolve($kidRef);
@@ -164,7 +164,7 @@ final class FieldTree
                 }
             }
 
-            $resolved = $this->buildResolvedField($objNum, $dict, $widgetObjNums, $qualifiedName, $ft, $ff, $da);
+            $resolved = $this->buildResolvedField($objNum, $dict, $widgetObjNums, $qualifiedName, $ft, $ff, $da, $inherited['v']);
             if ($resolved !== null) {
                 $results[] = $resolved;
             }
@@ -182,9 +182,17 @@ final class FieldTree
         ?string $ft,
         int $ff,
         ?string $da,
+        ?PdfObject $inheritedV,
     ): ?ResolvedField {
         if ($ft === null) {
             return null;
+        }
+
+        // /V is inheritable (ISO 32000-1 12.7.3.2): when the terminal field's
+        // own dict has no /V but an ancestor passed one down, inject it so that
+        // downstream value reads see the inherited value.
+        if ($dict->get(Name::of('V')) === null && $inheritedV !== null) {
+            $dict = $dict->withEntry(Name::of('V'), $inheritedV);
         }
 
         $type = $this->resolveType($ft, $ff);
@@ -261,14 +269,14 @@ final class FieldTree
                 // [export, display] pair: use export (first element)
                 $elements = $resolved->elements();
                 if (isset($elements[0])) {
-                    $export = $this->extractString($this->reader->resolve($elements[0]));
+                    $export = DictReader::decodeText($this->reader->resolve($elements[0]));
                     if ($export !== null) {
                         $options[] = $export;
                     }
                 }
             } else {
                 // Plain text string = export==display
-                $value = $this->extractString($resolved);
+                $value = DictReader::decodeText($resolved);
                 if ($value !== null) {
                     $options[] = $value;
                 }
@@ -318,33 +326,5 @@ final class FieldTree
         }
 
         return $options;
-    }
-
-    /**
-     * Decodes a PDF text-string object (PdfString, TextString, or HexString
-     * with optional UTF-16BE BOM) to a PHP string. Returns null for other types.
-     */
-    private function extractString(?PdfObject $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-        if ($value instanceof TextString) {
-            return $value->value();
-        }
-        if ($value instanceof PdfString) {
-            return $value->value();
-        }
-        if ($value instanceof HexString) {
-            $binary = hex2bin($value->hex());
-            if ($binary === false) {
-                return null;
-            }
-            if (str_starts_with($binary, "\xFE\xFF")) {
-                return mb_convert_encoding(substr($binary, 2), 'UTF-8', 'UTF-16BE');
-            }
-            return $binary;
-        }
-        return null;
     }
 }

@@ -22,7 +22,6 @@ use DragonOfMercy\PhpPdf\Modify\RevisionWriter;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
-use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
@@ -30,7 +29,6 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
 
@@ -433,7 +431,7 @@ final class Pdf
         $metadata = new Metadata();
         $apply = static function (string $key, callable $set) use ($merged): void {
             $value = $merged->get(Name::of($key));
-            $text = $value !== null ? self::decodeText($value) : null;
+            $text = $value !== null ? DictReader::decodeText($value) : null;
             if ($text !== null) {
                 $set($text);
             }
@@ -444,28 +442,6 @@ final class Pdf
         $apply('Keywords', $metadata->keywords(...));
         $apply('Creator', $metadata->creator(...));
         return (new XmpWriter())->write($metadata);
-    }
-
-    /** Decode a PDF text-string object (PdfString or UTF-16BE HexString) to UTF-8, best-effort. */
-    private static function decodeText(PdfObject $value): ?string
-    {
-        if ($value instanceof TextString) {
-            return $value->value();
-        }
-        if ($value instanceof PdfString) {
-            return $value->value();
-        }
-        if ($value instanceof HexString) {
-            $binary = hex2bin($value->hex());
-            if ($binary === false) {
-                return null;
-            }
-            if (str_starts_with($binary, "\xFE\xFF")) {
-                return mb_convert_encoding(substr($binary, 2), 'UTF-8', 'UTF-16BE');
-            }
-            return $binary;
-        }
-        return null;
     }
 
     private function guardGenerationZero(int $objectNumber, string $what): void
