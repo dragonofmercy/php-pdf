@@ -6,7 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Modify;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
 use DragonOfMercy\PhpPdf\Unit;
@@ -70,7 +70,7 @@ final class PdfMetadataTest extends TestCase
     public function testSetTitleAppendsARevisionPreservingOriginalBytes(): void
     {
         $source = self::sourceWithInfoAndId();
-        $pdf = Pdf::fromBytes($source);
+        $pdf = PdfEditor::fromBytes($source);
         $bytes = $pdf->setTitle('Amended title')->output();
 
         // the original bytes stay byte-for-byte intact at the head of the file
@@ -86,7 +86,7 @@ final class PdfMetadataTest extends TestCase
 
     public function testAllSettersLand(): void
     {
-        $pdf = Pdf::fromBytes(self::sourceWithInfoAndId());
+        $pdf = PdfEditor::fromBytes(self::sourceWithInfoAndId());
         $bytes = $pdf->setTitle('T')->setAuthor('A')->setSubject('S')->setKeywords('K')->setCreator('C')->output();
         $reader = PdfReader::fromBytes($bytes);
         $info = self::infoDictionary($reader);
@@ -97,7 +97,7 @@ final class PdfMetadataTest extends TestCase
 
     public function testSourceWithoutInfoGetsANewInfoObject(): void
     {
-        $pdf = Pdf::fromBytes(self::bareSource());
+        $pdf = PdfEditor::fromBytes(self::bareSource());
         $bytes = $pdf->setTitle('Fresh')->output();
         $reader = PdfReader::fromBytes($bytes);
         $info = self::infoDictionary($reader);
@@ -107,7 +107,7 @@ final class PdfMetadataTest extends TestCase
     public function testXmpIsRefreshedWhenCatalogHasMetadata(): void
     {
         // a Document WITH metadata() emits a /Metadata XMP stream
-        $pdf = Pdf::fromBytes(self::sourceWithInfoAndId());
+        $pdf = PdfEditor::fromBytes(self::sourceWithInfoAndId());
         $bytes = $pdf->setTitle('XMP title')->output();
         $reader = PdfReader::fromBytes($bytes);
         $metadata = $reader->resolve($reader->catalog()->get(Name::of('Metadata')) ?? PdfNull::instance());
@@ -117,7 +117,7 @@ final class PdfMetadataTest extends TestCase
 
     public function testOutputWithoutChangesThrows(): void
     {
-        $pdf = Pdf::fromBytes(self::bareSource());
+        $pdf = PdfEditor::fromBytes(self::bareSource());
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('No pending changes');
         $pdf->output();
@@ -125,7 +125,7 @@ final class PdfMetadataTest extends TestCase
 
     public function testOutputIsIdempotent(): void
     {
-        $pdf = Pdf::fromBytes(self::sourceWithInfoAndId())->setTitle('Same');
+        $pdf = PdfEditor::fromBytes(self::sourceWithInfoAndId())->setTitle('Same');
         self::assertSame($pdf->output(), $pdf->output());
     }
 
@@ -138,7 +138,7 @@ final class PdfMetadataTest extends TestCase
         $doc->addPage();
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('ncrypted');
-        Pdf::fromBytes($doc->output());
+        PdfEditor::fromBytes($doc->output());
     }
 
     public function testSaveWritesAFile(): void
@@ -146,7 +146,7 @@ final class PdfMetadataTest extends TestCase
         $path = tempnam(sys_get_temp_dir(), 'phppdf_modify_');
         self::assertIsString($path);
         try {
-            Pdf::fromBytes(self::sourceWithInfoAndId())->setTitle('Saved')->save($path);
+            PdfEditor::fromBytes(self::sourceWithInfoAndId())->setTitle('Saved')->save($path);
             $reader = PdfReader::fromFile($path);
             self::assertSame(1, $reader->pageCount());
         } finally {
@@ -171,7 +171,7 @@ final class PdfMetadataTest extends TestCase
             $process->run();
             self::assertSame(0, $process->getExitCode());
 
-            $bytes = Pdf::open($out)->setTitle('Stream revision')->output();
+            $bytes = PdfEditor::open($out)->setTitle('Stream revision')->output();
             $reader = PdfReader::fromBytes($bytes);
             self::assertTrue($reader->usesXrefStreams());
             $info = self::infoDictionary($reader);

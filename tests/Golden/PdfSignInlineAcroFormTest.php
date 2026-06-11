@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Tests\Support\TestCertificate;
 use PHPUnit\Framework\TestCase;
@@ -45,7 +45,7 @@ final class PdfSignInlineAcroFormTest extends TestCase
         }
         $gen = TestCertificate::generate();
         $cred = SigningCertificate::fromPkcs12Bytes($gen['p12'], $gen['password']);
-        $pdf = Pdf::fromBytes($this->inlineAcroFormPdf());
+        $pdf = PdfEditor::fromBytes($this->inlineAcroFormPdf());
         $pdf->sign($cred, field: 'Sig');
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('~/AcroForm is a direct dictionary~');

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Tests\Support\TestCertificate;
 use PHPUnit\Framework\TestCase;
@@ -63,7 +63,7 @@ final class PdfSignExistingTest extends TestCase
         }
         $source = $this->sourcePdf();
         [$cred, $certPem] = $this->cred();
-        $pdf = Pdf::fromBytes($source);
+        $pdf = PdfEditor::fromBytes($source);
         $pdf->sign($cred, field: 'SignatureExisting', reason: 'Approved');
         $bytes = $pdf->output();
 
@@ -79,7 +79,7 @@ final class PdfSignExistingTest extends TestCase
             self::markTestSkipped('openssl unavailable');
         }
         [$cred] = $this->cred();
-        $pdf = Pdf::fromBytes($this->sourcePdf());
+        $pdf = PdfEditor::fromBytes($this->sourcePdf());
         self::assertSame($pdf, $pdf->addSignature($cred));
     }
 }

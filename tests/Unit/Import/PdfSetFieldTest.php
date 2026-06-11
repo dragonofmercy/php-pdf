@@ -11,11 +11,11 @@ use DragonOfMercy\PhpPdf\Form\Checkbox;
 use DragonOfMercy\PhpPdf\Form\Listbox;
 use DragonOfMercy\PhpPdf\Form\PushButton;
 use DragonOfMercy\PhpPdf\Form\TextField;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests Pdf::setField() validation and PendingChanges::fieldEdits recording (Task 10).
+ * Tests PdfEditor::setField() validation and PendingChanges::fieldEdits recording (Task 10).
  */
 final class PdfSetFieldTest extends TestCase
 {
@@ -54,7 +54,7 @@ final class PdfSetFieldTest extends TestCase
 
     public function testSetFieldUnknownNameThrowsWithSuggestion(): void
     {
-        $pdf = Pdf::fromBytes(self::buildTextFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildTextFormPdf());
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/city/');
@@ -63,7 +63,7 @@ final class PdfSetFieldTest extends TestCase
 
     public function testReadOnlyThrowsUnlessForced(): void
     {
-        $pdf = Pdf::fromBytes(self::buildReadOnlyFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildReadOnlyFormPdf());
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/read-only/i');
@@ -72,14 +72,14 @@ final class PdfSetFieldTest extends TestCase
 
     public function testReadOnlyWithForcedDoesNotThrowAndReturnsSelf(): void
     {
-        $pdf = Pdf::fromBytes(self::buildReadOnlyFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildReadOnlyFormPdf());
         $result = $pdf->setField('locked', 'X', force: true);
         self::assertSame($pdf, $result);
     }
 
     public function testTypeMismatchThrows(): void
     {
-        $pdf = Pdf::fromBytes(self::buildTextFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildTextFormPdf());
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/expects a string/i');
@@ -88,7 +88,7 @@ final class PdfSetFieldTest extends TestCase
 
     public function testPushButtonRejected(): void
     {
-        $pdf = Pdf::fromBytes(self::buildPushButtonFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildPushButtonFormPdf());
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/cannot be filled/i');
@@ -97,7 +97,7 @@ final class PdfSetFieldTest extends TestCase
 
     public function testRecordsEditAndLastWriteWins(): void
     {
-        $pdf = Pdf::fromBytes(self::buildTextFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildTextFormPdf());
 
         $result = $pdf->setField('city', 'A')->setField('city', 'B');
 
@@ -116,7 +116,7 @@ final class PdfSetFieldTest extends TestCase
     {
         $doc = new Document();
         $doc->addPage();
-        $pdf = Pdf::fromBytes($doc->output());
+        $pdf = PdfEditor::fromBytes($doc->output());
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/no AcroForm/i');
@@ -125,14 +125,14 @@ final class PdfSetFieldTest extends TestCase
 
     public function testCheckboxAcceptsBoolAndReturnsFluentSelf(): void
     {
-        $pdf = Pdf::fromBytes(self::buildCheckboxAndListboxPdf());
+        $pdf = PdfEditor::fromBytes(self::buildCheckboxAndListboxPdf());
         $result = $pdf->setField('agree', true);
         self::assertSame($pdf, $result);
     }
 
     public function testCheckboxRejectsString(): void
     {
-        $pdf = Pdf::fromBytes(self::buildCheckboxAndListboxPdf());
+        $pdf = PdfEditor::fromBytes(self::buildCheckboxAndListboxPdf());
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/expects a bool/i');
@@ -141,14 +141,14 @@ final class PdfSetFieldTest extends TestCase
 
     public function testListboxAcceptsArrayAndReturnsSelf(): void
     {
-        $pdf = Pdf::fromBytes(self::buildCheckboxAndListboxPdf());
+        $pdf = PdfEditor::fromBytes(self::buildCheckboxAndListboxPdf());
         $result = $pdf->setField('tags', ['a']);
         self::assertSame($pdf, $result);
     }
 
     public function testListboxAcceptsStringAndReturnsSelf(): void
     {
-        $pdf = Pdf::fromBytes(self::buildCheckboxAndListboxPdf());
+        $pdf = PdfEditor::fromBytes(self::buildCheckboxAndListboxPdf());
         $result = $pdf->setField('tags', 'a');
         self::assertSame($pdf, $result);
     }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Import;
 
 use DragonOfMercy\PhpPdf\Document;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use PHPUnit\Framework\TestCase;
 
@@ -15,7 +15,7 @@ final class PdfRevisionContextTest extends TestCase
     {
         $doc = new Document();
         $doc->addPage();
-        $pdf = Pdf::fromBytes($doc->output());
+        $pdf = PdfEditor::fromBytes($doc->output());
         $m = new \ReflectionMethod($pdf, 'buildSigningBase');
         $result = $m->invoke($pdf);
         self::assertIsArray($result);
@@ -37,7 +37,7 @@ final class PdfRevisionContextTest extends TestCase
         $doc->metadata()->title('Orig');
         $doc->addPage();
         $base = $doc->output();
-        $pdf = Pdf::fromBytes($base);
+        $pdf = PdfEditor::fromBytes($base);
         $pdf->setTitle('Edited');
         $m = new \ReflectionMethod($pdf, 'buildSigningBase');
         $result = $m->invoke($pdf);

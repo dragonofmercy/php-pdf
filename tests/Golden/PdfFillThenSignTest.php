@@ -6,7 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Form\TextField;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Tests\Support\TestCertificate;
 use PHPUnit\Framework\TestCase;
@@ -33,7 +33,7 @@ final class PdfFillThenSignTest extends TestCase
         $gen = TestCertificate::generate();
         $cred = SigningCertificate::fromPkcs12Bytes($gen['p12'], $gen['password']);
 
-        $pdf = Pdf::fromBytes($source);
+        $pdf = PdfEditor::fromBytes($source);
         $pdf->setField('FullName', 'Alice Example');
         $pdf->sign($cred, field: 'Approval');
         $bytes = $pdf->output();

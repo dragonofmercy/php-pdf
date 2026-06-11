@@ -8,7 +8,7 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Form\SignatureField;
 use DragonOfMercy\PhpPdf\Form\TextField;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Tests\Support\TestCertificate;
 use PHPUnit\Framework\TestCase;
@@ -38,7 +38,7 @@ final class PdfSignExistingFieldReuseTest extends TestCase
         // The source already defines the empty field exactly once.
         self::assertSame(1, substr_count($src, '(CounterSign)'));
 
-        $pdf = Pdf::fromBytes($src);
+        $pdf = PdfEditor::fromBytes($src);
         $pdf->sign($this->cred(), field: 'CounterSign');
         $bytes = $pdf->output();
 
@@ -61,7 +61,7 @@ final class PdfSignExistingFieldReuseTest extends TestCase
         $doc = new Document();
         $page = $doc->addPage();
         $page->field(new TextField(20, 20, 80, 12, name: 'Name'));
-        $pdf = Pdf::fromBytes($doc->output());
+        $pdf = PdfEditor::fromBytes($doc->output());
         // Validation lives at output() (all field resolution in one place), so
         // the exception surfaces when the revision is actually built.
         $pdf->sign($this->cred(), field: 'Name');

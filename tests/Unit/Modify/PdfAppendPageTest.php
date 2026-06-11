@@ -6,7 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Modify;
 
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Document;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
 use DragonOfMercy\PhpPdf\Unit;
@@ -28,7 +28,7 @@ final class PdfAppendPageTest extends TestCase
 
     public function testAppendedPageIncreasesPageCount(): void
     {
-        $pdf = Pdf::fromBytes(self::source(2));
+        $pdf = PdfEditor::fromBytes(self::source(2));
         $page = $pdf->appendPage();
         $page->setFont(Font::helvetica(), 12);
         $page->text(50, 50, 'Appended content');
@@ -47,7 +47,7 @@ final class PdfAppendPageTest extends TestCase
 
     public function testAppendedPageHasOwnAttributesAndRotateZero(): void
     {
-        $pdf = Pdf::fromBytes(self::source());
+        $pdf = PdfEditor::fromBytes(self::source());
         $pdf->appendPage();
         $reader = PdfReader::fromBytes($pdf->output());
         $page = $reader->page(2);
@@ -60,7 +60,7 @@ final class PdfAppendPageTest extends TestCase
     public function testExistingPagesAreUntouched(): void
     {
         $source = self::source(2);
-        $pdf = Pdf::fromBytes($source);
+        $pdf = PdfEditor::fromBytes($source);
         $pdf->appendPage();
         $bytes = $pdf->output();
         $reader = PdfReader::fromBytes($bytes);
@@ -71,7 +71,7 @@ final class PdfAppendPageTest extends TestCase
 
     public function testMultiplePagesAndMetadataInOneRevision(): void
     {
-        $pdf = Pdf::fromBytes(self::source());
+        $pdf = PdfEditor::fromBytes(self::source());
         $pdf->setTitle('With pages');
         $pdf->appendPage();
         $pdf->appendPage();
@@ -81,7 +81,7 @@ final class PdfAppendPageTest extends TestCase
 
     public function testImagesWorkOnAppendedPages(): void
     {
-        $pdf = Pdf::fromBytes(self::source());
+        $pdf = PdfEditor::fromBytes(self::source());
         $page = $pdf->appendPage();
         $page->image(self::anyJpegAsset(), 10, 10, 100);
         $reader = PdfReader::fromBytes($pdf->output());
@@ -105,7 +105,7 @@ final class PdfAppendPageTest extends TestCase
             file_put_contents($in, self::source());
             (new Process([$qpdf, '--object-streams=generate', $in, $out]))->run();
 
-            $pdf = Pdf::open($out);
+            $pdf = PdfEditor::open($out);
             $page = $pdf->appendPage();
             $page->setFont(Font::helvetica(), 12);
             $page->text(50, 50, 'On a stream source');

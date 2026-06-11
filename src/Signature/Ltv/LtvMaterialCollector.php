@@ -10,7 +10,7 @@ use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 /**
  * Collects LTV validation material (certificate chains + CRLs/OCSPs) for a set
  * of signing certificates and optional TSA chains, with the empty-result
- * guards. Shared by Document::enableLtv() and Pdf::enableLtv().
+ * guards. Shared by Document::enableLtv() and PdfEditor::enableLtv().
  *
  * @internal
  */

@@ -1105,7 +1105,7 @@ foreach ($svgBarcodeGoldens as $name => [$class, $method]) {
     echo "Regenerated {$name}\n";
 }
 
-// Incremental modification golden (Pdf::open + metadata + appendPage).
+// Incremental modification golden (PdfEditor::open + metadata + appendPage).
 // The source asset (assets/modify/contract.pdf) is committed and read as-is.
 $modifyGoldens = [
     'modify/amended-contract.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\PdfModifyTest::class, 'buildAmendedContractBytes'],

@@ -8,8 +8,8 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 
 /**
  * Optional visible appearance for a signature placed on an existing PDF via
- * Pdf::sign(). The widget is drawn on the existing page $pageIndex (0-based);
- * x/y/width/height are in the document unit (Pdf opens in points) with y
+ * PdfEditor::sign(). The widget is drawn on the existing page $pageIndex (0-based);
+ * x/y/width/height are in the document unit (PdfEditor opens in points) with y
  * top-down (flipped against the page MediaBox at emit time). $caption, when
  * set, is rendered as Helvetica text lines inside the box.
  */

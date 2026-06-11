@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Sign an existing PDF opened with `Pdf::open()` / `Pdf::fromBytes()`: `sign()`,
+- Sign an existing PDF opened with `PdfEditor::open()` / `PdfEditor::fromBytes()`: `sign()`,
   `addSignature()`, `addDocumentTimestamp()`, and `enableLtv()` with full parity to
   `Document` (RFC 3161 timestamps, the PAdES profiles, and LTV/DSS with CRL/OCSP),
   each written as a stacked incremental revision that leaves the original bytes
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (signature intact, valid, covering the entire file). Limitations: visible
   captions use Standard-14 Helvetica only; a source whose `/AcroForm` is a direct
   (inline) dictionary is rejected (indirect `/AcroForm` references only).
-- AcroForm field reading and filling via `Pdf::open()` / `Pdf::fromBytes()`:
+- AcroForm field reading and filling via `PdfEditor::open()` / `PdfEditor::fromBytes()`:
   inspect every terminal field with `formFields()` (returns `list<FormFieldInfo>`)
   or `field($name)`, then fill text (single-line and multiline), checkbox (bool),
   radio (export-name string), combobox (export key), and listbox (string or
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inherited attributes (`PdfReader::fromFile()`, `pageCount()`, `page()`).
   Groundwork for template import and incremental modification of existing
   files; encrypted input is rejected with a clear error.
-- Modify existing PDFs: `Pdf::open($path)` / `Pdf::fromBytes($bytes)` open any
+- Modify existing PDFs: `PdfEditor::open($path)` / `PdfEditor::fromBytes($bytes)` open any
   non-encrypted PDF and write changes as an appended incremental revision (the
   original bytes - and any signatures they carry - stay untouched): update
   metadata (`setTitle` / `setAuthor` / `setSubject` / `setKeywords` /

@@ -13,7 +13,7 @@ use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
  * Stacks a list of appended incremental revisions (signatures, document
  * timestamps, a DSS) onto already-finalized PDF bytes, evolving the
  * RevisionContext between each so later revisions cover all earlier ones.
- * Shared by Document and Pdf.
+ * Shared by Document and PdfEditor.
  *
  * @internal
  */

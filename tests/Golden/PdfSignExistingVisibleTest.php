@@ -6,7 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\SignatureAppearance;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Tests\Support\TestCertificate;
@@ -34,7 +34,7 @@ final class PdfSignExistingVisibleTest extends TestCase
         if (!function_exists('openssl_cms_sign')) {
             self::markTestSkipped('openssl unavailable');
         }
-        $pdf = Pdf::fromBytes($this->source());
+        $pdf = PdfEditor::fromBytes($this->source());
         $pdf->sign($this->cred(), field: 'VisSig',
             appearance: new SignatureAppearance(0, 20.0, 20.0, 120.0, 40.0, 'Signed by Test'));
         $bytes = $pdf->output();
@@ -50,7 +50,7 @@ final class PdfSignExistingVisibleTest extends TestCase
         if (!function_exists('openssl_cms_sign')) {
             self::markTestSkipped('openssl unavailable');
         }
-        $pdf = Pdf::fromBytes($this->source());
+        $pdf = PdfEditor::fromBytes($this->source());
         $pdf->sign($this->cred(), field: 'VisSig',
             appearance: new SignatureAppearance(5, 20.0, 20.0, 120.0, 40.0, 'x'));
         $this->expectException(PdfException::class);
@@ -63,7 +63,7 @@ final class PdfSignExistingVisibleTest extends TestCase
         if ($qpdf === null || !function_exists('openssl_cms_sign')) {
             self::markTestSkipped('qpdf or openssl unavailable');
         }
-        $pdf = Pdf::fromBytes($this->source());
+        $pdf = PdfEditor::fromBytes($this->source());
         $pdf->sign($this->cred(), field: 'VisSig',
             appearance: new SignatureAppearance(0, 20.0, 20.0, 120.0, 40.0, 'Signed'));
         $file = (string) tempnam(sys_get_temp_dir(), 'pdfvis');

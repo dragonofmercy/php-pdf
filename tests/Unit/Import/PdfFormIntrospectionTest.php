@@ -10,11 +10,11 @@ use DragonOfMercy\PhpPdf\Form\Combobox;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
 use DragonOfMercy\PhpPdf\Form\Listbox;
 use DragonOfMercy\PhpPdf\Form\TextField;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests Pdf::formFields() and Pdf::field() introspection (Task 3).
+ * Tests PdfEditor::formFields() and PdfEditor::field() introspection (Task 3).
  */
 final class PdfFormIntrospectionTest extends TestCase
 {
@@ -42,7 +42,7 @@ final class PdfFormIntrospectionTest extends TestCase
 
     public function testFormFieldsExposesNamesTypesValues(): void
     {
-        $pdf = Pdf::fromBytes(self::buildFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildFormPdf());
         $fields = $pdf->formFields();
 
         self::assertNotEmpty($fields);
@@ -63,7 +63,7 @@ final class PdfFormIntrospectionTest extends TestCase
 
     public function testComboboxAndListboxCurrentValues(): void
     {
-        $pdf = Pdf::fromBytes(self::buildChoiceFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildChoiceFormPdf());
         $fields = $pdf->formFields();
 
         $byName = [];
@@ -86,7 +86,7 @@ final class PdfFormIntrospectionTest extends TestCase
 
     public function testFieldLookupAndAbsent(): void
     {
-        $pdf = Pdf::fromBytes(self::buildFormPdf());
+        $pdf = PdfEditor::fromBytes(self::buildFormPdf());
 
         $found = $pdf->field('city');
         self::assertNotNull($found);
@@ -99,7 +99,7 @@ final class PdfFormIntrospectionTest extends TestCase
     {
         $doc = new Document();
         $doc->addPage();
-        $pdf = Pdf::fromBytes($doc->output());
+        $pdf = PdfEditor::fromBytes($doc->output());
 
         self::assertSame([], $pdf->formFields());
     }

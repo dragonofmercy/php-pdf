@@ -6,7 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Signature\Ltv\StaticValidationDataSource;
 use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
@@ -22,7 +22,7 @@ final class PdfSignExistingLtvTest extends TestCase
     {
         $doc = new Document();
         $doc->addPage();
-        $pdf = Pdf::fromBytes($doc->output());
+        $pdf = PdfEditor::fromBytes($doc->output());
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('~requires at least one signature~');
         $pdf->enableLtv();
@@ -44,7 +44,7 @@ final class PdfSignExistingLtvTest extends TestCase
             [$pki['crlDer']],
         );
 
-        $pdf = Pdf::fromBytes($source);
+        $pdf = PdfEditor::fromBytes($source);
         $pdf->sign($cred, field: 'LtvSig', reason: 'LTV');
         $pdf->enableLtv(new StaticValidationDataSource($material), Tsa::withClient(new TestTsa()));
         $bytes = $pdf->output();

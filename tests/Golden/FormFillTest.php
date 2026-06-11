@@ -10,13 +10,13 @@ use DragonOfMercy\PhpPdf\Form\Combobox;
 use DragonOfMercy\PhpPdf\Form\Listbox;
 use DragonOfMercy\PhpPdf\Form\Radio;
 use DragonOfMercy\PhpPdf\Form\TextField;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 
 /**
- * Golden test for AcroForm field filling via Pdf::fromBytes() + setField().
+ * Golden test for AcroForm field filling via PdfEditor::fromBytes() + setField().
  * The source form is built deterministically in-test (no stored asset) and the
  * filled output is byte-compared against a committed fixture.
  */
@@ -56,7 +56,7 @@ final class FormFillTest extends TestCase
     public static function buildFilledPdf(): string
     {
         $sourceBytes = self::buildSourceBytes();
-        $pdf = Pdf::fromBytes($sourceBytes);
+        $pdf = PdfEditor::fromBytes($sourceBytes);
         $pdf->setField('name', 'Hello');
         $pdf->setField('bio', 'Line one of a long wrapping string that spans multiple lines in the multiline field.');
         $pdf->setField('agree', true);

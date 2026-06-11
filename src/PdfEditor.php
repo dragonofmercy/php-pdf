@@ -68,7 +68,7 @@ use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
  * inherited /CropBox smaller than that box could still apply, which is
  * harmless in v1.
  */
-final class Pdf
+final class PdfEditor
 {
     private readonly PdfReader $reader;
     private readonly string $bytes;

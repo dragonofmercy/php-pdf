@@ -7,7 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 use DateTimeImmutable;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
-use DragonOfMercy\PhpPdf\Pdf;
+use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
@@ -51,7 +51,7 @@ final class PdfModifyTest extends TestCase
     /** Opens the committed source and writes an amended incremental revision. */
     public static function buildAmendedContractBytes(): string
     {
-        $pdf = Pdf::open(self::SOURCE);
+        $pdf = PdfEditor::open(self::SOURCE);
         $pdf->setTitle('Amended contract')->setAuthor('Modifier');
         $page = $pdf->appendPage();
         $page->setFont(Font::helvetica(), 12);
