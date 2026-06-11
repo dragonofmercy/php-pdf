@@ -45,10 +45,146 @@ final class FieldValueApplier
     {
         return match ($rf->type) {
             FormFieldType::Text => $this->applyText($rf, $value, $allocate),
+            FormFieldType::Checkbox => $this->applyCheckbox($rf, $value),
+            FormFieldType::Radio => $this->applyRadio($rf, $value),
             default => throw new PdfException(
                 "FieldValueApplier: type not yet supported: {$rf->type->name} (field '{$rf->name}')",
             ),
         };
+    }
+
+    /**
+     * @param string|bool|array<mixed> $value
+     */
+    private function applyCheckbox(ResolvedField $rf, string|bool|array $value): AppliedField
+    {
+        if (!is_bool($value)) {
+            throw new PdfException(
+                "Field '{$rf->name}' is a checkbox; value must be a bool",
+            );
+        }
+
+        // The checkbox field and its single widget are the same object.
+        $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
+        $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
+        if (!$widgetResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': checkbox widget object {$widgetNum} does not resolve to a Dictionary",
+            );
+        }
+
+        $onState = $this->onStateName($widgetResolved);
+        if ($onState === null) {
+            throw new PdfException(
+                "Field '{$rf->name}': checkbox widget object {$widgetNum} has no non-Off key in /AP /N; cannot determine on-state",
+            );
+        }
+
+        $target = $value ? $onState : 'Off';
+
+        $updated = $widgetResolved
+            ->withEntry(Name::of('V'), Name::of($target))
+            ->withEntry(Name::of('AS'), Name::of($target));
+
+        return new AppliedField([IndirectObject::of($widgetNum, 0, $updated)]);
+    }
+
+    /**
+     * @param string|bool|array<mixed> $value
+     */
+    private function applyRadio(ResolvedField $rf, string|bool|array $value): AppliedField
+    {
+        if (!is_string($value)) {
+            $options = implode(', ', $rf->options);
+            throw new PdfException(
+                "Field '{$rf->name}' is a radio group; value must be a string (one of: {$options})",
+            );
+        }
+
+        // Build a map: kid object number -> on-state name (the non-Off /AP /N key).
+        /** @var array<int, string> $kidOnState */
+        $kidOnState = [];
+        foreach ($rf->widgetObjectNumbers as $kidNum) {
+            $kidResolved = $this->reader->resolve($this->reader->object($kidNum));
+            if (!$kidResolved instanceof Dictionary) {
+                continue;
+            }
+            $onState = $this->onStateName($kidResolved);
+            if ($onState !== null) {
+                $kidOnState[$kidNum] = $onState;
+            }
+        }
+
+        // Validate that the chosen value matches one of the kids' on-states.
+        $allOnStates = array_values($kidOnState);
+        if (!in_array($value, $allOnStates, true)) {
+            $optionList = implode(', ', $allOnStates !== [] ? $allOnStates : $rf->options);
+            throw new PdfException(
+                "Field '{$rf->name}': '{$value}' is not a valid option (expected one of: {$optionList})",
+            );
+        }
+
+        $objects = [];
+
+        // Re-emit the group parent with /V set to the chosen value.
+        $groupResolved = $this->reader->resolve($this->reader->object($rf->objectNumber));
+        if (!$groupResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': radio group object {$rf->objectNumber} does not resolve to a Dictionary",
+            );
+        }
+        $objects[] = IndirectObject::of(
+            $rf->objectNumber,
+            0,
+            $groupResolved->withEntry(Name::of('V'), Name::of($value)),
+        );
+
+        // Re-emit each kid with /AS set to its on-state or 'Off'.
+        foreach ($rf->widgetObjectNumbers as $kidNum) {
+            $kidResolved = $this->reader->resolve($this->reader->object($kidNum));
+            if (!$kidResolved instanceof Dictionary) {
+                continue;
+            }
+            $onState = $kidOnState[$kidNum] ?? null;
+            $as = ($onState !== null && $onState === $value) ? $value : 'Off';
+            $objects[] = IndirectObject::of(
+                $kidNum,
+                0,
+                $kidResolved->withEntry(Name::of('AS'), Name::of($as)),
+            );
+        }
+
+        return new AppliedField($objects);
+    }
+
+    /**
+     * Returns the non-'Off' key name from /AP /N of a widget dict, or null when
+     * /AP or /N is absent or all keys are 'Off'.
+     */
+    private function onStateName(Dictionary $widgetDict): ?string
+    {
+        $apRaw = $widgetDict->get(Name::of('AP'));
+        if ($apRaw === null) {
+            return null;
+        }
+        $ap = $this->reader->resolve($apRaw);
+        if (!$ap instanceof Dictionary) {
+            return null;
+        }
+        $nRaw = $ap->get(Name::of('N'));
+        if ($nRaw === null) {
+            return null;
+        }
+        $n = $this->reader->resolve($nRaw);
+        if (!$n instanceof Dictionary) {
+            return null;
+        }
+        foreach ($n->entries() as [$key, $_value]) {
+            if ($key->value() !== 'Off') {
+                return $key->value();
+            }
+        }
+        return null;
     }
 
     /**

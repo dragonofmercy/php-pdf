@@ -251,26 +251,24 @@ final class FieldValueApplierTextTest extends TestCase
 
     // -----------------------------------------------------------------------
     // Test 5: unsupported type throws PdfException
-    // Note: The from-scratch API only emits Standard-14 DR fonts (Helv),
-    // so the non-standard-14 BaseFont throw cannot be triggered via Document
-    // construction alone. This test verifies the non-Text-type guard instead.
+    // PushButton is not a fillable field type; applying a value must throw.
     // -----------------------------------------------------------------------
 
     public function testNonTextTypeThrows(): void
     {
-        // Build a PDF with a checkbox (non-Text type)
+        // Build a PDF with a pushbutton (unsupported fill type)
         $doc = new Document();
         $page = $doc->addPage();
-        $page->field(new \DragonOfMercy\PhpPdf\Form\Checkbox(20, 40, 5, 5, name: 'agree'));
+        $page->field(new \DragonOfMercy\PhpPdf\Form\PushButton(20, 40, 30, 8, name: 'submit', caption: 'OK', action: \DragonOfMercy\PhpPdf\Form\ButtonAction::resetForm()));
         $reader = PdfReader::fromBytes($doc->output());
 
         $rf = null;
         foreach ((new FieldTree($reader))->terminalFields() as $f) {
-            if ($f->name === 'agree') {
+            if ($f->name === 'submit') {
                 $rf = $f;
             }
         }
-        self::assertNotNull($rf, 'Field "agree" not found');
+        self::assertNotNull($rf, 'Field "submit" not found');
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/not yet supported/i');

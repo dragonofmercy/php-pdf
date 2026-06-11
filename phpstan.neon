@@ -4,4 +4,6 @@ parameters:
         - src
         - tests
         - examples
+    excludePaths:
+        - '*SFConflict*'
     tmpDir: .phpstan.cache
