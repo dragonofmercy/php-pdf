@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\PdfA;
 
 use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PdfALevelTest extends TestCase
@@ -27,9 +28,7 @@ final class PdfALevelTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider levels
-     */
+    #[DataProvider('levels')]
     public function testProfile(
         PdfALevel $level,
         int $part,

@@ -58,7 +58,8 @@ enum PdfALevel
     }
 
     /**
-     * XMP pdfaid:rev year, or null for parts that use a conformance letter instead.
+     * XMP pdfaid:rev year for PDF/A-4 (2020); null for parts 2-3, which use a
+     * conformance letter instead.
      */
     public function xmpRev(): ?int
     {
