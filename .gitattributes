@@ -1,3 +1,9 @@
+# Normalize all text to LF in the repository and on checkout, regardless of the
+# contributor's core.autocrlf / core.eol setting. This kills the Windows "LF will
+# be replaced by CRLF" warnings and keeps line endings deterministic. The binary
+# and -text rules below are more specific and override this for their paths.
+* text=auto eol=lf
+
 # PDF golden fixtures are byte-identity contracts. They must never be passed
 # through line-ending normalization (core.autocrlf) - doing so corrupts the
 # bytes on checkout and breaks the byte-compare tests. Treat all PDFs as binary.
