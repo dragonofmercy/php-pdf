@@ -533,9 +533,11 @@ final class Pdf
      * Queues a cryptographic signature (PKCS#7 / CMS) over the opened PDF. The
      * signature is written as a stacked incremental revision at output() that
      * covers all prior bytes (including any pending metadata / page / field
-     * edits). $field names the signature field: a new invisible /FT /Sig field
-     * with that name is created on the first page (reusing an existing empty
-     * field of that name comes in a later task). Mirrors Document::sign().
+     * edits). $field names the signature field: if an empty /FT /Sig field of
+     * that name already exists it is reused in place, otherwise a new invisible
+     * /FT /Sig field is created on the first page. Pass $appearance for a
+     * visible field (a box with a Helvetica caption on a chosen page).
+     * Mirrors Document::sign().
      */
     public function sign(
         SigningCertificate $certificate,
