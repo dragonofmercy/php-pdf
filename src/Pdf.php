@@ -28,10 +28,14 @@ use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
+use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
+use DragonOfMercy\PhpPdf\Signature\Signature;
+use DragonOfMercy\PhpPdf\Signature\SignatureFormat;
+use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -462,6 +466,75 @@ final class Pdf
             $name,
         );
         return $this;
+    }
+
+    /**
+     * Queues a cryptographic signature (PKCS#7 / CMS) over the opened PDF. The
+     * signature is written as a stacked incremental revision at output() that
+     * covers all prior bytes (including any pending metadata / page / field
+     * edits). $field names the signature field: a new invisible /FT /Sig field
+     * with that name is created on the first page (reusing an existing empty
+     * field of that name comes in a later task). Mirrors Document::sign().
+     */
+    public function sign(
+        SigningCertificate $certificate,
+        string $field,
+        ?string $reason = null,
+        ?string $location = null,
+        ?string $contactInfo = null,
+        ?\DateTimeImmutable $signedAt = null,
+        int $maxSignatureBytes = 16384,
+        ?Tsa $timestamp = null,
+        SignatureFormat $format = SignatureFormat::Pkcs7Detached,
+    ): self {
+        $this->queueSignature($field, $certificate, $reason, $location, $contactInfo,
+            $signedAt, $maxSignatureBytes, $timestamp, $format);
+        return $this;
+    }
+
+    /**
+     * Queues an additional signature on an auto-named field (Signature1,
+     * Signature2, ...). Mirrors Document::addSignature().
+     */
+    public function addSignature(
+        SigningCertificate $certificate,
+        ?string $reason = null,
+        ?string $location = null,
+        ?string $contactInfo = null,
+        ?\DateTimeImmutable $signedAt = null,
+        int $maxSignatureBytes = 16384,
+        ?Tsa $timestamp = null,
+        SignatureFormat $format = SignatureFormat::Pkcs7Detached,
+    ): self {
+        $name = 'Signature' . (count($this->appendedRevisions) + 1);
+        $this->queueSignature($name, $certificate, $reason, $location, $contactInfo,
+            $signedAt, $maxSignatureBytes, $timestamp, $format);
+        return $this;
+    }
+
+    private function queueSignature(
+        string $field,
+        SigningCertificate $certificate,
+        ?string $reason,
+        ?string $location,
+        ?string $contactInfo,
+        ?\DateTimeImmutable $signedAt,
+        int $maxSignatureBytes,
+        ?Tsa $timestamp,
+        SignatureFormat $format,
+    ): void {
+        $signature = new Signature(
+            $certificate,
+            $field,
+            $reason,
+            $location,
+            $contactInfo,
+            $signedAt ?? new \DateTimeImmutable(),
+            $maxSignatureBytes,
+            $timestamp,
+            $format,
+        );
+        $this->appendedRevisions[] = new AppendedSignature($signature);
     }
 
     public function output(): string
