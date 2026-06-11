@@ -20,7 +20,7 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 
 **Create**
 
-- 📄 **Documents** - standard (A4 / Letter / Legal) and custom sizes, portrait or landscape, multi-page, metadata, AES-256 password protection, viewer hints.
+- 📄 **Documents** - 19 standard sizes (ISO A0-A7, B4 / B5, C-series envelopes, Letter / Legal / Tabloid / Executive / Half-Letter) plus custom sizes, portrait or landscape, multi-page, metadata, AES-256 password protection, viewer hints.
 - 📐 **Coordinates** - millimetres by default (origin top-left), or PDF points via `Unit::PT`.
 - ✏️ **Graphics** - lines, rectangles, circles, paths, fill / stroke, dashes, caps / joins, transforms.
 - 🔤 **Text** - the 12 standard fonts, multi-line, configurable leading, full Western Latin, exact width measurement.

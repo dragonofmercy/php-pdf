@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- 13 new standard page formats on `PageFormat`: ISO A series `A0`, `A1`, `A2`, `A7`;
+  ISO B series `B4`, `B5`; ISO C envelopes `C4`, `C5`, `C6`, `DL`; and North American
+  `TABLOID` (Ledger, 11x17 in), `EXECUTIVE`, and `HALF_LETTER`. Usable anywhere a
+  format is accepted (e.g. `addPage(PageFormat::A2)`); dimensions are exposed in
+  portrait via `PageFormat::dimensionsMm()`.
+
 ## [1.8.0] - 2026-06-11
 
 ### Added
