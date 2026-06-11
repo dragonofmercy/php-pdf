@@ -65,7 +65,10 @@ final class FieldValueApplier
         }
 
         // The checkbox field and its single widget are the same object.
-        $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
+        if ($rf->widgetObjectNumbers === []) {
+            throw new PdfException("Field '{$rf->name}' has no widget annotation");
+        }
+        $widgetNum = $rf->widgetObjectNumbers[0];
         $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
         if (!$widgetResolved instanceof Dictionary) {
             throw new PdfException(

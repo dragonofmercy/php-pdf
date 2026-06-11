@@ -205,4 +205,126 @@ final class FieldValueApplierButtonTest extends TestCase
         (new FieldValueApplier($reader, new MetricsRegistry()))
             ->apply($rf, 'x', self::makeAllocator());
     }
+
+    // -------------------------------------------------------------------------
+    // Test 6: testRadioNonStringThrows
+    // Applying a non-string (bool) to a radio group => PdfException mentioning
+    // the field name.
+    // -------------------------------------------------------------------------
+
+    public function testRadioNonStringThrows(): void
+    {
+        $reader = PdfReader::fromBytes(self::buildPdfWithCheckboxAndRadio());
+        $rf = self::resolveField($reader, 'gender');
+
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/gender/');
+
+        (new FieldValueApplier($reader, new MetricsRegistry()))
+            ->apply($rf, true, self::makeAllocator());
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 7: testCheckboxCustomOnStateName
+    // A checkbox whose /AP /N has a non-'On' key ('Yes') must produce /V = 'Yes'
+    // and /AS = 'Yes' when apply(true) is called.
+    //
+    // Built by hand: a minimal classic-xref PDF with:
+    //   obj 1 : Catalog  /AcroForm /Fields [ 11 0 R ]
+    //   obj 2 : Pages root
+    //   obj 3 : Page  /Annots [ 11 0 R ]
+    //   obj 10: empty Form XObject (on-state appearance stream)
+    //   obj 12: empty Form XObject (Off appearance stream)
+    //   obj 11: combined field+widget /FT /Btn /T (confirm)
+    //           /AP /N << /Yes 10 0 R /Off 12 0 R >>
+    //           /Rect [ 50 700 65 715 ]
+    //           /P 3 0 R
+    // -------------------------------------------------------------------------
+
+    public function testCheckboxCustomOnStateName(): void
+    {
+        $body = "%PDF-1.4\n";
+
+        // obj 1: catalog with inline AcroForm
+        $off1 = strlen($body);
+        $body .= "1 0 obj\n";
+        $body .= "<< /Type /Catalog /Pages 2 0 R\n";
+        $body .= "   /AcroForm << /Fields [ 11 0 R ] >> >>\n";
+        $body .= "endobj\n";
+
+        // obj 2: pages root
+        $off2 = strlen($body);
+        $body .= "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n";
+
+        // obj 3: page
+        $off3 = strlen($body);
+        $body .= "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 595 842 ] /Annots [ 11 0 R ] >>\nendobj\n";
+
+        // obj 10: tiny Form XObject for the 'Yes' (on) appearance
+        $off10 = strlen($body);
+        $body .= "10 0 obj\n";
+        $body .= "<< /Type /XObject /Subtype /Form /BBox [ 0 0 15 15 ] /Length 0 >>\n";
+        $body .= "stream\nendstream\n";
+        $body .= "endobj\n";
+
+        // obj 12: tiny Form XObject for the 'Off' appearance
+        $off12 = strlen($body);
+        $body .= "12 0 obj\n";
+        $body .= "<< /Type /XObject /Subtype /Form /BBox [ 0 0 15 15 ] /Length 0 >>\n";
+        $body .= "stream\nendstream\n";
+        $body .= "endobj\n";
+
+        // obj 11: combined checkbox field+widget with on-state 'Yes' (not 'On')
+        $off11 = strlen($body);
+        $body .= "11 0 obj\n";
+        $body .= "<< /Type /Annot /Subtype /Widget\n";
+        $body .= "   /FT /Btn /T (confirm)\n";
+        $body .= "   /Rect [ 50 700 65 715 ]\n";
+        $body .= "   /AP << /N << /Yes 10 0 R /Off 12 0 R >> >>\n";
+        $body .= "   /P 3 0 R >>\n";
+        $body .= "endobj\n";
+
+        $xrefOffset = strlen($body);
+        $body .= "xref\n";
+        $body .= "0 4\n";
+        $body .= "0000000000 65535 f \n";
+        $body .= str_pad((string) $off1, 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        $body .= str_pad((string) $off2, 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        $body .= str_pad((string) $off3, 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        $body .= "10 3\n";
+        $body .= str_pad((string) $off10, 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        $body .= str_pad((string) $off11, 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        $body .= str_pad((string) $off12, 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        $body .= "trailer\n<< /Size 13 /Root 1 0 R >>\n";
+        $body .= "startxref\n{$xrefOffset}\n%%EOF\n";
+
+        $reader = PdfReader::fromBytes($body);
+        $fields = (new \DragonOfMercy\PhpPdf\Form\Fill\FieldTree($reader))->terminalFields();
+
+        $rf = null;
+        foreach ($fields as $f) {
+            if ($f->name === 'confirm') {
+                $rf = $f;
+            }
+        }
+        if ($rf === null) {
+            self::markTestSkipped('Hand-built PDF did not parse the "confirm" checkbox field; skipping custom on-state test');
+        }
+
+        $applied = (new FieldValueApplier($reader, new MetricsRegistry()))
+            ->apply($rf, true, self::makeAllocator());
+
+        $dict = self::dictForObjectNumber($applied->objects, $rf->objectNumber);
+        self::assertNotNull($dict, 'Re-emitted checkbox object must be a Dictionary');
+
+        $vRaw = $dict->get(Name::of('V'));
+        $asRaw = $dict->get(Name::of('AS'));
+        self::assertInstanceOf(Name::class, $vRaw, '/V must be a Name');
+        self::assertInstanceOf(Name::class, $asRaw, '/AS must be a Name');
+
+        /** @var Name $vRaw */
+        /** @var Name $asRaw */
+        self::assertSame('Yes', $vRaw->value(), '/V must be "Yes" (the custom on-state), not "On"');
+        self::assertSame('Yes', $asRaw->value(), '/AS must be "Yes" (the custom on-state), not "On"');
+    }
 }
