@@ -47,13 +47,9 @@ final readonly class IncrementalRevisionStacker
 
             $name = $revision->fieldName();
             $plan = $plans[$name] ?? null;
-            if ($plan !== null && $plan->mode === 'reuse' && $plan->existingField !== null) {
-                $built = $this->builder->buildReuse($ctx, $revision->valueDict(...), $plan->existingField);
-            } elseif ($plan !== null && $plan->mode === 'visible' && $plan->targetPage !== null && $plan->rect !== null && $plan->appearance !== null) {
-                $built = $this->builder->buildVisible($ctx, $revision->valueDict(...), $name, $plan->targetPage, $plan->rect, $plan->appearance);
-            } else {
-                $built = $this->builder->build($ctx, $revision->valueDict(...), $name);
-            }
+            $built = $plan !== null
+                ? $plan->realize($this->builder, $ctx, $revision->valueDict(...), $name)
+                : $this->builder->build($ctx, $revision->valueDict(...), $name);
 
             $searchFrom = strlen($bytes);
             $prevStartxref = $this->lastStartxrefOffset($bytes);

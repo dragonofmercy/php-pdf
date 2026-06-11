@@ -27,14 +27,17 @@ final readonly class SignatureAppearanceBuilder
     {
         $lines = $ap->caption !== null && $ap->caption !== '' ? explode("\n", $ap->caption) : [];
 
+        $fontSizeStr = self::num(self::FONT_SIZE);
+        $paddingStr = self::num(self::PADDING);
+
         $ops = "/Tx BMC\nq\n";
         $y = $ap->height - self::PADDING - self::FONT_SIZE;
         foreach ($lines as $line) {
             $escaped = PdfLiteralEscape::escape($line);
             $ops .= sprintf(
                 "BT /Helv %s Tf 0 g %s %s Td (%s) Tj ET\n",
-                self::num(self::FONT_SIZE),
-                self::num(self::PADDING),
+                $fontSizeStr,
+                $paddingStr,
                 self::num($y),
                 $escaped,
             );

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Signature;
 
+use Closure;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 
 /**
@@ -14,30 +15,11 @@ use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
  *
  * @internal
  */
-final readonly class SignatureFieldPlan
+interface SignatureFieldPlan
 {
     /**
-     * @param 'reuse'|'visible' $mode
-     * @param list<float>|null $rect [llx, lly, urx, ury] in PDF points (visible)
+     * @param Closure(int): IndirectObject $valueDictFactory
+     * @return array{objects: list<IndirectObject>, size: int, context: RevisionContext}
      */
-    private function __construct(
-        public string $mode,
-        public ?IndirectObject $existingField = null,
-        public ?IndirectObject $targetPage = null,
-        public ?array $rect = null,
-        public ?SignatureAppearance $appearance = null,
-    ) {}
-
-    public static function reuse(IndirectObject $existingField): self
-    {
-        return new self('reuse', existingField: $existingField);
-    }
-
-    /**
-     * @param list<float> $rect
-     */
-    public static function visible(IndirectObject $targetPage, array $rect, SignatureAppearance $appearance): self
-    {
-        return new self('visible', targetPage: $targetPage, rect: $rect, appearance: $appearance);
-    }
+    public function realize(AppendedFieldRevisionBuilder $builder, RevisionContext $ctx, Closure $valueDictFactory, string $fieldName): array;
 }

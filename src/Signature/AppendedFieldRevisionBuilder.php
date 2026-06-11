@@ -56,37 +56,13 @@ final readonly class AppendedFieldRevisionBuilder
             ->withEntry(Name::of('V'), PdfReference::to($valueId, 0));
         $objects[] = IndirectObject::of($fieldId, 0, $fieldDict);
 
-        if ($ctx->acroForm === null) {
-            $acroFormDict = Dictionary::empty()
-                ->withEntry(Name::of('Fields'), PdfArray::of($fieldRef))
-                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
-            $newAcroForm = IndirectObject::of($acroFormId, 0, $acroFormDict);
-            $objects[] = $newAcroForm;
+        $threaded = $this->threadFieldIntoAcroForm($ctx, $fieldRef, $acroFormId, $objects);
+        $newCatalog = $threaded['catalog'];
+        $newAcroForm = $threaded['acroForm'];
+        $maxObjectNumber = max($fieldId, $threaded['maxObjectNumber']);
 
-            $catalogDict = $ctx->catalog->dictionaryPayload()
-                ->withEntry(Name::of('AcroForm'), PdfReference::to($acroFormId, 0));
-            $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
-            $objects[] = $newCatalog;
-        } else {
-            $acroFormDict = $ctx->acroForm->dictionaryPayload();
-            $fields = self::arrayEntry($acroFormDict, 'Fields');
-            $acroFormDict = $acroFormDict
-                ->withEntry(Name::of('Fields'), PdfArray::of(...[...$fields, $fieldRef]))
-                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
-            $newAcroForm = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroFormDict);
-            $objects[] = $newAcroForm;
-            $newCatalog = $ctx->catalog;
-        }
-
-        // The standalone branch also allocates the new AcroForm object; the
-        // combined branch re-emits the existing one in place.
-        $maxObjectNumber = $ctx->acroForm === null ? $acroFormId : $fieldId;
-
-        $pageDict = $ctx->firstPage->dictionaryPayload();
-        $annots = self::arrayEntry($pageDict, 'Annots');
-        $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...[...$annots, $fieldRef]));
-        $newPage = IndirectObject::of($ctx->firstPage->objectNumber, 0, $pageDict);
-        $objects[] = $newPage;
+        $newPage = $this->threadFieldOntoPage($ctx->firstPage, $fieldRef, $objects);
+        $maxObjectNumber = max($maxObjectNumber, $ctx->firstPage->objectNumber);
 
         $context = new RevisionContext(
             catalog: $newCatalog,
@@ -205,35 +181,12 @@ final readonly class AppendedFieldRevisionBuilder
             ->withEntry(Name::of('F'), PdfNumber::ofInt(4));
         $objects[] = IndirectObject::of($fieldId, 0, $fieldDict);
 
-        if ($ctx->acroForm === null) {
-            $acroFormDict = Dictionary::empty()
-                ->withEntry(Name::of('Fields'), PdfArray::of($fieldRef))
-                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
-            $newAcroForm = IndirectObject::of($acroFormId, 0, $acroFormDict);
-            $objects[] = $newAcroForm;
+        $threaded = $this->threadFieldIntoAcroForm($ctx, $fieldRef, $acroFormId, $objects);
+        $newCatalog = $threaded['catalog'];
+        $newAcroForm = $threaded['acroForm'];
+        $maxObjectNumber = max($fieldId, $threaded['maxObjectNumber']);
 
-            $catalogDict = $ctx->catalog->dictionaryPayload()
-                ->withEntry(Name::of('AcroForm'), PdfReference::to($acroFormId, 0));
-            $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
-            $objects[] = $newCatalog;
-            $maxObjectNumber = $acroFormId;
-        } else {
-            $acroFormDict = $ctx->acroForm->dictionaryPayload();
-            $fields = self::arrayEntry($acroFormDict, 'Fields');
-            $acroFormDict = $acroFormDict
-                ->withEntry(Name::of('Fields'), PdfArray::of(...[...$fields, $fieldRef]))
-                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
-            $newAcroForm = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroFormDict);
-            $objects[] = $newAcroForm;
-            $newCatalog = $ctx->catalog;
-            $maxObjectNumber = max($fieldId, $ctx->acroForm->objectNumber);
-        }
-
-        $pageDict = $targetPage->dictionaryPayload();
-        $annots = self::arrayEntry($pageDict, 'Annots');
-        $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...[...$annots, $fieldRef]));
-        $newPage = IndirectObject::of($targetPage->objectNumber, 0, $pageDict);
-        $objects[] = $newPage;
+        $newPage = $this->threadFieldOntoPage($targetPage, $fieldRef, $objects);
         $maxObjectNumber = max($maxObjectNumber, $targetPage->objectNumber);
 
         $newFirstPage = $newPage->objectNumber === $ctx->firstPage->objectNumber ? $newPage : $ctx->firstPage;
@@ -247,6 +200,66 @@ final readonly class AppendedFieldRevisionBuilder
         );
 
         return ['objects' => $objects, 'size' => $maxObjectNumber + 1, 'context' => $context];
+    }
+
+    /**
+     * Threads $fieldRef into the AcroForm/catalog: when the context has no
+     * AcroForm, allocates a new one under $standaloneAcroFormId and re-emits the
+     * catalog with /AcroForm; otherwise appends $fieldRef to the existing
+     * /Fields and re-emits the AcroForm in place. Appends the new objects to
+     * $objects and returns the new catalog, the new AcroForm, and the
+     * AcroForm-side contribution to maxObjectNumber (the standalone id when
+     * created, else the existing AcroForm object number).
+     *
+     * @param list<IndirectObject> $objects
+     * @return array{catalog: IndirectObject, acroForm: IndirectObject, maxObjectNumber: int}
+     */
+    private function threadFieldIntoAcroForm(
+        RevisionContext $ctx,
+        PdfReference $fieldRef,
+        int $standaloneAcroFormId,
+        array &$objects,
+    ): array {
+        if ($ctx->acroForm === null) {
+            $acroFormDict = Dictionary::empty()
+                ->withEntry(Name::of('Fields'), PdfArray::of($fieldRef))
+                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
+            $newAcroForm = IndirectObject::of($standaloneAcroFormId, 0, $acroFormDict);
+            $objects[] = $newAcroForm;
+
+            $catalogDict = $ctx->catalog->dictionaryPayload()
+                ->withEntry(Name::of('AcroForm'), PdfReference::to($standaloneAcroFormId, 0));
+            $newCatalog = IndirectObject::of($ctx->catalog->objectNumber, 0, $catalogDict);
+            $objects[] = $newCatalog;
+
+            return ['catalog' => $newCatalog, 'acroForm' => $newAcroForm, 'maxObjectNumber' => $standaloneAcroFormId];
+        }
+
+        $acroFormDict = $ctx->acroForm->dictionaryPayload();
+        $fields = self::arrayEntry($acroFormDict, 'Fields');
+        $acroFormDict = $acroFormDict
+            ->withEntry(Name::of('Fields'), PdfArray::of(...[...$fields, $fieldRef]))
+            ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
+        $newAcroForm = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroFormDict);
+        $objects[] = $newAcroForm;
+
+        return ['catalog' => $ctx->catalog, 'acroForm' => $newAcroForm, 'maxObjectNumber' => $ctx->acroForm->objectNumber];
+    }
+
+    /**
+     * Appends $fieldRef to $page's /Annots and returns the re-emitted page
+     * (also pushed onto $objects).
+     *
+     * @param list<IndirectObject> $objects
+     */
+    private function threadFieldOntoPage(IndirectObject $page, PdfReference $fieldRef, array &$objects): IndirectObject
+    {
+        $pageDict = $page->dictionaryPayload();
+        $annots = self::arrayEntry($pageDict, 'Annots');
+        $pageDict = $pageDict->withEntry(Name::of('Annots'), PdfArray::of(...[...$annots, $fieldRef]));
+        $newPage = IndirectObject::of($page->objectNumber, 0, $pageDict);
+        $objects[] = $newPage;
+        return $newPage;
     }
 
     /**

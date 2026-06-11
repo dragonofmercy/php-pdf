@@ -44,11 +44,10 @@ use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
 use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
-use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
 use DragonOfMercy\PhpPdf\Signature\Ltv\HttpCrlValidationDataSource;
+use DragonOfMercy\PhpPdf\Signature\Ltv\LtvMaterialCollector;
 use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationDataSource;
-use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureFormat;
@@ -583,22 +582,9 @@ final class Document
         }
         $this->ltvEnabled = true;
         $resolver = $source ?? new HttpCrlValidationDataSource();
-
-        $material = ValidationMaterial::of([], []);
         // Validation material is gathered eagerly (here, not at output()) so a
         // network failure surfaces at the enableLtv() call rather than mid-output().
-        foreach ($this->signingCertificates as $credential) {
-            $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
-        }
-        foreach ($timestampCertificateChains as $tsaChainPem) {
-            $material = $material->merge($resolver->collect($tsaChainPem));
-        }
-        if ($material->certificates === []) {
-            throw new PdfException('enableLtv: the validation data source returned no certificates');
-        }
-        if ($material->crls === [] && $material->ocsps === []) {
-            throw new PdfException('enableLtv: the validation data source returned no CRLs or OCSP responses');
-        }
+        $material = LtvMaterialCollector::collect($resolver, $this->signingCertificates, $timestampCertificateChains);
         $this->appendedRevisions[] = new DssRevision($material);
 
         if ($timestamp !== null) {

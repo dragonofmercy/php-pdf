@@ -31,15 +31,16 @@ use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
 use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
-use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
 use DragonOfMercy\PhpPdf\Signature\Ltv\HttpCrlValidationDataSource;
+use DragonOfMercy\PhpPdf\Signature\Ltv\LtvMaterialCollector;
 use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationDataSource;
-use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
+use DragonOfMercy\PhpPdf\Signature\ReuseFieldPlan;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureAppearance;
 use DragonOfMercy\PhpPdf\Signature\SignatureFieldPlan;
+use DragonOfMercy\PhpPdf\Signature\VisibleFieldPlan;
 use DragonOfMercy\PhpPdf\Signature\SignatureFormat;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
@@ -92,6 +93,8 @@ final class Pdf
     private ?FieldTree $fieldTree = null;
     /** @var list<FormFieldInfo>|null Cached introspection snapshot of the source form (the source /V values never change after open). */
     private ?array $formFieldsCache = null;
+    /** @var list<PdfReference>|null Memoized flattened source page-reference list (the source tree never changes after open). */
+    private ?array $pageReferences = null;
 
     /** @var array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> */
     private array $customFontFamilies = [];
@@ -507,20 +510,7 @@ final class Pdf
         }
         $this->ltvEnabled = true;
         $resolver = $source ?? new HttpCrlValidationDataSource();
-
-        $material = ValidationMaterial::of([], []);
-        foreach ($this->signingCertificates as $credential) {
-            $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
-        }
-        foreach ($timestampCertificateChains as $tsaChainPem) {
-            $material = $material->merge($resolver->collect($tsaChainPem));
-        }
-        if ($material->certificates === []) {
-            throw new PdfException('enableLtv: the validation data source returned no certificates');
-        }
-        if ($material->crls === [] && $material->ocsps === []) {
-            throw new PdfException('enableLtv: the validation data source returned no CRLs or OCSP responses');
-        }
+        $material = LtvMaterialCollector::collect($resolver, $this->signingCertificates, $timestampCertificateChains);
         $this->appendedRevisions[] = new DssRevision($material);
 
         if ($timestamp !== null) {
@@ -656,7 +646,7 @@ final class Pdf
                 }
                 $page = $this->pageObjectAt($appearance->pageIndex);
                 $rect = $this->appearanceRect($appearance, $page);
-                $plans[$name] = SignatureFieldPlan::visible($page, $rect, $appearance);
+                $plans[$name] = new VisibleFieldPlan($page, $rect, $appearance);
                 continue;
             }
 
@@ -670,7 +660,7 @@ final class Pdf
                 throw new PdfException("Field '{$name}' is already signed");
             }
             $this->guardGenerationZero($rf->objectNumber, "signature field '{$name}'");
-            $plans[$name] = SignatureFieldPlan::reuse(IndirectObject::of($rf->objectNumber, 0, $rf->dict));
+            $plans[$name] = new ReuseFieldPlan(IndirectObject::of($rf->objectNumber, 0, $rf->dict));
         }
         return $plans;
     }
@@ -1123,12 +1113,23 @@ final class Pdf
     }
 
     /**
+     * Memoized flattened list of leaf /Type /Page references (the source tree
+     * never changes after open).
+     *
+     * @return list<PdfReference>
+     */
+    private function pageReferences(): array
+    {
+        return $this->pageReferences ??= $this->buildPageReferences();
+    }
+
+    /**
      * Flattens the source page tree to the ordered list of leaf /Type /Page
      * references.
      *
      * @return list<PdfReference>
      */
-    private function pageReferences(): array
+    private function buildPageReferences(): array
     {
         $pagesRef = $this->reader->catalog()->get(Name::of('Pages'));
         if (!$pagesRef instanceof PdfReference) {
