@@ -27,22 +27,25 @@ use DragonOfMercy\PhpPdf\Writer\Object\TextString;
  */
 final class FieldValueApplier
 {
-    /** Cached /AcroForm default DA string; null means absent or not yet resolved. */
-    private ?string $cachedDefaultDA = null;
+    /** Cached /AcroForm default DA string; false = not yet resolved, null = absent. */
+    private string|false|null $cachedDefaultDA = false;
 
-    /** True once $cachedDefaultDA has been populated (the value can legitimately be null). */
-    private bool $defaultDAResolved = false;
+    /** Cached /AcroForm dictionary; false = not yet resolved, null = absent. */
+    private Dictionary|false|null $cachedAcroForm = false;
 
-    /** Cached /AcroForm dictionary (lazily resolved from catalog). */
-    private ?Dictionary $cachedAcroForm = null;
+    /** @var array<string, array{0: Font, 1: PdfReference, 2: string}> Cache of successfully resolved DR fonts keyed by alias. */
+    private array $drFontCache = [];
 
-    /** True once $cachedAcroForm has been populated. */
-    private bool $acroFormResolved = false;
+    private readonly TextAppearanceBuilder $textBuilder;
+    private readonly ListboxAppearanceBuilder $listboxBuilder;
 
     public function __construct(
         private readonly PdfReader $reader,
         private readonly MetricsRegistry $metrics,
-    ) {}
+    ) {
+        $this->textBuilder = new TextAppearanceBuilder($this->metrics);
+        $this->listboxBuilder = new ListboxAppearanceBuilder();
+    }
 
     /**
      * Applies $value to $rf and returns the objects to write in the incremental
@@ -162,7 +165,7 @@ final class FieldValueApplier
                 continue;
             }
             $onState = $kidOnState[$kidNum] ?? null;
-            $as = ($onState !== null && $onState === $value) ? $value : 'Off';
+            $as = ($onState === $value) ? $value : 'Off';
             $objects[] = IndirectObject::of(
                 $kidNum,
                 0,
@@ -284,27 +287,12 @@ final class FieldValueApplier
         $q = DictReader::int($rf->dict, 'Q', $this->reader->resolve(...)) ?? 0;
 
         // 9. Build single-line appearance using TextAppearanceBuilder
-        $builder = new TextAppearanceBuilder($this->metrics);
-        $result = $builder->build($displayText, $w, $h, $da, $font, $usedAlias, $q, false);
+        $result = $this->textBuilder->build($displayText, $w, $h, $da, $font, $usedAlias, $q, false);
         $content = $result['content'];
         $bbox = $result['bbox'];
 
         // 10. Assemble Form XObject
-        $apDict = Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('XObject'))
-            ->withEntry(Name::of('Subtype'), Name::of('Form'))
-            ->withEntry(Name::of('BBox'), PdfArray::of(
-                PdfNumber::ofFloat($bbox[0]),
-                PdfNumber::ofFloat($bbox[1]),
-                PdfNumber::ofFloat($bbox[2]),
-                PdfNumber::ofFloat($bbox[3]),
-            ))
-            ->withEntry(Name::of('Resources'), Dictionary::empty()
-                ->withEntry(Name::of('Font'),
-                    Dictionary::empty()->withEntry(Name::of($usedAlias), $drFontRef)));
-        $apStream = CompressedStream::of($content, $apDict);
-        $apNum = $allocate();
-        $apObj = IndirectObject::of($apNum, 0, $apStream);
+        [$apNum, $apObj] = $this->buildAppearanceXObject($content, $bbox, $usedAlias, $drFontRef, $allocate);
 
         // 11. Re-emit the field/widget object from its ORIGINAL dict
         $fieldObjNum = $rf->objectNumber;
@@ -343,12 +331,10 @@ final class FieldValueApplier
                     "Field '{$rf->name}' is single-select; value must be a string",
                 );
             }
-            foreach ($value as $element) {
-                if (!is_string($element)) {
-                    throw new PdfException(
-                        "Field '{$rf->name}': listbox values must be strings",
-                    );
-                }
+            if (array_filter($value, static fn ($e): bool => !is_string($e)) !== []) {
+                throw new PdfException(
+                    "Field '{$rf->name}': listbox values must be strings",
+                );
             }
             /** @var list<string> $selected */
             $selected = array_values($value);
@@ -374,11 +360,7 @@ final class FieldValueApplier
         if (count($selected) === 1) {
             $vObject = TextString::of($selected[0]);
         } else {
-            $textStrings = [];
-            foreach ($selected as $sel) {
-                $textStrings[] = TextString::of($sel);
-            }
-            $vObject = PdfArray::of(...$textStrings);
+            $vObject = PdfArray::of(...array_map(TextString::of(...), $selected));
         }
 
         // 4. Build /I indices (sorted ascending)
@@ -389,11 +371,7 @@ final class FieldValueApplier
             }
         }
         sort($indices);
-        $iNumbers = [];
-        foreach ($indices as $idx) {
-            $iNumbers[] = PdfNumber::ofInt($idx);
-        }
-        $iObject = PdfArray::of(...$iNumbers);
+        $iObject = PdfArray::of(...array_map(PdfNumber::ofInt(...), $indices));
 
         // 5. Determine widget and read /Rect
         $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
@@ -413,27 +391,12 @@ final class FieldValueApplier
         }
 
         // 9. Build listbox appearance
-        $builder = new ListboxAppearanceBuilder();
-        $result = $builder->build($displayOptions, $indices, $w, $h, $da, $usedAlias);
+        $result = $this->listboxBuilder->build($displayOptions, $indices, $w, $h, $da, $usedAlias);
         $content = $result['content'];
         $bbox = $result['bbox'];
 
         // 10. Assemble Form XObject
-        $apDict = Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('XObject'))
-            ->withEntry(Name::of('Subtype'), Name::of('Form'))
-            ->withEntry(Name::of('BBox'), PdfArray::of(
-                PdfNumber::ofFloat($bbox[0]),
-                PdfNumber::ofFloat($bbox[1]),
-                PdfNumber::ofFloat($bbox[2]),
-                PdfNumber::ofFloat($bbox[3]),
-            ))
-            ->withEntry(Name::of('Resources'), Dictionary::empty()
-                ->withEntry(Name::of('Font'),
-                    Dictionary::empty()->withEntry(Name::of($usedAlias), $drFontRef)));
-        $apStream = CompressedStream::of($content, $apDict);
-        $apNum = $allocate();
-        $apObj = IndirectObject::of($apNum, 0, $apStream);
+        [$apNum, $apObj] = $this->buildAppearanceXObject($content, $bbox, $usedAlias, $drFontRef, $allocate);
 
         // 11. Re-emit field/widget object from ORIGINAL dict
         $fieldObjNum = $rf->objectNumber;
@@ -484,27 +447,12 @@ final class FieldValueApplier
         $q = DictReader::int($rf->dict, 'Q', $this->reader->resolve(...)) ?? 0;
 
         // 7. Build the appearance content stream
-        $builder = new TextAppearanceBuilder($this->metrics);
-        $result = $builder->build($value, $w, $h, $da, $font, $usedAlias, $q, $rf->isMultiline());
+        $result = $this->textBuilder->build($value, $w, $h, $da, $font, $usedAlias, $q, $rf->isMultiline());
         $content = $result['content'];
         $bbox = $result['bbox'];
 
         // 8. Assemble the appearance stream object (Form XObject)
-        $apDict = Dictionary::empty()
-            ->withEntry(Name::of('Type'), Name::of('XObject'))
-            ->withEntry(Name::of('Subtype'), Name::of('Form'))
-            ->withEntry(Name::of('BBox'), PdfArray::of(
-                PdfNumber::ofFloat($bbox[0]),
-                PdfNumber::ofFloat($bbox[1]),
-                PdfNumber::ofFloat($bbox[2]),
-                PdfNumber::ofFloat($bbox[3]),
-            ))
-            ->withEntry(Name::of('Resources'), Dictionary::empty()
-                ->withEntry(Name::of('Font'),
-                    Dictionary::empty()->withEntry(Name::of($usedAlias), $drFontRef)));
-        $apStream = CompressedStream::of($content, $apDict);
-        $apNum = $allocate();
-        $apObj = IndirectObject::of($apNum, 0, $apStream);
+        [$apNum, $apObj] = $this->buildAppearanceXObject($content, $bbox, $usedAlias, $drFontRef, $allocate);
 
         // 9. Re-emit field/widget object(s)
         // Start from the ORIGINAL field dict (not the merged rf->dict)
@@ -543,6 +491,41 @@ final class FieldValueApplier
         $objects[] = $apObj;
 
         return new AppliedField($objects);
+    }
+
+    /**
+     * Builds a Form XObject appearance stream as a CompressedStream wrapped in an
+     * IndirectObject, allocating a new object number via $allocate.
+     *
+     * Returns [$apNum, $apObj]. The dict entries are inserted in this exact order:
+     * Type, Subtype, BBox, Resources/Font -- preserving byte-identical output.
+     *
+     * @param array{0: float, 1: float, 2: float, 3: float} $bbox
+     * @param callable(): int $allocate
+     * @return array{0: int, 1: IndirectObject}
+     */
+    private function buildAppearanceXObject(
+        string $content,
+        array $bbox,
+        string $alias,
+        PdfReference $fontRef,
+        callable $allocate,
+    ): array {
+        $apDict = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('XObject'))
+            ->withEntry(Name::of('Subtype'), Name::of('Form'))
+            ->withEntry(Name::of('BBox'), PdfArray::of(
+                PdfNumber::ofFloat($bbox[0]),
+                PdfNumber::ofFloat($bbox[1]),
+                PdfNumber::ofFloat($bbox[2]),
+                PdfNumber::ofFloat($bbox[3]),
+            ))
+            ->withEntry(Name::of('Resources'), Dictionary::empty()
+                ->withEntry(Name::of('Font'),
+                    Dictionary::empty()->withEntry(Name::of($alias), $fontRef)));
+        $apStream = CompressedStream::of($content, $apDict);
+        $apNum = $allocate();
+        return [$apNum, IndirectObject::of($apNum, 0, $apStream)];
     }
 
     /**
@@ -598,13 +581,12 @@ final class FieldValueApplier
 
     /**
      * Reads the AcroForm-level /DA string (if present). Result is memoized:
-     * a "resolved" flag guards against re-walking the catalog when the value
+     * false sentinel guards against re-walking the catalog when the value
      * is legitimately null.
      */
     private function acroFormDefaultDA(): ?string
     {
-        if (!$this->defaultDAResolved) {
-            $this->defaultDAResolved = true;
+        if ($this->cachedDefaultDA === false) {
             $acroForm = $this->resolvedAcroForm();
             $this->cachedDefaultDA = $acroForm !== null
                 ? DictReader::decodeText($acroForm->get(Name::of('DA')))
@@ -619,8 +601,7 @@ final class FieldValueApplier
      */
     private function resolvedAcroForm(): ?Dictionary
     {
-        if (!$this->acroFormResolved) {
-            $this->acroFormResolved = true;
+        if ($this->cachedAcroForm === false) {
             $acroFormRaw = $this->reader->catalog()->get(Name::of('AcroForm'));
             if ($acroFormRaw === null) {
                 $this->cachedAcroForm = null;
@@ -635,11 +616,16 @@ final class FieldValueApplier
     /**
      * Resolves the DR font for a given DA font alias. Returns [Font, PdfReference, usedAlias].
      * Falls back to 'Helv' when the requested alias is absent from /DR.
+     * Successful resolutions are cached by alias.
      *
      * @return array{0: Font, 1: PdfReference, 2: string}
      */
     private function resolveDrFont(ResolvedField $rf, string $alias): array
     {
+        if (isset($this->drFontCache[$alias])) {
+            return $this->drFontCache[$alias];
+        }
+
         $acroForm = $this->resolvedAcroForm();
         if ($acroForm === null) {
             throw new PdfException(
@@ -710,7 +696,9 @@ final class FieldValueApplier
 
         $font = $this->baseFontToFont($rf, $baseFont);
 
-        return [$font, $drFontRef, $usedAlias];
+        $result = [$font, $drFontRef, $usedAlias];
+        $this->drFontCache[$alias] = $result;
+        return $result;
     }
 
     /**
@@ -720,37 +708,25 @@ final class FieldValueApplier
      */
     private function baseFontToFont(ResolvedField $rf, string $baseFont): Font
     {
-        if ($baseFont === 'Helvetica' || str_starts_with($baseFont, 'Helvetica-')) {
-            $font = Font::helvetica();
-            if (str_contains($baseFont, 'Bold')) {
-                $font = $font->bold();
-            }
-            if (str_contains($baseFont, 'Oblique')) {
-                $font = $font->italic();
-            }
-            return $font;
-        }
+        // Each entry: [exact-base-name, prefix (for variant names), factory, italic-keyword].
+        // A name matches when it equals the exact-base-name OR starts with "prefix-".
+        $table = [
+            ['Helvetica', 'Helvetica', Font::helvetica(...), 'Oblique'],
+            ['Times-Roman', 'Times', Font::times(...), 'Italic'],
+            ['Courier', 'Courier', Font::courier(...), 'Oblique'],
+        ];
 
-        if ($baseFont === 'Times-Roman' || str_starts_with($baseFont, 'Times-')) {
-            $font = Font::times();
-            if (str_contains($baseFont, 'Bold')) {
-                $font = $font->bold();
+        foreach ($table as [$exactBase, $prefix, $factory, $italicKeyword]) {
+            if ($baseFont === $exactBase || str_starts_with($baseFont, $prefix . '-')) {
+                $font = $factory();
+                if (str_contains($baseFont, 'Bold')) {
+                    $font = $font->bold();
+                }
+                if (str_contains($baseFont, $italicKeyword)) {
+                    $font = $font->italic();
+                }
+                return $font;
             }
-            if (str_contains($baseFont, 'Italic')) {
-                $font = $font->italic();
-            }
-            return $font;
-        }
-
-        if ($baseFont === 'Courier' || str_starts_with($baseFont, 'Courier-')) {
-            $font = Font::courier();
-            if (str_contains($baseFont, 'Bold')) {
-                $font = $font->bold();
-            }
-            if (str_contains($baseFont, 'Oblique')) {
-                $font = $font->italic();
-            }
-            return $font;
         }
 
         throw new PdfException(

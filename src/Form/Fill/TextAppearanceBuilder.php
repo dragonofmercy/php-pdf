@@ -152,16 +152,10 @@ final class TextAppearanceBuilder
         if ($wrapped !== []) {
             $lines[] = $n($leading) . ' TL';
             $lines[] = $n($padX) . ' ' . $n($yTop) . ' Td';
-            $first = true;
-            foreach ($wrapped as $wrappedLine) {
-                $escaped = PdfLiteralEscape::escape(WinAnsiEncoder::encode($wrappedLine));
-                if ($first) {
-                    $lines[] = '(' . $escaped . ') Tj';
-                    $first = false;
-                } else {
-                    $lines[] = 'T*';
-                    $lines[] = '(' . $escaped . ') Tj';
-                }
+            $lines[] = '(' . PdfLiteralEscape::escape(WinAnsiEncoder::encode($wrapped[0])) . ') Tj';
+            foreach (array_slice($wrapped, 1) as $wrappedLine) {
+                $lines[] = 'T*';
+                $lines[] = '(' . PdfLiteralEscape::escape(WinAnsiEncoder::encode($wrappedLine)) . ') Tj';
             }
         }
 

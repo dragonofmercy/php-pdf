@@ -23,6 +23,9 @@ final class FieldTree
 {
     private const int MAX_DEPTH = 50;
 
+    /** @var list<ResolvedField>|null */
+    private ?array $cachedFields = null;
+
     public function __construct(private readonly PdfReader $reader) {}
 
     /**
@@ -30,28 +33,34 @@ final class FieldTree
      * inheritance applied. Returns an empty list when the document has no
      * /AcroForm, or the /AcroForm has no /Fields.
      *
+     * Result is cached: repeated calls reuse one walk.
+     *
      * @return list<ResolvedField>
      */
     public function terminalFields(): array
     {
+        if ($this->cachedFields !== null) {
+            return $this->cachedFields;
+        }
+
         $catalog = $this->reader->catalog();
         $acroFormRaw = $catalog->get(Name::of('AcroForm'));
         if ($acroFormRaw === null) {
-            return [];
+            return $this->cachedFields = [];
         }
 
         $acroForm = $this->reader->resolve($acroFormRaw);
         if (!$acroForm instanceof Dictionary) {
-            return [];
+            return $this->cachedFields = [];
         }
 
         $fieldsRaw = $acroForm->get(Name::of('Fields'));
         if ($fieldsRaw === null) {
-            return [];
+            return $this->cachedFields = [];
         }
         $fields = $this->reader->resolve($fieldsRaw);
         if (!$fields instanceof PdfArray) {
-            return [];
+            return $this->cachedFields = [];
         }
 
         // Seed the inherited /DA from the AcroForm dict
@@ -72,7 +81,7 @@ final class FieldTree
             $this->walkNode($objNum, $resolved, '', $inherited, $results, 0);
         }
 
-        return $results;
+        return $this->cachedFields = $results;
     }
 
     /**
@@ -127,18 +136,21 @@ final class FieldTree
             return;
         }
 
-        // Determine if kids have /T (non-terminal = recurse) or no /T (terminal = widgets)
-        // A field's kids that carry /T are sub-fields; kids without /T are widget annotations
+        // Single-pass: resolve each kid dict once, recording whether any carry /T.
+        // This avoids a second resolve loop that the two-pass approach required.
+        /** @var list<array{objNum: int, dict: Dictionary}> $resolvedKids */
+        $resolvedKids = [];
         $anyKidHasPartialName = false;
         foreach ($kidElements as $kidRef) {
             $kidDict = $this->reader->resolve($kidRef);
             if (!$kidDict instanceof Dictionary) {
                 continue;
             }
+            $kidObjNum = $kidRef instanceof PdfReference ? $kidRef->objectNumber : 0;
+            $resolvedKids[] = ['objNum' => $kidObjNum, 'dict' => $kidDict];
             $kidT = DictReader::decodeText($kidDict->get(Name::of('T')));
             if ($kidT !== null && $kidT !== '') {
                 $anyKidHasPartialName = true;
-                break;
             }
         }
 
@@ -146,21 +158,16 @@ final class FieldTree
             // Non-terminal: recurse into each kid as a sub-field
             $inheritedV = $dict->get(Name::of('V')) ?? $inherited['v'];
             $childInherited = ['ft' => $ft, 'ff' => $ff, 'v' => $inheritedV, 'da' => $da];
-            foreach ($kidElements as $kidRef) {
-                $kidObjNum = $kidRef instanceof PdfReference ? $kidRef->objectNumber : 0;
-                $kidDict = $this->reader->resolve($kidRef);
-                if (!$kidDict instanceof Dictionary) {
-                    continue;
-                }
+            foreach ($resolvedKids as ['objNum' => $kidObjNum, 'dict' => $kidDict]) {
                 $this->walkNode($kidObjNum, $kidDict, $qualifiedName, $childInherited, $results, $depth + 1);
             }
         } else {
             // Terminal: kids are widget annotations only (no /T)
-            // Collect the widget object numbers
+            // Collect the widget object numbers from the already-resolved list
             $widgetObjNums = [];
-            foreach ($kidElements as $kidRef) {
-                if ($kidRef instanceof PdfReference) {
-                    $widgetObjNums[] = $kidRef->objectNumber;
+            foreach ($resolvedKids as ['objNum' => $kidObjNum]) {
+                if ($kidObjNum !== 0) {
+                    $widgetObjNums[] = $kidObjNum;
                 }
             }
 
