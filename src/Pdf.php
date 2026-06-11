@@ -31,7 +31,11 @@ use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
 use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
+use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
+use DragonOfMercy\PhpPdf\Signature\Ltv\HttpCrlValidationDataSource;
+use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationDataSource;
+use DragonOfMercy\PhpPdf\Signature\Ltv\ValidationMaterial;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\Signature;
 use DragonOfMercy\PhpPdf\Signature\SignatureAppearance;
@@ -71,6 +75,10 @@ final class Pdf
 
     /** @var list<AppendedRevision|DssRevision> */
     private array $appendedRevisions = [];
+
+    /** @var list<SigningCertificate> */
+    private array $signingCertificates = [];
+    private bool $ltvEnabled = false;
 
     /** @var array<string, SignatureAppearance> */
     private array $signatureAppearances = [];
@@ -474,6 +482,54 @@ final class Pdf
     }
 
     /**
+     * Makes the opened PDF's signatures long-term validatable. Identical contract
+     * to {@see Document::enableLtv}: collects the signer certificate chains plus
+     * their CRLs/OCSPs into a /DSS and (when a timestamp is given) covers them
+     * with a document timestamp, appended as the last incremental revisions so
+     * they cover every signature. Validation material is gathered eagerly (a
+     * network failure surfaces here, not mid-output). Must be called after
+     * sign()/addSignature(); once-only.
+     *
+     * @param list<list<string>> $timestampCertificateChains PEM chains whose
+     *        revocation is added so a covering document timestamp is itself
+     *        long-term validatable (B-LTA).
+     */
+    public function enableLtv(
+        ?ValidationDataSource $source = null,
+        ?Tsa $timestamp = null,
+        array $timestampCertificateChains = [],
+    ): self {
+        if ($this->signingCertificates === []) {
+            throw new PdfException('enableLtv requires at least one signature (call sign() or addSignature() first)');
+        }
+        if ($this->ltvEnabled) {
+            throw new PdfException('enableLtv can only be called once per document');
+        }
+        $this->ltvEnabled = true;
+        $resolver = $source ?? new HttpCrlValidationDataSource();
+
+        $material = ValidationMaterial::of([], []);
+        foreach ($this->signingCertificates as $credential) {
+            $material = $material->merge($resolver->collect(CertificateChain::chainPem($credential)));
+        }
+        foreach ($timestampCertificateChains as $tsaChainPem) {
+            $material = $material->merge($resolver->collect($tsaChainPem));
+        }
+        if ($material->certificates === []) {
+            throw new PdfException('enableLtv: the validation data source returned no certificates');
+        }
+        if ($material->crls === [] && $material->ocsps === []) {
+            throw new PdfException('enableLtv: the validation data source returned no CRLs or OCSP responses');
+        }
+        $this->appendedRevisions[] = new DssRevision($material);
+
+        if ($timestamp !== null) {
+            $this->addDocumentTimestamp($timestamp, 16384);
+        }
+        return $this;
+    }
+
+    /**
      * Queues a cryptographic signature (PKCS#7 / CMS) over the opened PDF. The
      * signature is written as a stacked incremental revision at output() that
      * covers all prior bytes (including any pending metadata / page / field
@@ -543,6 +599,7 @@ final class Pdf
             $format,
         );
         $this->appendedRevisions[] = new AppendedSignature($signature);
+        $this->signingCertificates[] = $certificate;
         if ($appearance !== null) {
             $this->signatureAppearances[$field] = $appearance;
         }
