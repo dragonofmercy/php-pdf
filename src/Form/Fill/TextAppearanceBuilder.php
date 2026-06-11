@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace DragonOfMercy\PhpPdf\Form\Fill;
 
 use DragonOfMercy\PhpPdf\Font;
@@ -94,7 +96,7 @@ final class TextAppearanceBuilder
         \Closure $n,
     ): void {
         $encoded = WinAnsiEncoder::encode($text);
-        $escaped = $this->escape($encoded);
+        $escaped = PdfLiteralEscape::escape($encoded);
 
         // Approximate vertical centring: baseline sits at mid-height shifted by ~20% of size.
         $ty = ($heightPt - $size) / 2.0 + $size * 0.2;
@@ -152,7 +154,7 @@ final class TextAppearanceBuilder
             $lines[] = $n($padX) . ' ' . $n($yTop) . ' Td';
             $first = true;
             foreach ($wrapped as $wrappedLine) {
-                $escaped = $this->escape(WinAnsiEncoder::encode($wrappedLine));
+                $escaped = PdfLiteralEscape::escape(WinAnsiEncoder::encode($wrappedLine));
                 if ($first) {
                     $lines[] = '(' . $escaped . ') Tj';
                     $first = false;
@@ -224,13 +226,5 @@ final class TextAppearanceBuilder
             2 => $widthPt - $padX - $tw,
             default => $padX,
         };
-    }
-
-    /**
-     * Escapes backslashes and parentheses for a PDF literal string.
-     */
-    private function escape(string $encoded): string
-    {
-        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $encoded);
     }
 }

@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace DragonOfMercy\PhpPdf\Form\Fill;
 
 final readonly class DefaultAppearance

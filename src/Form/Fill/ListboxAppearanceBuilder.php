@@ -64,7 +64,7 @@ final class ListboxAppearanceBuilder
             $lineBottomY = $h - ($i + 1) * $lineH;
             $baselineY = $lineBottomY + 0.25 * $size;
             $encoded = WinAnsiEncoder::encode($displayText);
-            $escaped = $this->escape($encoded);
+            $escaped = PdfLiteralEscape::escape($encoded);
             $lines[] = '1 0 0 1 ' . $n($padX) . ' ' . $n($baselineY) . ' Tm';
             $lines[] = '(' . $escaped . ') Tj';
         }
@@ -77,13 +77,5 @@ final class ListboxAppearanceBuilder
             'content' => implode("\n", $lines),
             'bbox' => [0.0, 0.0, $w, $h],
         ];
-    }
-
-    /**
-     * Escapes backslashes and parentheses for a PDF literal string.
-     */
-    private function escape(string $encoded): string
-    {
-        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $encoded);
     }
 }

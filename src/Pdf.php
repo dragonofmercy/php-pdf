@@ -713,6 +713,8 @@ final class Pdf
                     0,
                     $catalog->withEntry(Name::of('AcroForm'), $updatedAcro),
                 );
+            } else {
+                throw new PdfException('/AcroForm is neither an indirect reference nor a dictionary; cannot set /NeedAppearances');
             }
         }
 

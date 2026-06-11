@@ -19,15 +19,26 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 
 /**
- * Applies a value to a resolved AcroForm field, producing the indirect objects
- * to append in an incremental revision.
- *
- * Currently supports Text fields only; other types are handled in Tasks 8-9.
+ * Applies a validated value to a resolved AcroForm field, producing the indirect objects
+ * to append in an incremental revision (re-emitted field/widget objects plus any generated
+ * appearance Form XObjects).
  *
  * @internal
  */
 final class FieldValueApplier
 {
+    /** Cached /AcroForm default DA string; null means absent or not yet resolved. */
+    private ?string $cachedDefaultDA = null;
+
+    /** True once $cachedDefaultDA has been populated (the value can legitimately be null). */
+    private bool $defaultDAResolved = false;
+
+    /** Cached /AcroForm dictionary (lazily resolved from catalog). */
+    private ?Dictionary $cachedAcroForm = null;
+
+    /** True once $cachedAcroForm has been populated. */
+    private bool $acroFormResolved = false;
+
     public function __construct(
         private readonly PdfReader $reader,
         private readonly MetricsRegistry $metrics,
@@ -586,20 +597,39 @@ final class FieldValueApplier
     }
 
     /**
-     * Reads the AcroForm-level /DA string (if present).
+     * Reads the AcroForm-level /DA string (if present). Result is memoized:
+     * a "resolved" flag guards against re-walking the catalog when the value
+     * is legitimately null.
      */
     private function acroFormDefaultDA(): ?string
     {
-        $catalog = $this->reader->catalog();
-        $acroFormRaw = $catalog->get(Name::of('AcroForm'));
-        if ($acroFormRaw === null) {
-            return null;
+        if (!$this->defaultDAResolved) {
+            $this->defaultDAResolved = true;
+            $acroForm = $this->resolvedAcroForm();
+            $this->cachedDefaultDA = $acroForm !== null
+                ? DictReader::decodeText($acroForm->get(Name::of('DA')))
+                : null;
         }
-        $acroForm = $this->reader->resolve($acroFormRaw);
-        if (!$acroForm instanceof Dictionary) {
-            return null;
+        return $this->cachedDefaultDA;
+    }
+
+    /**
+     * Returns the resolved /AcroForm Dictionary from the catalog, or null when
+     * absent. Memoized on first call.
+     */
+    private function resolvedAcroForm(): ?Dictionary
+    {
+        if (!$this->acroFormResolved) {
+            $this->acroFormResolved = true;
+            $acroFormRaw = $this->reader->catalog()->get(Name::of('AcroForm'));
+            if ($acroFormRaw === null) {
+                $this->cachedAcroForm = null;
+            } else {
+                $resolved = $this->reader->resolve($acroFormRaw);
+                $this->cachedAcroForm = $resolved instanceof Dictionary ? $resolved : null;
+            }
         }
-        return DictReader::decodeText($acroForm->get(Name::of('DA')));
+        return $this->cachedAcroForm;
     }
 
     /**
@@ -610,17 +640,10 @@ final class FieldValueApplier
      */
     private function resolveDrFont(ResolvedField $rf, string $alias): array
     {
-        $catalog = $this->reader->catalog();
-        $acroFormRaw = $catalog->get(Name::of('AcroForm'));
-        if ($acroFormRaw === null) {
+        $acroForm = $this->resolvedAcroForm();
+        if ($acroForm === null) {
             throw new PdfException(
                 "Field '{$rf->name}': no /AcroForm in catalog; cannot resolve /DR font",
-            );
-        }
-        $acroForm = $this->reader->resolve($acroFormRaw);
-        if (!$acroForm instanceof Dictionary) {
-            throw new PdfException(
-                "Field '{$rf->name}': /AcroForm is not a Dictionary",
             );
         }
 

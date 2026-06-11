@@ -196,6 +196,10 @@ final class FieldTree
         }
 
         $type = $this->resolveType($ft, $ff);
+        if ($type === null) {
+            // Unknown /FT value: skip this terminal field rather than mislabeling it.
+            return null;
+        }
         $options = $this->resolveOptions($dict, $type, $widgetObjectNumbers);
 
         return new ResolvedField(
@@ -210,7 +214,13 @@ final class FieldTree
         );
     }
 
-    private function resolveType(string $ft, int $ff): FormFieldType
+    /**
+     * Maps a /FT token and /Ff flags to a FormFieldType, or null for an
+     * unrecognized /FT value. Returning null causes the terminal field to be
+     * skipped so that unknown field types are silently ignored rather than
+     * mislabeled as Text.
+     */
+    private function resolveType(string $ft, int $ff): ?FormFieldType
     {
         return match ($ft) {
             'Tx' => FormFieldType::Text,
@@ -219,7 +229,7 @@ final class FieldTree
             'Btn' => ($ff & 65536) !== 0
                 ? FormFieldType::PushButton
                 : (($ff & 32768) !== 0 ? FormFieldType::Radio : FormFieldType::Checkbox),
-            default => FormFieldType::Text,
+            default => null,
         };
     }
 
