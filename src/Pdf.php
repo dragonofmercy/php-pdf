@@ -59,6 +59,8 @@ final class Pdf
     private readonly GlyphUsage $glyphUsage;
     private ?FontResolver $fontResolver = null;
     private ?FieldTree $fieldTree = null;
+    /** @var list<FormFieldInfo>|null Cached introspection snapshot of the source form (the source /V values never change after open). */
+    private ?array $formFieldsCache = null;
 
     /** @var array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> */
     private array $customFontFamilies = [];
@@ -266,6 +268,9 @@ final class Pdf
      */
     public function formFields(): array
     {
+        if ($this->formFieldsCache !== null) {
+            return $this->formFieldsCache;
+        }
         $out = [];
         foreach ($this->fieldTree()->terminalFields() as $rf) {
             $out[] = new FormFieldInfo(
@@ -278,7 +283,7 @@ final class Pdf
                 multiline: $rf->isMultiline(),
             );
         }
-        return $out;
+        return $this->formFieldsCache = $out;
     }
 
     /**
