@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Sign an existing PDF opened with `Pdf::open()` / `Pdf::fromBytes()`: `sign()`,
+  `addSignature()`, `addDocumentTimestamp()`, and `enableLtv()` with full parity to
+  `Document` (RFC 3161 timestamps, the PAdES profiles, and LTV/DSS with CRL/OCSP),
+  each written as a stacked incremental revision that leaves the original bytes
+  intact and cryptographically covers all prior edits. Reuses an existing empty
+  signature field by name or creates a new one - invisible by default, or visible
+  with a Helvetica text caption via `SignatureAppearance`. Signing combines with
+  metadata / appended-page / field-fill edits (written as the first revision and
+  covered by every signature). Validated with openssl, qpdf, and pyHanko
+  (signature intact, valid, covering the entire file). Limitations: visible
+  captions use Standard-14 Helvetica only; a source whose `/AcroForm` is a direct
+  (inline) dictionary is rejected (indirect `/AcroForm` references only).
 - AcroForm field reading and filling via `Pdf::open()` / `Pdf::fromBytes()`:
   inspect every terminal field with `formFields()` (returns `list<FormFieldInfo>`)
   or `field($name)`, then fill text (single-line and multiline), checkbox (bool),
