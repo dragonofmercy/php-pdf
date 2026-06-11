@@ -80,9 +80,10 @@ final readonly class IncrementalRevisionStacker
 
     private function lastStartxrefOffset(string $bytes): int
     {
-        if (preg_match('~startxref\n(\d+)\n%%EOF\n?$~', $bytes, $m) !== 1) {
-            throw new PdfException('Could not locate the revision-1 startxref offset');
+        $pos = strrpos($bytes, 'startxref');
+        if ($pos !== false && preg_match('~startxref\s+(\d+)~', substr($bytes, $pos), $m) === 1) {
+            return (int) $m[1];
         }
-        return (int) $m[1];
+        throw new PdfException('Could not locate the prior revision startxref offset');
     }
 }

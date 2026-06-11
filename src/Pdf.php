@@ -810,10 +810,12 @@ final class Pdf
             throw new PdfException('The opened PDF has no indirect /Root reference');
         }
 
-        $hasEdits = $this->pending->title !== null || $this->pending->author !== null
-            || $this->pending->subject !== null || $this->pending->keywords !== null
-            || $this->pending->creator !== null || $this->pending->pages !== []
-            || $this->pending->fieldEdits !== [];
+        $acroFormEntry = $this->reader->catalog()->get(Name::of('AcroForm'));
+        if ($acroFormEntry instanceof Dictionary) {
+            throw new PdfException('Cannot sign this PDF: its /AcroForm is a direct dictionary; only an indirect /AcroForm reference is supported');
+        }
+
+        $hasEdits = !$this->pending->isEmpty();
 
         if ($hasEdits) {
             ['newObjects' => $newObjects, 'trailerEntries' => $trailerEntries, 'nextNumber' => $nextNumber]
@@ -1162,6 +1164,8 @@ final class Pdf
             }
             return;
         }
+        // Leaf: a node whose /Type is not /Pages is treated as a page (real Page
+        // objects sometimes omit /Type; intermediate nodes always declare /Pages).
         $out[] = $nodeRef;
     }
 
