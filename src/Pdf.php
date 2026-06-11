@@ -16,6 +16,10 @@ use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtfCache;
 use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
+use DragonOfMercy\PhpPdf\Form\Fill\FormFieldInfo;
+use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
+use DragonOfMercy\PhpPdf\Form\Fill\ResolvedField;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Modify\PendingChanges;
 use DragonOfMercy\PhpPdf\Modify\RevisionWriter;
@@ -54,6 +58,7 @@ final class Pdf
     private readonly ImageRegistry $imageRegistry;
     private readonly GlyphUsage $glyphUsage;
     private ?FontResolver $fontResolver = null;
+    private ?FieldTree $fieldTree = null;
 
     /** @var array<string, array{regular: ParsedTtf, bold: ?ParsedTtf, italic: ?ParsedTtf, boldItalic: ?ParsedTtf}> */
     private array $customFontFamilies = [];
@@ -245,6 +250,121 @@ final class Pdf
             }
             return TtfParser::parse($bytes, "{$alias} ({$variant})");
         });
+    }
+
+    private function fieldTree(): FieldTree
+    {
+        return $this->fieldTree ??= new FieldTree($this->reader);
+    }
+
+    /**
+     * Returns a snapshot of every terminal AcroForm field discovered in the
+     * opened PDF, with inheritance applied and the current /V decoded into a
+     * PHP-native value.
+     *
+     * @return list<FormFieldInfo>
+     */
+    public function formFields(): array
+    {
+        $out = [];
+        foreach ($this->fieldTree()->terminalFields() as $rf) {
+            $out[] = new FormFieldInfo(
+                name: $rf->name,
+                type: $rf->type,
+                value: $this->currentValueOf($rf),
+                options: $rf->options,
+                readOnly: $rf->isReadOnly(),
+                required: ($rf->flags & 2) !== 0,
+                multiline: $rf->isMultiline(),
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * Returns the {@see FormFieldInfo} for the field with the given fully-
+     * qualified name, or null when no such field exists.
+     */
+    public function field(string $name): ?FormFieldInfo
+    {
+        foreach ($this->formFields() as $info) {
+            if ($info->name === $name) {
+                return $info;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Decodes the merged /V entry of a resolved field into its PHP-native form:
+     *
+     * - Text / Combobox : string|null         (decoded TextString/PdfString/HexString)
+     * - Checkbox        : bool                (true iff /V is a Name != 'Off')
+     * - Radio           : string|null         (export name, null when absent or 'Off')
+     * - Listbox         : string|list<string>|null
+     * - PushButton / Signature: null
+     *
+     * @return string|bool|list<string>|null
+     */
+    private function currentValueOf(ResolvedField $rf): string|bool|array|null
+    {
+        $raw = $rf->dict->get(Name::of('V'));
+
+        if ($rf->type === FormFieldType::Text || $rf->type === FormFieldType::Combobox) {
+            return DictReader::decodeText($raw !== null ? $this->reader->resolve($raw) : null);
+        }
+
+        if ($rf->type === FormFieldType::Checkbox) {
+            if ($raw === null) {
+                return false;
+            }
+            $resolved = $this->reader->resolve($raw);
+            return $resolved instanceof Name && $resolved->value() !== 'Off';
+        }
+
+        if ($rf->type === FormFieldType::Radio) {
+            if ($raw === null) {
+                return null;
+            }
+            $resolved = $this->reader->resolve($raw);
+            if (!$resolved instanceof Name) {
+                return null;
+            }
+            $exportName = $resolved->value();
+            return $exportName !== 'Off' ? $exportName : null;
+        }
+
+        if ($rf->type === FormFieldType::Listbox) {
+            return $this->decodeListboxValue($raw);
+        }
+
+        // PushButton, Signature
+        return null;
+    }
+
+    /**
+     * Decodes a Listbox /V entry: PdfArray -> list<string>, text string -> string, absent -> null.
+     *
+     * @return string|list<string>|null
+     */
+    private function decodeListboxValue(?PdfObject $raw): string|array|null
+    {
+        if ($raw === null) {
+            return null;
+        }
+        $resolved = $this->reader->resolve($raw);
+        if ($resolved instanceof PdfArray) {
+            /** @var list<string> $items */
+            $items = [];
+            foreach ($resolved->elements() as $element) {
+                $text = DictReader::decodeText($this->reader->resolve($element));
+                if ($text !== null) {
+                    $items[] = $text;
+                }
+            }
+            return $items !== [] ? $items : null;
+        }
+        return DictReader::decodeText($resolved);
     }
 
     public function output(): string
