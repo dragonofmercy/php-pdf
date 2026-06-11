@@ -5,24 +5,29 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Import;
 
 use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Modify\EditRevisionBuilder;
 use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use PHPUnit\Framework\TestCase;
 
 final class PdfRevisionContextTest extends TestCase
 {
+    private function builderFor(PdfEditor $pdf): EditRevisionBuilder
+    {
+        $builder = (new \ReflectionMethod($pdf, 'revisionBuilder'))->invoke($pdf);
+        self::assertInstanceOf(EditRevisionBuilder::class, $builder);
+        return $builder;
+    }
+
     public function testContextFromSourceNoEdits(): void
     {
         $doc = new Document();
         $doc->addPage();
         $pdf = PdfEditor::fromBytes($doc->output());
-        $m = new \ReflectionMethod($pdf, 'buildSigningBase');
-        $result = $m->invoke($pdf);
-        self::assertIsArray($result);
+        $result = $this->builderFor($pdf)->buildSigningBase();
         $ctx = $result['context'];
         $bytes = $result['bytes'];
         self::assertInstanceOf(RevisionContext::class, $ctx);
-        self::assertIsString($bytes);
         self::assertStringStartsWith('%PDF-', $bytes);
         self::assertNotSame('', $ctx->documentId);
         self::assertGreaterThan(0, $ctx->maxObjectNumber);
@@ -39,11 +44,8 @@ final class PdfRevisionContextTest extends TestCase
         $base = $doc->output();
         $pdf = PdfEditor::fromBytes($base);
         $pdf->setTitle('Edited');
-        $m = new \ReflectionMethod($pdf, 'buildSigningBase');
-        $result = $m->invoke($pdf);
-        self::assertIsArray($result);
+        $result = $this->builderFor($pdf)->buildSigningBase();
         $bytes = $result['bytes'];
-        self::assertIsString($bytes);
         self::assertGreaterThan(strlen($base), strlen($bytes));
         self::assertStringContainsString('Edited', $bytes);
     }
