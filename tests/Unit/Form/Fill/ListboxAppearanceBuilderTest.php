@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Form\Fill;
 
-use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Form\Fill\DefaultAppearance;
 use DragonOfMercy\PhpPdf\Form\Fill\ListboxAppearanceBuilder;
 use PHPUnit\Framework\TestCase;
@@ -13,7 +12,6 @@ final class ListboxAppearanceBuilderTest extends TestCase
 {
     public function testBuildsCorrectScaffoldAndHighlights(): void
     {
-        $font = Font::helvetica();
         $da = DefaultAppearance::parse('0 g /Helv 10 Tf');
         $builder = new ListboxAppearanceBuilder();
 
@@ -23,7 +21,6 @@ final class ListboxAppearanceBuilderTest extends TestCase
             w: 80.0,
             h: 40.0,
             da: $da,
-            font: $font,
             alias: 'Helv',
         );
 
@@ -63,7 +60,6 @@ final class ListboxAppearanceBuilderTest extends TestCase
 
     public function testAutoSizeFallsBackToTen(): void
     {
-        $font = Font::helvetica();
         $da = DefaultAppearance::parse('0 g /Helv 0 Tf'); // auto-size
         $builder = new ListboxAppearanceBuilder();
 
@@ -73,7 +69,6 @@ final class ListboxAppearanceBuilderTest extends TestCase
             w: 60.0,
             h: 20.0,
             da: $da,
-            font: $font,
             alias: 'Helv',
         );
 

@@ -52,6 +52,14 @@ final class FieldValueApplierChoiceTest extends TestCase
         return $doc->output();
     }
 
+    private static function buildPdfWithPairListbox(): string
+    {
+        $doc = new Document();
+        $page = $doc->addPage();
+        $page->field(new Listbox(20, 100, 60, 30, name: 'langs', options: ['fr' => 'Francais', 'en' => 'English'], multiSelect: true));
+        return $doc->output();
+    }
+
     private static function resolveField(PdfReader $reader, string $name): ResolvedField
     {
         foreach ((new FieldTree($reader))->terminalFields() as $f) {
@@ -281,5 +289,76 @@ final class FieldValueApplierChoiceTest extends TestCase
         // bool triggers the non-string path in applyCombobox
         (new FieldValueApplier($reader, new MetricsRegistry()))
             ->apply($rf, true, self::makeAllocator());
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 7: testListboxPairOptionsExportVsDisplay
+    // Listbox with [export => display] pairs: /V stores export, appearance shows display.
+    // -------------------------------------------------------------------------
+
+    public function testListboxPairOptionsExportVsDisplay(): void
+    {
+        $reader = PdfReader::fromBytes(self::buildPdfWithPairListbox());
+        $rf = self::resolveField($reader, 'langs');
+
+        $applied = (new FieldValueApplier($reader, new MetricsRegistry()))
+            ->apply($rf, ['fr', 'en'], self::makeAllocator());
+
+        self::assertNotEmpty($applied->objects);
+
+        $fieldDict = self::dictForObjectNumber($applied->objects, $rf->objectNumber);
+        self::assertNotNull($fieldDict, 'Re-emitted listbox object must be a Dictionary');
+
+        // /V must be a PdfArray containing the EXPORT values, not the display strings
+        $vRaw = $fieldDict->get(Name::of('V'));
+        self::assertInstanceOf(PdfArray::class, $vRaw, '/V must be a PdfArray for multi-selection');
+        /** @var PdfArray $vRaw */
+        $vElements = $vRaw->elements();
+        self::assertCount(2, $vElements, '/V array must have 2 elements');
+        $v0 = DictReader::decodeText($vElements[0]);
+        $v1 = DictReader::decodeText($vElements[1]);
+        self::assertSame('fr', $v0, '/V[0] must be the export value "fr"');
+        self::assertSame('en', $v1, '/V[1] must be the export value "en"');
+
+        // /I must resolve to indices 0 and 1
+        $iRaw = $fieldDict->get(Name::of('I'));
+        self::assertInstanceOf(PdfArray::class, $iRaw, '/I must be a PdfArray');
+        /** @var PdfArray $iRaw */
+        $iElements = $iRaw->elements();
+        self::assertCount(2, $iElements, '/I must have 2 entries');
+        self::assertInstanceOf(PdfNumber::class, $iElements[0]);
+        self::assertInstanceOf(PdfNumber::class, $iElements[1]);
+        /** @var PdfNumber $i0 */
+        $i0 = $iElements[0];
+        /** @var PdfNumber $i1 */
+        $i1 = $iElements[1];
+        self::assertSame(0, (int) $i0->value(), '/I[0] must be 0 for "fr"');
+        self::assertSame(1, (int) $i1->value(), '/I[1] must be 1 for "en"');
+
+        // The appearance Form XObject must show the DISPLAY texts, not the export keys
+        $content = self::formXObjectContent($applied->objects);
+        self::assertNotNull($content, 'A Form XObject must be present among applied objects');
+        self::assertStringContainsString('(Francais) Tj', $content, 'Appearance must show display text "Francais"');
+        self::assertStringContainsString('(English) Tj', $content, 'Appearance must show display text "English"');
+        self::assertStringNotContainsString('(fr) Tj', $content, 'Appearance must not show export key "fr"');
+        self::assertStringNotContainsString('(en) Tj', $content, 'Appearance must not show export key "en"');
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 8: testListboxNonStringElementThrows
+    // Array with non-string element -> PdfException before TextString::of()
+    // -------------------------------------------------------------------------
+
+    public function testListboxNonStringElementThrows(): void
+    {
+        $reader = PdfReader::fromBytes(self::buildPdfWithMultiListbox());
+        $rf = self::resolveField($reader, 'tags');
+
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/listbox values must be strings/i');
+
+        // Pass an array with integer elements; the signature accepts array<mixed>
+        (new FieldValueApplier($reader, new MetricsRegistry()))
+            ->apply($rf, [1, 2], self::makeAllocator());
     }
 }

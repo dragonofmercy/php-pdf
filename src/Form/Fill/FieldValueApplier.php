@@ -259,46 +259,8 @@ final class FieldValueApplier
         // 4. Determine the widget object number (combobox = field == widget, single object)
         $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
 
-        // 5. Read /Rect to get w,h
-        $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
-        if (!$widgetResolved instanceof Dictionary) {
-            throw new PdfException(
-                "Field '{$rf->name}': widget object {$widgetNum} does not resolve to a Dictionary",
-            );
-        }
-        $widgetDict = $widgetResolved;
-
-        $rectRaw = $widgetDict->get(Name::of('Rect'));
-        if ($rectRaw === null) {
-            throw new PdfException(
-                "Field '{$rf->name}': widget object {$widgetNum} has no /Rect entry",
-            );
-        }
-        $rectObj = $this->reader->resolve($rectRaw);
-        if (!$rectObj instanceof PdfArray) {
-            throw new PdfException(
-                "Field '{$rf->name}': /Rect in widget object {$widgetNum} is not an array",
-            );
-        }
-        $rectElements = $rectObj->elements();
-        if (count($rectElements) !== 4) {
-            throw new PdfException(
-                "Field '{$rf->name}': /Rect must have 4 numbers, got " . count($rectElements),
-            );
-        }
-        $coords = [];
-        foreach ($rectElements as $el) {
-            $resolved = $this->reader->resolve($el);
-            if (!$resolved instanceof PdfNumber) {
-                throw new PdfException(
-                    "Field '{$rf->name}': /Rect contains a non-numeric element",
-                );
-            }
-            $coords[] = (float) $resolved->value();
-        }
-        [$llx, $lly, $urx, $ury] = $coords;
-        $w = abs($urx - $llx);
-        $h = abs($ury - $lly);
+        // 5. Resolve widget dict and read /Rect to get w,h
+        ['w' => $w, 'h' => $h] = $this->widgetRect($rf, $widgetNum);
 
         // 6. Effective DA
         $daString = $rf->defaultAppearance ?? $this->acroFormDefaultDA() ?? '0 g /Helv 10 Tf';
@@ -370,6 +332,13 @@ final class FieldValueApplier
                     "Field '{$rf->name}' is single-select; value must be a string",
                 );
             }
+            foreach ($value as $element) {
+                if (!is_string($element)) {
+                    throw new PdfException(
+                        "Field '{$rf->name}': listbox values must be strings",
+                    );
+                }
+            }
             /** @var list<string> $selected */
             $selected = array_values($value);
         } else {
@@ -417,52 +386,14 @@ final class FieldValueApplier
 
         // 5. Determine widget and read /Rect
         $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
-        $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
-        if (!$widgetResolved instanceof Dictionary) {
-            throw new PdfException(
-                "Field '{$rf->name}': widget object {$widgetNum} does not resolve to a Dictionary",
-            );
-        }
-        $widgetDict = $widgetResolved;
-
-        $rectRaw = $widgetDict->get(Name::of('Rect'));
-        if ($rectRaw === null) {
-            throw new PdfException(
-                "Field '{$rf->name}': widget object {$widgetNum} has no /Rect entry",
-            );
-        }
-        $rectObj = $this->reader->resolve($rectRaw);
-        if (!$rectObj instanceof PdfArray) {
-            throw new PdfException(
-                "Field '{$rf->name}': /Rect in widget object {$widgetNum} is not an array",
-            );
-        }
-        $rectElements = $rectObj->elements();
-        if (count($rectElements) !== 4) {
-            throw new PdfException(
-                "Field '{$rf->name}': /Rect must have 4 numbers, got " . count($rectElements),
-            );
-        }
-        $coords = [];
-        foreach ($rectElements as $el) {
-            $resolved = $this->reader->resolve($el);
-            if (!$resolved instanceof PdfNumber) {
-                throw new PdfException(
-                    "Field '{$rf->name}': /Rect contains a non-numeric element",
-                );
-            }
-            $coords[] = (float) $resolved->value();
-        }
-        [$llx, $lly, $urx, $ury] = $coords;
-        $w = abs($urx - $llx);
-        $h = abs($ury - $lly);
+        ['w' => $w, 'h' => $h] = $this->widgetRect($rf, $widgetNum);
 
         // 6. Effective DA
         $daString = $rf->defaultAppearance ?? $this->acroFormDefaultDA() ?? '0 g /Helv 10 Tf';
         $da = DefaultAppearance::parse($daString);
 
         // 7. Resolve DR font
-        [$font, $drFontRef, $usedAlias] = $this->resolveDrFont($rf, $da->fontAlias);
+        [, $drFontRef, $usedAlias] = $this->resolveDrFont($rf, $da->fontAlias);
 
         // 8. Build display options list (preserving /Opt order)
         $displayOptions = [];
@@ -472,7 +403,7 @@ final class FieldValueApplier
 
         // 9. Build listbox appearance
         $builder = new ListboxAppearanceBuilder();
-        $result = $builder->build($displayOptions, $indices, $w, $h, $da, $font, $usedAlias);
+        $result = $builder->build($displayOptions, $indices, $w, $h, $da, $usedAlias);
         $content = $result['content'];
         $bbox = $result['bbox'];
 
@@ -527,46 +458,9 @@ final class FieldValueApplier
 
         // 2. Determine the widget object number (text field = single widget)
         $widgetNum = $rf->widgetObjectNumbers[0] ?? $rf->objectNumber;
-        $widgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
-        if (!$widgetResolved instanceof Dictionary) {
-            throw new PdfException(
-                "Field '{$rf->name}': widget object {$widgetNum} does not resolve to a Dictionary",
-            );
-        }
-        $widgetDict = $widgetResolved;
 
-        // 3. Read /Rect from widget dict
-        $rectRaw = $widgetDict->get(Name::of('Rect'));
-        if ($rectRaw === null) {
-            throw new PdfException(
-                "Field '{$rf->name}': widget object {$widgetNum} has no /Rect entry",
-            );
-        }
-        $rectObj = $this->reader->resolve($rectRaw);
-        if (!$rectObj instanceof PdfArray) {
-            throw new PdfException(
-                "Field '{$rf->name}': /Rect in widget object {$widgetNum} is not an array",
-            );
-        }
-        $rectElements = $rectObj->elements();
-        if (count($rectElements) !== 4) {
-            throw new PdfException(
-                "Field '{$rf->name}': /Rect must have 4 numbers, got " . count($rectElements),
-            );
-        }
-        $coords = [];
-        foreach ($rectElements as $el) {
-            $resolved = $this->reader->resolve($el);
-            if (!$resolved instanceof PdfNumber) {
-                throw new PdfException(
-                    "Field '{$rf->name}': /Rect contains a non-numeric element",
-                );
-            }
-            $coords[] = (float) $resolved->value();
-        }
-        [$llx, $lly, $urx, $ury] = $coords;
-        $w = abs($urx - $llx);
-        $h = abs($ury - $lly);
+        // 3. Resolve widget dict and read /Rect
+        ['dict' => $widgetDict, 'w' => $w, 'h' => $h] = $this->widgetRect($rf, $widgetNum);
 
         // 4. Effective DA
         $daString = $rf->defaultAppearance ?? $this->acroFormDefaultDA() ?? '0 g /Helv 10 Tf';
@@ -638,6 +532,57 @@ final class FieldValueApplier
         $objects[] = $apObj;
 
         return new AppliedField($objects);
+    }
+
+    /**
+     * Resolves the widget dict for $widgetObjectNumber and extracts abs width/height from /Rect.
+     *
+     * Throws PdfException with field-name context if the object is not a Dictionary,
+     * /Rect is absent, not a PdfArray, does not have exactly 4 elements, or contains
+     * a non-numeric element.
+     *
+     * @return array{dict: Dictionary, w: float, h: float}
+     */
+    private function widgetRect(ResolvedField $rf, int $widgetObjectNumber): array
+    {
+        $widgetResolved = $this->reader->resolve($this->reader->object($widgetObjectNumber));
+        if (!$widgetResolved instanceof Dictionary) {
+            throw new PdfException(
+                "Field '{$rf->name}': widget object {$widgetObjectNumber} does not resolve to a Dictionary",
+            );
+        }
+
+        $rectRaw = $widgetResolved->get(Name::of('Rect'));
+        if ($rectRaw === null) {
+            throw new PdfException(
+                "Field '{$rf->name}': widget object {$widgetObjectNumber} has no /Rect entry",
+            );
+        }
+        $rectObj = $this->reader->resolve($rectRaw);
+        if (!$rectObj instanceof PdfArray) {
+            throw new PdfException(
+                "Field '{$rf->name}': /Rect in widget object {$widgetObjectNumber} is not an array",
+            );
+        }
+        $rectElements = $rectObj->elements();
+        if (count($rectElements) !== 4) {
+            throw new PdfException(
+                "Field '{$rf->name}': /Rect must have 4 numbers, got " . count($rectElements),
+            );
+        }
+        $coords = [];
+        foreach ($rectElements as $el) {
+            $resolved = $this->reader->resolve($el);
+            if (!$resolved instanceof PdfNumber) {
+                throw new PdfException(
+                    "Field '{$rf->name}': /Rect contains a non-numeric element",
+                );
+            }
+            $coords[] = (float) $resolved->value();
+        }
+        [$llx, $lly, $urx, $ury] = $coords;
+
+        return ['dict' => $widgetResolved, 'w' => abs($urx - $llx), 'h' => abs($ury - $lly)];
     }
 
     /**

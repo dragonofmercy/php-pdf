@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Form\Fill;
 
-use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 
@@ -30,7 +29,6 @@ final class ListboxAppearanceBuilder
         float $w,
         float $h,
         DefaultAppearance $da,
-        Font $font,
         string $alias,
     ): array {
         $size = $da->isAutoSize() ? 10.0 : $da->size;
