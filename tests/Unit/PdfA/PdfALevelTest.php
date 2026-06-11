@@ -9,62 +9,49 @@ use PHPUnit\Framework\TestCase;
 
 final class PdfALevelTest extends TestCase
 {
-    public function testPartNumbers(): void
+    /**
+     * @return array<string, array{PdfALevel, int, string, ?string, ?int, bool, bool, bool}>
+     */
+    public static function levels(): array
     {
-        self::assertSame(2, PdfALevel::A2B->part());
-        self::assertSame(2, PdfALevel::A2U->part());
-        self::assertSame(3, PdfALevel::A3B->part());
-        self::assertSame(3, PdfALevel::A3U->part());
+        // [level, part, headerVersion, xmpConformance, xmpRev, allowsEmbeddedFiles, requiresUnicode, requiresTagging]
+        return [
+            'A2B' => [PdfALevel::A2B, 2, '1.7', 'B', null, false, false, false],
+            'A2U' => [PdfALevel::A2U, 2, '1.7', 'U', null, false, true, false],
+            'A2A' => [PdfALevel::A2A, 2, '1.7', 'A', null, false, true, true],
+            'A3B' => [PdfALevel::A3B, 3, '1.7', 'B', null, true, false, false],
+            'A3U' => [PdfALevel::A3U, 3, '1.7', 'U', null, true, true, false],
+            'A3A' => [PdfALevel::A3A, 3, '1.7', 'A', null, true, true, true],
+            'A4' => [PdfALevel::A4, 4, '2.0', null, 2020, false, true, false],
+            'A4F' => [PdfALevel::A4F, 4, '2.0', null, 2020, true, true, false],
+        ];
     }
 
-    public function testConformanceLetters(): void
-    {
-        self::assertSame('B', PdfALevel::A2B->conformance());
-        self::assertSame('U', PdfALevel::A2U->conformance());
-        self::assertSame('B', PdfALevel::A3B->conformance());
-        self::assertSame('U', PdfALevel::A3U->conformance());
+    /**
+     * @dataProvider levels
+     */
+    public function testProfile(
+        PdfALevel $level,
+        int $part,
+        string $headerVersion,
+        ?string $xmpConformance,
+        ?int $xmpRev,
+        bool $allowsEmbeddedFiles,
+        bool $requiresUnicode,
+        bool $requiresTagging,
+    ): void {
+        self::assertSame($part, $level->part());
+        self::assertSame($headerVersion, $level->headerVersion());
+        self::assertSame($xmpConformance, $level->xmpConformance());
+        self::assertSame($xmpRev, $level->xmpRev());
+        self::assertSame($allowsEmbeddedFiles, $level->allowsEmbeddedFiles());
+        self::assertSame($requiresUnicode, $level->requiresUnicode());
+        self::assertSame($requiresTagging, $level->requiresTagging());
     }
 
-    public function testAllowsEmbeddedFilesOnlyForPart3(): void
+    public function testEveryCaseIsCovered(): void
     {
-        self::assertFalse(PdfALevel::A2B->allowsEmbeddedFiles());
-        self::assertFalse(PdfALevel::A2U->allowsEmbeddedFiles());
-        self::assertTrue(PdfALevel::A3B->allowsEmbeddedFiles());
-        self::assertTrue(PdfALevel::A3U->allowsEmbeddedFiles());
-    }
-
-    public function testRequiresUnicodeOnlyForU(): void
-    {
-        self::assertFalse(PdfALevel::A2B->requiresUnicode());
-        self::assertTrue(PdfALevel::A2U->requiresUnicode());
-        self::assertFalse(PdfALevel::A3B->requiresUnicode());
-        self::assertTrue(PdfALevel::A3U->requiresUnicode());
-    }
-
-    public function testLevelAConformanceAndPart(): void
-    {
-        self::assertSame(2, PdfALevel::A2A->part());
-        self::assertSame(3, PdfALevel::A3A->part());
-        self::assertSame('A', PdfALevel::A2A->conformance());
-        self::assertSame('A', PdfALevel::A3A->conformance());
-    }
-
-    public function testLevelARequiresTaggingAndUnicode(): void
-    {
-        self::assertTrue(PdfALevel::A2A->requiresTagging());
-        self::assertTrue(PdfALevel::A3A->requiresTagging());
-        self::assertTrue(PdfALevel::A2A->requiresUnicode());
-        self::assertTrue(PdfALevel::A3A->requiresUnicode());
-
-        self::assertFalse(PdfALevel::A2B->requiresTagging());
-        self::assertFalse(PdfALevel::A2U->requiresTagging());
-        self::assertFalse(PdfALevel::A2B->requiresUnicode());
-        self::assertTrue(PdfALevel::A2U->requiresUnicode());
-    }
-
-    public function testEmbeddedFilesOnlyAtPart3(): void
-    {
-        self::assertTrue(PdfALevel::A3A->allowsEmbeddedFiles());
-        self::assertFalse(PdfALevel::A2A->allowsEmbeddedFiles());
+        $covered = array_map(static fn (array $row): PdfALevel => $row[0], self::levels());
+        self::assertEqualsCanonicalizing(PdfALevel::cases(), $covered);
     }
 }
