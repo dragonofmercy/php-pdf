@@ -26,7 +26,13 @@ use DragonOfMercy\PhpPdf\Modify\PendingChanges;
 use DragonOfMercy\PhpPdf\Modify\RevisionWriter;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
+use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
+use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
+use DragonOfMercy\PhpPdf\Signature\DocumentTimestamp;
+use DragonOfMercy\PhpPdf\Signature\IncrementalRevisionStacker;
+use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
+use DragonOfMercy\PhpPdf\Signature\Tsa;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -56,6 +62,9 @@ final class Pdf
     private readonly PdfReader $reader;
     private readonly string $bytes;
     private PendingChanges $pending;
+
+    /** @var list<AppendedRevision|DssRevision> */
+    private array $appendedRevisions = [];
 
     private readonly Unit $unit;
     private readonly FontRegistry $fontRegistry;
@@ -445,12 +454,28 @@ final class Pdf
         return DictReader::decodeText($resolved);
     }
 
+    public function addDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes = 16384): self
+    {
+        $name = 'DocTimeStamp' . (count($this->appendedRevisions) + 1);
+        $this->appendedRevisions[] = new AppendedDocumentTimestamp(
+            new DocumentTimestamp($tsa, $maxSignatureBytes),
+            $name,
+        );
+        return $this;
+    }
+
     public function output(): string
     {
-        if ($this->pending->isEmpty()) {
-            throw new PdfException('No pending changes to write; call a setter or appendPage() first');
+        if ($this->pending->isEmpty() && $this->appendedRevisions === []) {
+            throw new PdfException('No pending changes to write; call a setter, appendPage(), setField(), or a signing method first');
         }
-        return $this->assembleRevision();
+
+        if ($this->appendedRevisions === []) {
+            return $this->assembleRevision();
+        }
+
+        ['bytes' => $bytes, 'context' => $ctx] = $this->buildSigningBase();
+        return (new IncrementalRevisionStacker())->stack($bytes, $ctx, $this->appendedRevisions);
     }
 
     public function save(string $path): void
