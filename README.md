@@ -47,7 +47,6 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 
 - Signing existing PDFs via incremental revision.
 - Bidi explicit embedding/override/isolate controls, and per-column-header direction in tables.
-- Bidi explicit embedding/override/isolate controls, and per-column-header direction in tables.
 
 ## Installation
 
