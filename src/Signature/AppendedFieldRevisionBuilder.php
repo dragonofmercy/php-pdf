@@ -99,6 +99,46 @@ final readonly class AppendedFieldRevisionBuilder
     }
 
     /**
+     * Re-emits an EXISTING terminal /FT /Sig field (its dict given) with /V set
+     * to a freshly-built value dict, ensuring /AcroForm /SigFlags 3. No new field
+     * or annotation is added (the widget already exists in the tree).
+     *
+     * @param Closure(int): IndirectObject $valueDictFactory
+     * @return array{objects: list<IndirectObject>, size: int, context: RevisionContext}
+     */
+    public function buildReuse(RevisionContext $ctx, Closure $valueDictFactory, IndirectObject $existingField): array
+    {
+        $valueId = $ctx->maxObjectNumber + 1;
+        $objects = [];
+        $objects[] = $valueDictFactory($valueId);
+
+        $fieldDict = $existingField->dictionaryPayload()
+            ->withEntry(Name::of('V'), PdfReference::to($valueId, 0));
+        $objects[] = IndirectObject::of($existingField->objectNumber, 0, $fieldDict);
+
+        $maxObjectNumber = max($valueId, $existingField->objectNumber);
+        $newCatalog = $ctx->catalog;
+        $newAcroForm = $ctx->acroForm;
+        if ($ctx->acroForm !== null) {
+            $acroDict = $ctx->acroForm->dictionaryPayload()
+                ->withEntry(Name::of('SigFlags'), PdfNumber::ofInt(3));
+            $newAcroForm = IndirectObject::of($ctx->acroForm->objectNumber, 0, $acroDict);
+            $objects[] = $newAcroForm;
+            $maxObjectNumber = max($maxObjectNumber, $ctx->acroForm->objectNumber);
+        }
+
+        $context = new RevisionContext(
+            catalog: $newCatalog,
+            acroForm: $newAcroForm,
+            firstPage: $ctx->firstPage,
+            maxObjectNumber: $maxObjectNumber,
+            documentId: $ctx->documentId,
+        );
+
+        return ['objects' => $objects, 'size' => $maxObjectNumber + 1, 'context' => $context];
+    }
+
+    /**
      * @return list<PdfObject>
      */
     private static function arrayEntry(Dictionary $dict, string $key): array

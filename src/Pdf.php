@@ -548,7 +548,45 @@ final class Pdf
         }
 
         ['bytes' => $bytes, 'context' => $ctx] = $this->buildSigningBase();
-        return (new IncrementalRevisionStacker())->stack($bytes, $ctx, $this->appendedRevisions);
+        $reuse = $this->resolveSignatureFields();
+        return (new IncrementalRevisionStacker())->stack($bytes, $ctx, $this->appendedRevisions, $reuse);
+    }
+
+    /**
+     * For each queued signature, decides reuse vs create and validates the field:
+     * - name matches an existing terminal /FT /Sig field with no /V  -> reuse it
+     * - name matches an existing field that is NOT a signature field -> throw
+     * - name matches an existing signature field already signed       -> throw
+     * - no match -> create a new field (no map entry)
+     *
+     * @return array<string, IndirectObject>
+     */
+    private function resolveSignatureFields(): array
+    {
+        $reuse = [];
+        $terminals = [];
+        foreach ($this->fieldTree()->terminalFields() as $rf) {
+            $terminals[$rf->name] = $rf;
+        }
+        foreach ($this->appendedRevisions as $rev) {
+            if (!$rev instanceof AppendedSignature) {
+                continue;
+            }
+            $name = $rev->fieldName();
+            $rf = $terminals[$name] ?? null;
+            if ($rf === null) {
+                continue;
+            }
+            if ($rf->type !== FormFieldType::Signature) {
+                throw new PdfException("Field '{$name}' exists and is not a signature field; choose a different field name");
+            }
+            if ($rf->dict->get(Name::of('V')) !== null) {
+                throw new PdfException("Field '{$name}' is already signed");
+            }
+            $this->guardGenerationZero($rf->objectNumber, "signature field '{$name}'");
+            $reuse[$name] = IndirectObject::of($rf->objectNumber, 0, $rf->dict);
+        }
+        return $reuse;
     }
 
     public function save(string $path): void

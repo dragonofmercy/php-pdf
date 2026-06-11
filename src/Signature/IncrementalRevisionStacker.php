@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevisionBuilder;
 use DragonOfMercy\PhpPdf\Writer\IncrementalWriter;
+use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 
 /**
  * Stacks a list of appended incremental revisions (signatures, document
@@ -25,8 +26,9 @@ final readonly class IncrementalRevisionStacker
 
     /**
      * @param list<AppendedRevision|DssRevision> $revisions
+     * @param array<string, IndirectObject> $reuseFields
      */
-    public function stack(string $bytes, RevisionContext $ctx, array $revisions): string
+    public function stack(string $bytes, RevisionContext $ctx, array $revisions, array $reuseFields = []): string
     {
         foreach ($revisions as $revision) {
             if ($revision instanceof DssRevision) {
@@ -44,7 +46,10 @@ final readonly class IncrementalRevisionStacker
                 continue;
             }
 
-            $built = $this->builder->build($ctx, $revision->valueDict(...), $revision->fieldName());
+            $name = $revision->fieldName();
+            $built = isset($reuseFields[$name])
+                ? $this->builder->buildReuse($ctx, $revision->valueDict(...), $reuseFields[$name])
+                : $this->builder->build($ctx, $revision->valueDict(...), $name);
 
             $searchFrom = strlen($bytes);
             $prevStartxref = $this->lastStartxrefOffset($bytes);
