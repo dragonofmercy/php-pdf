@@ -31,4 +31,20 @@ final class XmpWriterPdfaTest extends TestCase
         self::assertStringContainsString('<pdfaid:part>2</pdfaid:part>', $xmp);
         self::assertStringContainsString('<pdfaid:conformance>U</pdfaid:conformance>', $xmp);
     }
+
+    public function testPdfA4EmitsRevAndNoConformance(): void
+    {
+        $xmp = (new XmpWriter())->write(new Metadata(), PdfALevel::A4);
+        self::assertStringContainsString('<pdfaid:part>4</pdfaid:part>', $xmp);
+        self::assertStringContainsString('<pdfaid:rev>2020</pdfaid:rev>', $xmp);
+        self::assertStringNotContainsString('pdfaid:conformance', $xmp);
+    }
+
+    public function testPdfA2bStillEmitsConformanceAndNoRev(): void
+    {
+        $xmp = (new XmpWriter())->write(new Metadata(), PdfALevel::A2B);
+        self::assertStringContainsString('<pdfaid:part>2</pdfaid:part>', $xmp);
+        self::assertStringContainsString('<pdfaid:conformance>B</pdfaid:conformance>', $xmp);
+        self::assertStringNotContainsString('pdfaid:rev', $xmp);
+    }
 }

@@ -23,7 +23,7 @@ final class XmpWriter
             $descriptions .= '<rdf:Description rdf:about=""'
                 . ' xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">'
                 . '<pdfaid:part>' . $pdfa->part() . '</pdfaid:part>'
-                . '<pdfaid:conformance>' . $pdfa->conformance() . '</pdfaid:conformance>'
+                . $this->pdfaidConformanceOrRev($pdfa)
                 . "</rdf:Description>\n";
         }
 
@@ -58,6 +58,20 @@ final class XmpWriter
             . "</rdf:RDF>\n"
             . "</x:xmpmeta>\n"
             . '<?xpacket end="w"?>';
+    }
+
+    /**
+     * Parts 2-3 carry a conformance letter; part 4 (PDF/A-4) carries a revision
+     * year instead and no conformance element.
+     */
+    private function pdfaidConformanceOrRev(PdfALevel $pdfa): string
+    {
+        $conformance = $pdfa->xmpConformance();
+        if ($conformance !== null) {
+            return '<pdfaid:conformance>' . $conformance . '</pdfaid:conformance>';
+        }
+        $rev = $pdfa->xmpRev();
+        return $rev !== null ? '<pdfaid:rev>' . $rev . '</pdfaid:rev>' : '';
     }
 
     /**
