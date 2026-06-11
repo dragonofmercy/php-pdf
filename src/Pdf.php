@@ -26,6 +26,7 @@ use DragonOfMercy\PhpPdf\Modify\PendingChanges;
 use DragonOfMercy\PhpPdf\Modify\RevisionWriter;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
+use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -461,6 +462,26 @@ final class Pdf
 
     private function assembleRevision(): string
     {
+        ['newObjects' => $newObjects, 'trailerEntries' => $trailerEntries, 'nextNumber' => $nextNumber]
+            = $this->assembleRevisionObjects();
+
+        return (new RevisionWriter())->append(
+            reader: $this->reader,
+            priorBytes: $this->bytes,
+            newObjects: $newObjects,
+            trailerEntries: $trailerEntries,
+            size: $nextNumber,
+        );
+    }
+
+    /**
+     * Builds the indirect objects + trailer entries for the edit revision
+     * (metadata / appended pages / filled fields), without serializing.
+     *
+     * @return array{newObjects: list<IndirectObject>, trailerEntries: Dictionary, nextNumber: int}
+     */
+    private function assembleRevisionObjects(): array
+    {
         $newObjects = [];
         $nextNumber = $this->reader->maxObjectNumber() + 1;
 
@@ -510,13 +531,99 @@ final class Pdf
         // $nextNumber starts at maxObjectNumber() + 1 and only ever advances
         // (Info/XMP increments + the monotonic page allocator), so it is already
         // the next free object number the revision's xref must announce as /Size.
-        return (new RevisionWriter())->append(
-            reader: $this->reader,
-            priorBytes: $this->bytes,
-            newObjects: $newObjects,
-            trailerEntries: $trailerEntries,
-            size: $nextNumber,
+        return ['newObjects' => $newObjects, 'trailerEntries' => $trailerEntries, 'nextNumber' => $nextNumber];
+    }
+
+    /**
+     * Produces the bytes a signature revision is stacked onto, plus the
+     * RevisionContext describing the catalog / AcroForm / first page / next
+     * object number / document id at that point. When there are pending edits
+     * they are written as the first incremental revision; otherwise the source
+     * bytes are returned unchanged.
+     *
+     * @return array{bytes: string, context: RevisionContext}
+     */
+    private function buildSigningBase(): array
+    {
+        $rootRef = $this->reader->trailer()->get(Name::of('Root'));
+        if (!$rootRef instanceof PdfReference) {
+            throw new PdfException('The opened PDF has no indirect /Root reference');
+        }
+
+        $hasEdits = $this->pending->title !== null || $this->pending->author !== null
+            || $this->pending->subject !== null || $this->pending->keywords !== null
+            || $this->pending->creator !== null || $this->pending->pages !== []
+            || $this->pending->fieldEdits !== [];
+
+        if ($hasEdits) {
+            ['newObjects' => $newObjects, 'trailerEntries' => $trailerEntries, 'nextNumber' => $nextNumber]
+                = $this->assembleRevisionObjects();
+            $bytes = (new RevisionWriter())->append(
+                reader: $this->reader,
+                priorBytes: $this->bytes,
+                newObjects: $newObjects,
+                trailerEntries: $trailerEntries,
+                size: $nextNumber,
+            );
+            $catalog = $this->latestObject($newObjects, $rootRef->objectNumber)
+                ?? IndirectObject::of($rootRef->objectNumber, 0, $this->reader->catalog());
+            $acroForm = $this->latestAcroForm($newObjects);
+            $maxObjectNumber = $nextNumber - 1;
+        } else {
+            $bytes = $this->bytes;
+            $catalog = IndirectObject::of($rootRef->objectNumber, 0, $this->reader->catalog());
+            $acroForm = $this->latestAcroForm([]);
+            $maxObjectNumber = $this->reader->maxObjectNumber();
+        }
+
+        $ctx = new RevisionContext(
+            catalog: $catalog,
+            acroForm: $acroForm,
+            firstPage: $this->pageObjectAt(0),
+            maxObjectNumber: $maxObjectNumber,
+            documentId: $this->sourceDocumentId(),
         );
+
+        return ['bytes' => $bytes, 'context' => $ctx];
+    }
+
+    /**
+     * Returns the re-emitted version of $objectNumber from $newObjects, or null.
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function latestObject(array $newObjects, int $objectNumber): ?IndirectObject
+    {
+        $found = null;
+        foreach ($newObjects as $o) {
+            if ($o->objectNumber === $objectNumber) {
+                $found = $o; // last write wins
+            }
+        }
+        return $found;
+    }
+
+    /**
+     * The latest AcroForm IndirectObject: re-emitted in the edit revision if the
+     * field-fill path touched it, else read from the source catalog (null when
+     * the source has no /AcroForm).
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function latestAcroForm(array $newObjects): ?IndirectObject
+    {
+        $acroRef = $this->reader->catalog()->get(Name::of('AcroForm'));
+        if ($acroRef instanceof PdfReference) {
+            $latest = $this->latestObject($newObjects, $acroRef->objectNumber);
+            if ($latest !== null) {
+                return $latest;
+            }
+            $resolved = $this->reader->resolve($acroRef);
+            return $resolved instanceof Dictionary
+                ? IndirectObject::of($acroRef->objectNumber, 0, $resolved)
+                : null;
+        }
+        return null;
     }
 
     /**
