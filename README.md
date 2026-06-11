@@ -18,34 +18,36 @@ Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime depende
 
 A quick tour - each feature has a full guide in the [wiki](#documentation).
 
-- **Documents** - standard formats (A4 / Letter / Legal and more) and custom sizes, portrait or landscape, multi-page, metadata, AES-256 password protection, and viewer hints.
-- **Coordinates** - millimetres by default (origin top-left, Y pointing down), or PDF points via `Unit::PT`.
-- **Graphics** - lines, rectangles, circles, paths, fill / stroke, dashes, line caps / joins, and transforms.
-- **Text** - the 12 standard PDF fonts, multi-line text, configurable leading, and full Western Latin (accents and typographic characters).
-- **Custom TrueType / OpenType fonts** - register your own families and use them like the built-ins: full Unicode reach (Latin / Greek / Cyrillic / CJK), selectable text, and automatic glyph subsetting for small files.
-- **Cells** - text boxes with borders, fill, padding, alignment (left / center / right / justify), automatic word-wrap, and three width-fit modes.
-- **Text measurement** - `$page->stringWidth(...)` returns the exact width of a string in the current font.
-- **Images** - JPEG and PNG (all color types, with transparency), auto-detected, embedded once and placed as many times as you like.
-- **SVG vector images** - inline or from a file, fully vector: shapes, paths, gradients, patterns, clipping, masks, CSS styling, embedded rasters, real selectable `<text>` / `<textPath>`, and a pure-PHP `<filter>` raster.
-- **Barcodes & QR codes** - 1D (EAN-13 / 8, Code 128 / 39 / 93, UPC-A, ITF) and 2D (QR, Aztec, DataMatrix, PDF417), all pure-PHP and vector, with optional human-readable text and vertical 1D rendering.
-- **Bookmarks & hyperlinks** - a nested table-of-contents sidebar and clickable areas that open a URL or jump to another page.
-- **Interactive forms** - fillable text fields, checkboxes, radio buttons, dropdowns, listboxes, and push buttons, with per-field styling, JavaScript actions (calculation / formatting / validation), and automatic field linking.
-- **Digital signatures** - sign with a real PKCS#7 / CMS signature via `Document::sign()` and a PKCS#12 credential, with RFC 3161 timestamps, multiple signers, the strict PAdES profiles (B-B / B-T), and long-term-validation (LTV) building blocks.
-- **Markdown** - render a CommonMark core subset, either flowing with automatic page breaks (`Page::markdown()`) or inside an auto-sized cell; styleable via `MarkdownStyle`.
-- **Tables** - data grids via `Page::table()`: fixed or `fill` columns, headers repeated across pages, zebra striping, borders, a per-cell style callback, text-or-image cells, column spanning (`colSpan`), and grouped headers.
-- **Right-to-left text** - Unicode bidirectional reordering (UAX #9) for Hebrew, Arabic, and other RTL scripts on cells, tables, and Markdown. Set a document base direction with `setBaseDirection()`, override per cell with `direction:`, per table cell with `Cell::direction()`, or per Markdown block with the `direction:` argument on `Page::markdown()` / `cell(markdown: true)`; `Direction::AUTO` detects the base from the text. An RTL base right-aligns by default. No page-coordinate flip - layout, images, and tables are unaffected. Arabic cursive shaping is included: letters are joined using the correct contextual presentation forms (isolated / initial / medial / final) and the four mandatory lam-alef ligatures are formed automatically; the font's cmap must contain the Arabic presentation forms (e.g. GNU FreeSerif, DejaVu Sans, Tahoma - modern GSUB-only fonts that omit the legacy presentation-form block are not supported). Markdown RTL: bidi reordering and Arabic shaping apply to each Markdown block, RTL blocks are right-aligned, and list markers / blockquote bars are mirrored to the right side; inline code and fenced code blocks stay LTR.
-- **Multi-column layout** - flow `cell()` and `markdown()` across equal-width columns with `$page->columns(...)`, filling each column before the next and continuing onto new pages.
-- **PDF/A archival** - emit PDF/A-2 and PDF/A-3 (levels b, u, and a) with one `enablePdfA()` call, validated against veraPDF; A-3 embeds associated files such as a Factur-X / ZUGFeRD e-invoice. Level A (`PdfALevel::A2A` / `A3A`) auto-enables tagging and requires the catalog language, e.g. `enablePdfA(PdfALevel::A2A, 'en-US')`. Combining `enablePdfA(PdfALevel::A2A, 'en-US')` with `enablePdfUA('en-US')` produces a single file that is both PDF/A-2a and PDF/UA-1.
-- **Tagged PDF & PDF/UA-1 accessibility** - opt-in structure tagging via `enableTagging()`: cells, images, tables, and Markdown are tagged automatically into a logical structure tree (`StructTreeRoot`, `MarkInfo`, ParentTree, marked content), with an optional document language. `enablePdfUA()` goes further and produces output that validates as PDF/UA-1 (`isCompliant` under veraPDF): decoration is marked as `/Artifact`, figures carry alternate text (`image(alt: ...)`), table headers get a scope, `DisplayDocTitle` and an XMP `pdfuaid` are emitted, and a fail-fast guard enforces embedded fonts, a title, and figure alt text. Text hyperlinks made with `cell(link: ...)` are tagged as accessible `<Link>` elements (with `/OBJR`, `/StructParent`, and a description). Markdown inline links are also tagged automatically as `<Link>` elements when tagging is on, so `markdown()` with links is PDF/UA-1 conformant. Image hyperlinks are tagged on both surfaces: `Page::image(link: ..., linkAlt: ...)` and Markdown block image links `[![alt](img)](url)` both emit a `<Link>` wrapping the `<Figure>`, keeping documents with image links PDF/UA-1 conformant.
+**Create**
 
-- **Reading existing PDFs (low-level)** - `PdfReader` parses any non-encrypted PDF (classic xref tables and cross-reference streams, incremental revisions, object streams, the common stream filters) and exposes its objects and page tree. This is the foundation for template import and modification.
-- **Template import (FPDI-style)** - `Document::importPdf()` / `importPdfBytes()` parse an existing PDF and `Page::template($tpl, $x, $y, $width, $height)` draws any of its pages as an opaque background or stamp: letterheads, overlays on scanned forms, watermarking. Page rotation is honored, the source page's resources are carried over, and templates work together with encryption, tagging (drawn as artifacts), and signatures.
-- **Modifying existing PDFs** - `PdfEditor::open($path)` (or `PdfEditor::fromBytes()`) opens a non-encrypted PDF and writes changes as an appended incremental revision, leaving the original bytes - and any signatures they carry - byte-for-byte intact. Update document metadata (`setTitle` / `setAuthor` / `setSubject` / `setKeywords` / `setCreator`, with the XMP packet refreshed when present) and append new pages with the full page API via `appendPage()`. Works on both classic xref tables and cross-reference streams. Sign the opened document with `PdfEditor::sign()` / `addSignature()` (a real PKCS#7 / CMS signature from a PKCS#12 credential), add a trusted timestamp with `addDocumentTimestamp()`, or make it long-term-validatable with `enableLtv()` - each is written as a stacked incremental revision that preserves the original bytes and covers all prior edits. An existing empty signature field is reused by name, or a new field is created (invisible by default, or visible with a Helvetica caption via `SignatureAppearance`).
-- **Filling AcroForm fields** - read an existing form with `PdfEditor::open()`, inspect its fields via `formFields()` / `field()`, set values with `setField($name, $value)` for text (single-line and multiline), checkbox (bool), radio (export-name string), combobox (export key), and listbox (string or array of export keys), and write the result as an incremental revision. Each filled field receives a generated appearance stream (`/AP`) so the value is visible without viewer-side rendering. Two limitations apply: appearance generation supports Standard-14 `/DR` fonts only (fields whose default-resource font is embedded/non-standard throw), and fields are not flattened (they stay interactive).
+- 📄 **Documents** - standard (A4 / Letter / Legal) and custom sizes, portrait or landscape, multi-page, metadata, AES-256 password protection, viewer hints.
+- 📐 **Coordinates** - millimetres by default (origin top-left), or PDF points via `Unit::PT`.
+- ✏️ **Graphics** - lines, rectangles, circles, paths, fill / stroke, dashes, caps / joins, transforms.
+- 🔤 **Text** - the 12 standard fonts, multi-line, configurable leading, full Western Latin, exact width measurement.
+- 🔡 **Custom fonts** - register TrueType / OpenType families with full Unicode (Latin / Greek / Cyrillic / CJK), selectable text, automatic glyph subsetting.
+- 📦 **Cells** - text boxes with borders, fill, padding, alignment (left / center / right / justify), word-wrap, three width-fit modes.
+- 🖼️ **Images** - JPEG and PNG (all color types, transparency), embedded once and placed anywhere.
+- 🎨 **SVG** - fully vector: shapes, paths, gradients, patterns, clipping, masks, CSS styling, selectable `<text>` / `<textPath>`, pure-PHP `<filter>`.
+- 🔢 **Barcodes & QR** - 1D (EAN-13 / 8, Code 128 / 39 / 93, UPC-A, ITF) and 2D (QR, Aztec, DataMatrix, PDF417), pure-PHP and vector.
+- 📝 **Markdown** - a CommonMark core subset, flowing with automatic page breaks or inside an auto-sized cell, styleable via `MarkdownStyle`.
+- 📊 **Tables** - data grids via `Page::table()`: fixed or `fill` columns, repeated headers, zebra striping, borders, per-cell styling, column spanning, grouped headers.
+- 🧱 **Multi-column layout** - flow `cell()` and `markdown()` across equal-width columns with `$page->columns(...)`.
+- 🔖 **Bookmarks & hyperlinks** - a nested table-of-contents sidebar and clickable URL / page areas.
+- 🧾 **Interactive forms** - text fields, checkboxes, radios, dropdowns, listboxes, buttons, with per-field styling, JavaScript actions, and field linking.
+- ✍️ **Digital signatures** - real PKCS#7 / CMS via `Document::sign()`, RFC 3161 timestamps, multiple signers, PAdES B-B / B-T, and LTV building blocks.
 
-## Not yet implemented
+**Right-to-left & accessibility**
 
-- Bidi explicit embedding/override/isolate controls, and per-column-header direction in tables.
+- 🔁 **Right-to-left text** - Unicode bidi reordering (UAX #9) plus Arabic cursive shaping (contextual forms + lam-alef ligatures) on cells, tables, and Markdown; per-document, per-cell, or per-block direction.
+- 🗄️ **PDF/A archival** - PDF/A-2 and PDF/A-3 (levels b / u / a) with one `enablePdfA()` call, veraPDF-validated; A-3 embeds Factur-X / ZUGFeRD e-invoices.
+- ♿ **Tagged PDF & PDF/UA-1** - opt-in tagging via `enableTagging()`; `enablePdfUA()` produces veraPDF-validated PDF/UA-1 with artifacts, figure alt text, table header scopes, and tagged hyperlinks.
+
+**Read & modify existing PDFs**
+
+- 📖 **Reading** - `PdfReader` parses any non-encrypted PDF (classic xref tables and cross-reference streams, incremental revisions, object streams, common filters).
+- 🧩 **Template import (FPDI-style)** - `Document::importPdf()` + `Page::template()` stamp any source page as a background or overlay: letterheads, watermarks, scanned-form fills.
+- 🔧 **Modifying** - `PdfEditor::open()` writes appended incremental revisions (metadata, new pages, signatures, timestamps, LTV), leaving the original bytes - and their signatures - byte-for-byte intact.
+- 🖋️ **Filling AcroForm fields** - inspect and `setField()` text / checkbox / radio / combobox / listbox values; each filled field gets a generated appearance stream (`/AP`).
 
 ## Installation
 
