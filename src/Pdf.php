@@ -301,6 +301,74 @@ final class Pdf
     }
 
     /**
+     * Queues a field-value edit for output. Deep validation (option membership,
+     * radio export names, etc.) happens at {@see output()} time via
+     * FieldValueApplier. This method does LIGHT fail-fast checks only:
+     *
+     * - Unknown field name: throws with a Levenshtein-based "did you mean" hint.
+     * - PushButton / Signature: always rejected (carry no user value).
+     * - Wrong PHP type for the field category (string vs bool vs array).
+     * - Read-only guard: rejected unless $force is true.
+     *
+     * Last write wins: calling setField() twice for the same name keeps the
+     * second value.
+     *
+     * @param string|bool|list<string> $value
+     */
+    public function setField(string $name, string|bool|array $value, bool $force = false): self
+    {
+        $allFields = $this->fieldTree()->terminalFields();
+
+        $resolved = null;
+        foreach ($allFields as $rf) {
+            if ($rf->name === $name) {
+                $resolved = $rf;
+                break;
+            }
+        }
+
+        if ($resolved === null) {
+            if ($allFields === []) {
+                throw new PdfException('This PDF has no AcroForm fields to fill');
+            }
+            $suggestions = [];
+            foreach ($allFields as $rf) {
+                $suggestions[] = [$rf->name, levenshtein($name, $rf->name)];
+            }
+            usort($suggestions, static fn (array $a, array $b): int => $a[1] <=> $b[1]);
+            $top = array_slice($suggestions, 0, 3);
+            $hint = implode(', ', array_column($top, 0));
+            throw new PdfException("Unknown form field '{$name}'. Did you mean: {$hint}?");
+        }
+
+        if ($resolved->type === FormFieldType::PushButton || $resolved->type === FormFieldType::Signature) {
+            throw new PdfException("Field '{$name}' is a {$resolved->type->name} and cannot be filled");
+        }
+
+        if ($resolved->type === FormFieldType::Text || $resolved->type === FormFieldType::Combobox || $resolved->type === FormFieldType::Radio) {
+            if (!is_string($value)) {
+                throw new PdfException("Field '{$name}' expects a string value");
+            }
+        } elseif ($resolved->type === FormFieldType::Checkbox) {
+            if (!is_bool($value)) {
+                throw new PdfException("Field '{$name}' expects a bool value");
+            }
+        } elseif ($resolved->type === FormFieldType::Listbox) {
+            if (!is_string($value) && !is_array($value)) {
+                throw new PdfException("Field '{$name}' expects a string or array of strings");
+            }
+        }
+
+        if ($resolved->isReadOnly() && !$force) {
+            throw new PdfException("Field '{$name}' is read-only; pass force: true to fill it anyway");
+        }
+
+        $this->pending->fieldEdits[$name] = $value;
+
+        return $this;
+    }
+
+    /**
      * Decodes the merged /V entry of a resolved field into its PHP-native form:
      *
      * - Text / Combobox : string|null         (decoded TextString/PdfString/HexString)

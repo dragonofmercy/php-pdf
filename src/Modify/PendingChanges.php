@@ -22,6 +22,9 @@ final class PendingChanges
     /** @var list<Page> */
     public array $pages = [];
 
+    /** @var array<string, string|bool|list<string>> Pending field-value edits keyed by fully-qualified field name (last write wins). */
+    public array $fieldEdits = [];
+
     public function hasMetadata(): bool
     {
         return $this->title !== null || $this->author !== null || $this->subject !== null
@@ -30,6 +33,6 @@ final class PendingChanges
 
     public function isEmpty(): bool
     {
-        return !$this->hasMetadata() && $this->pages === [];
+        return !$this->hasMetadata() && $this->pages === [] && $this->fieldEdits === [];
     }
 }
