@@ -44,8 +44,9 @@ enum PdfALevel
     }
 
     /**
-     * XMP pdfaid:conformance letter (B / U / A), or null for parts that have no
-     * conformance level (PDF/A-4).
+     * XMP pdfaid:conformance letter (B / U / A / F), or null for the base PDF/A-4
+     * level which carries no conformance letter. Parts 2-3 use B/U/A; PDF/A-4f
+     * uses F (ISO 19005-4:2020 clause 6.7.3).
      */
     public function xmpConformance(): ?string
     {
@@ -53,7 +54,8 @@ enum PdfALevel
             self::A2B, self::A3B => 'B',
             self::A2U, self::A3U => 'U',
             self::A2A, self::A3A => 'A',
-            self::A4, self::A4F => null,
+            self::A4F => 'F',
+            self::A4 => null,
         };
     }
 

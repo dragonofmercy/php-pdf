@@ -24,7 +24,7 @@ final class PdfALevelTest extends TestCase
             'A3U' => [PdfALevel::A3U, 3, '1.7', 'U', null, true, true, false],
             'A3A' => [PdfALevel::A3A, 3, '1.7', 'A', null, true, true, true],
             'A4' => [PdfALevel::A4, 4, '2.0', null, 2020, false, true, false],
-            'A4F' => [PdfALevel::A4F, 4, '2.0', null, 2020, true, true, false],
+            'A4F' => [PdfALevel::A4F, 4, '2.0', 'F', 2020, true, true, false],
         ];
     }
 

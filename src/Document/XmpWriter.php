@@ -61,17 +61,22 @@ final class XmpWriter
     }
 
     /**
-     * Parts 2-3 carry a conformance letter; part 4 (PDF/A-4) carries a revision
-     * year instead and no conformance element.
+     * Parts 2-3 carry a conformance letter only; part 4 (PDF/A-4) carries a
+     * revision year, and PDF/A-4f additionally carries conformance "F"
+     * (ISO 19005-4:2020 clause 6.7.3).
      */
     private function pdfaidConformanceOrRev(PdfALevel $pdfa): string
     {
+        $result = '';
+        $rev = $pdfa->xmpRev();
+        if ($rev !== null) {
+            $result .= '<pdfaid:rev>' . $rev . '</pdfaid:rev>';
+        }
         $conformance = $pdfa->xmpConformance();
         if ($conformance !== null) {
-            return '<pdfaid:conformance>' . $conformance . '</pdfaid:conformance>';
+            $result .= '<pdfaid:conformance>' . $conformance . '</pdfaid:conformance>';
         }
-        $rev = $pdfa->xmpRev();
-        return $rev !== null ? '<pdfaid:rev>' . $rev . '</pdfaid:rev>' : '';
+        return $result;
     }
 
     /**
