@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- AcroForm field reading and filling via `Pdf::open()` / `Pdf::fromBytes()`:
+  inspect every terminal field with `formFields()` (returns `list<FormFieldInfo>`)
+  or `field($name)`, then fill text (single-line and multiline), checkbox (bool),
+  radio (export-name string), combobox (export key), and listbox (string or
+  `list<string>` of export keys) with `setField($name, $value)`. The filled
+  output is written as an appended incremental revision; each filled field
+  receives a generated `/AP` appearance stream so the value is visible without
+  viewer-side rendering. `/AcroForm` is re-emitted with `/NeedAppearances false`
+  so conforming viewers trust the generated appearances. Limitation: appearance
+  generation supports Standard-14 `/DR` fonts only (fields that reference an
+  embedded font throw). Fields remain interactive (no flattening).
 - Template import: `Document::importPdf()` / `importPdfBytes()` parse an existing
   PDF and `Page::template($tpl, $x, $y, $width, $height)` draws any of its pages
   as an opaque background or stamp (FPDI-style) - letterheads, overlays on scanned

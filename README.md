@@ -41,10 +41,12 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 - **Reading existing PDFs (low-level)** - `PdfReader` parses any non-encrypted PDF (classic xref tables and cross-reference streams, incremental revisions, object streams, the common stream filters) and exposes its objects and page tree. This is the foundation for template import and modification.
 - **Template import (FPDI-style)** - `Document::importPdf()` / `importPdfBytes()` parse an existing PDF and `Page::template($tpl, $x, $y, $width, $height)` draws any of its pages as an opaque background or stamp: letterheads, overlays on scanned forms, watermarking. Page rotation is honored, the source page's resources are carried over, and templates work together with encryption, tagging (drawn as artifacts), and signatures.
 - **Modifying existing PDFs** - `Pdf::open($path)` (or `Pdf::fromBytes()`) opens a non-encrypted PDF and writes changes as an appended incremental revision, leaving the original bytes - and any signatures they carry - byte-for-byte intact. Update document metadata (`setTitle` / `setAuthor` / `setSubject` / `setKeywords` / `setCreator`, with the XMP packet refreshed when present) and append new pages with the full page API via `appendPage()`. Works on both classic xref tables and cross-reference streams.
+- **Filling AcroForm fields** - read an existing form with `Pdf::open()`, inspect its fields via `formFields()` / `field()`, set values with `setField($name, $value)` for text (single-line and multiline), checkbox (bool), radio (export-name string), combobox (export key), and listbox (string or array of export keys), and write the result as an incremental revision. Each filled field receives a generated appearance stream (`/AP`) so the value is visible without viewer-side rendering. Two limitations apply: appearance generation supports Standard-14 `/DR` fonts only (fields whose default-resource font is embedded/non-standard throw), and fields are not flattened (they stay interactive).
 
 ## Not yet implemented
 
-- Filling AcroForm fields and signing existing PDFs - in progress, built on `Pdf::open()`.
+- Signing existing PDFs via incremental revision.
+- Bidi explicit embedding/override/isolate controls, and per-column-header direction in tables.
 - Bidi explicit embedding/override/isolate controls, and per-column-header direction in tables.
 
 ## Installation

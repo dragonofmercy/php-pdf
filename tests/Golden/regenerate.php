@@ -1117,7 +1117,12 @@ $importGoldens = [
     'import/rotated-source.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\TemplateImportTest::class, 'buildRotatedImportBytes'],
 ];
 
-foreach (array_merge($modifyGoldens, $importGoldens) as $name => [$class, $method]) {
+// Form-fill golden fixture (Task 11: incremental AcroForm field filling).
+$formFillGoldens = [
+    'form/fill/fill-all-types.pdf' => [\DragonOfMercy\PhpPdf\Tests\Golden\FormFillTest::class, 'buildFilledPdf'],
+];
+
+foreach (array_merge($modifyGoldens, $importGoldens, $formFillGoldens) as $name => [$class, $method]) {
     $path = $fixturesDir . '/' . $name;
     if (!is_dir(dirname($path))) {
         mkdir(dirname($path), 0755, true);

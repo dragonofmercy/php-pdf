@@ -17,6 +17,7 @@ use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
+use DragonOfMercy\PhpPdf\Form\Fill\FieldValueApplier;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldInfo;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
 use DragonOfMercy\PhpPdf\Form\Fill\ResolvedField;
@@ -29,6 +30,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfBoolean;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
@@ -499,6 +501,10 @@ final class Pdf
             $nextNumber = $this->emitAppendedPages($newObjects, $nextNumber);
         }
 
+        if ($this->pending->fieldEdits !== []) {
+            $nextNumber = $this->emitFilledFields($newObjects, $nextNumber);
+        }
+
         // $nextNumber starts at maxObjectNumber() + 1 and only ever advances
         // (Info/XMP increments + the monotonic page allocator), so it is already
         // the next free object number the revision's xref must announce as /Size.
@@ -635,6 +641,82 @@ final class Pdf
         $apply('Keywords', $metadata->keywords(...));
         $apply('Creator', $metadata->creator(...));
         return (new XmpWriter())->write($metadata);
+    }
+
+    /**
+     * Re-emits each edited AcroForm field (and its widgets / generated
+     * appearance streams) into the appended revision, and re-emits the
+     * /AcroForm dictionary with /NeedAppearances false so viewers trust the
+     * generated appearances. Returns the next free object number.
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function emitFilledFields(array &$newObjects, int $nextNumber): int
+    {
+        // Build a name -> ResolvedField map for fast lookup.
+        $byName = [];
+        foreach ($this->fieldTree()->terminalFields() as $rf) {
+            $byName[$rf->name] = $rf;
+        }
+
+        $allocate = function () use (&$nextNumber): int {
+            return $nextNumber++;
+        };
+
+        $applier = new FieldValueApplier($this->reader, $this->metricsRegistry);
+
+        // Collect re-emitted objects keyed by object number (last write wins so
+        // a field re-emitted twice does not appear twice in the revision).
+        /** @var array<int, IndirectObject> $emitted */
+        $emitted = [];
+
+        foreach ($this->pending->fieldEdits as $name => $value) {
+            $rf = $byName[$name] ?? null;
+            if ($rf === null) {
+                throw new PdfException("Cannot fill unknown field '{$name}'");
+            }
+            $this->guardGenerationZero($rf->objectNumber, "field '{$name}'");
+            $applied = $applier->apply($rf, $value, $allocate);
+            foreach ($applied->objects as $obj) {
+                $emitted[$obj->objectNumber] = $obj;
+            }
+        }
+
+        foreach ($emitted as $obj) {
+            $newObjects[] = $obj;
+        }
+
+        // Re-emit /AcroForm with /NeedAppearances false so viewers trust
+        // the generated appearance streams.
+        $acroRef = $this->reader->catalog()->get(Name::of('AcroForm'));
+        if ($acroRef instanceof PdfReference) {
+            $this->guardGenerationZero($acroRef->objectNumber, '/AcroForm');
+            $acroResolved = $this->reader->resolve($acroRef);
+            if (!$acroResolved instanceof Dictionary) {
+                throw new PdfException('/AcroForm does not resolve to a Dictionary');
+            }
+            $dict = $acroResolved->withEntry(Name::of('NeedAppearances'), PdfBoolean::false());
+            $newObjects[] = IndirectObject::of($acroRef->objectNumber, 0, $dict);
+        } else {
+            // Inline AcroForm dict: re-emit the catalog/Root object with the
+            // updated inline AcroForm entry.
+            $rootRef = $this->reader->trailer()->get(Name::of('Root'));
+            if (!$rootRef instanceof PdfReference) {
+                throw new PdfException('The opened PDF has no indirect /Root reference');
+            }
+            $this->guardGenerationZero($rootRef->objectNumber, '/Root (inline AcroForm)');
+            $catalog = $this->reader->catalog();
+            if ($acroRef instanceof Dictionary) {
+                $updatedAcro = $acroRef->withEntry(Name::of('NeedAppearances'), PdfBoolean::false());
+                $newObjects[] = IndirectObject::of(
+                    $rootRef->objectNumber,
+                    0,
+                    $catalog->withEntry(Name::of('AcroForm'), $updatedAcro),
+                );
+            }
+        }
+
+        return $nextNumber;
     }
 
     private function guardGenerationZero(int $objectNumber, string $what): void
