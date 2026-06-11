@@ -77,8 +77,6 @@ final class Document
 {
     private const string VERSION = '0.1-phase1a';
 
-    private const string HEADER = "%PDF-1.7\n%\xE2\xE3\xCF\xD3\n";
-
     /** Default margin (in the document's unit) applied by setAutoPageBreak(true) when current margins are zero. */
     private const float DEFAULT_AUTO_BREAK_MARGIN = 20.0;
 
@@ -913,7 +911,7 @@ final class Document
                 hasEncryption: $this->encryption !== null,
                 hasAppendedRevisions: $this->appendedRevisions !== [],
                 hasDocumentScripts: $this->hasDocumentScripts(),
-                hasAttachmentsAtPart2: !$this->pdfALevel->allowsEmbeddedFiles() && $this->attachments !== [],
+                hasForbiddenAttachments: !$this->pdfALevel->allowsEmbeddedFiles() && $this->attachments !== [],
             );
         }
 
@@ -1644,6 +1642,17 @@ final class Document
     }
 
     /**
+     * The %PDF-x.y header line plus the mandatory binary-comment line. The
+     * version follows the active PDF/A level (PDF/A-4 is PDF 2.0), defaulting to
+     * 1.7 for every other document so existing output stays byte-identical.
+     */
+    private function pdfHeaderBytes(): string
+    {
+        $version = $this->pdfALevel?->headerVersion() ?? '1.7';
+        return '%PDF-' . $version . "\n%\xE2\xE3\xCF\xD3\n";
+    }
+
+    /**
      * @param list<IndirectObject> $objects
      */
     private function assembleWithTrailer(
@@ -1653,7 +1662,7 @@ final class Document
         string $documentId,
     ): string {
         $xref = new XrefTable();
-        $body = self::HEADER;
+        $body = $this->pdfHeaderBytes();
 
         foreach ($objects as $object) {
             $xref->recordOffset($object->objectNumber, strlen($body));

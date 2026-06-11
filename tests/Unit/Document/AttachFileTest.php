@@ -36,7 +36,7 @@ final class AttachFileTest extends TestCase
         $doc->enablePdfA(PdfALevel::A2B);
 
         $this->expectException(PdfException::class);
-        $this->expectExceptionMessage('PDF/A-2');
+        $this->expectExceptionMessage('forbids embedded files');
         $doc->output();
     }
 

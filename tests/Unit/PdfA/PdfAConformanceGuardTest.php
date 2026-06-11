@@ -54,16 +54,16 @@ final class PdfAConformanceGuardTest extends TestCase
         (new PdfAConformanceGuard())->verify([], false, false, true);
     }
 
-    public function testThrowsOnAttachmentAtPart2(): void
+    public function testThrowsOnForbiddenAttachments(): void
     {
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
-        $this->expectExceptionMessage('PDF/A-2');
+        $this->expectExceptionMessage('forbids embedded files');
         (new \DragonOfMercy\PhpPdf\PdfA\PdfAConformanceGuard())->verify(
             standardFonts: [],
             hasEncryption: false,
             hasAppendedRevisions: false,
             hasDocumentScripts: false,
-            hasAttachmentsAtPart2: true,
+            hasForbiddenAttachments: true,
         );
     }
 }

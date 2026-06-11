@@ -25,7 +25,7 @@ final class PdfAConformanceGuard
         bool $hasEncryption,
         bool $hasAppendedRevisions,
         bool $hasDocumentScripts,
-        bool $hasAttachmentsAtPart2 = false,
+        bool $hasForbiddenAttachments = false,
     ): void {
         if ($hasEncryption) {
             throw new PdfException('PDF/A documents cannot be encrypted; remove encryption() before enablePdfA()');
@@ -36,8 +36,8 @@ final class PdfAConformanceGuard
         if ($hasDocumentScripts) {
             throw new PdfException('PDF/A forbids document-level JavaScript; remove addDocumentScript() before enablePdfA()');
         }
-        if ($hasAttachmentsAtPart2) {
-            throw new PdfException('PDF/A-2 forbids embedded files; use enablePdfA(PdfALevel::A3B) or A3U to attach files');
+        if ($hasForbiddenAttachments) {
+            throw new PdfException('This PDF/A level forbids embedded files; use a part-3 level (A3B / A3U) or PDF/A-4f to attach files');
         }
         if ($standardFonts !== []) {
             $name = $standardFonts[0]->pdfName();
