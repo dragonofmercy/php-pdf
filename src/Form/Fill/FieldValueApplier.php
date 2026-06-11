@@ -168,13 +168,8 @@ final class FieldValueApplier
                 ->withEntry(Name::of('V'), TextString::of($value));
             $objects[] = IndirectObject::of($fieldObjNum, 0, $fieldWithV);
 
-            $originalWidgetResolved = $this->reader->resolve($this->reader->object($widgetNum));
-            if (!$originalWidgetResolved instanceof Dictionary) {
-                throw new PdfException(
-                    "Field '{$rf->name}': widget object {$widgetNum} does not resolve to a Dictionary on re-read",
-                );
-            }
-            $widgetWithAp = $originalWidgetResolved
+            // Reuse the already-resolved widget dict (read at step 2-3) for the re-emit
+            $widgetWithAp = $widgetDict
                 ->withEntry(Name::of('AP'), $apAnnotDict);
             $objects[] = IndirectObject::of($widgetNum, 0, $widgetWithAp);
         }
@@ -296,7 +291,7 @@ final class FieldValueApplier
      */
     private function baseFontToFont(ResolvedField $rf, string $baseFont): Font
     {
-        if (str_starts_with($baseFont, 'Helvetica')) {
+        if ($baseFont === 'Helvetica' || str_starts_with($baseFont, 'Helvetica-')) {
             $font = Font::helvetica();
             if (str_contains($baseFont, 'Bold')) {
                 $font = $font->bold();
@@ -307,7 +302,7 @@ final class FieldValueApplier
             return $font;
         }
 
-        if (str_starts_with($baseFont, 'Times')) {
+        if ($baseFont === 'Times-Roman' || str_starts_with($baseFont, 'Times-')) {
             $font = Font::times();
             if (str_contains($baseFont, 'Bold')) {
                 $font = $font->bold();
@@ -318,7 +313,7 @@ final class FieldValueApplier
             return $font;
         }
 
-        if (str_starts_with($baseFont, 'Courier')) {
+        if ($baseFont === 'Courier' || str_starts_with($baseFont, 'Courier-')) {
             $font = Font::courier();
             if (str_contains($baseFont, 'Bold')) {
                 $font = $font->bold();
