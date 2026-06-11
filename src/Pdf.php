@@ -27,6 +27,7 @@ use DragonOfMercy\PhpPdf\Modify\RevisionWriter;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
+use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
@@ -35,6 +36,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use DragonOfMercy\PhpPdf\Writer\Object\TextString;
 use DragonOfMercy\PhpPdf\Writer\PdfObjectAllocator;
 
@@ -727,5 +729,92 @@ final class Pdf
         if ($generation !== 0) {
             throw new PdfException("Cannot rewrite {$what} (object {$objectNumber}): generation {$generation} is not supported");
         }
+    }
+
+    /**
+     * Resolves the IndirectObject (number + dictionary) of the 0-based page at
+     * $index by descending the source page tree, resolving intermediate
+     * /Type /Pages nodes. Used to place a signature widget on a chosen page.
+     */
+    private function pageObjectAt(int $index): IndirectObject
+    {
+        $refs = $this->pageReferences();
+        if ($index < 0 || $index >= count($refs)) {
+            throw new PdfException('Cannot place signature on page ' . $index . ' (document has ' . count($refs) . ' pages)');
+        }
+        $ref = $refs[$index];
+        $this->guardGenerationZero($ref->objectNumber, "page {$index}");
+        $dict = $this->reader->resolve($ref);
+        if (!$dict instanceof Dictionary) {
+            throw new PdfException("Page object {$ref->objectNumber} does not resolve to a dictionary");
+        }
+        return IndirectObject::of($ref->objectNumber, 0, $dict);
+    }
+
+    /**
+     * Flattens the source page tree to the ordered list of leaf /Type /Page
+     * references.
+     *
+     * @return list<PdfReference>
+     */
+    private function pageReferences(): array
+    {
+        $pagesRef = $this->reader->catalog()->get(Name::of('Pages'));
+        if (!$pagesRef instanceof PdfReference) {
+            throw new PdfException('The opened PDF has no indirect /Pages reference');
+        }
+        $out = [];
+        $this->collectPageRefs($pagesRef, $out, 0);
+        if ($out === []) {
+            throw new PdfException('The opened PDF has no pages');
+        }
+        return $out;
+    }
+
+    /**
+     * @param list<PdfReference> $out
+     */
+    private function collectPageRefs(PdfReference $nodeRef, array &$out, int $depth): void
+    {
+        if ($depth > 50) {
+            throw new PdfException('Page tree nested too deeply (possible cycle)');
+        }
+        $node = $this->reader->resolve($nodeRef);
+        if (!$node instanceof Dictionary) {
+            return;
+        }
+        $type = $node->get(Name::of('Type'));
+        if ($type instanceof Name && $type->value() === 'Pages') {
+            $kids = $this->reader->resolve($node->get(Name::of('Kids')) ?? PdfNull::instance());
+            if ($kids instanceof PdfArray) {
+                foreach ($kids->elements() as $kid) {
+                    if ($kid instanceof PdfReference) {
+                        $this->collectPageRefs($kid, $out, $depth + 1);
+                    }
+                }
+            }
+            return;
+        }
+        $out[] = $nodeRef;
+    }
+
+    /**
+     * Hex content for the incremental revisions' trailer /ID, preserving the
+     * source /ID[0] when present (HexString -> its digits; literal -> bin2hex),
+     * else a deterministic md5 of the source bytes.
+     */
+    private function sourceDocumentId(): string
+    {
+        $id = $this->reader->trailer()->get(Name::of('ID'));
+        if ($id instanceof PdfArray) {
+            $first = $id->elements()[0] ?? null;
+            if ($first instanceof HexString) {
+                return $first->hex();
+            }
+            if ($first instanceof PdfString) {
+                return bin2hex($first->value());
+            }
+        }
+        return md5($this->bytes);
     }
 }
