@@ -116,7 +116,7 @@ final class TextAppearanceBuilder
 
     /**
      * Appends BT...ET operators for a multiline field.
-     * Greedy word-wrap, left-aligned (quadding ignored in v1).
+     * Greedy word-wrap. Alignment is always left; quadding is not applied.
      *
      * @param list<string> $lines
      * @param \Closure(float): string $n
@@ -146,9 +146,9 @@ final class TextAppearanceBuilder
             $lines[] = $da->colorOps;
         }
         $lines[] = '/' . $fontAlias . ' ' . $n($size) . ' Tf';
-        $lines[] = $n($leading) . ' TL';
 
         if ($wrapped !== []) {
+            $lines[] = $n($leading) . ' TL';
             $lines[] = $n($padX) . ' ' . $n($yTop) . ' Td';
             $first = true;
             foreach ($wrapped as $wrappedLine) {

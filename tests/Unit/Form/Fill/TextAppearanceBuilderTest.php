@@ -82,6 +82,42 @@ final class TextAppearanceBuilderTest extends TestCase
         self::assertGreaterThan(1, substr_count($r['content'], ' Tj'));
     }
 
+    public function testAutoSizeClampsToBounds(): void
+    {
+        $b = new TextAppearanceBuilder(new MetricsRegistry());
+        $da = DefaultAppearance::parse('0 g /Helv 0 Tf');
+
+        // heightPt = 20: min(12, 20-4) = 12 -> upper clamp.
+        $tall = $b->build('X', 100.0, 20.0, $da, Font::helvetica(), 'Helv', quadding: 0, multiline: false);
+        self::assertSame(1, preg_match('#/Helv (\d+(?:\.\d+)?) Tf#', $tall['content'], $m));
+        self::assertSame(12.0, (float) ($m[1] ?? 0));
+
+        // heightPt = 6: max(4, 6-4) = max(4, 2) = 4 -> lower clamp.
+        $short = $b->build('X', 100.0, 6.0, $da, Font::helvetica(), 'Helv', quadding: 0, multiline: false);
+        self::assertSame(1, preg_match('#/Helv (\d+(?:\.\d+)?) Tf#', $short['content'], $m));
+        self::assertSame(4.0, (float) ($m[1] ?? 0));
+    }
+
+    public function testMultilineOverWideSingleWordGetsOwnLine(): void
+    {
+        $b = new TextAppearanceBuilder(new MetricsRegistry());
+        $word = str_repeat('a', 32); // 32-character word, far wider than 20pt
+        $r = $b->build($word, 20.0, 60.0, DefaultAppearance::parse('0 g /Helv 10 Tf'),
+            Font::helvetica(), 'Helv', quadding: 0, multiline: true);
+        self::assertSame(1, substr_count($r['content'], ' Tj'));
+    }
+
+    public function testMultilineEmptyTextProducesNoTjAndNoTL(): void
+    {
+        $b = new TextAppearanceBuilder(new MetricsRegistry());
+        $r = $b->build('', 100.0, 60.0, DefaultAppearance::parse('0 g /Helv 10 Tf'),
+            Font::helvetica(), 'Helv', quadding: 0, multiline: true);
+        self::assertStringContainsString('/Tx BMC', $r['content']);
+        self::assertStringContainsString('ET', $r['content']);
+        self::assertStringNotContainsString('Tj', $r['content']);
+        self::assertStringNotContainsString('TL', $r['content']);
+    }
+
     private function tdX(string $content): float
     {
         self::assertSame(1, preg_match('/^([0-9.]+) [0-9.]+ Td$/m', $content, $m));
