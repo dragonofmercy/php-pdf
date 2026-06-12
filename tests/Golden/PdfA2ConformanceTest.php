@@ -6,6 +6,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -13,7 +14,14 @@ use Symfony\Component\Process\Process;
  * End-to-end PDF/A acceptance: render the A-2b / A-2u golden documents and have
  * veraPDF (the ISO reference validator) confirm conformance. Auto-skips when the
  * veraPDF CLI jar or its bundled JRE are not present.
+ *
+ * Tagged `conformance` so it is excluded from the default `composer test` /
+ * `composer check` (each veraPDF case spawns a JVM, which is slow and only runs
+ * where the oracle is installed). Run it via `composer check:full` /
+ * `composer test:conformance`. The fast byte-identity goldens stay in the
+ * default run and catch any change to PDF/A output.
  */
+#[Group('conformance')]
 final class PdfA2ConformanceTest extends TestCase
 {
     private const string JAVA = 'C:/tmp/pdfa/jdk-21.0.11+10-jre/bin/java.exe';

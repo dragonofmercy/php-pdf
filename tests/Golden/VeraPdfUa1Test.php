@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Acceptance gate for Tagged PDF Phase 2: the shared UA document built by
  * TaggingGoldenTest::buildUaDocument() must validate as PDF/UA-1 compliant
  * under the veraPDF CLI oracle. Auto-skips when the oracle is absent.
+ *
+ * Tagged `conformance` (excluded from the default `composer test` / `composer
+ * check`, run via `composer check:full` / `composer test:conformance`): each
+ * case spawns a JVM and only runs where the oracle is installed.
  */
+#[Group('conformance')]
 final class VeraPdfUa1Test extends TestCase
 {
     private const string JAVA = 'C:\\tmp\\pdfa\\jdk-21.0.11+10-jre\\bin\\java.exe';

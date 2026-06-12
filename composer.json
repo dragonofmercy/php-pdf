@@ -25,9 +25,19 @@
         "psr-4": { "DragonOfMercy\\PhpPdf\\Tests\\": "tests/" }
     },
     "scripts": {
-        "test": "phpunit",
+        "test": "phpunit --exclude-group conformance",
+        "test:all": "phpunit",
+        "test:conformance": "phpunit --group conformance",
         "analyse": "phpstan analyse",
-        "check": ["@analyse", "@test"]
+        "check": ["@analyse", "@test"],
+        "check:full": ["@analyse", "@test:all"]
+    },
+    "scripts-descriptions": {
+        "test": "Run the test suite minus the slow veraPDF conformance group",
+        "test:all": "Run every test including the veraPDF conformance group",
+        "test:conformance": "Run only the veraPDF conformance group (needs the oracle)",
+        "check": "analyse + fast tests (default gate)",
+        "check:full": "analyse + every test including veraPDF conformance"
     },
     "config": {
         "sort-packages": true
