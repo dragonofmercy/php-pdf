@@ -11,6 +11,8 @@ use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 final class FlattenFieldsTest extends TestCase
 {
@@ -111,5 +113,56 @@ final class FlattenFieldsTest extends TestCase
         $this->expectException(\DragonOfMercy\PhpPdf\Exception\PdfException::class);
         $this->expectExceptionMessageMatches('/Signature.*cannot be flattened/');
         $editor->flattenFields(['sig1']);
+    }
+
+    public function testPikepdfSeesNoAcroFormAfterFlattenAll(): void
+    {
+        $python = (new ExecutableFinder())->find('python') ?? (new ExecutableFinder())->find('python3');
+        if ($python === null) {
+            self::markTestSkipped('python not on PATH; cross-tool pikepdf anchor skipped');
+        }
+        if (!is_dir('C:/tmp/pyenc')) {
+            self::markTestSkipped('pikepdf install absent at C:/tmp/pyenc; cross-tool anchor skipped');
+        }
+
+        $editor = PdfEditor::fromBytes(self::formBytes());
+        $editor->setField('name', 'Hello');
+        $editor->setField('agree', true);
+        $editor->flattenFields();
+        $out = $editor->output();
+
+        $tmpPdf = (string) tempnam(sys_get_temp_dir(), 'phppdf_flat_');
+        $tmpScript = (string) tempnam(sys_get_temp_dir(), 'phppdf_flatpy_');
+        try {
+            file_put_contents($tmpPdf, $out);
+            file_put_contents($tmpScript, <<<'PY'
+                import sys
+                sys.path.insert(0, 'C:/tmp/pyenc')
+                import pikepdf
+                with pikepdf.open(sys.argv[1]) as pdf:
+                    root = pdf.Root
+                    has_form = '/AcroForm' in root and len(getattr(root.AcroForm, 'Fields', [])) > 0
+                    print('FORM=' + ('yes' if has_form else 'no'))
+                    page = pdf.pages[0]
+                    annots = page.get('/Annots', [])
+                    print('ANNOTS=' + str(len(annots)))
+                PY);
+
+            $process = new Process([$python, $tmpScript, $tmpPdf]);
+            $process->run();
+            $stdout = $process->getOutput();
+            $stderr = $process->getErrorOutput();
+
+            if (str_contains($stderr, 'ModuleNotFoundError') || str_contains($stderr, 'ImportError')) {
+                self::markTestSkipped('pikepdf module not importable; cross-tool anchor skipped: ' . trim($stderr));
+            }
+
+            self::assertSame(0, $process->getExitCode(), "pikepdf failed. stdout=[{$stdout}] stderr=[{$stderr}]");
+            self::assertStringContainsString('FORM=no', $stdout, "pikepdf should see no interactive form. stdout=[{$stdout}]");
+            self::assertStringContainsString('ANNOTS=0', $stdout, "pikepdf should see no widget annotations. stdout=[{$stdout}]");
+        } finally {
+            @unlink($tmpPdf);
+            @unlink($tmpScript);
+        }
     }
 }
