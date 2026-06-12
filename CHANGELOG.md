@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- PDF/A-4 conformance (ISO 19005-4:2020, PDF 2.0-based) via `enablePdfA(PdfALevel::A4)`
+  and the `A4F` flavour for documents that embed arbitrary files. PDF/A-4 emits a
+  `%PDF-2.0` header, carries its identification as `pdfaid:rev` (2020) in XMP, and -
+  unlike parts 2-3 - omits the deprecated `/Info` trailer dictionary, keeping all
+  metadata in the XMP stream. `A4` requires Unicode mapping but not tagging; `A4F`
+  additionally permits embedded files (e.g. Factur-X / ZUGFeRD) and adds the
+  `pdfaid:conformance` letter `F`. Both flavours are veraPDF-validated.
+
 ## [1.9.0] - 2026-06-11
 
 ### Added

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit;
 
 use DragonOfMercy\PhpPdf\PageFormat;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PageFormatTest extends TestCase
@@ -41,17 +42,13 @@ final class PageFormatTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider formatProvider
-     */
+    #[DataProvider('formatProvider')]
     public function testDimensionsMm(PageFormat $format, float $expectedWidth, float $expectedHeight): void
     {
         self::assertSame([$expectedWidth, $expectedHeight], $format->dimensionsMm());
     }
 
-    /**
-     * @dataProvider formatProvider
-     */
+    #[DataProvider('formatProvider')]
     public function testPortraitOrientation(PageFormat $format): void
     {
         [$width, $height] = $format->dimensionsMm();

@@ -39,7 +39,7 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 **Right-to-left & accessibility**
 
 - 🔁 **Right-to-left text** - Unicode bidi reordering (UAX #9) plus Arabic cursive shaping (contextual forms + lam-alef ligatures) on cells, tables, and Markdown; per-document, per-cell, or per-block direction.
-- 🗄️ **PDF/A archival** - PDF/A-2 and PDF/A-3 (levels b / u / a) with one `enablePdfA()` call, veraPDF-validated; A-3 embeds Factur-X / ZUGFeRD e-invoices.
+- 🗄️ **PDF/A archival** - PDF/A-2, PDF/A-3 (levels b / u / a), and PDF 2.0-based PDF/A-4 (+ A-4f) with one `enablePdfA()` call, veraPDF-validated; A-3 / A-4f embed Factur-X / ZUGFeRD e-invoices.
 - ♿ **Tagged PDF & PDF/UA-1** - opt-in tagging via `enableTagging()`; `enablePdfUA()` produces veraPDF-validated PDF/UA-1 with artifacts, figure alt text, table header scopes, and tagged hyperlinks.
 
 **Read & modify existing PDFs**
