@@ -246,17 +246,18 @@ final class Document
 
     /**
      * Parses an existing PDF file so its pages can be drawn as templates
-     * via Page::template(). Encrypted files are rejected.
+     * via Page::template(). Encrypted sources are decrypted in place using the
+     * supplied password (empty string for an empty user password).
      */
-    public function importPdf(string $path): ImportedPdf
+    public function importPdf(string $path, ?string $password = null): ImportedPdf
     {
-        return new ImportedPdf(PdfReader::fromFile($path));
+        return new ImportedPdf(PdfReader::fromFile($path, $password));
     }
 
     /** Same as importPdf() but from in-memory bytes. */
-    public function importPdfBytes(string $bytes): ImportedPdf
+    public function importPdfBytes(string $bytes, ?string $password = null): ImportedPdf
     {
-        return new ImportedPdf(PdfReader::fromBytes($bytes));
+        return new ImportedPdf(PdfReader::fromBytes($bytes, $password));
     }
 
     /**

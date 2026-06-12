@@ -43,7 +43,9 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 /**
  * Opens an existing PDF for modification. Changes are written as an APPENDED
  * incremental revision: the original bytes stay byte-for-byte intact, which
- * preserves any existing digital signatures. Encrypted files are rejected.
+ * preserves any existing digital signatures. Editing encrypted PDFs is not yet
+ * supported; read them with PdfReader::fromBytes($bytes, $password) or
+ * Document::importPdf(), which decrypt.
  *
  * This class is a thin public facade: it accumulates the requested edits and
  * signatures, then delegates the actual revision construction to
@@ -94,6 +96,9 @@ final class PdfEditor
             throw new PdfException('Cannot modify a PDF whose %PDF header is not at byte 0; re-save the file first');
         }
         $this->reader = PdfReader::fromBytes($bytes);
+        if ($this->reader->isEncrypted()) {
+            throw new PdfException('editing encrypted PDFs is not yet supported; read them with PdfReader::fromBytes($bytes, $password) or Document::importPdf(), which decrypt');
+        }
         $this->bytes = $bytes;
         $this->pending = new PendingChanges();
 
