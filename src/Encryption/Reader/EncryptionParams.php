@@ -67,6 +67,37 @@ final readonly class EncryptionParams
     }
 
     /**
+     * Convenience constructor for the legacy RC4 / AES-128 (R2-R4) scheme, used
+     * by the security handler tests and Algorithm-2 key-derivation task. The
+     * version follows from the cipher: AES-128 implies V4, RC4 implies V2.
+     */
+    public static function forRc4(
+        int $r,
+        string $o,
+        string $u,
+        int $p,
+        int $keyLengthBytes,
+        bool $encryptMetadata,
+        string $idFirst,
+        StreamCipher $cipher,
+    ): self {
+        return new self(
+            v: $cipher === StreamCipher::Aesv2 ? 4 : 2,
+            r: $r,
+            o: $o,
+            u: $u,
+            oe: '',
+            ue: '',
+            p: $p,
+            keyLengthBytes: $keyLengthBytes,
+            encryptMetadata: $encryptMetadata,
+            idFirst: $idFirst,
+            stmCipher: $cipher,
+            strCipher: $cipher,
+        );
+    }
+
+    /**
      * Parses a resolved /Encrypt dictionary plus the document trailer into
      * typed parameters. $resolve dereferences any PdfReference values.
      *
