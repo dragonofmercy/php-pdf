@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an encrypted PDF is not yet supported (`PdfEditor` throws a clear `PdfException` if a signature,
   document timestamp, or LTV is requested on an encrypted source). Validated against pikepdf for all three
   common schemes (RC4 128-bit, AES-128, AES-256).
+- `PdfEditor::flattenFields()` freezes filled AcroForm fields into static page content: each widget's appearance is burned into its page and the field's interactivity removed. Pass field names to flatten a subset; signature and push-button fields are preserved. Works on encrypted sources.
 
 ## [1.10.0] - 2026-06-12
 
