@@ -70,6 +70,7 @@ final readonly class PageSetEmitter
         private ?Signature $signature = null,
         private array $importedTemplates = [],
         private bool $forbidsTransparency = false,
+        private bool $requiresCidSet = false,
     ) {}
 
     /**
@@ -307,7 +308,7 @@ final readonly class PageSetEmitter
      *   linkAnnotationEmitter: ?LinkAnnotationEmitter,
      *   fontRefs: array<string, PdfReference>,
      *   customRefs: array<string, PdfReference>,
-     *   customEmissions: list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}>,
+     *   customEmissions: list<array{ParsedTtf, CustomFontKey, int, int, int, int, int, ?int}>,
      *   imageRefs: array<string, PdfReference>,
      *   imageEmissions: list<array{Image, int}>
      * }
@@ -340,7 +341,7 @@ final readonly class PageSetEmitter
 
         /** @var array<string, PdfReference> $customRefs short name => Type0 reference */
         $customRefs = [];
-        /** @var list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}> $customEmissions */
+        /** @var list<array{ParsedTtf, CustomFontKey, int, int, int, int, int, ?int}> $customEmissions */
         $customEmissions = [];
         foreach ($this->fontRegistry->customRegistrations() as $shortName => $key) {
             $type0Id = $allocator->next();
@@ -348,10 +349,13 @@ final readonly class PageSetEmitter
             $descriptorId = $allocator->next();
             $fontFileId = $allocator->next();
             $toUnicodeId = $allocator->next();
+            // PDF/A-1 (ISO 19005-1 6.3.5) needs an extra /CIDSet stream object per
+            // subset; later parts omit it so their object numbering is unchanged.
+            $cidSetId = $this->requiresCidSet ? $allocator->next() : null;
 
             $parsedTtf = $this->resolveTtfByKey($key);
             $customRefs[$shortName] = PdfReference::to($type0Id, 0);
-            $customEmissions[] = [$parsedTtf, $key, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId];
+            $customEmissions[] = [$parsedTtf, $key, $type0Id, $cidFontId, $descriptorId, $fontFileId, $toUnicodeId, $cidSetId];
         }
 
         /** @var array<string, PdfReference> $imageRefs short name => main image reference */

@@ -43,7 +43,8 @@ final class OpenTypeFontEmitter extends AbstractCompositeFontEmitter
     }
 
     /**
-     * @return array{type0: IndirectObject, cidFont: IndirectObject, descriptor: IndirectObject, fontFile: IndirectObject, toUnicode: IndirectObject}
+     * @param list<int> $presentGids GIDs embedded in the subset, used to build the optional /CIDSet
+     * @return array{type0: IndirectObject, cidFont: IndirectObject, descriptor: IndirectObject, fontFile: IndirectObject, toUnicode: IndirectObject, cidSet?: IndirectObject}
      */
     public function emit(
         ParsedTtf $font,
@@ -53,16 +54,22 @@ final class OpenTypeFontEmitter extends AbstractCompositeFontEmitter
         int $descriptorId,
         int $fontFileId,
         int $toUnicodeId,
+        array $presentGids = [],
+        ?int $cidSetId = null,
     ): array {
         $baseFont = Name::of($subset->prefixedPostScriptName);
 
-        return [
+        $objects = [
             'type0' => IndirectObject::of($type0Id, 0, $this->buildType0($baseFont, $cidFontId, $toUnicodeId)),
             'cidFont' => IndirectObject::of($cidFontId, 0, $this->buildCidFont($font, $baseFont, $descriptorId)),
-            'descriptor' => IndirectObject::of($descriptorId, 0, $this->buildDescriptor($font, $baseFont, $fontFileId)),
+            'descriptor' => IndirectObject::of($descriptorId, 0, $this->buildDescriptor($font, $baseFont, $fontFileId, $cidSetId)),
             'fontFile' => IndirectObject::of($fontFileId, 0, $this->buildFontFile($subset)),
             'toUnicode' => IndirectObject::of($toUnicodeId, 0, $this->buildToUnicode($font)),
         ];
+        if ($cidSetId !== null) {
+            $objects['cidSet'] = IndirectObject::of($cidSetId, 0, $this->buildCidSet($presentGids));
+        }
+        return $objects;
     }
 
     private function buildFontFile(SubsettedFont $subset): FontStream

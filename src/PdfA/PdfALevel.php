@@ -109,6 +109,35 @@ enum PdfALevel
         };
     }
 
+    /**
+     * Whether the OutputIntent destination profile must be a classic ICC v2
+     * matrix/TRC sRGB profile. PDF/A-1 (ISO 19005-1, 6.2.2) is validated against
+     * the PDF 1.4 / ICC v2 colour model: veraPDF rejects the ICC v4 sRGB profile
+     * the later parts embed (it carries no B-to-A information the v1 model can
+     * use). Parts 2-4 keep the v4 profile, so their output stays byte-identical.
+     */
+    public function usesV2OutputIntentProfile(): bool
+    {
+        return match ($this) {
+            self::A1B, self::A1A => true,
+            self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A, self::A4, self::A4F => false,
+        };
+    }
+
+    /**
+     * Whether every embedded CIDFont subset must carry a /CIDSet stream in its
+     * font descriptor. PDF/A-1 (ISO 19005-1, 6.3.5) mandates it; PDF Reference
+     * Table 5.20 dropped the requirement, so parts 2-4 omit it and keep their
+     * output byte-identical.
+     */
+    public function requiresCidSet(): bool
+    {
+        return match ($this) {
+            self::A1B, self::A1A => true,
+            self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A, self::A4, self::A4F => false,
+        };
+    }
+
     public function requiresUnicode(): bool
     {
         return $this->xmpConformance() !== 'B';

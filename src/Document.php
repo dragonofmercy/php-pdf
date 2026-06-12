@@ -1125,7 +1125,7 @@ final class Document
             [$intent, $profile] = (new OutputIntent())->build(
                 intentObjectNumber: $intentNumber,
                 profileObjectNumber: $profileNumber,
-                iccBytes: self::srgbIccProfile(),
+                iccBytes: self::srgbIccProfile($this->pdfALevel->usesV2OutputIntentProfile()),
             );
             $outputIntentObjects = [$intent, $profile];
             $catalogDict = $catalogDict->withEntry(
@@ -1425,6 +1425,7 @@ final class Document
             signature: $this->signature,
             importedTemplates: $this->registeredTemplates(),
             forbidsTransparency: $this->pdfALevel?->forbidsTransparency() ?? false,
+            requiresCidSet: $this->pdfALevel?->requiresCidSet() ?? false,
         );
         $emit = $emitter->emit($this->pages, new PdfObjectAllocator($firstObjectNumber), $pagesRef);
 
@@ -1602,19 +1603,27 @@ final class Document
         return $catalogDict->withEntry(Name::of('Names'), $namesDict);
     }
 
-    private static ?string $cachedSrgbIcc = null;
+    /** @var array<string, string> filename => cached ICC bytes */
+    private static array $cachedIcc = [];
 
-    private static function srgbIccProfile(): string
+    /**
+     * Returns the bundled sRGB ICC profile for the OutputIntent. PDF/A parts 2-4
+     * embed an ICC v4 sRGB profile; PDF/A-1 (validated against the ICC v2 colour
+     * model) requires a v2 matrix/TRC profile instead (see
+     * PdfALevel::usesV2OutputIntentProfile).
+     */
+    private static function srgbIccProfile(bool $v2 = false): string
     {
-        if (self::$cachedSrgbIcc === null) {
-            $path = __DIR__ . '/../resources/icc/sRGB.icc';
+        $file = $v2 ? 'sRGB-v2.icc' : 'sRGB.icc';
+        if (!isset(self::$cachedIcc[$file])) {
+            $path = __DIR__ . '/../resources/icc/' . $file;
             $data = @file_get_contents($path);
             if ($data === false) {
                 throw new PdfException('PDF/A: bundled sRGB ICC profile not found at ' . $path);
             }
-            self::$cachedSrgbIcc = $data;
+            self::$cachedIcc[$file] = $data;
         }
-        return self::$cachedSrgbIcc;
+        return self::$cachedIcc[$file];
     }
 
     private function buildInfoDictionary(Metadata $m): Dictionary

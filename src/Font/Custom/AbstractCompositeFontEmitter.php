@@ -69,7 +69,7 @@ abstract class AbstractCompositeFontEmitter
         return $cidFont->withEntry(Name::of('W'), new WidthsLiteral(CidWidthsArray::generate($font)));
     }
 
-    final protected function buildDescriptor(ParsedTtf $font, Name $baseFont, int $fontFileId): Dictionary
+    final protected function buildDescriptor(ParsedTtf $font, Name $baseFont, int $fontFileId, ?int $cidSetId = null): Dictionary
     {
         $scale = static fn (int $v): int => (int) round($v * 1000.0 / $font->unitsPerEm);
 
@@ -83,7 +83,7 @@ abstract class AbstractCompositeFontEmitter
         $stemV = 50 + (int) round((($font->weight - 400) ** 2) / 1000.0);
         $italicAngle = $font->italicAngle >> 16;
 
-        return Dictionary::empty()
+        $descriptor = Dictionary::empty()
             ->withEntry(Name::of('Type'), Name::of('FontDescriptor'))
             ->withEntry(Name::of('FontName'), $baseFont)
             ->withEntry(Name::of('Flags'), PdfNumber::ofInt($font->flags))
@@ -94,6 +94,43 @@ abstract class AbstractCompositeFontEmitter
             ->withEntry(Name::of('CapHeight'), PdfNumber::ofInt($scale($font->capHeight)))
             ->withEntry(Name::of('StemV'), PdfNumber::ofInt($stemV))
             ->withEntry(Name::of($this->fontFileKey()), PdfReference::to($fontFileId, 0));
+
+        if ($cidSetId !== null) {
+            $descriptor = $descriptor->withEntry(Name::of('CIDSet'), PdfReference::to($cidSetId, 0));
+        }
+
+        return $descriptor;
+    }
+
+    /**
+     * Builds the /CIDSet stream a PDF/A-1 conforming file requires (ISO 19005-1
+     * 6.3.5): a bit string where bit i (MSB-first) is set when CID i is present
+     * in the embedded subset. Identity ordering means CID == GID, so the present
+     * GIDs map directly to set bits.
+     *
+     * @param list<int> $presentGids GIDs embedded in the subset (must include 0)
+     */
+    final protected function buildCidSet(array $presentGids): FontStream
+    {
+        $maxGid = 0;
+        foreach ($presentGids as $gid) {
+            if ($gid > $maxGid) {
+                $maxGid = $gid;
+            }
+        }
+        /** @var list<int> $octets one accumulator per byte, each kept in 0-255 */
+        $octets = array_fill(0, intdiv($maxGid, 8) + 1, 0);
+        foreach ($presentGids as $gid) {
+            $octets[intdiv($gid, 8)] |= 0x80 >> ($gid % 8);
+        }
+        $bytes = '';
+        foreach ($octets as $octet) {
+            $bytes .= chr($octet & 0xFF);
+        }
+
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
+        return new FontStream($dict, $this->deflate($bytes, 'CIDSet'));
     }
 
     final protected function buildToUnicode(ParsedTtf $font): FontStream

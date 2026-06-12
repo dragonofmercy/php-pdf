@@ -34,7 +34,9 @@ final readonly class SubsettedFontObjectsEmitter
     }
 
     /**
-     * @param list<array{ParsedTtf, CustomFontKey, int, int, int, int, int}> $customEmissions
+     * @param list<array{ParsedTtf, CustomFontKey, int, int, int, int, int, ?int}> $customEmissions
+     *        each tuple is [parsedTtf, key, type0Id, cidFontId, descriptorId, fontFileId, toUnicodeId, cidSetId];
+     *        the trailing cidSetId is non-null only when PDF/A-1 requires a /CIDSet stream.
      * @return list<IndirectObject>
      */
     public function emit(array $customEmissions): array
@@ -48,7 +50,7 @@ final readonly class SubsettedFontObjectsEmitter
         $otfEmitter = new OpenTypeFontEmitter();
         $cffSubsetter = new CffOpenTypeSubsetter();
 
-        foreach ($customEmissions as [$parsed, $key, $t0, $cf, $desc, $ff, $tu]) {
+        foreach ($customEmissions as [$parsed, $key, $t0, $cf, $desc, $ff, $tu, $cidSetId]) {
             $context = $parsed->postScriptName;
             $used = $this->glyphUsage->usedGids($key->toRegistryKey());
             if ($parsed->outlineFormat === OutlineFormat::Cff) {
@@ -62,7 +64,7 @@ final readonly class SubsettedFontObjectsEmitter
                 $subsetBytes = $cffSubsetter->subset($parsed->bytes, $closure, $context);
                 $tag = SubsetTag::derive($context, $sortedGids);
                 $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
-                $emitted = $otfEmitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
+                $emitted = $otfEmitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu, $sortedGids, $cidSetId);
             } else {
                 // TrueType outlines: GID-preserving subset + derived tag (Phase 3b path).
                 $closure = GlyphClosure::expand($parsed->bytes, $used, $context);
@@ -71,13 +73,16 @@ final readonly class SubsettedFontObjectsEmitter
                 $subsetBytes = TtfSubsetter::subset($parsed->bytes, $closure, $context);
                 $tag = SubsetTag::derive($context, $sortedGids);
                 $subset = new SubsettedFont($subsetBytes, $tag . '+' . $context);
-                $emitted = $ttfEmitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu);
+                $emitted = $ttfEmitter->emit($parsed, $subset, $t0, $cf, $desc, $ff, $tu, $sortedGids, $cidSetId);
             }
             $objects[] = $emitted['type0'];
             $objects[] = $emitted['cidFont'];
             $objects[] = $emitted['descriptor'];
             $objects[] = $emitted['fontFile'];
             $objects[] = $emitted['toUnicode'];
+            if (isset($emitted['cidSet'])) {
+                $objects[] = $emitted['cidSet'];
+            }
         }
 
         return $objects;

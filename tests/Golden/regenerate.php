@@ -993,6 +993,10 @@ echo "Regenerated markdown/rtl-lists.pdf\n";
 if (!is_dir($fixturesDir . '/pdfa')) {
     mkdir($fixturesDir . '/pdfa', 0755, true);
 }
+file_put_contents($fixturesDir . '/pdfa/a1b.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\PdfA1bTest::buildDocument()->output());
+echo "Regenerated pdfa/a1b.pdf\n";
+file_put_contents($fixturesDir . '/pdfa/a1a.pdf', \DragonOfMercy\PhpPdf\Tests\Golden\PdfA1aTest::buildDocument()->output());
+echo "Regenerated pdfa/a1a.pdf\n";
 \DragonOfMercy\PhpPdf\Tests\Golden\PdfA2bTest::buildDocument()->save($fixturesDir . '/pdfa/a2b.pdf');
 echo "Regenerated pdfa/a2b.pdf\n";
 \DragonOfMercy\PhpPdf\Tests\Golden\PdfA2uTest::buildDocument()->save($fixturesDir . '/pdfa/a2u.pdf');
