@@ -25,6 +25,12 @@ final class PendingChanges
     /** @var array<string, string|bool|list<string>> Pending field-value edits keyed by fully-qualified field name (last write wins). */
     public array $fieldEdits = [];
 
+    /** When true, flatten value-bearing AcroForm fields at output(). */
+    public bool $flatten = false;
+
+    /** @var ?list<string> null = all value-bearing fields; a list = the named subset. */
+    public ?array $flattenNames = null;
+
     public function hasMetadata(): bool
     {
         return $this->title !== null || $this->author !== null || $this->subject !== null
@@ -33,6 +39,6 @@ final class PendingChanges
 
     public function isEmpty(): bool
     {
-        return !$this->hasMetadata() && $this->pages === [] && $this->fieldEdits === [];
+        return !$this->hasMetadata() && $this->pages === [] && $this->fieldEdits === [] && !$this->flatten;
     }
 }
