@@ -51,6 +51,12 @@ final readonly class CompressedStream implements PdfObject
         return $dict->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
     }
 
+    /** @internal Test-only access to the pre-compression content. */
+    public function rawContentForTest(): string
+    {
+        return $this->content;
+    }
+
     public function toBytes(): string
     {
         $compressed = $this->compressedContent();
