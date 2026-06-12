@@ -74,6 +74,9 @@ final class PdfEditorEncryptedEditTest extends TestCase
      */
     private static function rawIndirectObjectBytes(string $pdf, int $objectNumber): string
     {
+        // The appended revision overwrites the source /Info at the same object
+        // number, so take the LAST occurrence (strrpos, not strpos) to inspect
+        // the newly written object rather than the stale source one.
         $start = strrpos($pdf, "\n{$objectNumber} 0 obj");
         self::assertNotFalse($start);
         $end = strpos($pdf, 'endobj', $start);

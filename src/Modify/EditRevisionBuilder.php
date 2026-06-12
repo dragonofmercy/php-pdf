@@ -109,12 +109,17 @@ final class EditRevisionBuilder
         if ($hasEdits) {
             ['newObjects' => $newObjects, 'trailerEntries' => $trailerEntries, 'nextNumber' => $nextNumber]
                 = $this->assembleRevisionObjects();
+            // Pass the encryptor so this signing-base revision stays encrypted
+            // if the upstream guard (PdfEditor::output() rejects encrypted +
+            // signing) is ever relaxed; it is null in every reachable case
+            // today, so the output stays byte-identical.
             $bytes = (new RevisionWriter())->append(
                 reader: $this->reader,
                 priorBytes: $this->bytes,
                 newObjects: $newObjects,
                 trailerEntries: $trailerEntries,
                 size: $nextNumber,
+                encryptor: $this->encryptor,
             );
             $catalog = $this->latestObject($newObjects, $rootRef->objectNumber)
                 ?? IndirectObject::of($rootRef->objectNumber, 0, $this->reader->catalog());

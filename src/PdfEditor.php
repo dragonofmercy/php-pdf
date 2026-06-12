@@ -116,7 +116,7 @@ final class PdfEditor
                 $handler,
                 static function (int $n): string {
                     if ($n < 1) {
-                        throw new PdfException('Invalid random byte count: ' . $n);
+                        throw new PdfException('Internal error: unexpected IV byte count: ' . $n);
                     }
                     return random_bytes($n);
                 },
@@ -619,7 +619,7 @@ final class PdfEditor
         }
 
         if ($this->encryptor !== null && $this->appendedRevisions !== []) {
-            throw new PdfException('signing an encrypted PDF is not yet supported');
+            throw new PdfException('Signing an encrypted PDF is not yet supported');
         }
 
         $builder = $this->revisionBuilder();
