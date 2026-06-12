@@ -14,6 +14,9 @@ use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldValueApplier;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
+use DragonOfMercy\PhpPdf\Form\Fill\ResolvedField;
+use DragonOfMercy\PhpPdf\Form\Flatten\FieldFlattener;
+use DragonOfMercy\PhpPdf\Form\Flatten\FlattenTarget;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
@@ -256,8 +259,14 @@ final class EditRevisionBuilder
             $nextNumber = $this->emitAppendedPages($newObjects, $nextNumber);
         }
 
+        $flattenNames = $this->flattenTargetNames();
+
         if ($this->pending->fieldEdits !== []) {
-            $nextNumber = $this->emitFilledFields($newObjects, $nextNumber);
+            $nextNumber = $this->emitFilledFields($newObjects, $nextNumber, $flattenNames);
+        }
+
+        if ($this->pending->flatten) {
+            $nextNumber = $this->emitFlattenedFields($newObjects, $nextNumber, $flattenNames);
         }
 
         // $nextNumber starts at maxObjectNumber() + 1 and only ever advances
@@ -429,9 +438,12 @@ final class EditRevisionBuilder
      * generated appearances. Returns the next free object number.
      *
      * @param list<IndirectObject> $newObjects
+     * @param list<string> $flattenNames fields being flattened (skip them here)
      */
-    private function emitFilledFields(array &$newObjects, int $nextNumber): int
+    private function emitFilledFields(array &$newObjects, int $nextNumber, array $flattenNames): int
     {
+        $flattenSet = array_fill_keys($flattenNames, true);
+
         // Build a name -> ResolvedField map for fast lookup.
         $byName = [];
         foreach ($this->fieldTree->terminalFields() as $rf) {
@@ -448,8 +460,12 @@ final class EditRevisionBuilder
         // a field re-emitted twice does not appear twice in the revision).
         /** @var array<int, IndirectObject> $emitted */
         $emitted = [];
+        $touchedAny = false;
 
         foreach ($this->pending->fieldEdits as $name => $value) {
+            if (isset($flattenSet[$name])) {
+                continue; // a flattened field is not re-emitted as interactive
+            }
             $rf = $byName[$name] ?? null;
             if ($rf === null) {
                 throw new PdfException("Cannot fill unknown field '{$name}'");
@@ -459,14 +475,32 @@ final class EditRevisionBuilder
             foreach ($applied->objects as $obj) {
                 $emitted[$obj->objectNumber] = $obj;
             }
+            $touchedAny = true;
         }
 
         foreach ($emitted as $obj) {
             $newObjects[] = $obj;
         }
 
-        // Re-emit /AcroForm with /NeedAppearances false so viewers trust
-        // the generated appearance streams.
+        // Re-emit /AcroForm with /NeedAppearances false only when a fill (not a
+        // flatten) touched a field; the flatten step owns the final /AcroForm.
+        if ($touchedAny) {
+            $this->reemitAcroFormNeedAppearancesFalse($newObjects);
+        }
+
+        return $nextNumber;
+    }
+
+    /**
+     * Re-emits /AcroForm with /NeedAppearances false so viewers trust the
+     * generated appearance streams. Handles both an indirect /AcroForm reference
+     * and an inline AcroForm dictionary (re-emitting the catalog in the latter
+     * case).
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function reemitAcroFormNeedAppearancesFalse(array &$newObjects): void
+    {
         $acroRef = $this->reader->catalog()->get(Name::of('AcroForm'));
         if ($acroRef instanceof PdfReference) {
             $this->guardGenerationZero($acroRef->objectNumber, '/AcroForm');
@@ -496,8 +530,192 @@ final class EditRevisionBuilder
                 throw new PdfException('/AcroForm is neither an indirect reference nor a dictionary; cannot set /NeedAppearances');
             }
         }
+    }
+
+    /**
+     * The fully-qualified names of the value-bearing terminal fields to flatten:
+     * the requested subset, or all Text/Checkbox/Radio/Combobox/Listbox fields
+     * when flatten-all was requested. Signature/PushButton are never included.
+     *
+     * @return list<string>
+     */
+    private function flattenTargetNames(): array
+    {
+        if (!$this->pending->flatten) {
+            return [];
+        }
+        $requested = $this->pending->flattenNames; // null = all
+        $names = [];
+        foreach ($this->fieldTree->terminalFields() as $rf) {
+            if ($rf->type === FormFieldType::Signature || $rf->type === FormFieldType::PushButton) {
+                continue;
+            }
+            if ($requested === null || in_array($rf->name, $requested, true)) {
+                $names[] = $rf->name;
+            }
+        }
+        return $names;
+    }
+
+    /**
+     * Runs the flattener for the target fields, merges its objects, and rewrites
+     * /AcroForm /Fields (removing /AcroForm from the catalog when empty).
+     *
+     * @param list<IndirectObject> $newObjects
+     * @param list<string> $flattenNames
+     */
+    private function emitFlattenedFields(array &$newObjects, int $nextNumber, array $flattenNames): int
+    {
+        if ($flattenNames === []) {
+            return $nextNumber;
+        }
+        $byName = [];
+        foreach ($this->fieldTree->terminalFields() as $rf) {
+            $byName[$rf->name] = $rf;
+        }
+
+        $targets = [];
+        foreach ($flattenNames as $name) {
+            $rf = $byName[$name] ?? null;
+            if ($rf === null) {
+                continue;
+            }
+            $this->guardGenerationZero($rf->objectNumber, "field '{$name}'");
+            $filledThisSession = array_key_exists($name, $this->pending->fieldEdits);
+            $value = $filledThisSession
+                ? $this->pending->fieldEdits[$name]
+                : $this->decodeCurrentValue($rf);
+            $targets[] = new FlattenTarget($rf, $value, $filledThisSession);
+        }
+
+        $allocate = function () use (&$nextNumber): int {
+            return $nextNumber++;
+        };
+
+        $applier = new FieldValueApplier($this->reader, $this->metricsRegistry);
+        $result = (new FieldFlattener($this->reader, $applier))->flatten($targets, $allocate);
+
+        foreach ($result->objects as $obj) {
+            $newObjects[] = $obj;
+        }
+
+        $this->rewriteAcroFormFields($newObjects, $result->removedFieldObjectNumbers);
 
         return $nextNumber;
+    }
+
+    /**
+     * Decodes a field's current /V into the FlattenTarget value shape, matching
+     * PdfEditor::currentValueOf (Text/Combo -> string, Checkbox -> bool, Radio ->
+     * string|null, Listbox -> string|list<string>|null).
+     *
+     * @return string|bool|list<string>|null
+     */
+    private function decodeCurrentValue(ResolvedField $rf): string|bool|array|null
+    {
+        $raw = $rf->dict->get(Name::of('V'));
+        $resolved = $raw !== null ? $this->reader->resolve($raw) : null;
+
+        if ($rf->type === FormFieldType::Text || $rf->type === FormFieldType::Combobox) {
+            return DictReader::decodeText($resolved);
+        }
+        if ($rf->type === FormFieldType::Checkbox) {
+            return $resolved instanceof Name && $resolved->value() !== 'Off';
+        }
+        if ($rf->type === FormFieldType::Radio) {
+            if (!$resolved instanceof Name) {
+                return null;
+            }
+            return $resolved->value() !== 'Off' ? $resolved->value() : null;
+        }
+        // Listbox
+        if ($resolved instanceof PdfArray) {
+            $items = [];
+            foreach ($resolved->elements() as $el) {
+                $text = DictReader::decodeText($this->reader->resolve($el));
+                if ($text !== null) {
+                    $items[] = $text;
+                }
+            }
+            return $items !== [] ? $items : null;
+        }
+        return DictReader::decodeText($resolved);
+    }
+
+    /**
+     * Re-emits /AcroForm with the flattened field references removed from
+     * /Fields. When /Fields becomes empty the catalog is re-emitted without
+     * /AcroForm; otherwise /AcroForm keeps the remaining fields and
+     * /NeedAppearances false.
+     *
+     * @param list<IndirectObject> $newObjects
+     * @param list<int> $removedFieldObjectNumbers
+     */
+    private function rewriteAcroFormFields(array &$newObjects, array $removedFieldObjectNumbers): void
+    {
+        $removed = array_fill_keys($removedFieldObjectNumbers, true);
+
+        $acroRef = $this->reader->catalog()->get(Name::of('AcroForm'));
+        if (!$acroRef instanceof PdfReference) {
+            throw new PdfException('Cannot flatten: only an indirect /AcroForm reference is supported');
+        }
+        $this->guardGenerationZero($acroRef->objectNumber, '/AcroForm');
+        $acro = $this->reader->resolve($acroRef);
+        if (!$acro instanceof Dictionary) {
+            throw new PdfException('/AcroForm does not resolve to a Dictionary');
+        }
+
+        $fields = $this->reader->resolve($acro->get(Name::of('Fields')) ?? PdfNull::instance());
+        $kept = [];
+        if ($fields instanceof PdfArray) {
+            foreach ($fields->elements() as $el) {
+                if ($el instanceof PdfReference && isset($removed[$el->objectNumber])) {
+                    continue;
+                }
+                $kept[] = $el;
+            }
+        }
+
+        if ($kept === []) {
+            // Drop /AcroForm from the latest catalog.
+            $catalogDict = $this->latestCatalogDict($newObjects);
+            $rebuilt = Dictionary::empty();
+            foreach ($catalogDict->entries() as [$key, $value]) {
+                if ($key->value() === 'AcroForm') {
+                    continue;
+                }
+                $rebuilt = $rebuilt->withEntry($key, $value);
+            }
+            $rootRef = $this->reader->trailer()->get(Name::of('Root'));
+            if (!$rootRef instanceof PdfReference) {
+                throw new PdfException('The opened PDF has no indirect /Root reference');
+            }
+            $newObjects[] = IndirectObject::of($rootRef->objectNumber, 0, $rebuilt);
+            return;
+        }
+
+        $dict = $acro
+            ->withEntry(Name::of('Fields'), PdfArray::of(...$kept))
+            ->withEntry(Name::of('NeedAppearances'), PdfBoolean::false());
+        $newObjects[] = IndirectObject::of($acroRef->objectNumber, 0, $dict);
+    }
+
+    /**
+     * The latest catalog dictionary: re-emitted in this revision (e.g. by the
+     * metadata path) if present, else the source catalog.
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function latestCatalogDict(array $newObjects): Dictionary
+    {
+        $rootRef = $this->reader->trailer()->get(Name::of('Root'));
+        if ($rootRef instanceof PdfReference) {
+            $latest = $this->latestObject($newObjects, $rootRef->objectNumber);
+            if ($latest !== null) {
+                return $latest->dictionaryPayload();
+            }
+        }
+        return $this->reader->catalog();
     }
 
     private function guardGenerationZero(int $objectNumber, string $what): void
