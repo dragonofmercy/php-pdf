@@ -108,15 +108,18 @@ final class PdfReaderEncryptedTest extends TestCase
      */
     private static function decodeTextString(PdfObject $value): string
     {
-        $raw = match (true) {
-            $value instanceof PdfString => $value->value(),
-            $value instanceof HexString => (string) hex2bin($value->hex()),
-            default => '',
-        };
+        if ($value instanceof HexString) {
+            $bin = hex2bin($value->hex());
+            self::assertIsString($bin);
+            $raw = $bin;
+        } elseif ($value instanceof PdfString) {
+            $raw = $value->value();
+        } else {
+            $raw = '';
+        }
 
         if (str_starts_with($raw, "\xFE\xFF")) {
-            $utf8 = mb_convert_encoding(substr($raw, 2), 'UTF-8', 'UTF-16BE');
-            return $utf8;
+            return mb_convert_encoding(substr($raw, 2), 'UTF-8', 'UTF-16BE');
         }
 
         return $raw;

@@ -18,9 +18,10 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 
 /**
- * Reads an existing (non-encrypted) PDF file: cross-reference data, lazy
- * object resolution with caching, and the page tree. This is the foundation
- * for template import and incremental modification of existing files.
+ * Reads an existing PDF file (encrypted files are transparently decrypted):
+ * cross-reference data, lazy object resolution with caching, and the page
+ * tree. This is the foundation for template import and incremental
+ * modification of existing files.
  */
 final class PdfReader
 {
