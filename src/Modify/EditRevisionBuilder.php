@@ -460,7 +460,6 @@ final class EditRevisionBuilder
         // a field re-emitted twice does not appear twice in the revision).
         /** @var array<int, IndirectObject> $emitted */
         $emitted = [];
-        $touchedAny = false;
 
         foreach ($this->pending->fieldEdits as $name => $value) {
             if (isset($flattenSet[$name])) {
@@ -475,7 +474,6 @@ final class EditRevisionBuilder
             foreach ($applied->objects as $obj) {
                 $emitted[$obj->objectNumber] = $obj;
             }
-            $touchedAny = true;
         }
 
         foreach ($emitted as $obj) {
@@ -484,7 +482,7 @@ final class EditRevisionBuilder
 
         // Re-emit /AcroForm with /NeedAppearances false only when a fill (not a
         // flatten) touched a field; the flatten step owns the final /AcroForm.
-        if ($touchedAny) {
+        if ($emitted !== []) {
             $this->reemitAcroFormNeedAppearancesFalse($newObjects);
         }
 
@@ -545,12 +543,13 @@ final class EditRevisionBuilder
             return [];
         }
         $requested = $this->pending->flattenNames; // null = all
+        $requestedSet = $requested !== null ? array_fill_keys($requested, true) : null;
         $names = [];
         foreach ($this->fieldTree->terminalFields() as $rf) {
             if ($rf->type === FormFieldType::Signature || $rf->type === FormFieldType::PushButton) {
                 continue;
             }
-            if ($requested === null || in_array($rf->name, $requested, true)) {
+            if ($requestedSet === null || isset($requestedSet[$rf->name])) {
                 $names[] = $rf->name;
             }
         }

@@ -18,6 +18,7 @@ final readonly class ReadPage
      * @param list<float> $mediaBox
      * @param ?list<float> $cropBox
      * @param list<PdfReference> $contents
+     * @param ?int $objectNumber source object number of the leaf page, null for an inlined page dict
      */
     public function __construct(
         public Dictionary $dict,
@@ -26,6 +27,7 @@ final readonly class ReadPage
         public int $rotate,
         public ?Dictionary $resources,
         public array $contents,
+        public ?int $objectNumber = null,
     ) {}
 
     /**

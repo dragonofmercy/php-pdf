@@ -71,7 +71,7 @@ final class FieldFlattenerTest extends TestCase
         $hasBurn = false;
         foreach ($result->objects as $o) {
             $payload = $o->payload();
-            if ($payload instanceof CompressedStream && str_contains($payload->rawContentForTest(), ' Do')) {
+            if ($payload instanceof CompressedStream && str_contains(self::inflate($payload), ' Do')) {
                 $hasBurn = true;
             }
         }
@@ -81,6 +81,20 @@ final class FieldFlattenerTest extends TestCase
         $resources = $pageObj->dictionaryPayload()->get(Name::of('Resources'));
         self::assertInstanceOf(Dictionary::class, $resources);
         self::assertInstanceOf(Dictionary::class, $resources->get(Name::of('XObject')));
+    }
+
+    /** Inflates the FlateDecode body of a CompressedStream's serialized form. */
+    private static function inflate(\DragonOfMercy\PhpPdf\Writer\Object\CompressedStream $stream): string
+    {
+        $bytes = $stream->toBytes();
+        $start = strpos($bytes, "stream\n");
+        $end = strrpos($bytes, "\nendstream");
+        self::assertNotFalse($start);
+        self::assertNotFalse($end);
+        $payload = substr($bytes, $start + 7, $end - $start - 7);
+        $inflated = @gzuncompress($payload);
+        self::assertIsString($inflated, 'stream body should be zlib-compressed');
+        return $inflated;
     }
 
     /** @param list<\DragonOfMercy\PhpPdf\Writer\Object\IndirectObject> $objects */

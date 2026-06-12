@@ -65,15 +65,12 @@ final class FieldFlattener
                     throw new PdfException("Field '{$field->name}': widget {$widgetNum} is not a dictionary");
                 }
                 $rect = $this->widgetRect($widgetDict, $widgetNum, $field->name);
-                ['ref' => $ref, 'bbox' => $bbox, 'matrix' => $matrix, 'newObject' => $newObject]
+                ['ref' => $ref, 'cm' => $cm, 'newObject' => $newObject]
                     = $this->appearanceFor($target, $widgetDict, $rect, $allocate);
                 if ($newObject !== null) {
                     $extraObjects[] = $newObject;
                 }
-                $burns[$widgetNum] = [
-                    'ref' => $ref,
-                    'cm' => AppearancePlacement::matrix($bbox, $matrix, $rect),
-                ];
+                $burns[$widgetNum] = ['ref' => $ref, 'cm' => $cm];
             }
         }
 
@@ -91,7 +88,7 @@ final class FieldFlattener
      *
      * @param list<float> $rect
      * @param callable(): int $allocate
-     * @return array{ref: PdfReference, bbox: list<float>, matrix: list<float>, newObject: ?IndirectObject}
+     * @return array{ref: PdfReference, cm: list<float>, newObject: ?IndirectObject}
      */
     private function appearanceFor(FlattenTarget $target, Dictionary $widgetDict, array $rect, callable $allocate): array
     {
@@ -109,8 +106,7 @@ final class FieldFlattener
             $rectH = abs($rect[3] - $rect[1]);
             return [
                 'ref' => PdfReference::to($generated->objectNumber, 0),
-                'bbox' => [0.0, 0.0, $rectW, $rectH],
-                'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                'cm' => AppearancePlacement::matrix([0.0, 0.0, $rectW, $rectH], [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], $rect),
                 'newObject' => $generated,
             ];
         }
@@ -130,8 +126,7 @@ final class FieldFlattener
 
         return [
             'ref' => PdfReference::to($existing, 0),
-            'bbox' => $this->streamBBox($streamObj),
-            'matrix' => $this->streamMatrix($streamObj),
+            'cm' => AppearancePlacement::matrix($this->streamBBox($streamObj), $this->streamMatrix($streamObj), $rect),
             'newObject' => null,
         ];
     }
@@ -143,8 +138,7 @@ final class FieldFlattener
      */
     private function existingAppearanceRef(Dictionary $widget, FlattenTarget $target): ?int
     {
-        $ap = $widget->get(Name::of('AP'));
-        $ap = $ap !== null ? $this->reader->resolve($ap) : null;
+        $ap = $this->resolveEntry($widget, 'AP');
         if (!$ap instanceof Dictionary) {
             return null;
         }
@@ -225,8 +219,7 @@ final class FieldFlattener
         $pageCount = $this->reader->pageCount();
         for ($i = 1; $i <= $pageCount; $i++) {
             $readPage = $this->reader->page($i);
-            $annots = $readPage->dict->get(Name::of('Annots'));
-            $annots = $annots !== null ? $this->reader->resolve($annots) : null;
+            $annots = $this->resolveEntry($readPage->dict, 'Annots');
             if (!$annots instanceof PdfArray) {
                 continue;
             }
@@ -244,8 +237,11 @@ final class FieldFlattener
                 continue;
             }
 
+            if ($readPage->objectNumber === null) {
+                throw new PdfException("Cannot flatten: page {$i} has no object number");
+            }
             $pages[] = $this->rewriteOnePage(
-                $i,
+                $readPage->objectNumber,
                 $readPage->dict,
                 $readPage->resources,
                 $readPage->contents,
@@ -268,7 +264,7 @@ final class FieldFlattener
      * @param list<IndirectObject> $extraObjects
      */
     private function rewriteOnePage(
-        int $pageNumber,
+        int $pageObjectNumber,
         Dictionary $pageDict,
         ?Dictionary $resources,
         array $contents,
@@ -277,8 +273,6 @@ final class FieldFlattener
         callable $allocate,
         array &$extraObjects,
     ): IndirectObject {
-        $pageObjectNumber = $this->pageObjectNumber($pageNumber);
-
         // Register each burn under a fresh /XObject name, build the burn content.
         $resources ??= Dictionary::empty();
         $xobjects = $resources->get(Name::of('XObject'));
@@ -320,71 +314,13 @@ final class FieldFlattener
     }
 
     /**
-     * The object number of the 1-based page, by walking the page tree leaf refs.
-     */
-    private function pageObjectNumber(int $pageNumber): int
-    {
-        $refs = $this->pageRefs();
-        $ref = $refs[$pageNumber - 1] ?? null;
-        if ($ref === null) {
-            throw new PdfException("Cannot flatten: page {$pageNumber} not found");
-        }
-        return $ref->objectNumber;
-    }
-
-    /** @var list<PdfReference>|null */
-    private ?array $cachedPageRefs = null;
-
-    /** @return list<PdfReference> */
-    private function pageRefs(): array
-    {
-        if ($this->cachedPageRefs !== null) {
-            return $this->cachedPageRefs;
-        }
-        $pagesRef = $this->reader->catalog()->get(Name::of('Pages'));
-        if (!$pagesRef instanceof PdfReference) {
-            throw new PdfException('The opened PDF has no indirect /Pages reference');
-        }
-        $out = [];
-        $this->collectPageRefs($pagesRef, $out, 0);
-        return $this->cachedPageRefs = $out;
-    }
-
-    /** @param list<PdfReference> $out */
-    private function collectPageRefs(PdfReference $nodeRef, array &$out, int $depth): void
-    {
-        if ($depth > 50) {
-            throw new PdfException('Page tree nested too deeply (possible cycle)');
-        }
-        $node = $this->reader->resolve($nodeRef);
-        if (!$node instanceof Dictionary) {
-            return;
-        }
-        $type = $node->get(Name::of('Type'));
-        if ($type instanceof Name && $type->value() === 'Pages') {
-            $kids = $node->get(Name::of('Kids'));
-            $kids = $kids !== null ? $this->reader->resolve($kids) : null;
-            if ($kids instanceof PdfArray) {
-                foreach ($kids->elements() as $kid) {
-                    if ($kid instanceof PdfReference) {
-                        $this->collectPageRefs($kid, $out, $depth + 1);
-                    }
-                }
-            }
-            return;
-        }
-        $out[] = $nodeRef;
-    }
-
-    /**
      * Reads a widget's /Rect as corner-normalized [llx, lly, urx, ury].
      *
      * @return list<float>
      */
     private function widgetRect(Dictionary $widget, int $widgetNum, string $fieldName): array
     {
-        $rect = $widget->get(Name::of('Rect'));
-        $rect = $rect !== null ? $this->reader->resolve($rect) : null;
+        $rect = $this->resolveEntry($widget, 'Rect');
         if (!$rect instanceof PdfArray || count($rect->elements()) !== 4) {
             throw new PdfException("Field '{$fieldName}': widget {$widgetNum} has no usable /Rect");
         }
@@ -429,8 +365,7 @@ final class FieldFlattener
      */
     private function readNumberArray(Dictionary $dict, string $key, int $count, array $default): array
     {
-        $raw = $dict->get(Name::of($key));
-        $raw = $raw !== null ? $this->reader->resolve($raw) : null;
+        $raw = $this->resolveEntry($dict, $key);
         if (!$raw instanceof PdfArray || count($raw->elements()) !== $count) {
             return $default;
         }
@@ -440,5 +375,12 @@ final class FieldFlattener
             $out[] = $n instanceof PdfNumber ? (float) $n->value() : 0.0;
         }
         return $out;
+    }
+
+    /** Resolves a dict entry, returning null when the key is absent. */
+    private function resolveEntry(Dictionary $dict, string $key): ?PdfObject
+    {
+        $value = $dict->get(Name::of($key));
+        return $value !== null ? $this->reader->resolve($value) : null;
     }
 }

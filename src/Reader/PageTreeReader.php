@@ -39,11 +39,13 @@ final readonly class PageTreeReader
             throw new PdfParseException('/Pages does not resolve to a dictionary');
         }
 
+        $rootNumber = $rootValue instanceof PdfReference ? $rootValue->objectNumber : null;
+
         $pages = [];
         /** @var array{mediaBox: ?list<float>, cropBox: ?list<float>, rotate: ?int, resources: ?Dictionary} $inherited */
         $inherited = ['mediaBox' => null, 'cropBox' => null, 'rotate' => null, 'resources' => null];
         $visited = [];
-        $this->walkPagesNode($root, $inherited, $visited, $pages, 0);
+        $this->walkPagesNode($root, $inherited, $visited, $pages, 0, $rootNumber);
         return $pages;
     }
 
@@ -52,7 +54,7 @@ final readonly class PageTreeReader
      * @param array<int, true> $visited keyed by kid object number
      * @param list<ReadPage> $pages
      */
-    private function walkPagesNode(Dictionary $node, array $inherited, array &$visited, array &$pages, int $depth): void
+    private function walkPagesNode(Dictionary $node, array $inherited, array &$visited, array &$pages, int $depth, ?int $objectNumber): void
     {
         if ($depth > 64) {
             throw new PdfParseException('Pages tree deeper than 64 levels (cycle suspected)');
@@ -65,7 +67,7 @@ final readonly class PageTreeReader
         $kids = ($this->resolve)($node->get(Name::of('Kids')) ?? PdfNull::instance());
         $isPagesNode = DictReader::name($node, 'Type') === 'Pages' || $kids instanceof PdfArray;
         if (!$isPagesNode) {
-            $pages[] = $this->makePage($node, $inherited);
+            $pages[] = $this->makePage($node, $inherited, $objectNumber);
             return;
         }
         if (!$kids instanceof PdfArray) {
@@ -80,7 +82,7 @@ final readonly class PageTreeReader
             }
             $kidDict = ($this->resolve)($kid);
             if ($kidDict instanceof Dictionary) {
-                $this->walkPagesNode($kidDict, $inherited, $visited, $pages, $depth + 1);
+                $this->walkPagesNode($kidDict, $inherited, $visited, $pages, $depth + 1, $kid instanceof PdfReference ? $kid->objectNumber : null);
             }
         }
     }
@@ -88,7 +90,7 @@ final readonly class PageTreeReader
     /**
      * @param array{mediaBox: ?list<float>, cropBox: ?list<float>, rotate: ?int, resources: ?Dictionary} $inherited
      */
-    private function makePage(Dictionary $dict, array $inherited): ReadPage
+    private function makePage(Dictionary $dict, array $inherited, ?int $objectNumber): ReadPage
     {
         $rotate = $inherited['rotate'] ?? 0;
         $rotate = (($rotate % 360) + 360) % 360;
@@ -102,6 +104,7 @@ final readonly class PageTreeReader
             rotate: $rotate,
             resources: $inherited['resources'],
             contents: $this->contentsRefs($dict),
+            objectNumber: $objectNumber,
         );
     }
 

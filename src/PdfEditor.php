@@ -377,17 +377,7 @@ final class PdfEditor
         }
 
         if ($resolved === null) {
-            if ($allFields === []) {
-                throw new PdfException('This PDF has no AcroForm fields to fill');
-            }
-            $suggestions = [];
-            foreach ($allFields as $rf) {
-                $suggestions[] = [$rf->name, levenshtein($name, $rf->name)];
-            }
-            usort($suggestions, static fn (array $a, array $b): int => $a[1] <=> $b[1]);
-            $top = array_slice($suggestions, 0, 3);
-            $hint = implode(', ', array_column($top, 0));
-            throw new PdfException("Unknown form field '{$name}'. Did you mean: {$hint}?");
+            throw $this->unknownFieldException($name, $allFields, 'fill');
         }
 
         if ($resolved->type === FormFieldType::PushButton || $resolved->type === FormFieldType::Signature) {
@@ -437,16 +427,7 @@ final class PdfEditor
             foreach ($names as $name) {
                 $rf = $byName[$name] ?? null;
                 if ($rf === null) {
-                    if ($terminals === []) {
-                        throw new PdfException('This PDF has no AcroForm fields to flatten');
-                    }
-                    $suggestions = [];
-                    foreach ($terminals as $t) {
-                        $suggestions[] = [$t->name, levenshtein($name, $t->name)];
-                    }
-                    usort($suggestions, static fn (array $a, array $b): int => $a[1] <=> $b[1]);
-                    $hint = implode(', ', array_column(array_slice($suggestions, 0, 3), 0));
-                    throw new PdfException("Unknown form field '{$name}'. Did you mean: {$hint}?");
+                    throw $this->unknownFieldException($name, $terminals, 'flatten');
                 }
                 if ($rf->type === FormFieldType::Signature || $rf->type === FormFieldType::PushButton) {
                     throw new PdfException("Field '{$name}' is a {$rf->type->name} and cannot be flattened");
@@ -457,6 +438,26 @@ final class PdfEditor
         $this->pending->flatten = true;
         $this->pending->flattenNames = $names;
         return $this;
+    }
+
+    /**
+     * Builds the PdfException for an unrecognized field name: an empty-form
+     * message when there are no fields, else a Levenshtein-ranked "did you mean".
+     *
+     * @param list<ResolvedField> $terminals
+     */
+    private function unknownFieldException(string $name, array $terminals, string $verb): PdfException
+    {
+        if ($terminals === []) {
+            return new PdfException("This PDF has no AcroForm fields to {$verb}");
+        }
+        $suggestions = [];
+        foreach ($terminals as $t) {
+            $suggestions[] = [$t->name, levenshtein($name, $t->name)];
+        }
+        usort($suggestions, static fn (array $a, array $b): int => $a[1] <=> $b[1]);
+        $hint = implode(', ', array_column(array_slice($suggestions, 0, 3), 0));
+        return new PdfException("Unknown form field '{$name}'. Did you mean: {$hint}?");
     }
 
     /**
