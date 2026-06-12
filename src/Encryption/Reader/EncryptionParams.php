@@ -177,15 +177,36 @@ final readonly class EncryptionParams
         $cfm = self::resolved($filter->get(Name::of('CFM')), $resolve);
         $cfmValue = $cfm instanceof Name ? $cfm->value() : '';
 
-        // In a V4 crypt-filter dictionary /Length is in BYTES (ISO 32000-1),
-        // unlike the top-level /Length (V<=2) which is in BITS.
-        $cfLengthBytes = self::readOptionalInt($filter->get(Name::of('Length')), $resolve);
+        // For AES the key length is fixed by the cipher, NOT by the CF /Length
+        // field: AESV2 is AES-128 (always 16 bytes), AESV3 is AES-256 (always
+        // 32 bytes). The CF /Length field is unreliable across producers -
+        // ISO 32000-1 says it is in BYTES, yet many real producers write it in
+        // BITS (e.g. /Length 128), which read as bytes would yield a nonsense
+        // 128-byte key and silently break decryption. So we ignore CF /Length
+        // for AES and only consult it for the V2 (RC4) filter, whose key length
+        // genuinely varies (5-16 bytes). Even there we guard against the same
+        // bits/bytes ambiguity: a value > 40 is taken as bits and divided by 8.
+        $cfLength = self::readOptionalInt($filter->get(Name::of('Length')), $resolve);
 
         return match ($cfmValue) {
-            'V2' => [StreamCipher::Rc4, $cfLengthBytes ?? intdiv($lengthBits, 8)],
-            'AESV2' => [StreamCipher::Aesv2, $cfLengthBytes ?? 16],
+            'V2' => [StreamCipher::Rc4, self::rc4FilterKeyBytes($cfLength, $lengthBits)],
+            'AESV2' => [StreamCipher::Aesv2, 16],
             default => throw new PdfException('Unsupported crypt filter method /CFM /' . ($cfmValue === '' ? '(missing)' : $cfmValue)),
         };
+    }
+
+    /**
+     * Resolves the RC4 key length (bytes) for a V2 crypt filter, defending
+     * against producers that write CF /Length in bits instead of bytes.
+     */
+    private static function rc4FilterKeyBytes(?int $cfLength, int $lengthBits): int
+    {
+        if ($cfLength === null) {
+            return intdiv($lengthBits, 8);
+        }
+        // RC4 keys are 5-16 bytes; anything above 40 cannot be a byte count and
+        // is therefore a bits value written into the byte-typed field.
+        return $cfLength > 40 ? intdiv($cfLength, 8) : $cfLength;
     }
 
     /**

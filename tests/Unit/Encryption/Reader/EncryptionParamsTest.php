@@ -12,6 +12,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfBoolean;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use PHPUnit\Framework\TestCase;
 
@@ -150,6 +151,97 @@ final class EncryptionParamsTest extends TestCase
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('V=3');
         EncryptionParams::fromTrailer($encrypt, self::trailer('x'), self::identityResolve());
+    }
+
+    public function testResolvesIndirectEncryptReferences(): void
+    {
+        $o  = str_repeat("\x55", 48);
+        $u  = str_repeat("\x66", 48);
+        $oe = str_repeat("\x77", 32);
+        $ue = str_repeat("\x88", 32);
+
+        // A tiny object table the resolver dereferences against: /O and the
+        // first /ID element are stored as indirect references, as real files do.
+        $table = [
+            10 => self::hex($o),
+            11 => self::hex('id5-indirect'),
+        ];
+        $resolve = static function (PdfObject $object) use ($table): PdfObject {
+            if ($object instanceof PdfReference) {
+                return $table[$object->objectNumber];
+            }
+            return $object;
+        };
+
+        $encrypt = Dictionary::empty()
+            ->withEntry(Name::of('Filter'), Name::of('Standard'))
+            ->withEntry(Name::of('V'), PdfNumber::ofInt(5))
+            ->withEntry(Name::of('R'), PdfNumber::ofInt(6))
+            ->withEntry(Name::of('Length'), PdfNumber::ofInt(256))
+            ->withEntry(Name::of('P'), PdfNumber::ofInt(-3904))
+            ->withEntry(Name::of('O'), PdfReference::to(10, 0))
+            ->withEntry(Name::of('U'), self::hex($u))
+            ->withEntry(Name::of('OE'), self::hex($oe))
+            ->withEntry(Name::of('UE'), self::hex($ue));
+
+        $trailer = Dictionary::empty()->withEntry(
+            Name::of('ID'),
+            PdfArray::of(PdfReference::to(11, 0), PdfString::of('id5-indirect')),
+        );
+
+        $params = EncryptionParams::fromTrailer($encrypt, $trailer, $resolve);
+
+        self::assertSame($o, $params->o);
+        self::assertSame($u, $params->u);
+        self::assertSame('id5-indirect', $params->idFirst);
+        self::assertSame(32, $params->keyLengthBytes);
+        self::assertSame(StreamCipher::Aesv3, $params->stmCipher);
+    }
+
+    public function testAesv2KeyLengthIgnoresBitsInCfLength(): void
+    {
+        // Producer wrote the CF /Length in BITS (128) rather than bytes; the
+        // AES key must still be 16 bytes (AES-128) regardless of the field.
+        $stdCf = Dictionary::empty()
+            ->withEntry(Name::of('CFM'), Name::of('AESV2'))
+            ->withEntry(Name::of('Length'), PdfNumber::ofInt(128));
+        $cf = Dictionary::empty()->withEntry(Name::of('StdCF'), $stdCf);
+        $encrypt = Dictionary::empty()
+            ->withEntry(Name::of('Filter'), Name::of('Standard'))
+            ->withEntry(Name::of('V'), PdfNumber::ofInt(4))
+            ->withEntry(Name::of('R'), PdfNumber::ofInt(4))
+            ->withEntry(Name::of('Length'), PdfNumber::ofInt(128))
+            ->withEntry(Name::of('CF'), $cf)
+            ->withEntry(Name::of('StmF'), Name::of('StdCF'))
+            ->withEntry(Name::of('StrF'), Name::of('StdCF'))
+            ->withEntry(Name::of('P'), PdfNumber::ofInt(-4))
+            ->withEntry(Name::of('O'), self::hex(str_repeat("\x33", 32)))
+            ->withEntry(Name::of('U'), self::hex(str_repeat("\x44", 32)));
+
+        $params = EncryptionParams::fromTrailer($encrypt, self::trailer('id4'), self::identityResolve());
+
+        self::assertSame(16, $params->keyLengthBytes);
+        self::assertSame(StreamCipher::Aesv2, $params->stmCipher);
+    }
+
+    public function testRejectsIdentityStreamFilter(): void
+    {
+        $stdCf = Dictionary::empty()->withEntry(Name::of('CFM'), Name::of('AESV2'));
+        $cf = Dictionary::empty()->withEntry(Name::of('StdCF'), $stdCf);
+        $encrypt = Dictionary::empty()
+            ->withEntry(Name::of('Filter'), Name::of('Standard'))
+            ->withEntry(Name::of('V'), PdfNumber::ofInt(4))
+            ->withEntry(Name::of('R'), PdfNumber::ofInt(4))
+            ->withEntry(Name::of('CF'), $cf)
+            ->withEntry(Name::of('StmF'), Name::of('Identity'))
+            ->withEntry(Name::of('StrF'), Name::of('StdCF'))
+            ->withEntry(Name::of('P'), PdfNumber::ofInt(-4))
+            ->withEntry(Name::of('O'), self::hex(str_repeat("\x33", 32)))
+            ->withEntry(Name::of('U'), self::hex(str_repeat("\x44", 32)));
+
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessage('Identity crypt filter not supported');
+        EncryptionParams::fromTrailer($encrypt, self::trailer('id4'), self::identityResolve());
     }
 
     public function testForAesv3Convenience(): void
