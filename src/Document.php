@@ -1424,6 +1424,7 @@ final class Document
             customFontFamilies: $this->customFontFamilies,
             signature: $this->signature,
             importedTemplates: $this->registeredTemplates(),
+            forbidsTransparency: $this->pdfALevel?->forbidsTransparency() ?? false,
         );
         $emit = $emitter->emit($this->pages, new PdfObjectAllocator($firstObjectNumber), $pagesRef);
 

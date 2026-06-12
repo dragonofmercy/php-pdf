@@ -48,6 +48,8 @@ final class ImageEmbedder
      * @param ?FontResolver $fontResolver custom font resolver for SVG text rendering;
      *        also supplies the SVG font-family alias map
      * @param int $filterDpi raster resolution (DPI) used when rasterizing SVG filter subtrees
+     * @param bool $forbidsTransparency when true (PDF/A-1), throws instead of emitting any
+     *        transparency (PNG alpha SMask, SVG fill/stroke opacity, SVG mask/soft-mask)
      * @return list<IndirectObject>
      */
     public function embed(
@@ -57,11 +59,12 @@ final class ImageEmbedder
         array $fontRefs = [],
         ?FontResolver $fontResolver = null,
         int $filterDpi = 300,
+        bool $forbidsTransparency = false,
     ): array {
         return match ($image->format) {
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
-            ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber),
-            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver, $filterDpi),
+            ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber, $forbidsTransparency),
+            ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver, $filterDpi, $forbidsTransparency),
         };
     }
 
@@ -214,7 +217,7 @@ final class ImageEmbedder
     /**
      * @return list<IndirectObject>
      */
-    private function embedPng(Image $image, int $objectNumber): array
+    private function embedPng(Image $image, int $objectNumber, bool $forbidsTransparency = false): array
     {
         $meta = $image->metadata;
         if (!$meta instanceof PngMetadata) {
@@ -222,6 +225,13 @@ final class ImageEmbedder
         }
 
         $alpha = $meta->alphaBytes;
+        if ($forbidsTransparency && $alpha !== null) {
+            throw new PdfException(sprintf(
+                'PDF/A-1 forbids transparency; PNG image %dx%d has an alpha channel - flatten it against a solid background before adding it',
+                $meta->width,
+                $meta->height,
+            ));
+        }
         $imageObjectNumber = $objectNumber;
         $smaskRef = $alpha !== null ? PdfReference::to($objectNumber + 1, 0) : null;
 
@@ -252,7 +262,7 @@ final class ImageEmbedder
      * @param array<string, PdfReference> $fontRefs
      * @return list<IndirectObject>
      */
-    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs, ?FontResolver $fontResolver = null, int $filterDpi = 300): array
+    private function embedSvg(Image $image, int $objectNumber, FontRegistry $fontRegistry, array $fontRefs, ?FontResolver $fontResolver = null, int $filterDpi = 300, bool $forbidsTransparency = false): array
     {
         $meta = $image->metadata;
         if (!$meta instanceof SvgMetadata) {
@@ -268,6 +278,23 @@ final class ImageEmbedder
         $embeddedMasks = $rendered['embeddedMasks'];
         $embeddedFilters = $rendered['embeddedFilters'];
         $fonts = $rendered['fonts'];
+
+        if ($forbidsTransparency) {
+            // A mask/soft-mask (and a rasterized filter, which emits an SMask
+            // image) has no PDF 1.4 representation; reject before emitting it.
+            if ($embeddedMasks !== [] || $embeddedFilters !== []) {
+                throw new PdfException(
+                    'PDF/A-1 forbids transparency; the SVG uses a mask/soft-mask, which has no PDF 1.4 representation - remove the mask or use PDF/A-2 or higher',
+                );
+            }
+            // Any ExtGState entry registered by the renderer means a fill/stroke
+            // opacity below 1.0 (fully opaque maskless entries are never registered).
+            if ($extGStates !== []) {
+                throw new PdfException(
+                    'PDF/A-1 forbids transparency; the SVG uses fill/stroke opacity below 1.0, which has no PDF 1.4 representation - remove the opacity or use PDF/A-2 or higher',
+                );
+            }
+        }
 
         $procSet = $fonts !== []
             ? PdfArray::of(Name::of('PDF'), Name::of('Text'))
@@ -296,7 +323,7 @@ final class ImageEmbedder
         if ($meta->embeddedImages !== [] || $embeddedFilters !== []) {
             $xobjectDict = Dictionary::empty();
             foreach ($meta->embeddedImages as $i => $child) {
-                $emitted = $this->embed($child, $childNum, $fontRegistry, $fontRefs, $fontResolver);
+                $emitted = $this->embed($child, $childNum, $fontRegistry, $fontRefs, $fontResolver, forbidsTransparency: $forbidsTransparency);
                 foreach ($emitted as $obj) {
                     $childObjects[] = $obj;
                 }

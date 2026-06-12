@@ -69,6 +69,7 @@ final readonly class PageSetEmitter
         private array $customFontFamilies,
         private ?Signature $signature = null,
         private array $importedTemplates = [],
+        private bool $forbidsTransparency = false,
     ) {}
 
     /**
@@ -198,7 +199,7 @@ final readonly class PageSetEmitter
         $embedder = new ImageEmbedder();
         $svgFontRefs = $fontRefs + $customRefs;
         foreach ($imageEmissions as [$image, $imageNum]) {
-            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $svgFontRefs, $this->fontResolver, $this->svgFilterDpi) as $obj) {
+            foreach ($embedder->embed($image, $imageNum, $this->fontRegistry, $svgFontRefs, $this->fontResolver, $this->svgFilterDpi, $this->forbidsTransparency) as $obj) {
                 $objects[] = $obj;
             }
         }
