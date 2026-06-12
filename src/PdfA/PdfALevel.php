@@ -33,6 +33,19 @@ enum PdfALevel
     }
 
     /**
+     * Whether this level forbids the /Info trailer dictionary. PDF 2.0 (and thus
+     * PDF/A-4) deprecates the document information dictionary, so all metadata
+     * must live in the XMP stream instead. Parts 2-3 still emit /Info.
+     */
+    public function omitsInfoDictionary(): bool
+    {
+        return match ($this) {
+            self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A => false,
+            self::A4, self::A4F => true,
+        };
+    }
+
+    /**
      * PDF base version emitted in the file header (PDF/A-4 is PDF 2.0-based).
      */
     public function headerVersion(): string

@@ -1074,14 +1074,14 @@ final class Document
         $effective->creationDate ??= new DateTimeImmutable();
 
         // PDF/A-4 (ISO 19005-4:2020 clause 6.1.3) forbids the /Info key in the
-        // trailer dictionary. Metadata lives entirely in the XMP stream. To avoid
-        // sparse object numbers we place the metadata stream at obj 3 (skipping
-        // the Info slot) and start page objects at obj 4.
-        $pdfA4 = $this->pdfALevel !== null && $this->pdfALevel->part() === 4;
+        // trailer dictionary. Metadata lives entirely in the XMP stream. When the
+        // Info object is dropped we reclaim its slot: the metadata stream takes
+        // obj 3 and page objects start at obj 4, keeping object numbers contiguous.
+        $omitsInfo = $this->pdfALevel?->omitsInfoDictionary() ?? false;
 
         $pagesRef = PdfReference::to(2, 0);
-        $metadataStreamRef = $pdfA4 ? PdfReference::to(3, 0) : PdfReference::to(4, 0);
-        $firstPageObjectNumber = $pdfA4 ? 4 : 5;
+        $metadataStreamRef = $omitsInfo ? PdfReference::to(3, 0) : PdfReference::to(4, 0);
+        $firstPageObjectNumber = $omitsInfo ? 4 : 5;
 
         [$pageAndContentObjects, $pageRefs, $pageHeightsPt, $allWidgets, $acroFormRef, $linkAnnotationMap] = $this->buildPagesFontsImages(firstObjectNumber: $firstPageObjectNumber, pagesRef: $pagesRef);
         unset($allWidgets); // consumed inside buildPagesFontsImages
@@ -1153,24 +1153,15 @@ final class Document
 
         $documentId = $effective->documentId ?? $this->deriveDocumentId($effective);
 
-        if ($pdfA4) {
-            // No /Info in trailer for PDF/A-4; all metadata is in the XMP stream.
-            $objects = [$catalog, $pages, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects, ...$structObjects];
-            return $this->assembleWithTrailer(
-                objects: $objects,
-                root: $catalog->reference(),
-                info: null,
-                documentId: $documentId,
-            );
-        }
-
-        $info = IndirectObject::of(3, 0, $this->buildInfoDictionary($effective));
-        $objects = [$catalog, $pages, $info, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects, ...$structObjects];
+        // PDF/A-4 drops /Info entirely; every other document keeps it at obj 3.
+        $info = $omitsInfo ? null : IndirectObject::of(3, 0, $this->buildInfoDictionary($effective));
+        $infoObjects = $info !== null ? [$info] : [];
+        $objects = [$catalog, $pages, ...$infoObjects, $metadataStream, ...$pageAndContentObjects, ...$outlineObjects, ...$attachmentObjects, ...$outputIntentObjects, ...$structObjects];
 
         return $this->assembleWithTrailer(
             objects: $objects,
             root: $catalog->reference(),
-            info: $info->reference(),
+            info: $info?->reference(),
             documentId: $documentId,
         );
     }
