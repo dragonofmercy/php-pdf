@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\PdfA;
 
 /**
- * PDF/A conformance level: ISO 19005 part (2, 3, or 4) and, for parts 2-3, a
- * conformance letter (B = basic, U = Unicode, A = accessible). Part 3 differs
- * from part 2 only in permitting arbitrary embedded files. Level A additionally
- * requires a tagged logical structure tree. Part 4 (PDF/A-4, PDF 2.0-based) has
- * no conformance letter: Unicode mapping is mandatory and tagging is not required;
- * the A4F flavour additionally permits arbitrary embedded files.
+ * PDF/A conformance level: ISO 19005 part (1, 2, 3, or 4) and a conformance
+ * letter (B = basic, U = Unicode, A = accessible). Part 1 (PDF 1.4-based) has
+ * levels B and A only (no U). Part 3 differs from part 2 only in permitting
+ * arbitrary embedded files. Level A additionally requires a tagged logical
+ * structure tree. Part 4 (PDF/A-4, PDF 2.0-based) has no conformance letter:
+ * Unicode mapping is mandatory and tagging is not required; the A4F flavour
+ * additionally permits arbitrary embedded files.
  */
 enum PdfALevel
 {
+    case A1B;
+    case A1A;
     case A2B;
     case A2U;
     case A2A;
@@ -26,6 +29,7 @@ enum PdfALevel
     public function part(): int
     {
         return match ($this) {
+            self::A1B, self::A1A => 1,
             self::A2B, self::A2U, self::A2A => 2,
             self::A3B, self::A3U, self::A3A => 3,
             self::A4, self::A4F => 4,
@@ -40,7 +44,7 @@ enum PdfALevel
     public function omitsInfoDictionary(): bool
     {
         return match ($this) {
-            self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A => false,
+            self::A1B, self::A1A, self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A => false,
             self::A4, self::A4F => true,
         };
     }
@@ -51,6 +55,7 @@ enum PdfALevel
     public function headerVersion(): string
     {
         return match ($this) {
+            self::A1B, self::A1A => '1.4',
             self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A => '1.7',
             self::A4, self::A4F => '2.0',
         };
@@ -64,9 +69,9 @@ enum PdfALevel
     public function xmpConformance(): ?string
     {
         return match ($this) {
-            self::A2B, self::A3B => 'B',
+            self::A1B, self::A2B, self::A3B => 'B',
+            self::A1A, self::A2A, self::A3A => 'A',
             self::A2U, self::A3U => 'U',
-            self::A2A, self::A3A => 'A',
             self::A4F => 'F',
             self::A4 => null,
         };
@@ -79,7 +84,7 @@ enum PdfALevel
     public function xmpRev(): ?int
     {
         return match ($this) {
-            self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A => null,
+            self::A1B, self::A1A, self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A => null,
             self::A4, self::A4F => 2020,
         };
     }
@@ -87,8 +92,20 @@ enum PdfALevel
     public function allowsEmbeddedFiles(): bool
     {
         return match ($this) {
-            self::A2B, self::A2U, self::A2A, self::A4 => false,
+            self::A1B, self::A1A, self::A2B, self::A2U, self::A2A, self::A4 => false,
             self::A3B, self::A3U, self::A3A, self::A4F => true,
+        };
+    }
+
+    /**
+     * PDF/A-1 (ISO 19005-1) is PDF 1.4-based and forbids all transparency
+     * (alpha, soft masks, blend modes, transparency groups); later parts permit it.
+     */
+    public function forbidsTransparency(): bool
+    {
+        return match ($this) {
+            self::A1B, self::A1A => true,
+            self::A2B, self::A2U, self::A2A, self::A3B, self::A3U, self::A3A, self::A4, self::A4F => false,
         };
     }
 
