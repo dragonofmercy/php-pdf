@@ -256,23 +256,27 @@ final class StandardSecurityHandler
      */
     private function tryAesv3(string $password): ?string
     {
-        // User: validate against U[0..32), recover key from UE.
-        $userValidation = $this->passwordHash->hash($password, substr($this->params->u, 32, 8), '');
-        if (hash_equals(substr($this->params->u, 0, 32), $userValidation)) {
-            $intermediateKey = $this->passwordHash->hash($password, substr($this->params->u, 40, 8), '');
-            return $this->aesNoPadCbcDecrypt($intermediateKey, $this->params->ue);
-        }
+        // User: validate against U[0..32) with no additional input, recover from UE.
+        return $this->tryAesv3Role($password, $this->params->u, '', $this->params->ue)
+            // Owner: validate against O[0..32) using the 48-byte U as additional
+            // input, recover from OE.
+            ?? $this->tryAesv3Role($password, $this->params->o, substr($this->params->u, 0, 48), $this->params->oe);
+    }
 
-        // Owner: validate against O[0..32) using the 48-byte U as additional
-        // input, recover key from OE.
-        $udk = substr($this->params->u, 0, 48);
-        $ownerValidation = $this->passwordHash->hash($password, substr($this->params->o, 32, 8), $udk);
-        if (hash_equals(substr($this->params->o, 0, 32), $ownerValidation)) {
-            $intermediateKey = $this->passwordHash->hash($password, substr($this->params->o, 40, 8), $udk);
-            return $this->aesNoPadCbcDecrypt($intermediateKey, $this->params->oe);
+    /**
+     * One AES-256 (R6) validation role. $material is U (user) or O (owner): bytes
+     * 0..32 are the validation hash, 32..40 the validation salt, 40..48 the key
+     * salt. On a match, unwrap the file key from $wrapped (UE or OE). $udk is the
+     * additional hash input ('' for user, the 48-byte U for owner).
+     */
+    private function tryAesv3Role(string $password, string $material, string $udk, string $wrapped): ?string
+    {
+        $validation = $this->passwordHash->hash($password, substr($material, 32, 8), $udk);
+        if (!hash_equals(substr($material, 0, 32), $validation)) {
+            return null;
         }
-
-        return null;
+        $intermediateKey = $this->passwordHash->hash($password, substr($material, 40, 8), $udk);
+        return $this->aesNoPadCbcDecrypt($intermediateKey, $wrapped);
     }
 
     /**

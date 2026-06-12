@@ -60,7 +60,12 @@ final readonly class ObjectDecryptor
         }
 
         $strKey = $this->handler->objectKey($objectNumber, $generation, $this->handler->stringCipher());
-        $stmKey = $this->handler->objectKey($objectNumber, $generation, $this->handler->streamCipher());
+        // The string and stream crypt filters are the same for every scheme except a
+        // pathological mixed-cipher V4 file, so reuse the one key derivation in the
+        // common case and only re-derive when the ciphers genuinely differ.
+        $stmKey = $this->handler->streamCipher() === $this->handler->stringCipher()
+            ? $strKey
+            : $this->handler->objectKey($objectNumber, $generation, $this->handler->streamCipher());
 
         return $this->decryptValue($value, $strKey, $stmKey);
     }
