@@ -69,6 +69,50 @@ final class StandardSecurityHandler
         return $this->fileKey;
     }
 
+    public function streamCipher(): StreamCipher
+    {
+        return $this->params->stmCipher;
+    }
+
+    public function stringCipher(): StreamCipher
+    {
+        return $this->params->strCipher;
+    }
+
+    /**
+     * ISO 32000-1 Algorithm 1: derive the per-object key for (objectNumber,
+     * generation) under the given cipher. AES-256 (V5/R6) uses the file key
+     * directly; RC4 and AES-128 mix the low object/generation bytes (plus the
+     * "sAlT" suffix for AES-128) into an MD5 digest truncated to keyLength+5
+     * bytes (capped at 16). Must be called after authenticate().
+     */
+    public function objectKey(int $objectNumber, int $generation, StreamCipher $cipher): string
+    {
+        $fileKey = $this->fileKey();
+
+        return match ($cipher) {
+            StreamCipher::Aesv3 => $fileKey,
+            StreamCipher::Rc4, StreamCipher::Aesv2 => $this->legacyObjectKey($fileKey, $objectNumber, $generation, $cipher),
+        };
+    }
+
+    /**
+     * ISO 32000-1 Algorithm 1 for the legacy RC4 / AES-128 ciphers.
+     */
+    private function legacyObjectKey(string $fileKey, int $objectNumber, int $generation, StreamCipher $cipher): string
+    {
+        $input = $fileKey
+            . substr(pack('V', $objectNumber), 0, 3)
+            . substr(pack('V', $generation), 0, 2);
+
+        if ($cipher === StreamCipher::Aesv2) {
+            $input .= "\x73\x41\x6C\x54"; // "sAlT"
+        }
+
+        $h = md5($input, true);
+        return substr($h, 0, min(strlen($fileKey) + 5, 16));
+    }
+
     /**
      * Attempts to recover the file key for one candidate password, trying the
      * user then owner role. Returns the 32-byte file key or null if neither
