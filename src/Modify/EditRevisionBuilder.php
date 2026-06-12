@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Document\Metadata;
 use DragonOfMercy\PhpPdf\Document\MetadataStream;
 use DragonOfMercy\PhpPdf\Document\PageSetEmitter;
 use DragonOfMercy\PhpPdf\Document\XmpWriter;
+use DragonOfMercy\PhpPdf\Encryption\Reader\IncrementalObjectEncryptor;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
@@ -52,6 +53,7 @@ final class EditRevisionBuilder
     /**
      * @param list<AppendedRevision|DssRevision> $appendedRevisions queued signatures / timestamps / DSS to stack
      * @param array<string, SignatureAppearance> $signatureAppearances visible-signature boxes keyed by field name
+     * @param ?IncrementalObjectEncryptor $encryptor re-encrypts each new object of the edit revision (encrypted source); null for non-encrypted sources (byte-identical path)
      */
     public function __construct(
         private readonly PdfReader $reader,
@@ -62,6 +64,7 @@ final class EditRevisionBuilder
         private readonly PageSetEmitter $pageEmitter,
         private readonly array $appendedRevisions,
         private readonly array $signatureAppearances,
+        private readonly ?IncrementalObjectEncryptor $encryptor = null,
     ) {
     }
 
@@ -76,6 +79,7 @@ final class EditRevisionBuilder
             newObjects: $newObjects,
             trailerEntries: $trailerEntries,
             size: $nextNumber,
+            encryptor: $this->encryptor,
         );
     }
 
@@ -218,6 +222,16 @@ final class EditRevisionBuilder
         $id = $this->reader->trailer()->get(Name::of('ID'));
         if ($id !== null) {
             $trailerEntries = $trailerEntries->withEntry(Name::of('ID'), $id);
+        }
+
+        // Encrypted source: forward the source /Encrypt reference verbatim so the
+        // revision trailer points at the original (unchanged) /Encrypt object;
+        // the new objects are re-encrypted under the same recovered key.
+        if ($this->encryptor !== null) {
+            $encrypt = $this->reader->trailer()->get(Name::of('Encrypt'));
+            if ($encrypt !== null) {
+                $trailerEntries = $trailerEntries->withEntry(Name::of('Encrypt'), $encrypt);
+            }
         }
 
         // XMP refresh + catalog re-emit when the catalog carries /Metadata

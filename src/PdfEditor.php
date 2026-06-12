@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf;
 
 use DragonOfMercy\PhpPdf\Document\PageSetEmitter;
+use DragonOfMercy\PhpPdf\Encryption\Reader\IncrementalObjectEncryptor;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
@@ -43,9 +44,11 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 /**
  * Opens an existing PDF for modification. Changes are written as an APPENDED
  * incremental revision: the original bytes stay byte-for-byte intact, which
- * preserves any existing digital signatures. Editing encrypted PDFs is not yet
- * supported; read them with PdfReader::fromBytes($bytes, $password) or
- * Document::importPdf(), which decrypt.
+ * preserves any existing digital signatures. When the source is ENCRYPTED, the
+ * recovered file key/scheme is reused to re-encrypt the new objects of the
+ * appended revision and the source /Encrypt + /ID are forwarded into the
+ * revision trailer, so the edited file stays a valid encrypted PDF. Signing an
+ * encrypted source is not yet supported.
  *
  * This class is a thin public facade: it accumulates the requested edits and
  * signatures, then delegates the actual revision construction to
@@ -61,6 +64,13 @@ final class PdfEditor
     private readonly PdfReader $reader;
     private readonly string $bytes;
     private PendingChanges $pending;
+
+    /**
+     * Re-encrypts each new object of the appended revision when the source is
+     * encrypted; null for non-encrypted sources (the revision write path is then
+     * byte-identical to the unencrypted editor).
+     */
+    private readonly ?IncrementalObjectEncryptor $encryptor;
 
     /** @var list<AppendedRevision|DssRevision> */
     private array $appendedRevisions = [];
@@ -90,14 +100,30 @@ final class PdfEditor
     private ?array $lastCustom = null;
     private Orientation $lastOrientation = Orientation::PORTRAIT;
 
-    private function __construct(string $bytes)
+    private function __construct(string $bytes, ?string $password = null)
     {
         if (!str_starts_with($bytes, '%PDF-')) {
             throw new PdfException('Cannot modify a PDF whose %PDF header is not at byte 0; re-save the file first');
         }
-        $this->reader = PdfReader::fromBytes($bytes);
+        $this->reader = PdfReader::fromBytes($bytes, $password);
         if ($this->reader->isEncrypted()) {
-            throw new PdfException('editing encrypted PDFs is not yet supported; read them with PdfReader::fromBytes($bytes, $password) or Document::importPdf(), which decrypt');
+            // isEncrypted() implies an authenticated security handler.
+            $handler = $this->reader->securityHandler();
+            if ($handler === null) {
+                throw new PdfException('Internal error: encrypted source has no security handler');
+            }
+            $this->encryptor = new IncrementalObjectEncryptor(
+                $handler,
+                static function (int $n): string {
+                    if ($n < 1) {
+                        throw new PdfException('Invalid random byte count: ' . $n);
+                    }
+                    return random_bytes($n);
+                },
+                $handler->encryptMetadata(),
+            );
+        } else {
+            $this->encryptor = null;
         }
         $this->bytes = $bytes;
         $this->pending = new PendingChanges();
@@ -111,18 +137,18 @@ final class PdfEditor
         $this->imageRegistry = new ImageRegistry();
     }
 
-    public static function open(string $path): self
+    public static function open(string $path, ?string $password = null): self
     {
         $bytes = @file_get_contents($path);
         if ($bytes === false) {
             throw new PdfException("Cannot read PDF file: {$path}");
         }
-        return new self($bytes);
+        return new self($bytes, $password);
     }
 
-    public static function fromBytes(string $bytes): self
+    public static function fromBytes(string $bytes, ?string $password = null): self
     {
-        return new self($bytes);
+        return new self($bytes, $password);
     }
 
     public function setTitle(string $title): self
@@ -592,6 +618,10 @@ final class PdfEditor
             throw new PdfException('No pending changes to write; call a setter, appendPage(), setField(), or a signing method first');
         }
 
+        if ($this->encryptor !== null && $this->appendedRevisions !== []) {
+            throw new PdfException('signing an encrypted PDF is not yet supported');
+        }
+
         $builder = $this->revisionBuilder();
 
         if ($this->appendedRevisions === []) {
@@ -626,6 +656,7 @@ final class PdfEditor
             pageEmitter: $this->pageSetEmitter(),
             appendedRevisions: $this->appendedRevisions,
             signatureAppearances: $this->signatureAppearances,
+            encryptor: $this->encryptor,
         );
     }
 

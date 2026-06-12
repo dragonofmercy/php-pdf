@@ -79,6 +79,11 @@ final class StandardSecurityHandler
         return $this->params->strCipher;
     }
 
+    public function encryptMetadata(): bool
+    {
+        return $this->params->encryptMetadata;
+    }
+
     /**
      * ISO 32000-1 Algorithm 1: derive the per-object key for (objectNumber,
      * generation) under the given cipher. AES-256 (V5/R6) uses the file key

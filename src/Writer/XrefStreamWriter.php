@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Writer;
 
+use DragonOfMercy\PhpPdf\Encryption\Reader\IncrementalObjectEncryptor;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -28,7 +29,8 @@ final readonly class XrefStreamWriter
 
     /**
      * @param list<IndirectObject> $newObjects
-     * @param Dictionary $trailerEntries /Root (+ optional /Info, /ID) - /Size and /Prev are added here
+     * @param Dictionary $trailerEntries /Root (+ optional /Info, /ID, /Encrypt) - /Size and /Prev are added here
+     * @param ?IncrementalObjectEncryptor $encryptor re-encrypts each new object (encrypted source); null = byte-identical plain path
      */
     public function append(
         string $priorBytes,
@@ -36,6 +38,7 @@ final readonly class XrefStreamWriter
         Dictionary $trailerEntries,
         int $prevStartxref,
         int $size,
+        ?IncrementalObjectEncryptor $encryptor = null,
     ): string {
         if ($newObjects === []) {
             throw new PdfException('An incremental revision needs at least one object');
@@ -43,8 +46,11 @@ final readonly class XrefStreamWriter
         $bytes = $priorBytes;
         $offsets = [];
         foreach ($newObjects as $object) {
+            // The xref offset is keyed by the object's number, which encryption
+            // leaves unchanged; only the string/stream bytes are re-encrypted.
+            $emit = $encryptor !== null ? $encryptor->encrypt($object) : $object;
             $offsets[$object->objectNumber] = strlen($bytes);
-            $bytes .= $object->toBytes();
+            $bytes .= $emit->toBytes();
         }
         $xrefStreamNumber = $size;
         $offsets[$xrefStreamNumber] = strlen($bytes);

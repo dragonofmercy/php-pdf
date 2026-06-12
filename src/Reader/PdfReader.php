@@ -43,6 +43,7 @@ final class PdfReader
     /** @var ?list<ReadPage> */
     private ?array $pages = null;
     private ?ObjectDecryptor $decryptor = null;
+    private ?StandardSecurityHandler $securityHandler = null;
     private bool $encrypted = false;
 
     private function __construct(private readonly string $bytes, ?string $password = null)
@@ -102,6 +103,7 @@ final class PdfReader
 
         $params = EncryptionParams::fromTrailer($encryptDict, $this->xref->trailer, $this->resolve(...));
         $handler = (new StandardSecurityHandler($params, new PasswordHash()))->authenticate($password);
+        $this->securityHandler = $handler;
 
         $metadataObjectNumber = $this->metadataObjectNumber();
 
@@ -144,6 +146,17 @@ final class PdfReader
     public function isEncrypted(): bool
     {
         return $this->encrypted;
+    }
+
+    /**
+     * The authenticated Standard security handler when the source is encrypted,
+     * else null. Exposes the recovered file key and per-object key derivation so
+     * the editor can re-encrypt an appended incremental revision under the same
+     * scheme.
+     */
+    public function securityHandler(): ?StandardSecurityHandler
+    {
+        return $this->securityHandler;
     }
 
     public function trailer(): Dictionary
