@@ -15,6 +15,8 @@ use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfBoolean;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use PHPUnit\Framework\TestCase;
@@ -120,6 +122,16 @@ final class ObjectDecryptorTest extends TestCase
         $n = $result->get(Name::of('N'));
         self::assertInstanceOf(PdfNumber::class, $n);
         self::assertSame(3, $n->value());
+    }
+
+    public function testScalarLeavesArePassedThroughUnchanged(): void
+    {
+        $handler = $this->aesv3Handler();
+        $decryptor = new ObjectDecryptor($handler, -1, null, true);
+
+        foreach ([Name::of('Type'), PdfNumber::ofInt(42), PdfBoolean::true(), PdfNull::instance()] as $scalar) {
+            self::assertSame($scalar, $decryptor->decrypt($scalar, 7, 0));
+        }
     }
 
     public function testEncryptObjectIsReturnedUnchanged(): void

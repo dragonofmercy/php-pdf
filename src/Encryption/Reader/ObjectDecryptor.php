@@ -8,8 +8,13 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
+use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfBoolean;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
+use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 
 /**
@@ -80,7 +85,16 @@ final readonly class ObjectDecryptor
                 $this->decryptDictionary($value->dict, $strKey, $stmKey),
                 $this->decryptBytes($value->rawData(), $stmKey, $this->handler->streamCipher()),
             ),
-            default => $value,
+            // Scalar leaves that carry no encrypted bytes: pass through unchanged.
+            $value instanceof Name,
+            $value instanceof PdfNumber,
+            $value instanceof PdfReference,
+            $value instanceof PdfBoolean,
+            $value instanceof PdfNull => $value,
+            // Any other type would silently emit ciphertext as garbage: fail loudly.
+            default => throw new PdfException(
+                'ObjectDecryptor: unexpected object type ' . $value::class . ' (cannot safely decrypt)',
+            ),
         };
     }
 
