@@ -60,9 +60,13 @@ final class FieldFlattener
 
             foreach ($field->widgetObjectNumbers as $widgetNum) {
                 $flattenedWidgets[$widgetNum] = true;
-                $rect = $this->widgetRect($widgetNum, $field->name);
+                $widgetDict = $this->reader->resolve($this->reader->object($widgetNum));
+                if (!$widgetDict instanceof Dictionary) {
+                    throw new PdfException("Field '{$field->name}': widget {$widgetNum} is not a dictionary");
+                }
+                $rect = $this->widgetRect($widgetDict, $widgetNum, $field->name);
                 ['ref' => $ref, 'bbox' => $bbox, 'matrix' => $matrix, 'newObject' => $newObject]
-                    = $this->appearanceFor($target, $widgetNum, $rect, $allocate);
+                    = $this->appearanceFor($target, $widgetDict, $rect, $allocate);
                 if ($newObject !== null) {
                     $extraObjects[] = $newObject;
                 }
@@ -89,7 +93,7 @@ final class FieldFlattener
      * @param callable(): int $allocate
      * @return array{ref: PdfReference, bbox: list<float>, matrix: list<float>, newObject: ?IndirectObject}
      */
-    private function appearanceFor(FlattenTarget $target, int $widgetNum, array $rect, callable $allocate): array
+    private function appearanceFor(FlattenTarget $target, Dictionary $widgetDict, array $rect, callable $allocate): array
     {
         $field = $target->field;
         $type = $field->type;
@@ -97,7 +101,7 @@ final class FieldFlattener
             || $type === FormFieldType::Combobox
             || $type === FormFieldType::Listbox;
 
-        $existing = $this->existingAppearanceRef($widgetNum, $target);
+        $existing = $this->existingAppearanceRef($widgetDict, $target);
 
         if ($isTextOrChoice && ($target->regenerate || $existing === null)) {
             $generated = $this->generateAppearance($target, $allocate);
@@ -113,7 +117,7 @@ final class FieldFlattener
 
         if ($existing === null) {
             throw new PdfException(
-                "Cannot flatten field '{$field->name}': widget {$widgetNum} has no appearance stream to burn",
+                "Cannot flatten field '{$field->name}': widget has no appearance stream to burn",
             );
         }
 
@@ -137,12 +141,8 @@ final class FieldFlattener
      * widget, selecting the current on/off state for checkbox/radio from the
      * target's final value, or null when none is referencable.
      */
-    private function existingAppearanceRef(int $widgetNum, FlattenTarget $target): ?int
+    private function existingAppearanceRef(Dictionary $widget, FlattenTarget $target): ?int
     {
-        $widget = $this->reader->resolve($this->reader->object($widgetNum));
-        if (!$widget instanceof Dictionary) {
-            return null;
-        }
         $ap = $widget->get(Name::of('AP'));
         $ap = $ap !== null ? $this->reader->resolve($ap) : null;
         if (!$ap instanceof Dictionary) {
@@ -157,7 +157,7 @@ final class FieldFlattener
             return null;
         }
         // Checkbox / radio: pick the stream for the wanted state.
-        $state = $this->wantedState($target, $widgetNum, $n);
+        $state = $this->wantedState($target, $n);
         $stateRef = $n->get(Name::of($state));
         return $stateRef instanceof PdfReference ? $stateRef->objectNumber : null;
     }
@@ -166,7 +166,7 @@ final class FieldFlattener
      * The /AS state name to burn for a checkbox/radio widget given the final
      * value: the matching on-state when selected, else 'Off'.
      */
-    private function wantedState(FlattenTarget $target, int $widgetNum, Dictionary $nDict): string
+    private function wantedState(FlattenTarget $target, Dictionary $nDict): string
     {
         $onState = null;
         foreach ($nDict->entries() as [$key, $_v]) {
@@ -304,11 +304,7 @@ final class FieldFlattener
         $burnStreamNumber = $allocate();
         $extraObjects[] = IndirectObject::of($burnStreamNumber, 0, CompressedStream::of($content));
 
-        $newContents = [];
-        foreach ($contents as $ref) {
-            $newContents[] = $ref;
-        }
-        $newContents[] = PdfReference::to($burnStreamNumber, 0);
+        $newContents = [...$contents, PdfReference::to($burnStreamNumber, 0)];
 
         $updated = $pageDict
             ->withEntry(Name::of('Resources'), $resources->withEntry(Name::of('XObject'), $xobjects))
@@ -385,12 +381,8 @@ final class FieldFlattener
      *
      * @return list<float>
      */
-    private function widgetRect(int $widgetNum, string $fieldName): array
+    private function widgetRect(Dictionary $widget, int $widgetNum, string $fieldName): array
     {
-        $widget = $this->reader->resolve($this->reader->object($widgetNum));
-        if (!$widget instanceof Dictionary) {
-            throw new PdfException("Field '{$fieldName}': widget {$widgetNum} is not a dictionary");
-        }
         $rect = $widget->get(Name::of('Rect'));
         $rect = $rect !== null ? $this->reader->resolve($rect) : null;
         if (!$rect instanceof PdfArray || count($rect->elements()) !== 4) {
@@ -414,17 +406,7 @@ final class FieldFlattener
      */
     private function streamBBox(ReadStream $stream): array
     {
-        $bbox = $stream->dict->get(Name::of('BBox'));
-        $bbox = $bbox !== null ? $this->reader->resolve($bbox) : null;
-        if (!$bbox instanceof PdfArray || count($bbox->elements()) !== 4) {
-            return [0.0, 0.0, 0.0, 0.0];
-        }
-        $out = [];
-        foreach ($bbox->elements() as $el) {
-            $n = $this->reader->resolve($el);
-            $out[] = $n instanceof PdfNumber ? (float) $n->value() : 0.0;
-        }
-        return $out;
+        return $this->readNumberArray($stream->dict, 'BBox', 4, [0.0, 0.0, 0.0, 0.0]);
     }
 
     /**
@@ -434,13 +416,26 @@ final class FieldFlattener
      */
     private function streamMatrix(ReadStream $stream): array
     {
-        $matrix = $stream->dict->get(Name::of('Matrix'));
-        $matrix = $matrix !== null ? $this->reader->resolve($matrix) : null;
-        if (!$matrix instanceof PdfArray || count($matrix->elements()) !== 6) {
-            return [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        return $this->readNumberArray($stream->dict, 'Matrix', 6, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+    }
+
+    /**
+     * Reads a dict entry expected to be an array of exactly $count numbers,
+     * returning $default (a copy) when absent, the wrong type, or the wrong
+     * length. Non-numeric elements become 0.0.
+     *
+     * @param list<float> $default
+     * @return list<float>
+     */
+    private function readNumberArray(Dictionary $dict, string $key, int $count, array $default): array
+    {
+        $raw = $dict->get(Name::of($key));
+        $raw = $raw !== null ? $this->reader->resolve($raw) : null;
+        if (!$raw instanceof PdfArray || count($raw->elements()) !== $count) {
+            return $default;
         }
         $out = [];
-        foreach ($matrix->elements() as $el) {
+        foreach ($raw->elements() as $el) {
             $n = $this->reader->resolve($el);
             $out[] = $n instanceof PdfNumber ? (float) $n->value() : 0.0;
         }

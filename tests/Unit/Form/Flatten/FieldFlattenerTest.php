@@ -12,7 +12,6 @@ use DragonOfMercy\PhpPdf\Form\Fill\FieldValueApplier;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
 use DragonOfMercy\PhpPdf\Form\Flatten\FieldFlattener;
 use DragonOfMercy\PhpPdf\Form\Flatten\FlattenTarget;
-use DragonOfMercy\PhpPdf\Form\TextField;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
