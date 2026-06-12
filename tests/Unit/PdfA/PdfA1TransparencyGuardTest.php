@@ -27,6 +27,8 @@ final class PdfA1TransparencyGuardTest extends TestCase
 
     private const string MASK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><defs><mask id="m"><rect x="0" y="0" width="20" height="20" fill="#ffffff"/><rect x="5" y="5" width="10" height="10" fill="#000000"/></mask></defs><rect x="0" y="0" width="20" height="20" fill="#0000ff" mask="url(#m)"/></svg>';
 
+    private const string FILTER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><filter id="f"><feGaussianBlur stdDeviation="3"/></filter><rect x="20" y="20" width="60" height="60" fill="red" filter="url(#f)"/></svg>';
+
     private const string EMBED_FONT = __DIR__ . '/../../Golden/assets/fonts/FreeSans.ttf';
 
     public function testOpaqueTextPageSucceedsUnderA1B(): void
@@ -87,6 +89,18 @@ final class PdfA1TransparencyGuardTest extends TestCase
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/PDF\/A-1.*(mask|transparency)/i');
+        $doc->output();
+    }
+
+    public function testSvgFilterThrowsUnderA1B(): void
+    {
+        $doc = new Document();
+        $doc->enablePdfA(PdfALevel::A1B);
+        $page = $doc->addPage(format: PageFormat::A4);
+        $page->image(Image::fromBytes(self::FILTER_SVG), x: 10.0, y: 10.0, w: 20.0, h: 20.0);
+
+        $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/PDF\/A-1.*(filter|transparency)/i');
         $doc->output();
     }
 

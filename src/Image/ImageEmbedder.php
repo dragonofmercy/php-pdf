@@ -284,7 +284,7 @@ final class ImageEmbedder
             // image) has no PDF 1.4 representation; reject before emitting it.
             if ($embeddedMasks !== [] || $embeddedFilters !== []) {
                 throw new PdfException(
-                    'PDF/A-1 forbids transparency; the SVG uses a mask/soft-mask, which has no PDF 1.4 representation - remove the mask or use PDF/A-2 or higher',
+                    'PDF/A-1 forbids transparency; the SVG uses a mask, soft-mask, or filter, which has no PDF 1.4 representation - remove it or use PDF/A-2 or higher',
                 );
             }
             // Any ExtGState entry registered by the renderer means a fill/stroke
