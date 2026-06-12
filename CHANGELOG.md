@@ -14,8 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   password is tried as the user password first, then as the owner password. A wrong or missing password
   throws a `PdfException` with a clear message. Validated against pikepdf-produced files for all four
   schemes. `PdfReader::isEncrypted()` returns `true` when the source was encrypted.
-- `PdfEditor::open()` / `PdfEditor::fromBytes()` reject encrypted sources at open time with a clear
-  `PdfException`; decrypt with `PdfReader` / `Document::importPdf()` first, then edit.
+- `PdfEditor::open()` / `PdfEditor::fromBytes()` now edit encrypted PDFs: pass an optional password (omit
+  for permissions-only sources; tried as user then owner otherwise) and the appended incremental revision is
+  re-encrypted with the source scheme and recovered file key (RC4 40-bit, RC4 128-bit, AES-128, AES-256),
+  forwarding the original `/Encrypt` dictionary and `/ID` so the edited file is opened by the same password.
+  Metadata edits, appended pages, and AcroForm field fills are all supported on encrypted sources; signing
+  an encrypted PDF is not yet supported (`PdfEditor` throws a clear `PdfException` if a signature,
+  document timestamp, or LTV is requested on an encrypted source). Validated against pikepdf for all three
+  common schemes (RC4 128-bit, AES-128, AES-256).
 
 ## [1.10.0] - 2026-06-12
 
