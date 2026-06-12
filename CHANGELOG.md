@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `PdfReader` and `Document::importPdf()` / `importPdfBytes()` now transparently decrypt encrypted PDFs using
+  the Standard security handler: RC4 40-bit, RC4 128-bit, AES-128, and AES-256. The password is optional:
+  PDFs protected with only a permissions password (empty user password) open with no argument; a supplied
+  password is tried as the user password first, then as the owner password. A wrong or missing password
+  throws a `PdfException` with a clear message. Validated against pikepdf-produced files for all four
+  schemes. `PdfReader::isEncrypted()` returns `true` when the source was encrypted.
+- `PdfEditor::open()` / `PdfEditor::fromBytes()` reject encrypted sources at open time with a clear
+  `PdfException`; decrypt with `PdfReader` / `Document::importPdf()` first, then edit.
+
 ## [1.10.0] - 2026-06-12
 
 ### Added

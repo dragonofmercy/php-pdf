@@ -44,9 +44,9 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 
 **Read & modify existing PDFs**
 
-- 📖 **Reading** - `PdfReader` parses any non-encrypted PDF (classic xref tables and cross-reference streams, incremental revisions, object streams, common filters).
-- 🧩 **Template import (FPDI-style)** - `Document::importPdf()` + `Page::template()` stamp any source page as a background or overlay: letterheads, watermarks, scanned-form fills.
-- 🔧 **Modifying** - `PdfEditor::open()` writes appended incremental revisions (metadata, new pages, signatures, timestamps, LTV), leaving the original bytes - and their signatures - byte-for-byte intact.
+- 📖 **Reading** - `PdfReader` parses PDFs including encrypted ones (RC4 40/128-bit, AES-128, AES-256); pass an optional password or omit it for permissions-only encryption. Classic xref tables, cross-reference streams, incremental revisions, object streams, and common filters.
+- 🧩 **Template import (FPDI-style)** - `Document::importPdf()` + `Page::template()` stamp any source page as a background or overlay: letterheads, watermarks, scanned-form fills. Encrypted source PDFs are supported (optional password).
+- 🔧 **Modifying** - `PdfEditor::open()` writes appended incremental revisions (metadata, new pages, signatures, timestamps, LTV), leaving the original bytes - and their signatures - byte-for-byte intact. Editing encrypted PDFs is not yet supported.
 - 🖋️ **Filling AcroForm fields** - inspect and `setField()` text / checkbox / radio / combobox / listbox values; each filled field gets a generated appearance stream (`/AP`).
 
 ## Installation
