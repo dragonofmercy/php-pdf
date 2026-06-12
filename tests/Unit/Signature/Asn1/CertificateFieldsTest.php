@@ -9,8 +9,6 @@ use DragonOfMercy\PhpPdf\Signature\Asn1\CertificateFields;
 use DragonOfMercy\PhpPdf\Signature\Ltv\CertificateChain;
 use DragonOfMercy\PhpPdf\Tests\Support\TestPki;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class CertificateFieldsTest extends TestCase
 {
@@ -26,41 +24,43 @@ final class CertificateFieldsTest extends TestCase
         self::assertSame(0x30, ord($fields->subjectNameDer()[0]));
         self::assertNotSame('', $fields->subjectPublicKeyBytes());
 
-        $openssl = (new ExecutableFinder())->find('openssl');
-        self::assertNotNull($openssl);
-        $leaf = (string) tempnam(sys_get_temp_dir(), 'leaf');
-        file_put_contents($leaf, $pki['leafPem']);
-        try {
-            $p = new Process([$openssl, 'x509', '-in', $leaf, '-noout', '-serial']);
-            $p->run();
-            $serialHex = strtolower(trim(str_replace('serial=', '', $p->getOutput())));
-        } finally {
-            @unlink($leaf);
+        // Cross-check the parsed serial against PHP's openssl binding, which parses
+        // independently of our hand-rolled ASN.1. The binding is deterministic and
+        // needs no subprocess. It reports the serial magnitude in hex; our
+        // serialNumber() returns the raw DER INTEGER content octets, which carry a
+        // leading 0x00 sign byte whenever the high bit is set (so the integer stays
+        // positive). Strip that sign byte before comparing the two representations.
+        $parsed = openssl_x509_parse($pki['leafPem']);
+        self::assertIsArray($parsed);
+        self::assertArrayHasKey('serialNumberHex', $parsed);
+        $expectedHex = $parsed['serialNumberHex'];
+        self::assertIsString($expectedHex);
+
+        $serialMagnitude = $fields->serialNumber();
+        if (strlen($serialMagnitude) > 1 && $serialMagnitude[0] === "\x00") {
+            $serialMagnitude = substr($serialMagnitude, 1);
         }
-        self::assertSame($serialHex, strtolower(bin2hex($fields->serialNumber())));
+        self::assertSame(strtolower($expectedHex), strtolower(bin2hex($serialMagnitude)));
     }
 
     public function testIssuerNameDerMatchesOpenssl(): void
     {
         $pki = TestPki::issueWithOcsp();
-        $openssl = (new ExecutableFinder())->find('openssl');
-        if ($pki === null || $openssl === null) {
+        if ($pki === null) {
             self::markTestSkipped('openssl CLI unavailable');
         }
         $der = CertificateChain::pemToDer($pki['leafPem']);
         $issuerNameDer = CertificateFields::fromDer($der)->issuerNameDer();
 
         self::assertSame(0x30, ord($issuerNameDer[0]));
-        $leaf = (string) tempnam(sys_get_temp_dir(), 'leaf');
-        file_put_contents($leaf, $pki['leafPem']);
-        try {
-            $p = new Process([$openssl, 'x509', '-in', $leaf, '-noout', '-issuer']);
-            $p->run();
-            self::assertStringContainsString('phppdf test root', $p->getOutput());
-        } finally {
-            @unlink($leaf);
-        }
         self::assertStringContainsString('phppdf test root', $issuerNameDer);
+
+        // Cross-check against PHP's openssl binding (deterministic, no subprocess).
+        $parsed = openssl_x509_parse($pki['leafPem']);
+        self::assertIsArray($parsed);
+        $issuer = $parsed['issuer'] ?? null;
+        self::assertIsArray($issuer);
+        self::assertSame('phppdf test root', $issuer['CN'] ?? null);
     }
 
     public function testThrowsOnNonCertificate(): void
