@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PDF/A-1 conformance (ISO 19005-1:2005, PDF 1.4-based) via `enablePdfA(PdfALevel::A1B)` (level B)
+  and `enablePdfA(PdfALevel::A1A, 'en-US')` (level A, requires a catalog language and tagged
+  content via the high-level API). PDF/A-1 emits a `%PDF-1.4` header. It forbids transparency
+  entirely: adding a PNG with an alpha channel, an SVG using fill/stroke opacity below 1.0, or
+  an SVG using a mask, soft-mask, or filter throws a `PdfException` at output time (remedy:
+  flatten against a solid background or use PDF/A-2 or higher). Embedded files are also
+  forbidden (no part-3 equivalent). Both flavours are veraPDF-validated.
 - PDF/A-4 conformance (ISO 19005-4:2020, PDF 2.0-based) via `enablePdfA(PdfALevel::A4)`
   and the `A4F` flavour for documents that embed arbitrary files. PDF/A-4 emits a
   `%PDF-2.0` header, carries its identification as `pdfaid:rev` (2020) in XMP, and -
