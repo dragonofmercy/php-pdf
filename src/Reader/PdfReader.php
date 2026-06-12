@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Reader;
 
+use DragonOfMercy\PhpPdf\Encryption\PasswordHash;
+use DragonOfMercy\PhpPdf\Encryption\Reader\EncryptionParams;
+use DragonOfMercy\PhpPdf\Encryption\Reader\ObjectDecryptor;
+use DragonOfMercy\PhpPdf\Encryption\Reader\StandardSecurityHandler;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Exception\PdfParseException;
 use DragonOfMercy\PhpPdf\Reader\Filter\StreamDecoder;
@@ -37,8 +41,10 @@ final class PdfReader
     private array $objectStreams = [];
     /** @var ?list<ReadPage> */
     private ?array $pages = null;
+    private ?ObjectDecryptor $decryptor = null;
+    private bool $encrypted = false;
 
-    private function __construct(private readonly string $bytes)
+    private function __construct(private readonly string $bytes, ?string $password = null)
     {
         $headerAt = strpos(substr($bytes, 0, self::HEADER_SEARCH_WINDOW), '%PDF-');
         if ($headerAt === false) {
@@ -51,24 +57,92 @@ final class PdfReader
         $this->headerVersion = preg_match('/^%PDF-(\d+\.\d+)/', substr($bytes, $headerAt, 16), $match) === 1 ? $match[1] : '1.4';
         $this->xref = (new XrefReader($bytes, $headerAt))->read();
         $this->decoder = new StreamDecoder();
-        if ($this->xref->trailer->get(Name::of('Encrypt')) !== null) {
-            throw new PdfException('Encrypted PDF input is not supported (the file has an /Encrypt dictionary); decrypt it first');
-        }
         $this->objectParser = new ObjectParser(new Lexer($bytes), fn (PdfReference $ref): PdfObject => $this->resolve($ref));
+        if ($this->xref->trailer->get(Name::of('Encrypt')) !== null) {
+            $this->setUpDecryption($password);
+        }
     }
 
-    public static function fromBytes(string $bytes): self
+    public static function fromBytes(string $bytes, ?string $password = null): self
     {
-        return new self($bytes);
+        return new self($bytes, $password);
     }
 
-    public static function fromFile(string $path): self
+    public static function fromFile(string $path, ?string $password = null): self
     {
         $bytes = @file_get_contents($path);
         if ($bytes === false) {
             throw new PdfException("Cannot read PDF file: {$path}");
         }
-        return new self($bytes);
+        return new self($bytes, $password);
+    }
+
+    /**
+     * Wires the decryption subsystem from the trailer /Encrypt dictionary.
+     *
+     * Ordering matters: the /Encrypt object (and trailer /ID) must be
+     * materialized while $this->decryptor is still null, so resolving them does
+     * NOT attempt to decrypt them - the /Encrypt strings are stored in the clear
+     * by the spec, and they are cached undecrypted here, which is correct.
+     */
+    private function setUpDecryption(?string $password): void
+    {
+        $encrypt = $this->xref->trailer->get(Name::of('Encrypt'));
+        if ($encrypt instanceof PdfReference) {
+            $encryptObjectNumber = $encrypt->objectNumber;
+            $encryptDict = $this->resolve($encrypt);
+        } else {
+            $encryptObjectNumber = -1;
+            $encryptDict = $encrypt === null ? PdfNull::instance() : $encrypt;
+        }
+        if (!$encryptDict instanceof Dictionary) {
+            throw new PdfParseException('/Encrypt does not resolve to a dictionary');
+        }
+
+        $params = EncryptionParams::fromTrailer($encryptDict, $this->xref->trailer, $this->resolve(...));
+        $handler = (new StandardSecurityHandler($params, new PasswordHash()))->authenticate($password);
+
+        $metadataObjectNumber = $this->metadataObjectNumber();
+
+        $this->decryptor = new ObjectDecryptor(
+            $handler,
+            $encryptObjectNumber,
+            $metadataObjectNumber,
+            $params->encryptMetadata,
+        );
+        $this->encrypted = true;
+
+        // Setup materialized a few objects (the /Encrypt dictionary, the catalog
+        // when looking up /Metadata) while the decryptor was still null, so they
+        // were cached undecrypted. Drop the cache so every object is re-fetched
+        // through the decryptor on demand; the /Encrypt object will be re-fetched
+        // and correctly skipped by ObjectDecryptor via its object number.
+        $this->cache = [];
+        $this->objectStreams = [];
+    }
+
+    /**
+     * Object number of the catalog's /Metadata stream, or null when absent.
+     * Only consulted to keep an unencrypted /Metadata stream in the clear
+     * (EncryptMetadata=false); resolved here while the decryptor is still null.
+     */
+    private function metadataObjectNumber(): ?int
+    {
+        $root = $this->xref->trailer->get(Name::of('Root'));
+        if ($root === null) {
+            return null;
+        }
+        $catalog = $this->resolve($root);
+        if (!$catalog instanceof Dictionary) {
+            return null;
+        }
+        $metadata = $catalog->get(Name::of('Metadata'));
+        return $metadata instanceof PdfReference ? $metadata->objectNumber : null;
+    }
+
+    public function isEncrypted(): bool
+    {
+        return $this->encrypted;
     }
 
     public function trailer(): Dictionary
@@ -153,6 +227,12 @@ final class PdfReader
             $object = $entry->kind === XrefEntryKind::InFile
                 ? $this->parseAt($entry->first, $objectNumber)
                 : $this->fromObjectStream($entry->first, $entry->second);
+            // Decrypt in-file objects only: objects pulled from an /ObjStm
+            // inherit the container's decryption (the /ObjStm is itself an
+            // in-file object, decrypted by this same rule when it is fetched).
+            if ($this->decryptor !== null && $entry->kind === XrefEntryKind::InFile) {
+                $object = $this->decryptor->decrypt($object, $objectNumber, $entry->second);
+            }
         } finally {
             unset($this->resolving[$objectNumber]);
         }

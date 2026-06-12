@@ -109,13 +109,16 @@ final class PdfReaderTest extends TestCase
         self::assertEquals(PdfString::of('hello'), $reader->object(3));
     }
 
-    public function testEncryptedPdfIsRejectedAtOpen(): void
+    public function testMalformedEncryptDictionaryThrowsAtOpen(): void
     {
+        // A /V 5 /R 6 dictionary with no /U /O /UE /OE cannot be authenticated;
+        // the reader now attempts decryption (rather than refusing outright) and
+        // fails loudly on the missing key material. End-to-end decryption of a
+        // well-formed encrypted file is covered by PdfReaderEncryptedTest.
         $objects = self::defaultObjects();
         $objects[4] = '<< /Filter /Standard /V 5 /R 6 >>';
         $pdf = self::buildPdf($objects, '/Encrypt 4 0 R');
         $this->expectException(PdfException::class);
-        $this->expectExceptionMessage('ncrypted');
         PdfReader::fromBytes($pdf);
     }
 

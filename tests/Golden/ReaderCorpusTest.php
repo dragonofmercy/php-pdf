@@ -11,11 +11,22 @@ use PHPUnit\Framework\TestCase;
 /**
  * Mass regression net for the reader: every golden fixture (every PDF this
  * library has ever produced, including signed multi-revision files) must
- * open, expose a catalog, and enumerate its pages. Encrypted fixtures must
- * be rejected with the documented encryption error.
+ * open, expose a catalog, and enumerate its pages. Encrypted fixtures are now
+ * opened transparently with their known password and exercise the decryption
+ * path rather than being rejected.
  */
 final class ReaderCorpusTest extends TestCase
 {
+    /**
+     * Known passwords for encrypted golden fixtures, keyed by basename. The
+     * corpus opens these transparently to exercise the decryption path.
+     *
+     * @var array<string, string>
+     */
+    private const array ENCRYPTED_FIXTURE_PASSWORDS = [
+        'encrypted-document.pdf' => 'user',
+    ];
+
     public function testEveryGoldenFixtureParses(): void
     {
         $fixtures = $this->fixtureFiles();
@@ -27,8 +38,9 @@ final class ReaderCorpusTest extends TestCase
         foreach ($fixtures as $file) {
             $bytes = file_get_contents($file);
             self::assertIsString($bytes, $file);
+            $password = self::ENCRYPTED_FIXTURE_PASSWORDS[basename($file)] ?? null;
             try {
-                $reader = PdfReader::fromBytes($bytes);
+                $reader = PdfReader::fromBytes($bytes, $password);
                 $reader->catalog();
                 $count = $reader->pageCount();
                 self::assertGreaterThanOrEqual(1, $count, $file);
@@ -36,17 +48,16 @@ final class ReaderCorpusTest extends TestCase
                     $reader->page($i);
                 }
                 $parsed++;
-            } catch (PdfException $exception) {
-                if (str_contains($exception->getMessage(), 'Encrypted PDF input')) {
+                if ($reader->isEncrypted()) {
                     $encrypted++;
-                    continue;
                 }
+            } catch (PdfException $exception) {
                 $failures[] = basename(dirname($file)) . '/' . basename($file) . ': ' . $exception->getMessage();
             }
         }
         self::assertSame([], $failures, "Reader failed on:\n" . implode("\n", $failures));
         self::assertGreaterThan(0, $parsed);
-        self::assertGreaterThanOrEqual(1, $encrypted, 'expected at least one encrypted fixture to exercise the rejection path');
+        self::assertGreaterThanOrEqual(1, $encrypted, 'expected at least one encrypted fixture to exercise the decryption path');
     }
 
     /** @return list<string> */
