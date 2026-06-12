@@ -418,6 +418,48 @@ final class PdfEditor
     }
 
     /**
+     * Queues a flatten: at output() the named fields (or every value-bearing
+     * field when $names is null) are frozen into static page content - each
+     * widget's appearance is burned into its page and the field's interactivity
+     * removed. Signature and PushButton fields are never flattened; naming one
+     * throws. Text/Checkbox/Radio/Combobox/Listbox are eligible.
+     *
+     * @param ?list<string> $names null = all value-bearing fields; a list = the named subset
+     */
+    public function flattenFields(?array $names = null): self
+    {
+        if ($names !== null) {
+            $terminals = $this->fieldTree()->terminalFields();
+            $byName = [];
+            foreach ($terminals as $rf) {
+                $byName[$rf->name] = $rf;
+            }
+            foreach ($names as $name) {
+                $rf = $byName[$name] ?? null;
+                if ($rf === null) {
+                    if ($terminals === []) {
+                        throw new PdfException('This PDF has no AcroForm fields to flatten');
+                    }
+                    $suggestions = [];
+                    foreach ($terminals as $t) {
+                        $suggestions[] = [$t->name, levenshtein($name, $t->name)];
+                    }
+                    usort($suggestions, static fn (array $a, array $b): int => $a[1] <=> $b[1]);
+                    $hint = implode(', ', array_column(array_slice($suggestions, 0, 3), 0));
+                    throw new PdfException("Unknown form field '{$name}'. Did you mean: {$hint}?");
+                }
+                if ($rf->type === FormFieldType::Signature || $rf->type === FormFieldType::PushButton) {
+                    throw new PdfException("Field '{$name}' is a {$rf->type->name} and cannot be flattened");
+                }
+            }
+        }
+
+        $this->pending->flatten = true;
+        $this->pending->flattenNames = $names;
+        return $this;
+    }
+
+    /**
      * Decodes the merged /V entry of a resolved field into its PHP-native form:
      *
      * - Text / Combobox : string|null         (decoded TextString/PdfString/HexString)
