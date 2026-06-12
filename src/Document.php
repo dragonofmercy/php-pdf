@@ -1610,7 +1610,8 @@ final class Document
      * Returns the bundled sRGB ICC profile for the OutputIntent. PDF/A parts 2-4
      * embed an ICC v4 sRGB profile; PDF/A-1 (validated against the ICC v2 colour
      * model) requires a v2 matrix/TRC profile instead (see
-     * PdfALevel::usesV2OutputIntentProfile).
+     * PdfALevel::usesV2OutputIntentProfile). The bundled v2 profile (sRGB-v2.icc)
+     * is from saucecontrol/Compact-ICC-Profiles, published under CC0-1.0 (public domain).
      */
     private static function srgbIccProfile(bool $v2 = false): string
     {

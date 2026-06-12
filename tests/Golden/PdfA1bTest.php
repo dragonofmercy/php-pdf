@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\PdfA\PdfALevel;
+use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 
@@ -44,8 +45,8 @@ final class PdfA1bTest extends TestCase
         $page->setFont(Font::custom('FS'), 11);
         $page->table(
             columns: [
-                \DragonOfMercy\PhpPdf\Table\Column::of('item', 'Item')->fill(),
-                \DragonOfMercy\PhpPdf\Table\Column::of('qty', 'Qty')->width(60.0),
+                Column::of('item', 'Item')->fill(),
+                Column::of('qty', 'Qty')->width(60.0),
             ],
             rows: [
                 ['item' => 'Widget', 'qty' => '3'],
