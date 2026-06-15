@@ -7,11 +7,10 @@ namespace DragonOfMercy\PhpPdf;
 use DragonOfMercy\PhpPdf\Document\PageSetEmitter;
 use DragonOfMercy\PhpPdf\Encryption\Reader\IncrementalObjectEncryptor;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\Custom\CustomFontFamilyRegistrar;
 use DragonOfMercy\PhpPdf\Font\Custom\FontResolver;
 use DragonOfMercy\PhpPdf\Font\Custom\GlyphUsage;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
-use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtfCache;
-use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
@@ -191,17 +190,13 @@ final class PdfEditor
         ?string $italic = null,
         ?string $boldItalic = null,
     ): self {
-        if (isset($this->customFontFamilies[$alias])) {
-            throw new PdfException("Font family '{$alias}' is already registered; each alias can be registered only once");
-        }
-        $this->customFontFamilies[$alias] = [
-            'regular' => $this->parseFontFile($alias, 'regular', $regular),
-            'bold' => $bold !== null ? $this->parseFontFile($alias, 'bold', $bold) : null,
-            'italic' => $italic !== null ? $this->parseFontFile($alias, 'italic', $italic) : null,
-            'boldItalic' => $boldItalic !== null ? $this->parseFontFile($alias, 'boldItalic', $boldItalic) : null,
-        ];
-        $this->fontResolver = new FontResolver(
+        $this->fontResolver = CustomFontFamilyRegistrar::register(
             $this->customFontFamilies,
+            $alias,
+            $regular,
+            $bold,
+            $italic,
+            $boldItalic,
             $this->metricsRegistry,
             $this->glyphUsage,
         );
@@ -256,20 +251,6 @@ final class PdfEditor
         $page->setPageIndex(count($this->pending->pages));
         $this->pending->pages[] = $page;
         return $page;
-    }
-
-    private function parseFontFile(string $alias, string $variant, string $path): ParsedTtf
-    {
-        if (!is_file($path)) {
-            throw new PdfException("Font file not found for alias '{$alias}' ({$variant}): {$path}");
-        }
-        return ParsedTtfCache::getOrParse($path, function () use ($alias, $variant, $path): ParsedTtf {
-            $bytes = @file_get_contents($path);
-            if ($bytes === false) {
-                throw new PdfException("Cannot read font file for alias '{$alias}' ({$variant}): {$path}");
-            }
-            return TtfParser::parse($bytes, "{$alias} ({$variant})");
-        });
     }
 
     private function fieldTree(): FieldTree
