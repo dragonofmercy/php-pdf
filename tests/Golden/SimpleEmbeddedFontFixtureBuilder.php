@@ -69,6 +69,15 @@ final class SimpleEmbeddedFontFixtureBuilder
         [$bx0, $by0, $bx1, $by1] = $parsed->bbox;
         $bboxStr = '[' . $scale($bx0) . ' ' . $scale($by0) . ' ' . $scale($bx1) . ' ' . $scale($by1) . ']';
 
+        // Derive /ItalicAngle and /StemV the same way the production composite
+        // emitter does (AbstractCompositeFontEmitter::buildDescriptor): the post
+        // table stores italicAngle as a 16.16 fixed-point value, and StemV is
+        // estimated from the OS/2 weight class. For upright FreeSans this yields
+        // ItalicAngle 0 / StemV 50, but mirroring production keeps the builder
+        // correct for any font passed through it later.
+        $italicAngle = $parsed->italicAngle >> 16;
+        $stemV = 50 + (int) round((($parsed->weight - 400) ** 2) / 1000.0);
+
         // Compress the TTF bytes for embedding as /Filter /FlateDecode.
         $ttfUncompressedLen = strlen($ttfBytes);
         $compressed = gzcompress($ttfBytes, 6);
@@ -123,11 +132,11 @@ final class SimpleEmbeddedFontFixtureBuilder
         $body .= "<< /Type /FontDescriptor /FontName /FreeSans\n";
         $body .= "   /Flags {$parsed->flags}\n";
         $body .= "   /FontBBox {$bboxStr}\n";
-        $body .= "   /ItalicAngle {$parsed->italicAngle}\n";
+        $body .= "   /ItalicAngle {$italicAngle}\n";
         $body .= "   /Ascent {$ascent}\n";
         $body .= "   /Descent {$descent}\n";
         $body .= "   /CapHeight {$capHeight}\n";
-        $body .= "   /StemV 80\n";
+        $body .= "   /StemV {$stemV}\n";
         $body .= "   /FontFile2 7 0 R >>\n";
         $body .= "endobj\n";
 
