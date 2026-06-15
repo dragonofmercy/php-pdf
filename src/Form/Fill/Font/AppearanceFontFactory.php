@@ -16,7 +16,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
  *
  * - Standard 14 fonts (Helvetica, Times, Courier families) -> Standard14AppearanceFont.
  * - Simple embedded fonts (Type1 / TrueType / MMType1) -> SimpleEmbeddedAppearanceFont.
- * - Type0 composite fonts -> PdfException (not yet supported).
+ * - Type0 composite fonts (Identity-H / CIDFontType2 / FontFile2) -> CompositeEmbeddedAppearanceFont.
  * - Any other /Subtype -> PdfException.
  *
  * @internal
@@ -54,8 +54,9 @@ final class AppearanceFontFactory
                 SimpleFontDictReader::read($drFontDict, $reader, $fieldName),
                 $fieldName,
             ),
-            'Type0' => throw new PdfException(
-                "Field '{$fieldName}': Type0 embedded fonts are not yet supported",
+            'Type0' => new CompositeEmbeddedAppearanceFont(
+                CompositeFontDictReader::read($drFontDict, $reader, $fieldName),
+                $fieldName,
             ),
             default => throw new PdfException(
                 "Field '{$fieldName}': unsupported font /Subtype \"" . ($subtype ?? '(missing)') . '"',
