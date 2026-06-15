@@ -14,7 +14,7 @@ use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
  * field /DA is "/F1 10 Tf". Used only by EmbeddedCompositeFontFillTest.
  *
  * Object layout:
- *   obj 1  - Catalog (/AcroForm 9 0 R indirect ref)
+ *   obj 1  - Catalog (/AcroForm 10 0 R indirect ref)
  *   obj 2  - Pages root
  *   obj 3  - Page (one page, /Annots [ 4 0 R ])
  *   obj 4  - Field+widget dict (/FT /Tx /T (textfield) /DA (/F1 10 Tf))
