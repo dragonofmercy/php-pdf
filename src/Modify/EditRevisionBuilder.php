@@ -18,6 +18,7 @@ use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
 use DragonOfMercy\PhpPdf\Form\Fill\ResolvedField;
 use DragonOfMercy\PhpPdf\Form\Flatten\FieldFlattener;
 use DragonOfMercy\PhpPdf\Form\Flatten\FlattenTarget;
+use DragonOfMercy\PhpPdf\Modify\PageOperations\PageOperationsEmitter;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
@@ -256,7 +257,10 @@ final class EditRevisionBuilder
             );
         }
 
-        if ($this->pending->pages !== []) {
+        $hasPageOps = $this->pending->deletedPageNumbers !== [] || $this->pending->reorderedPageOrder !== null;
+        if ($hasPageOps) {
+            $nextNumber = $this->emitPageOperations($newObjects, $nextNumber);
+        } elseif ($this->pending->pages !== []) {
             $nextNumber = $this->emitAppendedPages($newObjects, $nextNumber);
         }
 
@@ -360,6 +364,46 @@ final class EditRevisionBuilder
         );
 
         return $allocator->peek();
+    }
+
+    /**
+     * Delegates a page delete/reorder to {@see PageOperationsEmitter}: the
+     * page-ops path owns the /Pages tree (so the append-only path is skipped),
+     * emits any appended pages trailing, and prunes dangling references. When the
+     * outline tree empties, /Outlines is dropped from the latest catalog.
+     *
+     * @param list<IndirectObject> $newObjects
+     */
+    private function emitPageOperations(array &$newObjects, int $nextNumber): int
+    {
+        $emitter = new PageOperationsEmitter(
+            $this->reader,
+            $this->pending->deletedPageNumbers,
+            $this->pending->reorderedPageOrder,
+            $this->pending->pages,
+            $this->pageEmitter,
+        );
+        $result = $emitter->emit($nextNumber);
+        foreach ($result['objects'] as $o) {
+            $newObjects[] = $o;
+        }
+        if ($result['outlinesEmptied']) {
+            $rootRef = $this->reader->trailer()->get(Name::of('Root'));
+            if (!$rootRef instanceof PdfReference) {
+                throw new PdfException('The opened PDF has no indirect /Root reference');
+            }
+            $this->guardGenerationZero($rootRef->objectNumber, '/Root');
+            $catalogDict = $this->latestCatalogDict($newObjects);
+            $rebuilt = Dictionary::empty();
+            foreach ($catalogDict->entries() as [$key, $value]) {
+                if ($key->value() === 'Outlines') {
+                    continue;
+                }
+                $rebuilt = $rebuilt->withEntry($key, $value);
+            }
+            $newObjects[] = IndirectObject::of($rootRef->objectNumber, 0, $rebuilt);
+        }
+        return $result['nextNumber'];
     }
 
     /**

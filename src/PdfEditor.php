@@ -594,6 +594,10 @@ final class PdfEditor
             throw new PdfException('Signing an encrypted PDF is not yet supported');
         }
 
+        if ($this->appendedRevisions !== [] && ($this->pending->deletedPageNumbers !== [] || $this->pending->reorderedPageOrder !== null)) {
+            throw new PdfException('Deleting or reordering pages and signing in the same operation is not supported; apply the page operations first, then sign the resulting PDF');
+        }
+
         $builder = $this->revisionBuilder();
 
         if ($this->appendedRevisions === []) {
