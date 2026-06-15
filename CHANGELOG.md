@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Encrypted PDF support across `PdfReader`, `Document::importPdf()` / `importPdfBytes()`, and `PdfEditor::open()` / `fromBytes()`: open password-protected files (RC4 40/128-bit, AES-128, AES-256), reading, importing, and editing them. Pass the password, or omit it for files protected by a permissions password only. Edits are saved back with the source's encryption preserved. Signing an encrypted PDF is not yet supported.
 - `PdfEditor::flattenFields()`: freeze filled AcroForm fields into static page content - all fields or a named subset (signature and button fields are kept). Works on encrypted PDFs.
 - Filling or flattening a field that uses an embedded font (simple Type1 / TrueType or composite Type0) now generates the correct appearance by reusing the document's own font, instead of failing.
+- `PdfEditor::deletePages()` and `reorderPages()` (1-based): delete and reorder the pages of an existing PDF. Deleting a page automatically cleans up the bookmarks, named destinations, and internal links that pointed to it. Works on encrypted PDFs.
 
 ## [1.10.0] - 2026-06-12
 
