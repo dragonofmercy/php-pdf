@@ -4,11 +4,11 @@
 
 # phppdf
 
-[![CI](https://img.shields.io/github/actions/workflow/status/dragonofmercy/php-pdf/ci.yml?branch=main&label=CI)](https://github.com/dragonofmercy/php-pdf/actions/workflows/ci.yml)
-[![Latest Version](https://img.shields.io/packagist/v/dragonofmercy/phppdf.svg)](https://packagist.org/packages/dragonofmercy/phppdf)
-[![Total Downloads](https://img.shields.io/packagist/dt/dragonofmercy/phppdf.svg)](https://packagist.org/packages/dragonofmercy/phppdf)
-[![PHP Version](https://img.shields.io/packagist/php-v/dragonofmercy/phppdf.svg)](https://www.php.net/)
-[![License](https://img.shields.io/packagist/l/dragonofmercy/phppdf.svg)](LICENSE)
+[![CI](https://badgen.net/github/checks/dragonofmercy/php-pdf/main?label=CI)](https://github.com/dragonofmercy/php-pdf/actions/workflows/ci.yml)
+[![Latest Version](https://badgen.net/packagist/v/dragonofmercy/phppdf)](https://packagist.org/packages/dragonofmercy/phppdf)
+[![Total Downloads](https://badgen.net/packagist/dt/dragonofmercy/phppdf)](https://packagist.org/packages/dragonofmercy/phppdf)
+[![PHP Version](https://badgen.net/packagist/php/dragonofmercy/phppdf)](https://www.php.net/)
+[![License](https://badgen.net/packagist/license/dragonofmercy/phppdf)](LICENSE)
 
 Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime dependencies beyond the standard `mbstring`, `openssl`, and `zlib` extensions.
 
