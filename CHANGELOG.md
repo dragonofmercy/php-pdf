@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   document timestamp, or LTV is requested on an encrypted source). Validated against pikepdf for all three
   common schemes (RC4 128-bit, AES-128, AES-256).
 - `PdfEditor::flattenFields()` freezes filled AcroForm fields into static page content: each widget's appearance is burned into its page and the field's interactivity removed. Pass field names to flatten a subset; signature and push-button fields are preserved. Works on encrypted sources.
+- Embedded simple-font (Type1 / TrueType) appearances when filling or flattening AcroForm fields: a field whose `/DA` references a non-Standard-14 simple font embedded in the source `/DR` now generates a correct appearance by reusing that font (referenced, not re-embedded). Measurement uses the source font's `/Widths`; encoding uses its `/Encoding` (WinAnsiEncoding base, with `/Differences`). Fail-fast limits: Type0 / composite embedded fonts are not yet supported; simple fonts with a base encoding other than WinAnsiEncoding, fonts missing `/Widths`, and characters not representable in the font's encoding all throw a `PdfException` naming the field.
 
 ## [1.10.0] - 2026-06-12
 
