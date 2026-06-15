@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-06-15
+
 ### Added
 - Encrypted PDF support across `PdfReader`, `Document::importPdf()` / `importPdfBytes()`, and `PdfEditor::open()` / `fromBytes()`: open password-protected files (RC4 40/128-bit, AES-128, AES-256), reading, importing, and editing them. Pass the password, or omit it for files protected by a permissions password only. Edits are saved back with the source's encryption preserved. Signing an encrypted PDF is not yet supported.
 - `PdfEditor::flattenFields()`: freeze filled AcroForm fields into static page content - all fields or a named subset (signature and button fields are kept). Works on encrypted PDFs.
@@ -294,6 +296,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.11.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.11.0
 [1.10.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.10.0
 [1.9.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.9.0
 [1.8.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.8.0
