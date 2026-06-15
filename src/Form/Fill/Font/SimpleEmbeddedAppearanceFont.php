@@ -14,11 +14,11 @@ use DragonOfMercy\PhpPdf\Form\Fill\PdfLiteralEscape;
  *
  * @internal
  */
-final class SimpleEmbeddedAppearanceFont implements AppearanceFont
+final readonly class SimpleEmbeddedAppearanceFont implements AppearanceFont
 {
     public function __construct(
-        private readonly SimpleFontProgram $program,
-        private readonly string $fieldName,
+        private SimpleFontProgram $program,
+        private string $fieldName,
     ) {}
 
     public function measureWidth(string $text, float $size): float

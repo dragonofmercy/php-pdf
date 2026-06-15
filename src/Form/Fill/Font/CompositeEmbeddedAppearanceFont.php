@@ -7,7 +7,6 @@ namespace DragonOfMercy\PhpPdf\Form\Fill\Font;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\Custom\ParsedTtf;
 use DragonOfMercy\PhpPdf\Font\Custom\Utf8;
-use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
 
 /**
  * AppearanceFont for an embedded Type0 (Identity-H, CIDFontType2) font reused
@@ -37,10 +36,11 @@ final readonly class CompositeEmbeddedAppearanceFont implements AppearanceFont
 
     public function encodeShowOperand(string $text): string
     {
+        $bytes = '';
         foreach (Utf8::codepoints($text) as [$cp, $_]) {
-            $this->gidFor($cp);
+            $gid = $this->gidFor($cp);
+            $bytes .= chr(($gid >> 8) & 0xFF) . chr($gid & 0xFF);
         }
-        [$bytes] = Utf8ToCidEncoder::encodeWithGids($text, $this->ttf);
         return '<' . strtoupper(bin2hex($bytes)) . '>';
     }
 

@@ -33,7 +33,7 @@ final class CompositeFontDictReader
 {
     public static function read(Dictionary $type0Dict, PdfReader $reader, string $fieldName): ParsedTtf
     {
-        $resolve = static fn (PdfObject $o): PdfObject => $reader->resolve($o);
+        $resolve = fn (PdfObject $o): PdfObject => $reader->resolve($o);
 
         // /Encoding must be Identity-H
         $encoding = DictReader::name($type0Dict, 'Encoding', $resolve);
@@ -50,11 +50,11 @@ final class CompositeFontDictReader
         if ($descendantsEntry === null) {
             throw new PdfException(sprintf("Field '%s': Type0 font is missing /DescendantFonts", $fieldName));
         }
-        $descendantsEntry = $resolve($descendantsEntry);
-        if (!$descendantsEntry instanceof PdfArray || $descendantsEntry->elements() === []) {
+        $descendants = $resolve($descendantsEntry);
+        if (!$descendants instanceof PdfArray || $descendants->elements() === []) {
             throw new PdfException(sprintf("Field '%s': Type0 font /DescendantFonts must be a non-empty array", $fieldName));
         }
-        $cidFontObj = $resolve($descendantsEntry->elements()[0]);
+        $cidFontObj = $resolve($descendants->elements()[0]);
         if (!$cidFontObj instanceof Dictionary) {
             throw new PdfException(sprintf("Field '%s': Type0 font /DescendantFonts[0] must be a font dictionary", $fieldName));
         }

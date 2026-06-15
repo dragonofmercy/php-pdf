@@ -72,12 +72,11 @@ final class CompositeEmbeddedFontFixtureBuilder
         );
 
         // Serialize each emitted IndirectObject in order.
-        $fontBytes = [];
-        $fontBytes[$type0Id] = $emitted['type0']->toBytes();
-        $fontBytes[$cidFontId] = $emitted['cidFont']->toBytes();
-        $fontBytes[$descriptorId] = $emitted['descriptor']->toBytes();
-        $fontBytes[$fontFileId] = $emitted['fontFile']->toBytes();
-        $fontBytes[$toUnicodeId] = $emitted['toUnicode']->toBytes();
+        $type0Bytes = $emitted['type0']->toBytes();
+        $cidFontBytes = $emitted['cidFont']->toBytes();
+        $descriptorBytes = $emitted['descriptor']->toBytes();
+        $fontFileBytes = $emitted['fontFile']->toBytes();
+        $toUnicodeBytes = $emitted['toUnicode']->toBytes();
 
         // Assemble the PDF body incrementally, recording byte offsets.
         $body = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
@@ -112,19 +111,19 @@ final class CompositeEmbeddedFontFixtureBuilder
 
         // obj 5..9: Type0 font tree (serialized by CompositeFontEmitter)
         $off5 = strlen($body);
-        $body .= $fontBytes[$type0Id];
+        $body .= $type0Bytes;
 
         $off6 = strlen($body);
-        $body .= $fontBytes[$cidFontId];
+        $body .= $cidFontBytes;
 
         $off7 = strlen($body);
-        $body .= $fontBytes[$descriptorId];
+        $body .= $descriptorBytes;
 
         $off8 = strlen($body);
-        $body .= $fontBytes[$fontFileId];
+        $body .= $fontFileBytes;
 
         $off9 = strlen($body);
-        $body .= $fontBytes[$toUnicodeId];
+        $body .= $toUnicodeBytes;
 
         // obj 10: AcroForm (indirect, required by flattenFields())
         $off10 = strlen($body);

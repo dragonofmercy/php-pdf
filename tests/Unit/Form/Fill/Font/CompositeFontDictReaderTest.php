@@ -31,11 +31,9 @@ final class CompositeFontDictReaderTest extends TestCase
             ->withEntry(Name::of('Type'), Name::of('Font'))
             ->withEntry(Name::of('Subtype'), Name::of('CIDFontType2'));
         if ($extra !== null) {
-            foreach (['CIDToGIDMap'] as $key) {
-                $v = $extra->get(Name::of($key));
-                if ($v !== null) {
-                    $d = $d->withEntry(Name::of($key), $v);
-                }
+            $v = $extra->get(Name::of('CIDToGIDMap'));
+            if ($v !== null) {
+                $d = $d->withEntry(Name::of('CIDToGIDMap'), $v);
             }
         }
         return $d;
