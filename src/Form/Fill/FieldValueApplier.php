@@ -7,6 +7,8 @@ namespace DragonOfMercy\PhpPdf\Form\Fill;
 use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
+use DragonOfMercy\PhpPdf\Form\Fill\Font\AppearanceFont;
+use DragonOfMercy\PhpPdf\Form\Fill\Font\Standard14AppearanceFont;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
@@ -33,7 +35,7 @@ final class FieldValueApplier
     /** Cached /AcroForm dictionary; false = not yet resolved, null = absent. */
     private Dictionary|false|null $cachedAcroForm = false;
 
-    /** @var array<string, array{0: Font, 1: PdfReference, 2: string}> Cache of successfully resolved DR fonts keyed by alias. */
+    /** @var array<string, array{0: AppearanceFont, 1: PdfReference, 2: string}> Cache of successfully resolved DR fonts keyed by alias. */
     private array $drFontCache = [];
 
     private readonly TextAppearanceBuilder $textBuilder;
@@ -43,7 +45,7 @@ final class FieldValueApplier
         private readonly PdfReader $reader,
         private readonly MetricsRegistry $metrics,
     ) {
-        $this->textBuilder = new TextAppearanceBuilder($this->metrics);
+        $this->textBuilder = new TextAppearanceBuilder();
         $this->listboxBuilder = new ListboxAppearanceBuilder();
     }
 
@@ -382,7 +384,7 @@ final class FieldValueApplier
         $da = DefaultAppearance::parse($daString);
 
         // 7. Resolve DR font
-        [, $drFontRef, $usedAlias] = $this->resolveDrFont($rf, $da->fontAlias);
+        [$font, $drFontRef, $usedAlias] = $this->resolveDrFont($rf, $da->fontAlias);
 
         // 8. Build display options list (preserving /Opt order)
         $displayOptions = [];
@@ -391,7 +393,7 @@ final class FieldValueApplier
         }
 
         // 9. Build listbox appearance
-        $result = $this->listboxBuilder->build($displayOptions, $indices, $w, $h, $da, $usedAlias);
+        $result = $this->listboxBuilder->build($displayOptions, $indices, $w, $h, $da, $usedAlias, $font);
         $content = $result['content'];
         $bbox = $result['bbox'];
 
@@ -614,11 +616,11 @@ final class FieldValueApplier
     }
 
     /**
-     * Resolves the DR font for a given DA font alias. Returns [Font, PdfReference, usedAlias].
+     * Resolves the DR font for a given DA font alias. Returns [AppearanceFont, PdfReference, usedAlias].
      * Falls back to 'Helv' when the requested alias is absent from /DR.
      * Successful resolutions are cached by alias.
      *
-     * @return array{0: Font, 1: PdfReference, 2: string}
+     * @return array{0: AppearanceFont, 1: PdfReference, 2: string}
      */
     private function resolveDrFont(ResolvedField $rf, string $alias): array
     {
@@ -694,7 +696,8 @@ final class FieldValueApplier
             );
         }
 
-        $font = $this->baseFontToFont($rf, $baseFont);
+        $stdFont = $this->baseFontToFont($rf, $baseFont);
+        $font = new Standard14AppearanceFont($stdFont, $this->metrics);
 
         $result = [$font, $drFontRef, $usedAlias];
         $this->drFontCache[$alias] = $result;

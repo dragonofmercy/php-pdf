@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Form\Fill;
 
-use DragonOfMercy\PhpPdf\Font;
-use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
-use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
+use DragonOfMercy\PhpPdf\Form\Fill\Font\AppearanceFont;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 
 /**
@@ -20,8 +18,6 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
  */
 final class TextAppearanceBuilder
 {
-    public function __construct(private readonly MetricsRegistry $metrics) {}
-
     /**
      * @param int $quadding 0=left, 1=centre, 2=right.
      * @return array{content: string, bbox: array{0: float, 1: float, 2: float, 3: float}}
@@ -31,7 +27,7 @@ final class TextAppearanceBuilder
         float $widthPt,
         float $heightPt,
         DefaultAppearance $da,
-        Font $font,
+        AppearanceFont $font,
         string $fontAlias,
         int $quadding,
         bool $multiline,
@@ -88,30 +84,27 @@ final class TextAppearanceBuilder
         float $widthPt,
         float $heightPt,
         DefaultAppearance $da,
-        Font $font,
+        AppearanceFont $font,
         string $fontAlias,
         int $quadding,
         float $size,
         float $padX,
         \Closure $n,
     ): void {
-        $encoded = WinAnsiEncoder::encode($text);
-        $escaped = PdfLiteralEscape::escape($encoded);
-
         // Approximate vertical centring: baseline sits at mid-height shifted by ~20% of size.
         $ty = ($heightPt - $size) / 2.0 + $size * 0.2;
 
         // Horizontal offset based on quadding.
-        $tx = $this->resolveX($widthPt, $padX, $encoded, $font, $size, $quadding);
+        $tx = $this->resolveX($widthPt, $padX, $text, $font, $size, $quadding);
 
         $lines[] = 'BT';
         if ($da->colorOps !== '') {
             $lines[] = $da->colorOps;
         }
         $lines[] = '/' . $fontAlias . ' ' . $n($size) . ' Tf';
-        if ($encoded !== '') {
+        if ($text !== '') {
             $lines[] = $n($tx) . ' ' . $n($ty) . ' Td';
-            $lines[] = '(' . $escaped . ') Tj';
+            $lines[] = $font->encodeShowOperand($text) . ' Tj';
         }
         $lines[] = 'ET';
     }
@@ -129,7 +122,7 @@ final class TextAppearanceBuilder
         float $widthPt,
         float $heightPt,
         DefaultAppearance $da,
-        Font $font,
+        AppearanceFont $font,
         string $fontAlias,
         float $size,
         float $padX,
@@ -152,10 +145,10 @@ final class TextAppearanceBuilder
         if ($wrapped !== []) {
             $lines[] = $n($leading) . ' TL';
             $lines[] = $n($padX) . ' ' . $n($yTop) . ' Td';
-            $lines[] = '(' . PdfLiteralEscape::escape(WinAnsiEncoder::encode($wrapped[0])) . ') Tj';
+            $lines[] = $font->encodeShowOperand($wrapped[0]) . ' Tj';
             foreach (array_slice($wrapped, 1) as $wrappedLine) {
                 $lines[] = 'T*';
-                $lines[] = '(' . PdfLiteralEscape::escape(WinAnsiEncoder::encode($wrappedLine)) . ') Tj';
+                $lines[] = $font->encodeShowOperand($wrappedLine) . ' Tj';
             }
         }
 
@@ -168,13 +161,12 @@ final class TextAppearanceBuilder
      *
      * @return list<string>
      */
-    private function wordWrap(string $text, Font $font, float $size, float $maxWidthPt): array
+    private function wordWrap(string $text, AppearanceFont $font, float $size, float $maxWidthPt): array
     {
         if ($text === '') {
             return [];
         }
 
-        $metrics = $this->metrics->metricsFor($font);
         $words = explode(' ', $text);
         $lines = [];
         $current = '';
@@ -186,7 +178,7 @@ final class TextAppearanceBuilder
             }
 
             $candidate = $current . ' ' . $word;
-            $tw = $metrics->stringWidth(WinAnsiEncoder::encode($candidate), $size);
+            $tw = $font->measureWidth($candidate, $size);
 
             if ($tw <= $maxWidthPt) {
                 $current = $candidate;
@@ -207,13 +199,13 @@ final class TextAppearanceBuilder
      * Resolves the X offset for single-line text based on quadding.
      * quadding: 0=left, 1=centre, 2=right.
      */
-    private function resolveX(float $widthPt, float $padX, string $encoded, Font $font, float $size, int $quadding): float
+    private function resolveX(float $widthPt, float $padX, string $text, AppearanceFont $font, float $size, int $quadding): float
     {
-        if ($quadding === 0 || $encoded === '') {
+        if ($quadding === 0 || $text === '') {
             return $padX;
         }
 
-        $tw = $this->metrics->metricsFor($font)->stringWidth($encoded, $size);
+        $tw = $font->measureWidth($text, $size);
 
         return match ($quadding) {
             1 => ($widthPt - $tw) / 2.0,

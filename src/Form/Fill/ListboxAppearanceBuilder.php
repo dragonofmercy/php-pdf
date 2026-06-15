@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Form\Fill;
 
-use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
+use DragonOfMercy\PhpPdf\Form\Fill\Font\AppearanceFont;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 
 /**
@@ -30,6 +30,7 @@ final class ListboxAppearanceBuilder
         float $h,
         DefaultAppearance $da,
         string $alias,
+        AppearanceFont $font,
     ): array {
         $size = $da->isAutoSize() ? 10.0 : $da->size;
         $lineH = $size * 1.15;
@@ -63,10 +64,8 @@ final class ListboxAppearanceBuilder
         foreach ($displayOptions as $i => $displayText) {
             $lineBottomY = $h - ($i + 1) * $lineH;
             $baselineY = $lineBottomY + 0.25 * $size;
-            $encoded = WinAnsiEncoder::encode($displayText);
-            $escaped = PdfLiteralEscape::escape($encoded);
             $lines[] = '1 0 0 1 ' . $n($padX) . ' ' . $n($baselineY) . ' Tm';
-            $lines[] = '(' . $escaped . ') Tj';
+            $lines[] = $font->encodeShowOperand($displayText) . ' Tj';
         }
 
         $lines[] = 'ET';

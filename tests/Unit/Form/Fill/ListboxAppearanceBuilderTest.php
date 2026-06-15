@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Form\Fill;
 
+use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\DefaultAppearance;
+use DragonOfMercy\PhpPdf\Form\Fill\Font\Standard14AppearanceFont;
 use DragonOfMercy\PhpPdf\Form\Fill\ListboxAppearanceBuilder;
 use PHPUnit\Framework\TestCase;
 
 final class ListboxAppearanceBuilderTest extends TestCase
 {
+    private function helvetica(): Standard14AppearanceFont
+    {
+        return new Standard14AppearanceFont(Font::helvetica(), new MetricsRegistry());
+    }
+
     public function testBuildsCorrectScaffoldAndHighlights(): void
     {
         $da = DefaultAppearance::parse('0 g /Helv 10 Tf');
@@ -22,6 +30,7 @@ final class ListboxAppearanceBuilderTest extends TestCase
             h: 40.0,
             da: $da,
             alias: 'Helv',
+            font: $this->helvetica(),
         );
 
         $content = $result['content'];
@@ -70,6 +79,7 @@ final class ListboxAppearanceBuilderTest extends TestCase
             h: 20.0,
             da: $da,
             alias: 'Helv',
+            font: $this->helvetica(),
         );
 
         // With auto-size, size should fall back to 10; check that 'Tf' is still present
