@@ -8,23 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `PdfReader` and `Document::importPdf()` / `importPdfBytes()` now transparently decrypt encrypted PDFs using
-  the Standard security handler: RC4 40-bit, RC4 128-bit, AES-128, and AES-256. The password is optional:
-  PDFs protected with only a permissions password (empty user password) open with no argument; a supplied
-  password is tried as the user password first, then as the owner password. A wrong or missing password
-  throws a `PdfException` with a clear message. Validated against pikepdf-produced files for all four
-  schemes. `PdfReader::isEncrypted()` returns `true` when the source was encrypted.
-- `PdfEditor::open()` / `PdfEditor::fromBytes()` now edit encrypted PDFs: pass an optional password (omit
-  for permissions-only sources; tried as user then owner otherwise) and the appended incremental revision is
-  re-encrypted with the source scheme and recovered file key (RC4 40-bit, RC4 128-bit, AES-128, AES-256),
-  forwarding the original `/Encrypt` dictionary and `/ID` so the edited file is opened by the same password.
-  Metadata edits, appended pages, and AcroForm field fills are all supported on encrypted sources; signing
-  an encrypted PDF is not yet supported (`PdfEditor` throws a clear `PdfException` if a signature,
-  document timestamp, or LTV is requested on an encrypted source). Validated against pikepdf for all three
-  common schemes (RC4 128-bit, AES-128, AES-256).
-- `PdfEditor::flattenFields()` freezes filled AcroForm fields into static page content: each widget's appearance is burned into its page and the field's interactivity removed. Pass field names to flatten a subset; signature and push-button fields are preserved. Works on encrypted sources.
-- Embedded simple-font (Type1 / TrueType) appearances when filling or flattening AcroForm fields: a field whose `/DA` references a non-Standard-14 simple font embedded in the source `/DR` now generates a correct appearance by reusing that font (referenced, not re-embedded). Measurement uses the source font's `/Widths`; encoding uses its `/Encoding` (WinAnsiEncoding base, with `/Differences`). Fail-fast limits: simple fonts with a base encoding other than WinAnsiEncoding, fonts missing `/Widths`, and characters not representable in the font's encoding all throw a `PdfException` naming the field.
-- Embedded Type0 (Identity-H, CIDFontType2 / FontFile2) font appearances when filling or flattening AcroForm fields: a field whose `/DA` references an embedded composite font using Identity-H encoding and a TrueType descendant (`CIDFontType2` with a `/FontFile2` program) now generates a correct 2-byte GID hex appearance by reusing the source font (referenced, not re-embedded). Remaining fail-fast limits: CFF (`/FontFile3`) composite fonts and non-Identity-H Type0 encodings throw a `PdfException` naming the field.
+- Encrypted PDF support across `PdfReader`, `Document::importPdf()` / `importPdfBytes()`, and `PdfEditor::open()` / `fromBytes()`: open password-protected files (RC4 40/128-bit, AES-128, AES-256), reading, importing, and editing them. Pass the password, or omit it for files protected by a permissions password only. Edits are saved back with the source's encryption preserved. Signing an encrypted PDF is not yet supported.
+- `PdfEditor::flattenFields()`: freeze filled AcroForm fields into static page content - all fields or a named subset (signature and button fields are kept). Works on encrypted PDFs.
+- Filling or flattening a field that uses an embedded font (simple Type1 / TrueType or composite Type0) now generates the correct appearance by reusing the document's own font, instead of failing.
 
 ## [1.10.0] - 2026-06-12
 
