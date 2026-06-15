@@ -49,11 +49,18 @@ final class SimpleEmbeddedAppearanceFont implements AppearanceFont
     /** @return never */
     private function throwMissingChar(int $cp): never
     {
-        $char = $cp >= 0 ? mb_chr($cp, 'UTF-8') : sprintf('U+%04X', $cp);
+        // Utf8::codepoints yields -1 for an invalid byte sequence; format that
+        // case explicitly rather than letting sprintf emit a 64-bit garbage value.
+        if ($cp < 0) {
+            throw new PdfException(sprintf(
+                'Field "%s": text contains an invalid UTF-8 byte sequence',
+                $this->fieldName,
+            ));
+        }
         throw new PdfException(sprintf(
             'Field "%s": character "%s" (U+%04X) is not in the font encoding',
             $this->fieldName,
-            $char,
+            mb_chr($cp, 'UTF-8'),
             $cp,
         ));
     }

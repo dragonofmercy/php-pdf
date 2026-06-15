@@ -39,6 +39,7 @@ final class SimpleEmbeddedAppearanceFontTest extends TestCase
     {
         $font = $this->makeFont();
         $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/testField/');
         $this->expectExceptionMessageMatches('/B/');
         $font->measureWidth('B', 10.0);
     }
@@ -47,6 +48,7 @@ final class SimpleEmbeddedAppearanceFontTest extends TestCase
     {
         $font = $this->makeFont();
         $this->expectException(PdfException::class);
+        $this->expectExceptionMessageMatches('/testField/');
         $this->expectExceptionMessageMatches('/B/');
         $font->encodeShowOperand('B');
     }
