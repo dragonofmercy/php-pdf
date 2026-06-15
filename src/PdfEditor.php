@@ -16,12 +16,12 @@ use DragonOfMercy\PhpPdf\Font\FontRegistry;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldInfo;
+use DragonOfMercy\PhpPdf\Form\Fill\FieldValueDecoder;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
 use DragonOfMercy\PhpPdf\Form\Fill\ResolvedField;
 use DragonOfMercy\PhpPdf\Image\ImageRegistry;
 use DragonOfMercy\PhpPdf\Modify\EditRevisionBuilder;
 use DragonOfMercy\PhpPdf\Modify\PendingChanges;
-use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedDocumentTimestamp;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
@@ -37,9 +37,6 @@ use DragonOfMercy\PhpPdf\Signature\SignatureAppearance;
 use DragonOfMercy\PhpPdf\Signature\SignatureFormat;
 use DragonOfMercy\PhpPdf\Signature\SigningCertificate;
 use DragonOfMercy\PhpPdf\Signature\Tsa;
-use DragonOfMercy\PhpPdf\Writer\Object\Name;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
-use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 
 /**
  * Opens an existing PDF for modification. Changes are written as an APPENDED
@@ -473,63 +470,7 @@ final class PdfEditor
      */
     private function currentValueOf(ResolvedField $rf): string|bool|array|null
     {
-        $raw = $rf->dict->get(Name::of('V'));
-
-        if ($rf->type === FormFieldType::Text || $rf->type === FormFieldType::Combobox) {
-            return DictReader::decodeText($raw !== null ? $this->reader->resolve($raw) : null);
-        }
-
-        if ($rf->type === FormFieldType::Checkbox) {
-            if ($raw === null) {
-                return false;
-            }
-            $resolved = $this->reader->resolve($raw);
-            return $resolved instanceof Name && $resolved->value() !== 'Off';
-        }
-
-        if ($rf->type === FormFieldType::Radio) {
-            if ($raw === null) {
-                return null;
-            }
-            $resolved = $this->reader->resolve($raw);
-            if (!$resolved instanceof Name) {
-                return null;
-            }
-            $exportName = $resolved->value();
-            return $exportName !== 'Off' ? $exportName : null;
-        }
-
-        if ($rf->type === FormFieldType::Listbox) {
-            return $this->decodeListboxValue($raw);
-        }
-
-        // PushButton, Signature
-        return null;
-    }
-
-    /**
-     * Decodes a Listbox /V entry: PdfArray -> list<string>, text string -> string, absent -> null.
-     *
-     * @return string|list<string>|null
-     */
-    private function decodeListboxValue(?PdfObject $raw): string|array|null
-    {
-        if ($raw === null) {
-            return null;
-        }
-        $resolved = $this->reader->resolve($raw);
-        if ($resolved instanceof PdfArray) {
-            /** @var list<string> $items */
-            $items = [];
-            foreach ($resolved->elements() as $element) {
-                $text = DictReader::decodeText($this->reader->resolve($element));
-                if ($text !== null) {
-                    $items[] = $text;
-                }
-            }
-            return $items !== [] ? $items : null;
-        }
-        return DictReader::decodeText($resolved);
+        return FieldValueDecoder::decode($rf, $this->reader);
     }
 
     public function addDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes = 16384): self

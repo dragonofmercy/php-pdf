@@ -13,6 +13,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldTree;
 use DragonOfMercy\PhpPdf\Form\Fill\FieldValueApplier;
+use DragonOfMercy\PhpPdf\Form\Fill\FieldValueDecoder;
 use DragonOfMercy\PhpPdf\Form\Fill\FormFieldType;
 use DragonOfMercy\PhpPdf\Form\Fill\ResolvedField;
 use DragonOfMercy\PhpPdf\Form\Flatten\FieldFlattener;
@@ -612,33 +613,7 @@ final class EditRevisionBuilder
      */
     private function decodeCurrentValue(ResolvedField $rf): string|bool|array|null
     {
-        $raw = $rf->dict->get(Name::of('V'));
-        $resolved = $raw !== null ? $this->reader->resolve($raw) : null;
-
-        if ($rf->type === FormFieldType::Text || $rf->type === FormFieldType::Combobox) {
-            return DictReader::decodeText($resolved);
-        }
-        if ($rf->type === FormFieldType::Checkbox) {
-            return $resolved instanceof Name && $resolved->value() !== 'Off';
-        }
-        if ($rf->type === FormFieldType::Radio) {
-            if (!$resolved instanceof Name) {
-                return null;
-            }
-            return $resolved->value() !== 'Off' ? $resolved->value() : null;
-        }
-        // Listbox
-        if ($resolved instanceof PdfArray) {
-            $items = [];
-            foreach ($resolved->elements() as $el) {
-                $text = DictReader::decodeText($this->reader->resolve($el));
-                if ($text !== null) {
-                    $items[] = $text;
-                }
-            }
-            return $items !== [] ? $items : null;
-        }
-        return DictReader::decodeText($resolved);
+        return FieldValueDecoder::decode($rf, $this->reader);
     }
 
     /**
