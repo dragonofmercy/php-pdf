@@ -55,6 +55,53 @@ final class SimpleFontDictReaderTest extends TestCase
         self::assertSame(556, $prog->codeWidths[200]);
     }
 
+    public function testAppliesConsecutiveDifferences(): void
+    {
+        $enc = Dictionary::empty()
+            ->withEntry(Name::of('BaseEncoding'), Name::of('WinAnsiEncoding'))
+            ->withEntry(Name::of('Differences'), PdfArray::of(PdfNumber::ofInt(200), Name::of('Euro'), Name::of('florin')));
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Subtype'), Name::of('TrueType'))
+            ->withEntry(Name::of('Encoding'), $enc)
+            ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(200))
+            ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(556), PdfNumber::ofInt(500)));
+
+        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+
+        self::assertSame(200, $prog->unicodeToCode[0x20AC]); // Euro at code 200
+        self::assertSame(201, $prog->unicodeToCode[0x0192]); // florin at code 201 (incremented)
+    }
+
+    public function testReadsMissingWidthFromFontDescriptor(): void
+    {
+        $descriptor = Dictionary::empty()
+            ->withEntry(Name::of('Type'), Name::of('FontDescriptor'))
+            ->withEntry(Name::of('MissingWidth'), PdfNumber::ofInt(250));
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Subtype'), Name::of('TrueType'))
+            ->withEntry(Name::of('Encoding'), Name::of('WinAnsiEncoding'))
+            ->withEntry(Name::of('FontDescriptor'), $descriptor)
+            ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(65))
+            ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(700)));
+
+        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+
+        self::assertSame(250, $prog->missingWidth);
+    }
+
+    public function testMissingWidthDefaultsToZero(): void
+    {
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Subtype'), Name::of('TrueType'))
+            ->withEntry(Name::of('Encoding'), Name::of('WinAnsiEncoding'))
+            ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(65))
+            ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(700)));
+
+        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+
+        self::assertSame(0, $prog->missingWidth);
+    }
+
     public function testThrowsForUnsupportedSubtype(): void
     {
         $dict = Dictionary::empty()

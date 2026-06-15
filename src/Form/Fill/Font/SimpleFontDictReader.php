@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form\Fill\Font;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
@@ -80,18 +81,17 @@ final class SimpleFontDictReader
             $enc = $resolve($enc);
         }
 
-        if ($enc === null || ($enc instanceof Name && $enc->value() === 'WinAnsiEncoding')) {
-            // Use WinAnsi as the base with no Differences
+        if ($enc === null) {
+            // Absent /Encoding: use WinAnsi as the base with no Differences
             return self::winAnsiUnicodeToCode();
         }
 
         if ($enc instanceof Name) {
-            $baseName = $enc->value();
-            if ($baseName !== 'WinAnsiEncoding') {
+            if ($enc->value() !== 'WinAnsiEncoding') {
                 throw new PdfException(sprintf(
                     'Field "%s": unsupported base encoding "%s"; only WinAnsiEncoding is supported',
                     $fieldName,
-                    $baseName,
+                    $enc->value(),
                 ));
             }
             return self::winAnsiUnicodeToCode();
@@ -168,7 +168,7 @@ final class SimpleFontDictReader
      */
     private static function winAnsiUnicodeToCode(): array
     {
-        // Printable ASCII: 0x20-0x7E
+        // Printable ASCII: 0x20-0x7E (unicode codepoint == byte code)
         $map = [];
         for ($code = 0x20; $code <= 0x7E; $code++) {
             $map[$code] = $code;
@@ -177,34 +177,11 @@ final class SimpleFontDictReader
         for ($code = 0xA0; $code <= 0xFF; $code++) {
             $map[$code] = $code;
         }
-        // Special 0x80-0x9F range (from WinAnsiEncoder::MAP, inverted)
-        $map[0x20AC] = 0x80; // Euro
-        $map[0x201A] = 0x82; // quotesinglbase
-        $map[0x0192] = 0x83; // florin
-        $map[0x201E] = 0x84; // quotedblbase
-        $map[0x2026] = 0x85; // ellipsis
-        $map[0x2020] = 0x86; // dagger
-        $map[0x2021] = 0x87; // daggerdbl
-        $map[0x02C6] = 0x88; // circumflex
-        $map[0x2030] = 0x89; // perthousand
-        $map[0x0160] = 0x8A; // Scaron
-        $map[0x2039] = 0x8B; // guilsinglleft
-        $map[0x0152] = 0x8C; // OE
-        $map[0x017D] = 0x8E; // Zcaron
-        $map[0x2018] = 0x91; // quoteleft
-        $map[0x2019] = 0x92; // quoteright
-        $map[0x201C] = 0x93; // quotedblleft
-        $map[0x201D] = 0x94; // quotedblright
-        $map[0x2022] = 0x95; // bullet
-        $map[0x2013] = 0x96; // endash
-        $map[0x2014] = 0x97; // emdash
-        $map[0x02DC] = 0x98; // tilde
-        $map[0x2122] = 0x99; // trademark
-        $map[0x0161] = 0x9A; // scaron
-        $map[0x203A] = 0x9B; // guilsinglright
-        $map[0x0153] = 0x9C; // oe
-        $map[0x017E] = 0x9E; // zcaron
-        $map[0x0178] = 0x9F; // Ydieresis
+        // Special 0x80-0x9F range: reuse the single source of truth in WinAnsiEncoder
+        // (the table is unicode -> byte there, which is exactly what we need here).
+        foreach (WinAnsiEncoder::specialMap() as $unicode => $byte) {
+            $map[$unicode] = $byte;
+        }
         return $map;
     }
 }

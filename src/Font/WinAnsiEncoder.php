@@ -50,6 +50,18 @@ final class WinAnsiEncoder
         0x0178 => 0x9F, // Ÿ
     ];
 
+    /**
+     * Unicode codepoint -> WinAnsi byte for the 0x80-0x9F range (PDF 1.7 Annex
+     * D.2). ASCII (0x20-0x7E) and Latin-1 supplement (0xA0-0xFF) are identity
+     * mappings handled inline in encode() and are not included here.
+     *
+     * @return array<int, int>
+     */
+    public static function specialMap(): array
+    {
+        return self::MAP;
+    }
+
     public static function encode(string $utf8): string
     {
         $output = '';
