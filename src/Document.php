@@ -795,7 +795,7 @@ final class Document
     ): Page {
         if ($format !== null) {
             if (is_array($format)) {
-                $this->lastCustom = $this->validateCustom($format);
+                $this->lastCustom = PageSizeResolver::validateCustom($format);
             } else {
                 $this->lastFormat = $format;
                 $this->lastCustom = null;
@@ -805,19 +805,12 @@ final class Document
             $this->lastOrientation = $orientation;
         }
 
-        if ($this->lastCustom !== null) {
-            // Custom dimensions are taken verbatim; orientation does not apply.
-            [$w, $h] = $this->lastCustom;
-            $widthPoints = $this->unit->toPoints($w);
-            $heightPoints = $this->unit->toPoints($h);
-        } else {
-            [$mmW, $mmH] = $this->lastFormat->dimensionsMm();
-            if ($this->lastOrientation === Orientation::LANDSCAPE) {
-                [$mmW, $mmH] = [$mmH, $mmW];
-            }
-            $widthPoints = Unit::MM->toPoints($mmW);
-            $heightPoints = Unit::MM->toPoints($mmH);
-        }
+        [$widthPoints, $heightPoints] = PageSizeResolver::toPoints(
+            $this->lastCustom,
+            $this->lastFormat,
+            $this->lastOrientation,
+            $this->unit,
+        );
 
         $page = new Page(
             pageWidth: $widthPoints,
@@ -866,28 +859,6 @@ final class Document
         $this->pages[] = $page;
         $page->setPageIndex(count($this->pages) - 1);
         return $page;
-    }
-
-    /**
-     * @param array<int|string, mixed> $format
-     * @return array{float, float}
-     */
-    private function validateCustom(array $format): array
-    {
-        if (count($format) !== 2 || !array_is_list($format)) {
-            throw new PdfException('Custom page format must be [width, height]');
-        }
-        [$w, $h] = $format;
-        if ((!is_int($w) && !is_float($w)) || (!is_int($h) && !is_float($h))) {
-            throw new PdfException('Custom page format dimensions must be numeric');
-        }
-        if ($w <= 0) {
-            throw new PdfException('Page width must be positive, got ' . $w);
-        }
-        if ($h <= 0) {
-            throw new PdfException('Page height must be positive, got ' . $h);
-        }
-        return [(float) $w, (float) $h];
     }
 
     public function output(): string
