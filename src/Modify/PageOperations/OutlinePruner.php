@@ -83,12 +83,10 @@ final readonly class OutlinePruner
             if (!$dict instanceof Dictionary) {
                 break;
             }
-            $dest = $dict->get(Name::of('Dest')) ?? $dict->get(Name::of('A'));
-            $target = $dest !== null ? DestinationTarget::pageObjectNumber($dest, $reader) : null;
             $items[$num] = [
                 'dict' => $dict,
                 'children' => $this->loadChildren($reader, $dict, $deleted, $items),
-                'deleted' => $target !== null && isset($deleted[$target]),
+                'deleted' => DestinationTarget::dictTargetsDeleted($dict, $reader, $deleted),
             ];
             $children[] = $num;
             $cursor = $dict->get(Name::of('Next'));

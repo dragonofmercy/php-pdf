@@ -44,6 +44,29 @@ final readonly class DestinationTarget
         return self::fromArray($value);
     }
 
+    /**
+     * True when a structure dict (outline item or link annotation) points at a
+     * deleted page through EITHER its /Dest entry or its /A GoTo action. Checking
+     * both avoids leaving a dangling /A when /Dest happens to target a survivor
+     * (and vice versa) in third-party PDFs that carry both.
+     *
+     * @param array<int, true> $deletedSet page object numbers being deleted
+     */
+    public static function dictTargetsDeleted(Dictionary $dict, PdfReader $reader, array $deletedSet): bool
+    {
+        foreach (['Dest', 'A'] as $key) {
+            $value = $dict->get(Name::of($key));
+            if ($value === null) {
+                continue;
+            }
+            $target = self::pageObjectNumber($value, $reader);
+            if ($target !== null && isset($deletedSet[$target])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static function fromArray(PdfObject $value): ?int
     {
         if (!$value instanceof PdfArray) {

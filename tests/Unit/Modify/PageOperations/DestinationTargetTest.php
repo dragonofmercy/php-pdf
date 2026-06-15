@@ -58,4 +58,24 @@ final class DestinationTargetTest extends TestCase
             ->withEntry(Name::of('URI'), PdfString::of('https://example.com'));
         self::assertNull(DestinationTarget::pageObjectNumber($action, $this->reader()));
     }
+
+    public function testDictTargetsDeletedChecksBothDestAndA(): void
+    {
+        $deleted = [4 => true];
+        // /Dest -> survivor (7), /A GoTo -> deleted (4): must be detected via /A.
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Dest'), PdfArray::of(PdfReference::to(7, 0), Name::of('Fit')))
+            ->withEntry(Name::of('A'), Dictionary::empty()
+                ->withEntry(Name::of('S'), Name::of('GoTo'))
+                ->withEntry(Name::of('D'), PdfArray::of(PdfReference::to(4, 0), Name::of('Fit'))));
+        self::assertTrue(DestinationTarget::dictTargetsDeleted($dict, $this->reader(), $deleted));
+    }
+
+    public function testDictTargetsDeletedFalseWhenBothSurvive(): void
+    {
+        $deleted = [4 => true];
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Dest'), PdfArray::of(PdfReference::to(7, 0), Name::of('Fit')));
+        self::assertFalse(DestinationTarget::dictTargetsDeleted($dict, $this->reader(), $deleted));
+    }
 }

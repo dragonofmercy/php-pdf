@@ -83,12 +83,7 @@ final readonly class LinkAnnotationPruner
         if (!$subtype instanceof Name || $subtype->value() !== 'Link') {
             return false;
         }
-        $dest = $annot->get(Name::of('Dest')) ?? $annot->get(Name::of('A'));
-        if ($dest === null) {
-            return false;
-        }
-        $target = DestinationTarget::pageObjectNumber($dest, $reader);
-        return $target !== null && isset($deleted[$target]);
+        return DestinationTarget::dictTargetsDeleted($annot, $reader, $deleted);
     }
 
     private function dropKey(Dictionary $dict, string $key): Dictionary
