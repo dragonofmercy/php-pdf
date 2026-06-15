@@ -31,6 +31,12 @@ final class PendingChanges
     /** @var ?list<string> null = all value-bearing fields; a list = the named subset. */
     public ?array $flattenNames = null;
 
+    /** @var list<int> 1-based page numbers queued for deletion (validated for range/permutation at output()). */
+    public array $deletedPageNumbers = [];
+
+    /** @var ?list<int> null = no reorder; a list = the desired order of the surviving pages by original 1-based number. */
+    public ?array $reorderedPageOrder = null;
+
     public function hasMetadata(): bool
     {
         return $this->title !== null || $this->author !== null || $this->subject !== null
@@ -39,6 +45,7 @@ final class PendingChanges
 
     public function isEmpty(): bool
     {
-        return !$this->hasMetadata() && $this->pages === [] && $this->fieldEdits === [] && !$this->flatten;
+        return !$this->hasMetadata() && $this->pages === [] && $this->fieldEdits === [] && !$this->flatten
+            && $this->deletedPageNumbers === [] && $this->reorderedPageOrder === null;
     }
 }

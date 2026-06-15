@@ -253,6 +253,57 @@ final class PdfEditor
         return $page;
     }
 
+    /**
+     * Queues 1-based pages for deletion. The pages are removed from the page tree
+     * in the appended revision, and any outline / named-destination / GoTo-link
+     * reference that targeted a deleted page is pruned. Deleting all pages, an
+     * out-of-range number, or a duplicate throws (range is re-checked against the
+     * real page count at output()). Last call wins.
+     */
+    public function deletePages(int ...$pageNumbers): self
+    {
+        $seen = [];
+        foreach ($pageNumbers as $n) {
+            if ($n < 1) {
+                throw new PdfException("Page number must be >= 1, got {$n}");
+            }
+            if (isset($seen[$n])) {
+                throw new PdfException("Duplicate page number {$n} in deletePages()");
+            }
+            $seen[$n] = true;
+        }
+        $this->pending->deletedPageNumbers = array_values($pageNumbers);
+        return $this;
+    }
+
+    /**
+     * Reorders the surviving pages. $newOrder is a complete permutation of the
+     * surviving pages expressed as their original 1-based page numbers; pages
+     * appended via appendPage() always trail the reordered originals. A
+     * non-permutation, an out-of-range number, or a reference to a deleted page
+     * throws at output(). Last call wins.
+     *
+     * @param list<int> $newOrder
+     */
+    public function reorderPages(array $newOrder): self
+    {
+        if ($newOrder === []) {
+            throw new PdfException('reorderPages requires at least one page number');
+        }
+        $seen = [];
+        foreach ($newOrder as $n) {
+            if ($n < 1) {
+                throw new PdfException("Page number must be >= 1, got {$n}");
+            }
+            if (isset($seen[$n])) {
+                throw new PdfException("Duplicate page number {$n} in reorderPages()");
+            }
+            $seen[$n] = true;
+        }
+        $this->pending->reorderedPageOrder = $newOrder;
+        return $this;
+    }
+
     private function fieldTree(): FieldTree
     {
         return $this->fieldTree ??= new FieldTree($this->reader);
