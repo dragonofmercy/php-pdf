@@ -275,7 +275,7 @@ final class PdfEditor
             $out[] = new FormFieldInfo(
                 name: $rf->name,
                 type: $rf->type,
-                value: $this->currentValueOf($rf),
+                value: FieldValueDecoder::decode($rf, $this->reader),
                 options: $rf->options,
                 readOnly: $rf->isReadOnly(),
                 required: ($rf->flags & 2) !== 0,
@@ -408,22 +408,6 @@ final class PdfEditor
         usort($suggestions, static fn (array $a, array $b): int => $a[1] <=> $b[1]);
         $hint = implode(', ', array_column(array_slice($suggestions, 0, 3), 0));
         return new PdfException("Unknown form field '{$name}'. Did you mean: {$hint}?");
-    }
-
-    /**
-     * Decodes the merged /V entry of a resolved field into its PHP-native form:
-     *
-     * - Text / Combobox : string|null         (decoded TextString/PdfString/HexString)
-     * - Checkbox        : bool                (true iff /V is a Name != 'Off')
-     * - Radio           : string|null         (export name, null when absent or 'Off')
-     * - Listbox         : string|list<string>|null
-     * - PushButton / Signature: null
-     *
-     * @return string|bool|list<string>|null
-     */
-    private function currentValueOf(ResolvedField $rf): string|bool|array|null
-    {
-        return FieldValueDecoder::decode($rf, $this->reader);
     }
 
     public function addDocumentTimestamp(Tsa $tsa, int $maxSignatureBytes = 16384): self

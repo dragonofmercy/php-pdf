@@ -584,7 +584,7 @@ final class EditRevisionBuilder
             $filledThisSession = array_key_exists($name, $this->pending->fieldEdits);
             $value = $filledThisSession
                 ? $this->pending->fieldEdits[$name]
-                : $this->decodeCurrentValue($rf);
+                : FieldValueDecoder::decode($rf, $this->reader);
             $targets[] = new FlattenTarget($rf, $value, $filledThisSession);
         }
 
@@ -602,18 +602,6 @@ final class EditRevisionBuilder
         $this->rewriteAcroFormFields($newObjects, $result->removedFieldObjectNumbers);
 
         return $nextNumber;
-    }
-
-    /**
-     * Decodes a field's current /V into the FlattenTarget value shape, matching
-     * PdfEditor::currentValueOf (Text/Combo -> string, Checkbox -> bool, Radio ->
-     * string|null, Listbox -> string|list<string>|null).
-     *
-     * @return string|bool|list<string>|null
-     */
-    private function decodeCurrentValue(ResolvedField $rf): string|bool|array|null
-    {
-        return FieldValueDecoder::decode($rf, $this->reader);
     }
 
     /**
