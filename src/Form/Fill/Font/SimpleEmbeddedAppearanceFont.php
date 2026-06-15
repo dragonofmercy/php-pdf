@@ -25,10 +25,7 @@ final class SimpleEmbeddedAppearanceFont implements AppearanceFont
     {
         $totalEm = 0;
         foreach (Utf8::codepoints($text) as [$cp, $_]) {
-            if (!isset($this->program->unicodeToCode[$cp])) {
-                $this->throwMissingChar($cp);
-            }
-            $code = $this->program->unicodeToCode[$cp];
+            $code = $this->codepointToCode($cp);
             $totalEm += $this->program->codeWidths[$code] ?? $this->program->missingWidth;
         }
         return $totalEm / 1000.0 * $size;
@@ -38,30 +35,33 @@ final class SimpleEmbeddedAppearanceFont implements AppearanceFont
     {
         $bytes = '';
         foreach (Utf8::codepoints($text) as [$cp, $_]) {
-            if (!isset($this->program->unicodeToCode[$cp])) {
-                $this->throwMissingChar($cp);
-            }
-            $bytes .= chr($this->program->unicodeToCode[$cp] & 0xFF);
+            $bytes .= chr($this->codepointToCode($cp) & 0xFF);
         }
         return '(' . PdfLiteralEscape::escape($bytes) . ')';
     }
 
-    /** @return never */
-    private function throwMissingChar(int $cp): never
+    /**
+     * Returns the byte code for a unicode codepoint, or throws PdfException when
+     * the codepoint is not in the font encoding (or is an invalid UTF-8 sequence).
+     */
+    private function codepointToCode(int $cp): int
     {
-        // Utf8::codepoints yields -1 for an invalid byte sequence; format that
-        // case explicitly rather than letting sprintf emit a 64-bit garbage value.
-        if ($cp < 0) {
+        if (!isset($this->program->unicodeToCode[$cp])) {
+            // Utf8::codepoints yields -1 for an invalid byte sequence; format that
+            // case explicitly rather than letting sprintf emit a 64-bit garbage value.
+            if ($cp < 0) {
+                throw new PdfException(sprintf(
+                    'Field "%s": text contains an invalid UTF-8 byte sequence',
+                    $this->fieldName,
+                ));
+            }
             throw new PdfException(sprintf(
-                'Field "%s": text contains an invalid UTF-8 byte sequence',
+                'Field "%s": character "%s" (U+%04X) is not in the font encoding',
                 $this->fieldName,
+                mb_chr($cp, 'UTF-8'),
+                $cp,
             ));
         }
-        throw new PdfException(sprintf(
-            'Field "%s": character "%s" (U+%04X) is not in the font encoding',
-            $this->fieldName,
-            mb_chr($cp, 'UTF-8'),
-            $cp,
-        ));
+        return $this->program->unicodeToCode[$cp];
     }
 }

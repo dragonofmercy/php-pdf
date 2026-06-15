@@ -31,7 +31,7 @@ final class SimpleFontDictReaderTest extends TestCase
             ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(65))
             ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(700), PdfNumber::ofInt(800)));
 
-        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+        $prog = SimpleFontDictReader::read($dict, self::reader(), 'fld');
 
         self::assertSame(700, $prog->codeWidths[65]);
         self::assertSame(800, $prog->codeWidths[66]);
@@ -49,7 +49,7 @@ final class SimpleFontDictReaderTest extends TestCase
             ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(200))
             ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(556)));
 
-        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+        $prog = SimpleFontDictReader::read($dict, self::reader(), 'fld');
 
         self::assertSame(200, $prog->unicodeToCode[0x20AC]); // Euro
         self::assertSame(556, $prog->codeWidths[200]);
@@ -66,7 +66,7 @@ final class SimpleFontDictReaderTest extends TestCase
             ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(200))
             ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(556), PdfNumber::ofInt(500)));
 
-        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+        $prog = SimpleFontDictReader::read($dict, self::reader(), 'fld');
 
         self::assertSame(200, $prog->unicodeToCode[0x20AC]); // Euro at code 200
         self::assertSame(201, $prog->unicodeToCode[0x0192]); // florin at code 201 (incremented)
@@ -84,7 +84,7 @@ final class SimpleFontDictReaderTest extends TestCase
             ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(65))
             ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(700)));
 
-        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+        $prog = SimpleFontDictReader::read($dict, self::reader(), 'fld');
 
         self::assertSame(250, $prog->missingWidth);
     }
@@ -97,7 +97,7 @@ final class SimpleFontDictReaderTest extends TestCase
             ->withEntry(Name::of('FirstChar'), PdfNumber::ofInt(65))
             ->withEntry(Name::of('Widths'), PdfArray::of(PdfNumber::ofInt(700)));
 
-        $prog = (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+        $prog = SimpleFontDictReader::read($dict, self::reader(), 'fld');
 
         self::assertSame(0, $prog->missingWidth);
     }
@@ -113,6 +113,6 @@ final class SimpleFontDictReaderTest extends TestCase
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/fld/');
 
-        (new SimpleFontDictReader())->read($dict, self::reader(), 'fld');
+        SimpleFontDictReader::read($dict, self::reader(), 'fld');
     }
 }

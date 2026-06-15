@@ -50,16 +50,33 @@ final class WinAnsiEncoder
         0x0178 => 0x9F, // Ÿ
     ];
 
+    /** @var array<int, int>|null */
+    private static ?array $unicodeToCodeCache = null;
+
     /**
-     * Unicode codepoint -> WinAnsi byte for the 0x80-0x9F range (PDF 1.7 Annex
-     * D.2). ASCII (0x20-0x7E) and Latin-1 supplement (0xA0-0xFF) are identity
-     * mappings handled inline in encode() and are not included here.
+     * Returns the full WinAnsi inverse map: unicode codepoint -> byte code.
+     * Covers printable ASCII (0x20-0x7E), Latin-1 supplement (0xA0-0xFF), and
+     * the special 0x80-0x9F range (same entries as MAP). Built once and cached.
      *
      * @return array<int, int>
      */
-    public static function specialMap(): array
+    public static function unicodeToCodeMap(): array
     {
-        return self::MAP;
+        if (self::$unicodeToCodeCache !== null) {
+            return self::$unicodeToCodeCache;
+        }
+        $map = [];
+        for ($code = 0x20; $code <= 0x7E; $code++) {
+            $map[$code] = $code;
+        }
+        for ($code = 0xA0; $code <= 0xFF; $code++) {
+            $map[$code] = $code;
+        }
+        foreach (self::MAP as $unicode => $byte) {
+            $map[$unicode] = $byte;
+        }
+        self::$unicodeToCodeCache = $map;
+        return $map;
     }
 
     public static function encode(string $utf8): string

@@ -695,7 +695,7 @@ final class FieldValueApplier
             );
         }
 
-        $font = (new AppearanceFontFactory())->forField(
+        $font = AppearanceFontFactory::forField(
             $this->reader,
             $fontObjRaw,
             $baseFont,

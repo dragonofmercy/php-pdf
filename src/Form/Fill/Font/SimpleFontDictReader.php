@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form\Fill\Font;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
+use DragonOfMercy\PhpPdf\Font\GlyphList;
 use DragonOfMercy\PhpPdf\Font\WinAnsiEncoder;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
@@ -25,7 +26,7 @@ final class SimpleFontDictReader
 {
     private const array SUPPORTED_SUBTYPES = ['Type1', 'TrueType', 'MMType1'];
 
-    public function read(Dictionary $font, PdfReader $reader, string $fieldName): SimpleFontProgram
+    public static function read(Dictionary $font, PdfReader $reader, string $fieldName): SimpleFontProgram
     {
         $resolve = fn (PdfObject $o): PdfObject => $reader->resolve($o);
 
@@ -63,7 +64,7 @@ final class SimpleFontDictReader
         }
 
         // Build unicodeToCode from /Encoding
-        $unicodeToCode = $this->buildUnicodeToCode($font, $reader, $resolve, $fieldName);
+        $unicodeToCode = self::buildUnicodeToCode($font, $reader, $resolve, $fieldName);
 
         return new SimpleFontProgram($codeWidths, $missingWidth, $unicodeToCode);
     }
@@ -74,7 +75,7 @@ final class SimpleFontDictReader
      * @param \Closure(PdfObject): PdfObject $resolve
      * @return array<int, int>
      */
-    private function buildUnicodeToCode(Dictionary $font, PdfReader $reader, \Closure $resolve, string $fieldName): array
+    private static function buildUnicodeToCode(Dictionary $font, PdfReader $reader, \Closure $resolve, string $fieldName): array
     {
         $enc = $font->get(Name::of('Encoding'));
         if ($enc !== null) {
@@ -98,7 +99,7 @@ final class SimpleFontDictReader
         }
 
         if ($enc instanceof Dictionary) {
-            return $this->buildFromEncodingDict($enc, $resolve, $fieldName);
+            return self::buildFromEncodingDict($enc, $resolve, $fieldName);
         }
 
         // Unknown /Encoding type - fall back to WinAnsi
@@ -111,7 +112,7 @@ final class SimpleFontDictReader
      * @param \Closure(PdfObject): PdfObject $resolve
      * @return array<int, int>
      */
-    private function buildFromEncodingDict(Dictionary $enc, \Closure $resolve, string $fieldName): array
+    private static function buildFromEncodingDict(Dictionary $enc, \Closure $resolve, string $fieldName): array
     {
         $baseName = DictReader::name($enc, 'BaseEncoding', $resolve);
 
@@ -159,29 +160,10 @@ final class SimpleFontDictReader
     /**
      * Returns the WinAnsi unicode -> byte code map (inverse of WinAnsiEncoder::encode).
      *
-     * WinAnsiEncoding:
-     *   - Printable ASCII 0x20-0x7E: unicode == byte code
-     *   - Latin-1 Supplement 0xA0-0xFF: unicode == byte code
-     *   - Special 0x80-0x9F range: mapped from specific Unicode codepoints
-     *
      * @return array<int, int>
      */
     private static function winAnsiUnicodeToCode(): array
     {
-        // Printable ASCII: 0x20-0x7E (unicode codepoint == byte code)
-        $map = [];
-        for ($code = 0x20; $code <= 0x7E; $code++) {
-            $map[$code] = $code;
-        }
-        // Latin-1 Supplement: 0xA0-0xFF (unicode codepoint == byte code)
-        for ($code = 0xA0; $code <= 0xFF; $code++) {
-            $map[$code] = $code;
-        }
-        // Special 0x80-0x9F range: reuse the single source of truth in WinAnsiEncoder
-        // (the table is unicode -> byte there, which is exactly what we need here).
-        foreach (WinAnsiEncoder::specialMap() as $unicode => $byte) {
-            $map[$unicode] = $byte;
-        }
-        return $map;
+        return WinAnsiEncoder::unicodeToCodeMap();
     }
 }

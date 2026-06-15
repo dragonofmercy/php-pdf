@@ -32,7 +32,7 @@ final class AppearanceFontFactory
      * @param string          $fieldName    for error messages
      * @param MetricsRegistry $metrics      for Standard-14 metric lookups
      */
-    public function forField(
+    public static function forField(
         PdfReader $reader,
         Dictionary $drFontDict,
         string $baseFont,
@@ -40,7 +40,7 @@ final class AppearanceFontFactory
         MetricsRegistry $metrics,
     ): AppearanceFont {
         // 1. Standard-14 detection: exact name or prefix match (same table as the former baseFontToFont).
-        $std14 = $this->detectStandard14($baseFont);
+        $std14 = self::detectStandard14($baseFont);
         if ($std14 !== null) {
             return new Standard14AppearanceFont($std14, $metrics);
         }
@@ -51,7 +51,7 @@ final class AppearanceFontFactory
 
         return match ($subtype) {
             'Type1', 'TrueType', 'MMType1' => new SimpleEmbeddedAppearanceFont(
-                (new SimpleFontDictReader())->read($drFontDict, $reader, $fieldName),
+                SimpleFontDictReader::read($drFontDict, $reader, $fieldName),
                 $fieldName,
             ),
             'Type0' => throw new PdfException(
@@ -70,7 +70,7 @@ final class AppearanceFontFactory
      * The detection table mirrors the former FieldValueApplier::baseFontToFont so that
      * the Standard-14 appearance path remains byte-identical to the pre-factory behavior.
      */
-    private function detectStandard14(string $baseFont): ?Font
+    private static function detectStandard14(string $baseFont): ?Font
     {
         // Each row: [exact base name, prefix (for variant names), factory, italic keyword].
         // A name matches when it equals exactBase OR starts with "prefix-".

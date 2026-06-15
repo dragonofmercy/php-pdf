@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DragonOfMercy\PhpPdf\Form\Fill\Font;
+namespace DragonOfMercy\PhpPdf\Font;
 
 /**
  * Maps Adobe glyph names to Unicode codepoints for the subset needed by
