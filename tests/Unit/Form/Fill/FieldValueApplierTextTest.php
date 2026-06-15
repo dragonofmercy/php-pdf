@@ -160,13 +160,13 @@ final class FieldValueApplierTextTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // Test 4: non-Standard-14 BaseFont in /DR /Font throws PdfException
+    // Test 4: embedded Type1 font dict without /Widths throws PdfException
     //
     // Builds a minimal valid PDF by hand (classic xref + trailer) containing an
-    // AcroForm whose /DR /Font /Helv points to a font dict with /BaseFont
-    // /ABCDEF+FreeSans (a subset-prefixed non-standard name). The single text
-    // field has /DA (0 g /Helv 10 Tf). Asserts that apply() throws PdfException
-    // whose message contains the field name and the offending base font name.
+    // AcroForm whose /DR /Font /Helv points to a Type1 font dict with /BaseFont
+    // /ABCDEF+FreeSans (a subset-prefixed non-standard name) but no /Widths entry.
+    // The factory now delegates to SimpleFontDictReader for embedded Type1 fonts;
+    // the missing /Widths causes a PdfException naming the field.
     // -----------------------------------------------------------------------
 
     public function testNonStandard14DrFontThrows(): void
@@ -177,7 +177,7 @@ final class FieldValueApplierTextTest extends TestCase
         //   obj 1 : Catalog  -> AcroForm inline, /DR /Font /Helv = ref(10)
         //   obj 2 : Pages root
         //   obj 3 : Page     -> /Annots [ ref(11) ]
-        //   obj 10: Font dict  /BaseFont /ABCDEF+FreeSans  (non-standard)
+        //   obj 10: Font dict  /Subtype /Type1  /BaseFont /ABCDEF+FreeSans  (no /Widths)
         //   obj 11: Field+widget (combined) /FT /Tx /Rect ... /DA (0 g /Helv 10 Tf)
 
         $body = "%PDF-1.4\n";
@@ -243,7 +243,7 @@ final class FieldValueApplierTextTest extends TestCase
 
         $this->expectException(PdfException::class);
         $this->expectExceptionMessageMatches('/email/');
-        $this->expectExceptionMessageMatches('/ABCDEF\+FreeSans/');
+        $this->expectExceptionMessageMatches('/Widths/');
 
         (new FieldValueApplier($reader, new MetricsRegistry()))
             ->apply($rf, 'test@example.com', $allocate);

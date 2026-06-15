@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Form\Fill;
 
 use DragonOfMercy\PhpPdf\Exception\PdfException;
-use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
 use DragonOfMercy\PhpPdf\Form\Fill\Font\AppearanceFont;
-use DragonOfMercy\PhpPdf\Form\Fill\Font\Standard14AppearanceFont;
+use DragonOfMercy\PhpPdf\Form\Fill\Font\AppearanceFontFactory;
 use DragonOfMercy\PhpPdf\Reader\DictReader;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Writer\Object\CompressedStream;
@@ -696,44 +695,17 @@ final class FieldValueApplier
             );
         }
 
-        $stdFont = $this->baseFontToFont($rf, $baseFont);
-        $font = new Standard14AppearanceFont($stdFont, $this->metrics);
+        $font = (new AppearanceFontFactory())->forField(
+            $this->reader,
+            $fontObjRaw,
+            $baseFont,
+            $rf->name,
+            $this->metrics,
+        );
 
         $result = [$font, $drFontRef, $usedAlias];
         $this->drFontCache[$alias] = $result;
         return $result;
     }
 
-    /**
-     * Maps a PDF /BaseFont name to a Font instance.
-     * Only Standard 14 fonts are supported; a subset-prefixed or non-standard
-     * BaseFont triggers a PdfException.
-     */
-    private function baseFontToFont(ResolvedField $rf, string $baseFont): Font
-    {
-        // Each entry: [exact-base-name, prefix (for variant names), factory, italic-keyword].
-        // A name matches when it equals the exact-base-name OR starts with "prefix-".
-        $table = [
-            ['Helvetica', 'Helvetica', Font::helvetica(...), 'Oblique'],
-            ['Times-Roman', 'Times', Font::times(...), 'Italic'],
-            ['Courier', 'Courier', Font::courier(...), 'Oblique'],
-        ];
-
-        foreach ($table as [$exactBase, $prefix, $factory, $italicKeyword]) {
-            if ($baseFont === $exactBase || str_starts_with($baseFont, $prefix . '-')) {
-                $font = $factory();
-                if (str_contains($baseFont, 'Bold')) {
-                    $font = $font->bold();
-                }
-                if (str_contains($baseFont, $italicKeyword)) {
-                    $font = $font->italic();
-                }
-                return $font;
-            }
-        }
-
-        throw new PdfException(
-            "Cannot generate appearance for field '{$rf->name}': its /DA font '{$baseFont}' is not a Standard 14 font; embedded-font appearances are not supported yet",
-        );
-    }
 }
