@@ -16,11 +16,11 @@ use DragonOfMercy\PhpPdf\Font\Custom\Utf8ToCidEncoder;
  *
  * @internal
  */
-final class CompositeEmbeddedAppearanceFont implements AppearanceFont
+final readonly class CompositeEmbeddedAppearanceFont implements AppearanceFont
 {
     public function __construct(
-        private readonly ParsedTtf $ttf,
-        private readonly string $fieldName,
+        private ParsedTtf $ttf,
+        private string $fieldName,
     ) {}
 
     public function measureWidth(string $text, float $size): float

@@ -55,6 +55,7 @@ final class CompositeEmbeddedAppearanceFontTest extends TestCase
     {
         $this->expectException(PdfException::class);
         $this->expectExceptionMessage('fld');
+        // U+10FFFF is a noncharacter absent from FreeSans (no glyph -> gid 0).
         self::font()->encodeShowOperand("\u{10FFFF}");
     }
 }
