@@ -6,7 +6,7 @@
 
 [![Latest Version](https://badgen.net/packagist/v/dragonofmercy/phppdf)](https://packagist.org/packages/dragonofmercy/phppdf)
 [![Total Downloads](https://badgen.net/packagist/dt/dragonofmercy/phppdf)](https://packagist.org/packages/dragonofmercy/phppdf)
-[![PHP Version](https://badgen.net/packagist/php/dragonofmercy/phppdf)](https://www.php.net/)
+[![PHP Version](https://badgen.net/packagist/php/dragonofmercy/phppdf?icon=php)](https://www.php.net/)
 [![License](https://badgen.net/packagist/license/dragonofmercy/phppdf)](LICENSE)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/dragonofmercy)
 
