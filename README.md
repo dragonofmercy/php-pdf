@@ -8,7 +8,7 @@
 [![Total Downloads](https://badgen.net/packagist/dt/dragonofmercy/phppdf)](https://packagist.org/packages/dragonofmercy/phppdf)
 [![PHP Version](https://badgen.net/packagist/php/dragonofmercy/phppdf)](https://www.php.net/)
 [![License](https://badgen.net/packagist/license/dragonofmercy/phppdf)](LICENSE)
-[![Ko-fi](https://badgen.net/badge/icon/Ko-fi?icon=kofi&label=&color=red)](https://ko-fi.com/dragonofmercy)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/dragonofmercy)
 
 Modern PHP 8.4 library for PDF generation. Pure PHP, no external runtime dependencies beyond the standard `mbstring`, `openssl`, and `zlib` extensions.
 
