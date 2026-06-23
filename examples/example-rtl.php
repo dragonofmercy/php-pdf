@@ -58,8 +58,9 @@ $page->cell(x: 20, y: 50, w: 170, text: "\u{0645}\u{0631}\u{062D}\u{0628}\u{0627
 // Persian / Farsi - "salam donya" (hello world). Same shaper; "donya" uses the Farsi yeh.
 $page->cell(x: 20, y: 64, w: 170, text: "\u{0633}\u{0644}\u{0627}\u{0645} \u{062F}\u{0646}\u{06CC}\u{0627}");
 
-// Mixed LTR / RTL on one line - the bidi algorithm orders the runs; with an RTL
-// base the Arabic word sits to the right of the Latin word.
+// Mixed LTR / RTL on one line - the bidi algorithm orders the runs. With an RTL
+// base, "PHP" (the first logical word) stays on the right and the Arabic word is
+// placed to its left.
 $page->setFont(Font::custom('serif'), 14);
 $page->cell(x: 20, y: 80, w: 170, text: "PHP \u{0645}\u{0631}\u{062D}\u{0628}\u{0627}");
 
