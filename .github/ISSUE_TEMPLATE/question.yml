@@ -1,0 +1,25 @@
+name: Question
+description: Ask a question about using the library
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before asking, please check the
+        [wiki](https://github.com/dragonofmercy/php-pdf/wiki) - your answer
+        may already be there.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / what you have tried
+      description: Any code, output, or details that help understand your question.
+      render: php
+    validations:
+      required: false
