@@ -65,5 +65,6 @@ final class WebpDecoderTest extends TestCase
         self::assertSame(4, $result['width']);
         self::assertSame(4, $result['height']);
         self::assertSame(48, strlen($result['rgb']));
+        self::assertNull($result['alpha']);
     }
 }

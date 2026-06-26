@@ -55,26 +55,27 @@ final class WebpDecoder
         $im = new \Imagick();
         try {
             $im->readImageBlob($bytes);
+            $im->setFirstIterator(); // animated WebP -> first frame
+            $width = $im->getImageWidth();
+            $height = $im->getImageHeight();
+            $hasAlpha = $im->getImageAlphaChannel();
+
+            $rgb = self::packChars($im->exportImagePixels(0, 0, $width, $height, 'RGB', \Imagick::PIXEL_CHAR));
+            $alpha = null;
+            if ($hasAlpha) {
+                // ImageMagick alpha: 255 = opaque, which is exactly the PDF SMask opacity convention.
+                $alpha = self::packChars($im->exportImagePixels(0, 0, $width, $height, 'A', \Imagick::PIXEL_CHAR));
+                if (strspn($alpha, "\xFF") === strlen($alpha)) {
+                    $alpha = null; // fully opaque
+                }
+            }
+
+            return ['width' => $width, 'height' => $height, 'rgb' => $rgb, 'alpha' => $alpha];
         } catch (\ImagickException $e) {
             throw new PdfException('Malformed WebP image: ' . $e->getMessage());
+        } finally {
+            $im->clear();
         }
-        $im->setFirstIterator(); // animated WebP -> first frame
-        $width = $im->getImageWidth();
-        $height = $im->getImageHeight();
-        $hasAlpha = $im->getImageAlphaChannel();
-
-        $rgb = self::packChars($im->exportImagePixels(0, 0, $width, $height, 'RGB', \Imagick::PIXEL_CHAR));
-        $alpha = null;
-        if ($hasAlpha) {
-            // ImageMagick alpha: 255 = opaque, which is exactly the PDF SMask opacity convention.
-            $alpha = self::packChars($im->exportImagePixels(0, 0, $width, $height, 'A', \Imagick::PIXEL_CHAR));
-            if (strspn($alpha, "\xFF") === strlen($alpha)) {
-                $alpha = null; // fully opaque
-            }
-        }
-        $im->clear();
-
-        return ['width' => $width, 'height' => $height, 'rgb' => $rgb, 'alpha' => $alpha];
     }
 
     /**
