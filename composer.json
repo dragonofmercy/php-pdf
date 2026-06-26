@@ -16,7 +16,8 @@
         "symfony/process": "^7.0"
     },
     "suggest": {
-        "ext-gd": "Decode JPEG images that appear inside an SVG <filter> region"
+        "ext-imagick": "Decode WebP images (preferred backend)",
+        "ext-gd": "Decode WebP images (fallback) and JPEGs inside an SVG <filter> region"
     },
     "autoload": {
         "psr-4": { "DragonOfMercy\\PhpPdf\\": "src/" }

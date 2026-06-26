@@ -26,7 +26,7 @@ A quick tour - each feature has a full guide in the [wiki](#documentation).
 - 🔤 **Text** - the 12 standard fonts, multi-line, configurable leading, full Western Latin, exact width measurement.
 - 🔡 **Custom fonts** - register TrueType / OpenType families with full Unicode (Latin / Greek / Cyrillic / CJK), selectable text, automatic glyph subsetting.
 - 📦 **Cells** - text boxes with borders, fill, padding, alignment (left / center / right / justify), word-wrap, three width-fit modes.
-- 🖼️ **Images** - JPEG and PNG (all color types, transparency), embedded once and placed anywhere.
+- 🖼️ **Images** - JPEG, PNG (all color types, transparency), and WebP (lossy / lossless / alpha, decoded via ext-imagick or ext-gd), embedded once and placed anywhere.
 - 🎨 **SVG** - fully vector: shapes, paths, gradients, patterns, clipping, masks, CSS styling, selectable `<text>` / `<textPath>`, pure-PHP `<filter>`.
 - 🔢 **Barcodes & QR** - 1D (EAN-13 / 8, Code 128 / 39 / 93, UPC-A, ITF) and 2D (QR, Aztec, DataMatrix, PDF417), pure-PHP and vector.
 - 📝 **Markdown** - a CommonMark core subset, flowing with automatic page breaks or inside an auto-sized cell, styleable via `MarkdownStyle`.
