@@ -65,6 +65,7 @@ final class ImageEmbedder
             ImageFormat::JPEG => $this->embedJpeg($image, $firstObjectNumber),
             ImageFormat::PNG  => $this->embedPng($image, $firstObjectNumber, $forbidsTransparency),
             ImageFormat::SVG  => $this->embedSvg($image, $firstObjectNumber, $fontRegistry ?? new FontRegistry(), $fontRefs, $fontResolver, $filterDpi, $forbidsTransparency),
+            ImageFormat::WEBP => $this->embedWebp($image, $firstObjectNumber, $forbidsTransparency),
         };
     }
 
@@ -90,6 +91,9 @@ final class ImageEmbedder
                 $count += count($rendered['embeddedFilters']) * 2;
             }
             return $count;
+        }
+        if ($meta instanceof WebpMetadata) {
+            return $meta->alphaBytes !== null ? 2 : 1;
         }
         if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
             return 2;
@@ -251,6 +255,52 @@ final class ImageEmbedder
         $smaskDict = $this->xObjectBase($meta->width, $meta->height, $meta->bitDepth, Name::of('DeviceGray'))
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'))
             ->withEntry(Name::of('DecodeParms'), $this->pngDecodeParms($meta->width, 1, $meta->bitDepth));
+
+        return [
+            $imageObject,
+            IndirectObject::of($objectNumber + 1, 0, new ImageStream($smaskDict, $alpha)),
+        ];
+    }
+
+    /**
+     * WebP has no native PDF representation, so it is embedded as decoded raw
+     * samples: a DeviceRGB, 8-bit, FlateDecode image, plus a DeviceGray SMask
+     * when the source carries alpha. Mirrors embedPng() minus the PNG predictor
+     * (samples are raw, not PNG-filtered, so no /DecodeParms).
+     *
+     * @return list<IndirectObject>
+     */
+    private function embedWebp(Image $image, int $objectNumber, bool $forbidsTransparency = false): array
+    {
+        $meta = $image->metadata;
+        if (!$meta instanceof WebpMetadata) {
+            throw new PdfException('Embedder received non-WebP metadata for WebP format');
+        }
+
+        $alpha = $meta->alphaBytes;
+        if ($forbidsTransparency && $alpha !== null) {
+            throw new PdfException(sprintf(
+                'PDF/A-1 forbids transparency; WebP image %dx%d has an alpha channel - flatten it against a solid background before adding it',
+                $meta->width,
+                $meta->height,
+            ));
+        }
+
+        $smaskRef = $alpha !== null ? PdfReference::to($objectNumber + 1, 0) : null;
+
+        $dict = $this->xObjectBase($meta->width, $meta->height, 8, Name::of('DeviceRGB'))
+            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
+        if ($smaskRef !== null) {
+            $dict = $dict->withEntry(Name::of('SMask'), $smaskRef);
+        }
+
+        $imageObject = IndirectObject::of($objectNumber, 0, new ImageStream($dict, $meta->colorBytes));
+        if ($alpha === null) {
+            return [$imageObject];
+        }
+
+        $smaskDict = $this->xObjectBase($meta->width, $meta->height, 8, Name::of('DeviceGray'))
+            ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
 
         return [
             $imageObject,
