@@ -83,12 +83,14 @@ final class WebpDecoder
      */
     private static function decodeWithGd(string $bytes): array
     {
+        // imagecreatefromwebp existence is the WebP-support probe; we decode via imagecreatefromstring so one path also handles magic-byte sniffing.
         $img = @imagecreatefromstring($bytes);
         if ($img === false) {
             throw new PdfException('Malformed WebP image (GD could not decode it)');
         }
         $width = imagesx($img);
         $height = imagesy($img);
+        // Belt-and-braces: imagecolorat() reads the stored ARGB regardless; these only affect compositing during draws.
         imagealphablending($img, false);
         imagesavealpha($img, true);
 
