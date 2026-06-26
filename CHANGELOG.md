@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-06-26
+
 ### Added
 - WebP image support: load `.webp` files with `Image::fromFile()` / `Image::fromBytes()` just like JPEG and PNG (the format is auto-detected) and place them with `Page::image()` or in tables. Lossy, lossless, and alpha (transparency) WebP are supported; an animated WebP uses its first frame. Decoding requires the `imagick` (preferred) or `gd` PHP extension; without one, adding a WebP throws a clear error. A WebP with transparency is rejected under PDF/A-1, consistent with PNG.
 
@@ -299,6 +301,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.12.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.0
 [1.11.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.11.0
 [1.10.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.10.0
 [1.9.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.9.0
