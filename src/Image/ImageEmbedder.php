@@ -92,10 +92,9 @@ final class ImageEmbedder
             }
             return $count;
         }
-        if ($meta instanceof WebpMetadata) {
-            return $meta->alphaBytes !== null ? 2 : 1;
-        }
-        if ($meta instanceof PngMetadata && $meta->alphaBytes !== null) {
+        // PNG and WebP both expose a nullable alphaBytes: a non-null value means a
+        // separate DeviceGray SMask object is emitted alongside the image.
+        if (($meta instanceof PngMetadata || $meta instanceof WebpMetadata) && $meta->alphaBytes !== null) {
             return 2;
         }
         return 1;
@@ -286,12 +285,10 @@ final class ImageEmbedder
             ));
         }
 
-        $smaskRef = $alpha !== null ? PdfReference::to($objectNumber + 1, 0) : null;
-
         $dict = $this->xObjectBase($meta->width, $meta->height, 8, Name::of('DeviceRGB'))
             ->withEntry(Name::of('Filter'), Name::of('FlateDecode'));
-        if ($smaskRef !== null) {
-            $dict = $dict->withEntry(Name::of('SMask'), $smaskRef);
+        if ($alpha !== null) {
+            $dict = $dict->withEntry(Name::of('SMask'), PdfReference::to($objectNumber + 1, 0));
         }
 
         $imageObject = IndirectObject::of($objectNumber, 0, new ImageStream($dict, $meta->colorBytes));

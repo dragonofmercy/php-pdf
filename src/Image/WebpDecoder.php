@@ -39,12 +39,17 @@ final class WebpDecoder
         return self::imagickCanDecode() || function_exists('imagecreatefromwebp');
     }
 
+    private static ?bool $imagickWebpSupport = null;
+
     private static function imagickCanDecode(): bool
     {
-        if (!class_exists('Imagick')) {
-            return false;
+        if (self::$imagickWebpSupport !== null) {
+            return self::$imagickWebpSupport;
         }
-        return in_array('WEBP', \Imagick::queryFormats('WEBP'), true);
+        if (!class_exists('Imagick')) {
+            return self::$imagickWebpSupport = false;
+        }
+        return self::$imagickWebpSupport = in_array('WEBP', \Imagick::queryFormats('WEBP'), true);
     }
 
     /**
@@ -90,28 +95,30 @@ final class WebpDecoder
         }
         $width = imagesx($img);
         $height = imagesy($img);
-        // Belt-and-braces: imagecolorat() reads the stored ARGB regardless; these only affect compositing during draws.
-        imagealphablending($img, false);
-        imagesavealpha($img, true);
 
-        $rgb = '';
-        $alpha = '';
-        $hasAlpha = false;
+        // Collect ints and pack once (via packChars) rather than concatenating per-pixel
+        // chr() strings, mirroring the Imagick path.
+        $rgbInts = [];
+        $alphaInts = [];
         for ($y = 0; $y < $height; $y++) {
             for ($x = 0; $x < $width; $x++) {
                 $c = imagecolorat($img, $x, $y);
-                $rgb .= chr(($c >> 16) & 0xFF) . chr(($c >> 8) & 0xFF) . chr($c & 0xFF);
-                // GD alpha: 0 = opaque, 127 = transparent (7-bit). Rescale to 8-bit opacity.
+                $rgbInts[] = ($c >> 16) & 0xFF;
+                $rgbInts[] = ($c >> 8) & 0xFF;
+                $rgbInts[] = $c & 0xFF;
+                // GD alpha: 0 = opaque, 127 = transparent (7-bit). Rescale to 8-bit opacity (255 = opaque).
                 $a = ($c >> 24) & 0x7F;
-                if ($a !== 0) {
-                    $hasAlpha = true;
-                }
-                $alpha .= chr(intdiv((127 - $a) * 255, 127) & 0xFF);
+                $alphaInts[] = intdiv((127 - $a) * 255, 127);
             }
         }
-        imagedestroy($img);
 
-        return ['width' => $width, 'height' => $height, 'rgb' => $rgb, 'alpha' => $hasAlpha ? $alpha : null];
+        $rgb = self::packChars($rgbInts);
+        $alpha = self::packChars($alphaInts);
+        if (strspn($alpha, "\xFF") === strlen($alpha)) {
+            $alpha = null; // fully opaque
+        }
+
+        return ['width' => $width, 'height' => $height, 'rgb' => $rgb, 'alpha' => $alpha];
     }
 
     /**
