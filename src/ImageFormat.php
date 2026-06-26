@@ -9,4 +9,5 @@ enum ImageFormat
     case JPEG;
     case PNG;
     case SVG;
+    case WEBP;
 }

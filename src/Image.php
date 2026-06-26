@@ -8,6 +8,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Image\JpegMetadata;
 use DragonOfMercy\PhpPdf\Image\PngMetadata;
 use DragonOfMercy\PhpPdf\Image\SvgMetadata;
+use DragonOfMercy\PhpPdf\Image\WebpMetadata;
 use DragonOfMercy\PhpPdf\Svg\Parser;
 
 /**
@@ -23,6 +24,8 @@ final readonly class Image
 {
     private const string JPEG_MAGIC = "\xFF\xD8\xFF";
     private const string PNG_MAGIC = "\x89PNG\r\n\x1A\n";
+    private const string RIFF_MAGIC = 'RIFF';
+    private const string WEBP_MAGIC = 'WEBP';
 
     /**
      * @internal Public for type-narrowing in the embedder; user code should
@@ -34,7 +37,7 @@ final readonly class Image
         public int $height,
         public ImageFormat $format,
         public string $bytes,
-        public JpegMetadata|PngMetadata|SvgMetadata $metadata,
+        public JpegMetadata|PngMetadata|SvgMetadata|WebpMetadata $metadata,
         public string $contentHash,
     ) {}
 
@@ -101,6 +104,18 @@ final readonly class Image
             );
         }
 
+        if (str_starts_with($data, self::RIFF_MAGIC) && substr($data, 8, 4) === self::WEBP_MAGIC) {
+            $meta = WebpMetadata::parse($data);
+            return new self(
+                width: $meta->width,
+                height: $meta->height,
+                format: ImageFormat::WEBP,
+                bytes: $data,
+                metadata: $meta,
+                contentHash: $hash,
+            );
+        }
+
         if (self::looksLikeSvg($data)) {
             $meta = Parser::parse($data);
             $w = (int) ceil($meta->viewBox->width);
@@ -115,7 +130,7 @@ final readonly class Image
             );
         }
 
-        throw new PdfException('Unsupported image format (expected JPEG, PNG, or SVG)');
+        throw new PdfException('Unsupported image format (expected JPEG, PNG, SVG, or WebP)');
     }
 
     private const string UTF8_BOM = "\xEF\xBB\xBF";
