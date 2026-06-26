@@ -12,9 +12,10 @@ final class ImageFormatTest extends TestCase
     public function testCasesExist(): void
     {
         $cases = ImageFormat::cases();
-        self::assertCount(3, $cases);
+        self::assertCount(4, $cases);
         self::assertContains(ImageFormat::JPEG, $cases);
         self::assertContains(ImageFormat::PNG, $cases);
         self::assertContains(ImageFormat::SVG, $cases);
+        self::assertContains(ImageFormat::WEBP, $cases);
     }
 }

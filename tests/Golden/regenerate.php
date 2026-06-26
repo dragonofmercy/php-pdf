@@ -231,6 +231,30 @@ $page->image($thumb, w: 80, h: 60);                                          // 
 $doc->save($fixturesDir . '/page/image-flow.pdf');
 echo "Regenerated page/image-flow.pdf\n";
 
+// Fixtures: WebP images (opaque + binary alpha). Lossless assets only, so the
+// decoded bytes are identical across Imagick and GD. Skipped when no backend.
+if (\DragonOfMercy\PhpPdf\Image\WebpDecoder::isAvailable()) {
+    $imageDir = $fixturesDir . '/image';
+    if (!is_dir($imageDir)) {
+        mkdir($imageDir, 0755, true);
+    }
+    $assetsDir = __DIR__ . '/assets';
+
+    $doc = new Document(Unit::PT);
+    $page = $doc->addPage();
+    $page->image(\DragonOfMercy\PhpPdf\Image::fromFile($assetsDir . '/webp-lossless-rgb-4x4.webp'), x: 50, y: 50, w: 80, h: 80);
+    $doc->save($imageDir . '/webp-opaque.pdf');
+    echo "Regenerated image/webp-opaque.pdf\n";
+
+    $doc = new Document(Unit::PT);
+    $page = $doc->addPage();
+    $page->image(\DragonOfMercy\PhpPdf\Image::fromFile($assetsDir . '/webp-lossless-alpha-4x4.webp'), x: 50, y: 50, w: 80, h: 80);
+    $doc->save($imageDir . '/webp-alpha.pdf');
+    echo "Regenerated image/webp-alpha.pdf\n";
+} else {
+    echo "Skipped image/webp-*.pdf (no WebP decode backend)\n";
+}
+
 // Fixture 8: EAN-13 barcode (Phase 5)
 $doc = new Document(Unit::MM);
 $page = $doc->addPage();
