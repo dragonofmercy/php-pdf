@@ -81,6 +81,38 @@ final class StandardFontEngineTest extends TestCase
         self::assertCount(2, $widths);
     }
 
+    public function testSplitForceBreakKeepsChunksAsValidUtf8(): void
+    {
+        $engine = $this->engine();
+        $size = 12.0;
+        $word = "Echer\u{00E8}gnes";
+        // Force several chunks by using a very small inner width (one narrow character).
+        $innerW = $engine->measure('i', $size);
+
+        [$chunks, $widths] = $engine->splitForceBreak($word, $innerW, $size);
+
+        self::assertSame($word, implode('', $chunks), 'chunks must recompose the original word');
+        self::assertCount(count($chunks), $widths);
+        foreach ($chunks as $chunk) {
+            self::assertNotSame('', $chunk, 'no empty chunk expected for a non-empty token');
+            self::assertTrue(mb_check_encoding($chunk, 'UTF-8'), 'each chunk must stay valid UTF-8');
+        }
+    }
+
+    public function testSplitForceBreakWidthsMatchWinAnsiMeasure(): void
+    {
+        $engine = $this->engine();
+        $size = 12.0;
+        $word = "Echer\u{00E8}gnes";
+        $innerW = $engine->measure('i', $size);
+
+        [$chunks, $widths] = $engine->splitForceBreak($word, $innerW, $size);
+
+        foreach ($chunks as $i => $chunk) {
+            self::assertEqualsWithDelta($engine->measure($chunk, $size), $widths[$i], 0.0001);
+        }
+    }
+
     public function testAscentDelegatesToMetrics(): void
     {
         $font = Font::helvetica();
