@@ -53,16 +53,16 @@ final readonly class StandardFontEngine implements FontEngine
 
     public function splitForceBreak(string $token, float $innerW, float $size): array
     {
-        $encoded = WinAnsiEncoder::encode($token);
         $chunks = [];
         $widths = [];
         $current = '';
         $currentWidth = 0.0;
 
-        $len = strlen($encoded);
-        for ($i = 0; $i < $len; $i++) {
-            $char = $encoded[$i];
-            $charWidth = $this->metrics->charWidth(ord($char), $size);
+        // Iterate by UTF-8 codepoint so accumulated chunks stay valid UTF-8 (the
+        // text pipeline is UTF-8 end to end); measure each character via WinAnsi,
+        // exactly like measure(), so force-broken widths match untouched text.
+        foreach (mb_str_split($token, 1, 'UTF-8') as $char) {
+            $charWidth = $this->measure($char, $size);
             if ($currentWidth + $charWidth > $innerW + 0.0001 && $current !== '') {
                 $chunks[] = $current;
                 $widths[] = $currentWidth;
