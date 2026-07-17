@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-07-17
+
 ### Fixed
 - A page footer set with `setFooter()` no longer appends a stray blank page at the end of the document when it draws near the bottom of the page (for example a centered "Page x/y" line). The footer draws inside the bottom margin, and auto page-break is now suppressed while it renders - just as it already was for the header.
 
@@ -314,6 +316,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.12.3]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.3
 [1.12.2]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.2
 [1.12.1]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.1
 [1.12.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.0
