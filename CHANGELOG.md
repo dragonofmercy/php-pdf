@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A page footer set with `setFooter()` no longer appends a stray blank page at the end of the document when it draws near the bottom of the page (for example a centered "Page x/y" line). The footer draws inside the bottom margin, and auto page-break is now suppressed while it renders - just as it already was for the header.
+
 ## [1.12.2] - 2026-07-17
 
 ### Changed

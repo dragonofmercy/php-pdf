@@ -933,11 +933,16 @@ final class Document
             foreach ($this->pages as $i => $page) {
                 $this->currentPage = $page;
                 $savedFontState = $page->captureFontState();
+                // Suppress auto-break while the footer renders (as the header
+                // does in addPage()): a footer draws inside the bottom margin,
+                // below the break limit, and must not spawn a stray page.
+                $page->inHeaderRender = true;
                 try {
                     $page->withArtifactScope(function () use ($footer, $page, $i, $totalPages): void {
                         $footer($page, $i + 1, $totalPages);
                     });
                 } finally {
+                    $page->inHeaderRender = false;
                     $page->restoreFontState($savedFontState);
                 }
             }
