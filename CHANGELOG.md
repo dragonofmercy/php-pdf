@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-07-17
+
+### Fixed
+- Rendering a table or cell in a standard font (e.g. `Font::helvetica()`) no longer crashes when a single accented word - such as an accented column header - is wider than its cell and must be broken across lines. The force-break used to corrupt the text encoding and throw a `TypeError`; pure-ASCII text was never affected.
+
 ## [1.12.0] - 2026-06-26
 
 ### Added
@@ -301,6 +306,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.12.1]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.1
 [1.12.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.0
 [1.11.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.11.0
 [1.10.0]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.10.0
