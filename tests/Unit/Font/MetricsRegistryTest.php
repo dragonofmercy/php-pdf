@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Font;
 
-use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Font\FontMetrics;
 use DragonOfMercy\PhpPdf\Font\MetricsRegistry;
@@ -56,11 +55,4 @@ final class MetricsRegistryTest extends TestCase
         self::assertSame(600, $m->widths[0x7A] ?? null);
     }
 
-    public function testThrowsOnMissingFile(): void
-    {
-        // Point at a non-existent metrics directory.
-        $registry = new MetricsRegistry(__DIR__ . '/__nonexistent__');
-        $this->expectException(PdfException::class);
-        $registry->metricsFor(Font::helvetica());
-    }
 }

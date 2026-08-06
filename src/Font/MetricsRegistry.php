@@ -19,13 +19,6 @@ final class MetricsRegistry
     /** @var array<string, FontMetrics> indexed by Font::pdfName() */
     private array $cache = [];
 
-    private readonly string $metricsDir;
-
-    public function __construct(?string $metricsDir = null)
-    {
-        $this->metricsDir = $metricsDir ?? __DIR__ . '/Metrics';
-    }
-
     public function metricsFor(Font $font): FontMetrics
     {
         $pdfName = $font->pdfName();
@@ -37,7 +30,7 @@ final class MetricsRegistry
         // The 12 metric files are named after their PDF font name minus the
         // hyphen: Times-BoldItalic -> TimesBoldItalic.php. Font::pdfName()
         // only ever yields one of those 12, custom fonts throwing before here.
-        $path = $this->metricsDir . '/' . str_replace('-', '', $pdfName) . '.php';
+        $path = __DIR__ . '/Metrics/' . str_replace('-', '', $pdfName) . '.php';
         if (!is_file($path)) {
             throw new PdfException("Font metrics file not found: {$path}");
         }
