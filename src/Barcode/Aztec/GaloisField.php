@@ -92,13 +92,4 @@ final class GaloisField
         $idx = ($this->logTable[$a] + $this->logTable[$b]) % ($this->size - 1);
         return $this->expTable[$idx] ?? 0;
     }
-
-    public function inverse(int $a): int
-    {
-        if ($a === 0) {
-            throw new PdfException('inverse(0) is undefined in GF(2^k)');
-        }
-        $idx = ($this->size - 1 - $this->logTable[$a]) % ($this->size - 1);
-        return $this->expTable[$idx] ?? 0;
-    }
 }

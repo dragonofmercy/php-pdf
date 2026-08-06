@@ -8,7 +8,8 @@ namespace DragonOfMercy\PhpPdf\Writer\Object;
  * A verbatim PDF token whose bytes are emitted exactly as provided, with no
  * escaping or transformation. ONLY for trusted, pre-serialized PDF fragments
  * (e.g. fixed-width placeholders such as /ByteRange and /Contents in digital
- * signature dictionaries, or inline shading pattern dictionaries).
+ * signature dictionaries, inline shading pattern dictionaries, or the /W
+ * array CidWidthsArray already emits as compressed PDF syntax).
  * NEVER use with user-supplied data.
  *
  * @internal

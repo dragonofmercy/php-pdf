@@ -1324,15 +1324,6 @@ final class Parser
     }
 
     /**
-     * Returns the MarkerResolver built during doParse, or null when called
-     * before parsing (unit-test construction without doParse).
-     */
-    public function markerResolver(): ?Marker\MarkerResolver
-    {
-        return $this->markers;
-    }
-
-    /**
      * @return list<DOMElement>
      */
     private function childElements(DOMElement $el): array

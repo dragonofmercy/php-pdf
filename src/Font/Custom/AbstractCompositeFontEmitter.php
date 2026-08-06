@@ -11,6 +11,7 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfNumber;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
+use DragonOfMercy\PhpPdf\Writer\Object\RawValue;
 
 /**
  * Shared scaffolding for the two Type0 composite emitters (TrueType subset via
@@ -66,7 +67,7 @@ abstract class AbstractCompositeFontEmitter
             $cidFont = $cidFont->withEntry(Name::of('CIDToGIDMap'), Name::of('Identity'));
         }
 
-        return $cidFont->withEntry(Name::of('W'), new WidthsLiteral(CidWidthsArray::generate($font)));
+        return $cidFont->withEntry(Name::of('W'), RawValue::of(CidWidthsArray::generate($font)));
     }
 
     final protected function buildDescriptor(ParsedTtf $font, Name $baseFont, int $fontFileId, ?int $cidSetId = null): Dictionary

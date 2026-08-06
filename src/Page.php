@@ -1785,22 +1785,6 @@ final class Page
     }
 
     /**
-     * @internal
-     *
-     * @return array{ascent: float, descent: float, capHeight: float, xHeight: float}
-     */
-    public function activeFontMetricsAtPt(float $sizePt): array
-    {
-        $engine = $this->textState->activeEngine();
-        return [
-            'ascent' => $engine->ascentAt($sizePt),
-            'descent' => $engine->descentAt($sizePt),
-            'capHeight' => $engine->capHeightAt($sizePt),
-            'xHeight' => $engine->xHeightAt($sizePt),
-        ];
-    }
-
-    /**
      * Declares a clickable link annotation covering the rectangle `(x, y,
      * width, height)` in the document's user unit (top-down Y, same as
      * `cell()` / `text()`). The `Link` payload picks the action:
