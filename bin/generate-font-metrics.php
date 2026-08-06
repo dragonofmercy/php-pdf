@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Generates build/src/Font/Metrics/*.php from Adobe AFM files placed in
- * build/bin/afm-source/. Source AFMs are NOT committed to the repo
- * (.gitignore excludes them); fetch them from the Adobe Core14 AFMs project
- * before running this script.
+ * Generates build/src/Font/Metrics/*.php from the Adobe Core14 AFM files
+ * committed under build/bin/afm-source/.
  *
  * Usage: php build/bin/generate-font-metrics.php
  */
@@ -173,8 +171,13 @@ function emitPhp(string $afmName, array $data): string
     $out .= sprintf("    'xHeight' => %d,\n", $data['xHeight']);
     $out .= sprintf("    'missingWidth' => %d,\n", $data['missingWidth']);
     $out .= "    'widths' => [\n";
+    $entries = [];
     foreach ($data['widths'] as $byte => $width) {
-        $out .= sprintf("        0x%02X => %d,\n", $byte, $width);
+        $entries[] = sprintf('0x%02X => %d,', $byte, $width);
+    }
+    // 12 per line: ~164 chars, well under the project's 256-char line budget.
+    foreach (array_chunk($entries, 12) as $chunk) {
+        $out .= '        ' . implode(' ', $chunk) . "\n";
     }
     $out .= "    ],\n";
     $out .= "];\n";
