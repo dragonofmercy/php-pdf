@@ -7,11 +7,10 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\NextPosition;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class RtlMarkdownTest extends TestCase
 {
@@ -28,13 +27,7 @@ final class RtlMarkdownTest extends TestCase
 
     public function testPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/markdown/rtl-blocks.pdf']);
-        $process->run();
-        self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/markdown/rtl-blocks.pdf');
     }
 
     public static function buildPdfBytes(): string
@@ -79,13 +72,7 @@ final class RtlMarkdownTest extends TestCase
 
     public function testListsPassQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/markdown/rtl-lists.pdf']);
-        $process->run();
-        self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/markdown/rtl-lists.pdf');
     }
 
     public static function buildListsPdfBytes(): string

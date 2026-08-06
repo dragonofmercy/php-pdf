@@ -8,11 +8,10 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Table\Cell;
 use DragonOfMercy\PhpPdf\Table\Column;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Text\Direction;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class RtlHebrewTableTest extends TestCase
 {
@@ -29,13 +28,7 @@ final class RtlHebrewTableTest extends TestCase
 
     public function testPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/rtl/hebrew-table.pdf']);
-        $process->run();
-        self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/rtl/hebrew-table.pdf');
     }
 
     public static function buildPdfBytes(): string

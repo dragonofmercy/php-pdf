@@ -13,10 +13,9 @@ use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\TableBorders;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\TextAlign;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class TaggingGoldenTest extends TestCase
 {
@@ -39,13 +38,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testCellParagraphPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/cell-paragraph.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/cell-paragraph.pdf');
     }
 
     public static function buildFigure(): string
@@ -66,13 +59,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testFigurePassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/figure.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/figure.pdf');
     }
 
     public static function buildImageLink(): string
@@ -94,13 +81,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testImageLinkPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/image-link.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/image-link.pdf');
     }
 
     public static function buildTable(): string
@@ -135,13 +116,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testTablePassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/table.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/table.pdf');
     }
 
     public static function buildMarkdown(): string
@@ -163,13 +138,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testMarkdownPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/markdown.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/markdown.pdf');
     }
 
     public static function buildMarkdownLinks(): string
@@ -192,13 +161,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testMarkdownLinksPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/markdown-links.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/markdown-links.pdf');
     }
 
     public static function buildMarkdownImageLink(): string
@@ -221,13 +184,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testMarkdownImageLinkPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/markdown-image-link.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/markdown-image-link.pdf');
     }
 
     private const string FONTS_DIR = __DIR__ . '/assets/fonts';
@@ -297,13 +254,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testUaDocumentPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-document.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/ua-document.pdf');
     }
 
     /**
@@ -336,13 +287,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testUaLinksDocumentPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-links.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/ua-links.pdf');
     }
 
     /**
@@ -375,13 +320,7 @@ final class TaggingGoldenTest extends TestCase
 
     public function testUaMarkdownLinksPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-markdown-links.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/ua-markdown-links.pdf');
     }
 
     /**
@@ -412,12 +351,6 @@ final class TaggingGoldenTest extends TestCase
 
     public function testUaImageLinksPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/tagging/ua-image-links.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/tagging/ua-image-links.pdf');
     }
 }

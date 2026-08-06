@@ -6,11 +6,10 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\TextAlign;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class CellJustifyGoldenTest extends TestCase
 {
@@ -36,13 +35,7 @@ final class CellJustifyGoldenTest extends TestCase
 
     public function testStandardPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/page/cell-justify.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/cell-justify.pdf');
     }
 
     // --- Custom font (FreeSans TTF) justified cell ---
@@ -72,12 +65,6 @@ final class CellJustifyGoldenTest extends TestCase
         if (!is_file(__DIR__ . '/assets/fonts/FreeSans.ttf')) {
             self::markTestSkipped('FreeSans.ttf asset absent');
         }
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/page/cell-justify-custom.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/cell-justify-custom.pdf');
     }
 }

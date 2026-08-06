@@ -11,9 +11,8 @@ use DragonOfMercy\PhpPdf\Form\Combobox;
 use DragonOfMercy\PhpPdf\Form\Listbox;
 use DragonOfMercy\PhpPdf\Form\Radio;
 use DragonOfMercy\PhpPdf\Form\TextField;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class PageWithFormsTest extends TestCase
 {
@@ -32,17 +31,7 @@ final class PageWithFormsTest extends TestCase
 
     public function testPageWithFormsPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', self::FIXTURE]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(self::FIXTURE);
     }
 
     public function testCatalogContainsAcroForm(): void

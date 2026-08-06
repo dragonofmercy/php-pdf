@@ -6,10 +6,9 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class TemplateImportTest extends TestCase
 {
@@ -63,18 +62,11 @@ final class TemplateImportTest extends TestCase
 
     private function assertQpdfClean(string $bytes): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
         $tmp = tempnam(sys_get_temp_dir(), 'phppdf_tpl_golden_');
         self::assertIsString($tmp);
         try {
             file_put_contents($tmp, $bytes);
-            $process = new Process([$qpdf, '--check', $tmp]);
-            $process->run();
-            self::assertSame(0, $process->getExitCode(),
-                "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput());
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }

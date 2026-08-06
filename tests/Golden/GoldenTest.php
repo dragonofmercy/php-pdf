@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\ExecutableFinder;
@@ -31,11 +32,6 @@ final class GoldenTest extends TestCase
 
     public function testEmptyPagePassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
         $doc = new Document(Unit::PT);
         $doc->addPage();
         $tmp = tempnam(sys_get_temp_dir(), 'phppdf_golden_');
@@ -43,13 +39,7 @@ final class GoldenTest extends TestCase
 
         try {
             file_put_contents($tmp, $doc->output());
-            $process = new Process([$qpdf, '--check', $tmp]);
-            $process->run();
-            self::assertSame(
-                0,
-                $process->getExitCode(),
-                "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-            );
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }
@@ -80,11 +70,6 @@ final class GoldenTest extends TestCase
 
     public function testDocumentWithMetadataPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
         $doc = new Document(Unit::PT);
         $doc->metadata()
             ->title('Test')
@@ -97,13 +82,7 @@ final class GoldenTest extends TestCase
 
         try {
             file_put_contents($tmp, $doc->output());
-            $process = new Process([$qpdf, '--check', $tmp]);
-            $process->run();
-            self::assertSame(
-                0,
-                $process->getExitCode(),
-                "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-            );
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }
@@ -215,22 +194,7 @@ final class GoldenTest extends TestCase
 
     public function testPageWithGraphicsPassesQpdfCheck(): void
     {
-        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
-        $process = new \Symfony\Component\Process\Process([
-            $qpdf,
-            '--check',
-            __DIR__ . '/fixtures/page/graphics.pdf',
-        ]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/graphics.pdf');
     }
 
     public function testPageWithTextMatchesFixtureBytes(): void
@@ -265,22 +229,7 @@ final class GoldenTest extends TestCase
 
     public function testPageWithTextPassesQpdfCheck(): void
     {
-        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
-        $process = new \Symfony\Component\Process\Process([
-            $qpdf,
-            '--check',
-            __DIR__ . '/fixtures/page/text.pdf',
-        ]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/text.pdf');
     }
 
     public function testPageWithCellsMatchesFixtureBytes(): void
@@ -363,21 +312,6 @@ final class GoldenTest extends TestCase
 
     public function testPageWithCellsPassesQpdfCheck(): void
     {
-        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
-        $process = new \Symfony\Component\Process\Process([
-            $qpdf,
-            '--check',
-            __DIR__ . '/fixtures/page/cells.pdf',
-        ]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/cells.pdf');
     }
 }

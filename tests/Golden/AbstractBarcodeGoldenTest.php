@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 /**
  * Common machinery for the per-format barcode golden tests:
@@ -34,16 +33,6 @@ abstract class AbstractBarcodeGoldenTest extends TestCase
 
     public function testPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', $this->fixturePath()]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck($this->fixturePath());
     }
 }

@@ -8,10 +8,9 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Outline\Destination;
 use DragonOfMercy\PhpPdf\Outline\Link;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class PageWithOutlinesAndLinksTest extends TestCase
 {
@@ -30,17 +29,7 @@ final class PageWithOutlinesAndLinksTest extends TestCase
 
     public function testPageWithOutlinesAndLinksPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', self::FIXTURE]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(self::FIXTURE);
     }
 
     public function testFixtureContainsOutlinesCatalogEntry(): void

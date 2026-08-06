@@ -9,10 +9,9 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\Page;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class ColumnsGoldenTest extends TestCase
 {
@@ -44,13 +43,7 @@ final class ColumnsGoldenTest extends TestCase
 
     public function testCellsPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/page/columns-cells.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/columns-cells.pdf');
     }
 
     // --- markdown flowing across two columns, single page ---
@@ -107,13 +100,7 @@ MD;
 
     public function testMarkdown1PagePassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/page/columns-markdown-1page.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/columns-markdown-1page.pdf');
     }
 
     // --- markdown flowing across two columns over two pages ---
@@ -184,12 +171,6 @@ MD;
 
     public function testMarkdown2PagesPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/page/columns-markdown-2pages.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/columns-markdown-2pages.pdf');
     }
 }

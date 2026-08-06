@@ -6,9 +6,8 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Form\TextField;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class FormPasswordTest extends TestCase
 {
@@ -24,13 +23,7 @@ final class FormPasswordTest extends TestCase
 
     public function testQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $process = new Process([$qpdf, '--check', self::FIXTURE]);
-        $process->run();
-        self::assertSame(0, $process->getExitCode(), 'qpdf --check failed: ' . $process->getOutput() . $process->getErrorOutput());
+        Qpdf::assertCheck(self::FIXTURE);
     }
 
     public function testCatalogHasAcroForm(): void

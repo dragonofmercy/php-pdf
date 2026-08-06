@@ -6,10 +6,9 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Image;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class SvgTextPathMiddleTest extends TestCase
 {
@@ -36,16 +35,10 @@ final class SvgTextPathMiddleTest extends TestCase
 
     public function testPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
         $tmp = tempnam(sys_get_temp_dir(), 'phppdf-textpath-') . '.pdf';
         file_put_contents($tmp, self::buildPdfBytes());
         try {
-            $proc = new Process([$qpdf, '--check', $tmp]);
-            $proc->run();
-            self::assertSame(0, $proc->getExitCode(), $proc->getOutput() . $proc->getErrorOutput());
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }

@@ -7,6 +7,7 @@ namespace DragonOfMercy\PhpPdf\Tests\Unit\Import;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -87,19 +88,13 @@ final class DocumentTemplateOutputTest extends TestCase
 
     public function testQpdfValidatesTemplateOutput(): void
     {
-        $qpdf = (new \Symfony\Component\Process\ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
         $doc = new Document(Unit::PT);
         $doc->addPage()->template($doc->importPdfBytes(self::sourcePdfBytes())->page(1), 0, 0);
         $tmp = tempnam(sys_get_temp_dir(), 'phppdf_tpl_');
         self::assertIsString($tmp);
         try {
             file_put_contents($tmp, $doc->output());
-            $process = new \Symfony\Component\Process\Process([$qpdf, '--check', $tmp]);
-            $process->run();
-            self::assertSame(0, $process->getExitCode(), "qpdf --check failed:\n" . $process->getOutput() . $process->getErrorOutput());
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }

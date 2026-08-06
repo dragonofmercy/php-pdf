@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -17,8 +18,6 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfString;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class PdfModifyTest extends TestCase
 {
@@ -92,17 +91,7 @@ final class PdfModifyTest extends TestCase
 
     public function testAmendedContractPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', self::FIXTURE]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(self::FIXTURE);
     }
 
     /** Decode a reopened /Info text-string value (PdfString or UTF-16BE HexString) to UTF-8. */

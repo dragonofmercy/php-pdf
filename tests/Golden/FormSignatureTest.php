@@ -8,9 +8,8 @@ use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Form\FieldAppearance;
 use DragonOfMercy\PhpPdf\Form\SignatureField;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class FormSignatureTest extends TestCase
 {
@@ -26,13 +25,7 @@ final class FormSignatureTest extends TestCase
 
     public function testQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $process = new Process([$qpdf, '--check', self::FIXTURE]);
-        $process->run();
-        self::assertSame(0, $process->getExitCode(), 'qpdf --check failed: ' . $process->getOutput() . $process->getErrorOutput());
+        Qpdf::assertCheck(self::FIXTURE);
     }
 
     public function testSigFieldAndFlagsPresent(): void

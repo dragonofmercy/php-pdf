@@ -10,10 +10,9 @@ use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\NextPosition;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\PageMargins;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class PageAutoBreakTest extends TestCase
 {
@@ -30,22 +29,7 @@ final class PageAutoBreakTest extends TestCase
 
     public function testPageAutoBreakPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
-        $process = new Process([
-            $qpdf,
-            '--check',
-            __DIR__ . '/fixtures/page/auto-break.pdf',
-        ]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/auto-break.pdf');
     }
 
     private function buildPdfBytes(): string

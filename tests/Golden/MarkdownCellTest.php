@@ -8,10 +8,9 @@ use DragonOfMercy\PhpPdf\Border;
 use DragonOfMercy\PhpPdf\Color;
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class MarkdownCellTest extends TestCase
 {
@@ -28,22 +27,7 @@ final class MarkdownCellTest extends TestCase
 
     public function testMarkdownCellPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
-        $process = new Process([
-            $qpdf,
-            '--check',
-            __DIR__ . '/fixtures/markdown/cell.pdf',
-        ]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/markdown/cell.pdf');
     }
 
     public static function buildPdfBytes(): string

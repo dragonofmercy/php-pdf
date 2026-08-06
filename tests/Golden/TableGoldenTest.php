@@ -13,10 +13,9 @@ use DragonOfMercy\PhpPdf\Table\Column;
 use DragonOfMercy\PhpPdf\Table\ColumnGroup;
 use DragonOfMercy\PhpPdf\Table\TableBorders;
 use DragonOfMercy\PhpPdf\Table\TableStyle;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\TextAlign;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class TableGoldenTest extends TestCase
 {
@@ -55,13 +54,7 @@ final class TableGoldenTest extends TestCase
 
     public function testBasicPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-basic.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/table/table-basic.pdf');
     }
 
     // --- Task 11: styled table (zebra + horizontal borders + conditional) ---
@@ -106,13 +99,7 @@ final class TableGoldenTest extends TestCase
 
     public function testStyledPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-styled.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/table/table-styled.pdf');
     }
 
     // --- Task 12: paginated (with and without header repeat) ---
@@ -154,14 +141,8 @@ final class TableGoldenTest extends TestCase
 
     public function testPaginatedPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
         foreach (['table-paginated.pdf', 'table-paginated-noheader.pdf'] as $f) {
-            $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/' . $f]);
-            $p->run();
-            self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+            Qpdf::assertCheck(__DIR__ . '/fixtures/table/' . $f);
         }
     }
 
@@ -200,13 +181,7 @@ final class TableGoldenTest extends TestCase
 
     public function testAvatarsPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-avatars.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/table/table-avatars.pdf');
     }
 
     // --- Task 6: justified table column ---
@@ -243,13 +218,7 @@ final class TableGoldenTest extends TestCase
 
     public function testJustifiedPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-justify.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/table/table-justify.pdf');
     }
 
     // --- Cell spanning: colspan ---
@@ -287,13 +256,7 @@ final class TableGoldenTest extends TestCase
 
     public function testColspanPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-colspan.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/table/table-colspan.pdf');
     }
 
     // --- Cell spanning: grouped header ---
@@ -339,12 +302,6 @@ final class TableGoldenTest extends TestCase
 
     public function testGroupedHeaderPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-        $p = new Process([$qpdf, '--check', __DIR__ . '/fixtures/table/table-grouped-header.pdf']);
-        $p->run();
-        self::assertSame(0, $p->getExitCode(), (string) $p->getOutput());
+        Qpdf::assertCheck(__DIR__ . '/fixtures/table/table-grouped-header.pdf');
     }
 }

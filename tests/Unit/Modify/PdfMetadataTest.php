@@ -9,6 +9,7 @@ use DragonOfMercy\PhpPdf\Exception\PdfException;
 use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
@@ -181,9 +182,7 @@ final class PdfMetadataTest extends TestCase
             $check = tempnam(sys_get_temp_dir(), 'phppdf_chk_');
             self::assertIsString($check);
             file_put_contents($check, $bytes);
-            $verify = new Process([$qpdf, '--check', $check]);
-            $verify->run();
-            self::assertSame(0, $verify->getExitCode(), $verify->getOutput() . $verify->getErrorOutput());
+            Qpdf::assertCheck($check);
             @unlink($check);
         } finally {
             @unlink($in);

@@ -6,10 +6,9 @@ namespace DragonOfMercy\PhpPdf\Tests\Golden;
 
 use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Image;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class SvgGradientStopAlphaRadialTest extends TestCase
 {
@@ -26,17 +25,7 @@ final class SvgGradientStopAlphaRadialTest extends TestCase
 
     public function testPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-        $process = new Process([$qpdf, '--check', __DIR__ . '/fixtures/svg/gradient/stop-alpha-radial.pdf']);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/svg/gradient/stop-alpha-radial.pdf');
     }
 
     public static function buildPdfBytes(): string

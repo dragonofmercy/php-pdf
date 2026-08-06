@@ -10,6 +10,7 @@ use DragonOfMercy\PhpPdf\Outline\Destination;
 use DragonOfMercy\PhpPdf\Outline\Link;
 use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
@@ -18,8 +19,6 @@ use DragonOfMercy\PhpPdf\Writer\Object\PdfNull;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfObject;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfReference;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class PageOperationsTest extends TestCase
 {
@@ -88,18 +87,12 @@ final class PageOperationsTest extends TestCase
 
     public function testQpdfCheckOnDeletedOutput(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
         $out = PdfEditor::fromBytes(self::sourceWithOutlinesAndLinks())->deletePages(2)->reorderPages([3, 1])->output();
         $tmp = tempnam(sys_get_temp_dir(), 'phppdf_pageops_');
         self::assertIsString($tmp);
         try {
             file_put_contents($tmp, $out);
-            $process = new Process([$qpdf, '--check', $tmp]);
-            $process->run();
-            self::assertSame(0, $process->getExitCode(), 'qpdf --check failed: ' . $process->getOutput() . $process->getErrorOutput());
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }

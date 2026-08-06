@@ -8,10 +8,9 @@ use DragonOfMercy\PhpPdf\Document;
 use DragonOfMercy\PhpPdf\Font;
 use DragonOfMercy\PhpPdf\Page;
 use DragonOfMercy\PhpPdf\PageMargins;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Unit;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 final class PageWithHeaderFooterTest extends TestCase
 {
@@ -28,22 +27,7 @@ final class PageWithHeaderFooterTest extends TestCase
 
     public function testPageWithHeaderFooterPassesQpdfCheck(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf is not installed; skipping structural validation.');
-        }
-
-        $process = new Process([
-            $qpdf,
-            '--check',
-            __DIR__ . '/fixtures/page/header-footer.pdf',
-        ]);
-        $process->run();
-        self::assertSame(
-            0,
-            $process->getExitCode(),
-            "qpdf --check failed:\nstdout:\n" . $process->getOutput() . "\nstderr:\n" . $process->getErrorOutput(),
-        );
+        Qpdf::assertCheck(__DIR__ . '/fixtures/page/header-footer.pdf');
     }
 
     private function buildPdfBytes(): string

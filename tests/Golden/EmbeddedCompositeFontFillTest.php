@@ -8,12 +8,11 @@ use DragonOfMercy\PhpPdf\Font\Custom\TtfParser;
 use DragonOfMercy\PhpPdf\PdfEditor;
 use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Reader\ReadStream;
+use DragonOfMercy\PhpPdf\Tests\Support\Qpdf;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\Name;
 use DragonOfMercy\PhpPdf\Writer\Object\PdfArray;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\ExecutableFinder;
-use Symfony\Component\Process\Process;
 
 /**
  * Integration tests for filling and flattening a text field whose /DA references
@@ -155,11 +154,6 @@ final class EmbeddedCompositeFontFillTest extends TestCase
 
     public function testQpdfCheckFilledOutput(): void
     {
-        $qpdf = (new ExecutableFinder())->find('qpdf');
-        if ($qpdf === null) {
-            self::markTestSkipped('qpdf not on PATH');
-        }
-
         $src = CompositeEmbeddedFontFixtureBuilder::build();
         $filled = PdfEditor::fromBytes($src)->setField('textfield', 'Hi')->output();
 
@@ -167,13 +161,7 @@ final class EmbeddedCompositeFontFillTest extends TestCase
         self::assertIsString($tmp);
         try {
             file_put_contents($tmp, $filled);
-            $process = new Process([$qpdf, '--check', $tmp]);
-            $process->run();
-            self::assertSame(
-                0,
-                $process->getExitCode(),
-                'qpdf --check failed: ' . $process->getOutput() . $process->getErrorOutput(),
-            );
+            Qpdf::assertCheck($tmp);
         } finally {
             @unlink($tmp);
         }
