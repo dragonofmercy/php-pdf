@@ -34,23 +34,10 @@ final class MetricsRegistry
 
     private function load(string $pdfName): FontMetrics
     {
-        $fileName = match ($pdfName) {
-            'Helvetica' => 'Helvetica',
-            'Helvetica-Bold' => 'HelveticaBold',
-            'Helvetica-Oblique' => 'HelveticaOblique',
-            'Helvetica-BoldOblique' => 'HelveticaBoldOblique',
-            'Times-Roman' => 'TimesRoman',
-            'Times-Bold' => 'TimesBold',
-            'Times-Italic' => 'TimesItalic',
-            'Times-BoldItalic' => 'TimesBoldItalic',
-            'Courier' => 'Courier',
-            'Courier-Bold' => 'CourierBold',
-            'Courier-Oblique' => 'CourierOblique',
-            'Courier-BoldOblique' => 'CourierBoldOblique',
-            default => throw new PdfException("Unsupported font for metrics: {$pdfName}"),
-        };
-
-        $path = $this->metricsDir . '/' . $fileName . '.php';
+        // The 12 metric files are named after their PDF font name minus the
+        // hyphen: Times-BoldItalic -> TimesBoldItalic.php. Font::pdfName()
+        // only ever yields one of those 12, custom fonts throwing before here.
+        $path = $this->metricsDir . '/' . str_replace('-', '', $pdfName) . '.php';
         if (!is_file($path)) {
             throw new PdfException("Font metrics file not found: {$path}");
         }
