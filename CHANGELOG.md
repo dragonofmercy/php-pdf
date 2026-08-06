@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.4] - 2026-08-06
+
+### Changed
+- Housekeeping release, no functional change: dead code removed, the generated font-metric and Arabic shaping tables stored more compactly, and a few single-use indirections folded into their callers. The public API is untouched and the generated PDFs are byte-for-byte identical to 1.12.3, so upgrading is optional.
+
 ## [1.12.3] - 2026-07-17
 
 ### Fixed
@@ -316,6 +321,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.12.4]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.4
 [1.12.3]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.3
 [1.12.2]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.2
 [1.12.1]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.1
