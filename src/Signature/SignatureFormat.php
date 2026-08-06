@@ -22,4 +22,13 @@ enum SignatureFormat
             self::EtsiCadesDetached => 'ETSI.CAdES.detached',
         };
     }
+
+    /** @internal */
+    public function signer(): CmsSigner
+    {
+        return match ($this) {
+            self::Pkcs7Detached => new Pkcs7Signer(),
+            self::EtsiCadesDetached => new Cades\CadesSigner(),
+        };
+    }
 }

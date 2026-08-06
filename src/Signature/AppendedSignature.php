@@ -34,7 +34,7 @@ final readonly class AppendedSignature implements AppendedRevision
 
     public function fill(string $signedData): string
     {
-        $der = CmsSignerFactory::for($this->signature->format)->sign($signedData, $this->signature->certificate);
+        $der = $this->signature->format->signer()->sign($signedData, $this->signature->certificate);
         if ($this->signature->tsa !== null) {
             $der = (new SignatureTimestamper($this->signature->tsa->hash))
                 ->timestamp($der, $this->signature->tsa->client);

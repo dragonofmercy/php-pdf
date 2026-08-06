@@ -24,11 +24,9 @@ use DragonOfMercy\PhpPdf\Reader\PdfReader;
 use DragonOfMercy\PhpPdf\Signature\AppendedRevision;
 use DragonOfMercy\PhpPdf\Signature\AppendedSignature;
 use DragonOfMercy\PhpPdf\Signature\Ltv\DssRevision;
-use DragonOfMercy\PhpPdf\Signature\ReuseFieldPlan;
 use DragonOfMercy\PhpPdf\Signature\RevisionContext;
 use DragonOfMercy\PhpPdf\Signature\SignatureAppearance;
 use DragonOfMercy\PhpPdf\Signature\SignatureFieldPlan;
-use DragonOfMercy\PhpPdf\Signature\VisibleFieldPlan;
 use DragonOfMercy\PhpPdf\Writer\Object\Dictionary;
 use DragonOfMercy\PhpPdf\Writer\Object\HexString;
 use DragonOfMercy\PhpPdf\Writer\Object\IndirectObject;
@@ -182,7 +180,7 @@ final class EditRevisionBuilder
                 }
                 $page = $this->pageObjectAt($appearance->pageIndex);
                 $rect = $this->appearanceRect($appearance, $page);
-                $plans[$name] = new VisibleFieldPlan($page, $rect, $appearance);
+                $plans[$name] = SignatureFieldPlan::visible($page, $rect, $appearance);
                 continue;
             }
 
@@ -196,7 +194,7 @@ final class EditRevisionBuilder
                 throw new PdfException("Field '{$name}' is already signed");
             }
             $this->guardGenerationZero($rf->objectNumber, "signature field '{$name}'");
-            $plans[$name] = new ReuseFieldPlan(IndirectObject::of($rf->objectNumber, 0, $rf->dict));
+            $plans[$name] = SignatureFieldPlan::reuse(IndirectObject::of($rf->objectNumber, 0, $rf->dict));
         }
         return $plans;
     }

@@ -47,9 +47,16 @@ final readonly class IncrementalRevisionStacker
 
             $name = $revision->fieldName();
             $plan = $plans[$name] ?? null;
-            $built = $plan !== null
-                ? $plan->realize($this->builder, $ctx, $revision->valueDict(...), $name)
-                : $this->builder->build($ctx, $revision->valueDict(...), $name);
+            $valueDict = $revision->valueDict(...);
+            if ($plan === null) {
+                $built = $this->builder->build($ctx, $valueDict, $name);
+            } elseif ($plan->existingField !== null) {
+                $built = $this->builder->buildReuse($ctx, $valueDict, $plan->existingField);
+            } elseif ($plan->visible !== null) {
+                $built = $this->builder->buildVisible($ctx, $valueDict, $name, $plan->visible['page'], $plan->visible['rect'], $plan->visible['appearance']);
+            } else {
+                throw new PdfException("Signature field plan for '{$name}' selects neither an existing field nor a visible one");
+            }
 
             $searchFrom = strlen($bytes);
             $prevStartxref = $this->lastStartxrefOffset($bytes);
