@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DragonOfMercy\PhpPdf\Tests\Unit\Text\Arabic;
 
 use DragonOfMercy\PhpPdf\Text\Arabic\ArabicShapingData;
+use DragonOfMercy\PhpPdf\Text\RangeTable;
 use PHPUnit\Framework\TestCase;
 
 final class ArabicShapingDataTest extends TestCase
@@ -22,10 +23,16 @@ final class ArabicShapingDataTest extends TestCase
 
     public function testJoiningTypes(): void
     {
-        self::assertSame('D', ArabicShapingData::JOINING_TYPES[0x0644]); // lam
-        self::assertSame('R', ArabicShapingData::JOINING_TYPES[0x0627]); // alef
-        self::assertSame('C', ArabicShapingData::JOINING_TYPES[0x0640]); // tatweel
-        self::assertSame('T', ArabicShapingData::JOINING_TYPES[0x064E]); // fatha (Mn default)
+        self::assertSame('D', self::joiningType(0x0644)); // lam
+        self::assertSame('R', self::joiningType(0x0627)); // alef
+        self::assertSame('C', self::joiningType(0x0640)); // tatweel
+        self::assertSame('T', self::joiningType(0x064E)); // fatha (Mn default)
+        self::assertSame('U', self::joiningType(0x0041)); // latin A, outside every range
+    }
+
+    private static function joiningType(int $codepoint): string
+    {
+        return RangeTable::lookup(ArabicShapingData::JOINING_TYPES, $codepoint, 'U');
     }
 
     public function testLamAlefLigatures(): void

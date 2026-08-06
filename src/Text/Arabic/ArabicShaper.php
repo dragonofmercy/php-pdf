@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DragonOfMercy\PhpPdf\Text\Arabic;
 
+use DragonOfMercy\PhpPdf\Text\RangeTable;
+
 /**
  * Pure-PHP Arabic cursive shaper. Rewrites a logical-order string so Arabic
  * letters use their contextual presentation forms (isolated/initial/medial/
@@ -93,7 +95,7 @@ final class ArabicShaper
     /** Joining type of a codepoint; default 'U' (non-joining). */
     private static function joiningType(int $cp): string
     {
-        return ArabicShapingData::JOINING_TYPES[$cp] ?? 'U';
+        return RangeTable::lookup(ArabicShapingData::JOINING_TYPES, $cp, 'U');
     }
 
     /**
