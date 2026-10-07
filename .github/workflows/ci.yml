@@ -23,7 +23,11 @@ jobs:
           tools: composer:v2
 
       - name: Install qpdf
-        run: sudo apt-get update && sudo apt-get install -y qpdf
+        run: |
+          sudo apt-get update && sudo apt-get install -y qpdf
+          # Ubuntu 26 confines qpdf with AppArmor, which denies reading the extension-less tempnam() files under /tmp
+          sudo aa-status 2>/dev/null | grep -i qpdf || echo "no qpdf AppArmor profile loaded"
+          for profile in $(grep -lis qpdf /etc/apparmor.d/* 2>/dev/null); do echo "unloading $profile"; sudo apparmor_parser -R "$profile"; done
 
       - name: Validate composer.json
         run: composer validate --strict
