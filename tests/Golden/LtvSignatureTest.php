@@ -118,7 +118,7 @@ final class LtvSignatureTest extends TestCase
 
     public function testPyHankoValidatesLtv(): void
     {
-        $python = 'C:/tmp/pdfsig-venv/Scripts/python.exe';
+        $python = getenv('PHPPDF_PYHANKO_PYTHON') ?: 'C:/tmp/pdfsig-venv/Scripts/python.exe';
         if (!is_file($python)) {
             self::markTestSkipped('pyHanko venv unavailable');
         }

@@ -29,6 +29,13 @@ jobs:
           sudo aa-status 2>/dev/null | grep -i qpdf || echo "no qpdf AppArmor profile loaded"
           for profile in $(grep -lis qpdf /etc/apparmor.d/* 2>/dev/null); do echo "unloading $profile"; sudo apparmor_parser -R "$profile"; done
 
+      - name: Install cross-check tools (pyHanko, pikepdf)
+        run: |
+          python3 -m venv /tmp/pdfsig-venv
+          /tmp/pdfsig-venv/bin/pip install --quiet 'pyhanko==0.35.*' pikepdf
+          echo "PHPPDF_PYHANKO_PYTHON=/tmp/pdfsig-venv/bin/python" >> "$GITHUB_ENV"
+          echo "PHPPDF_PIKEPDF_PATH=$(/tmp/pdfsig-venv/bin/python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")" >> "$GITHUB_ENV"
+
       - name: Validate composer.json
         run: composer validate --strict
 

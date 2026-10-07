@@ -49,7 +49,6 @@ use Symfony\Component\Process\Process;
 final class PdfEditorEncryptedRoundtripTest extends TestCase
 {
     private const string DIR = __DIR__ . '/assets/encrypted/';
-    private const string PIKEPDF_PATH = 'C:/tmp/pyenc';
     private const string EDITED_TITLE = 'Edited-MARKER-XYZ';
 
     /** @return iterable<string, array{string, string}> file => password */
@@ -106,8 +105,9 @@ final class PdfEditorEncryptedRoundtripTest extends TestCase
         if ($python === null) {
             self::markTestSkipped('python not on PATH; cross-tool pikepdf anchor skipped');
         }
-        if (!is_dir(self::PIKEPDF_PATH)) {
-            self::markTestSkipped('pikepdf install absent at ' . self::PIKEPDF_PATH . '; cross-tool anchor skipped');
+        $pikepdfPath = getenv('PHPPDF_PIKEPDF_PATH') ?: 'C:/tmp/pyenc';
+        if (!is_dir($pikepdfPath)) {
+            self::markTestSkipped("pikepdf install absent at {$pikepdfPath}; cross-tool anchor skipped");
         }
 
         $tmpPdf = (string) tempnam(sys_get_temp_dir(), 'phppdf_enc_');
@@ -116,7 +116,7 @@ final class PdfEditorEncryptedRoundtripTest extends TestCase
             file_put_contents($tmpPdf, $pdf);
             file_put_contents($tmpScript, self::pikepdfScript());
 
-            $process = new Process([$python, $tmpScript, $tmpPdf, $password]);
+            $process = new Process([$python, $tmpScript, $tmpPdf, $password], env: ['PYTHONPATH' => $pikepdfPath]);
             $process->run();
 
             $stdout = $process->getOutput();
@@ -159,7 +159,6 @@ final class PdfEditorEncryptedRoundtripTest extends TestCase
     {
         return <<<'PY'
             import sys
-            sys.path.insert(0, 'C:/tmp/pyenc')
             import pikepdf
 
             path, password = sys.argv[1], sys.argv[2]

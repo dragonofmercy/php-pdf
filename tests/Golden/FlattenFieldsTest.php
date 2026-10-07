@@ -121,8 +121,9 @@ final class FlattenFieldsTest extends TestCase
         if ($python === null) {
             self::markTestSkipped('python not on PATH; cross-tool pikepdf anchor skipped');
         }
-        if (!is_dir('C:/tmp/pyenc')) {
-            self::markTestSkipped('pikepdf install absent at C:/tmp/pyenc; cross-tool anchor skipped');
+        $pikepdfPath = getenv('PHPPDF_PIKEPDF_PATH') ?: 'C:/tmp/pyenc';
+        if (!is_dir($pikepdfPath)) {
+            self::markTestSkipped("pikepdf install absent at {$pikepdfPath}; cross-tool anchor skipped");
         }
 
         $editor = PdfEditor::fromBytes(self::formBytes());
@@ -137,7 +138,6 @@ final class FlattenFieldsTest extends TestCase
             file_put_contents($tmpPdf, $out);
             file_put_contents($tmpScript, <<<'PY'
                 import sys
-                sys.path.insert(0, 'C:/tmp/pyenc')
                 import pikepdf
                 with pikepdf.open(sys.argv[1]) as pdf:
                     root = pdf.Root
@@ -148,7 +148,7 @@ final class FlattenFieldsTest extends TestCase
                     print('ANNOTS=' + str(len(annots)))
                 PY);
 
-            $process = new Process([$python, $tmpScript, $tmpPdf]);
+            $process = new Process([$python, $tmpScript, $tmpPdf], env: ['PYTHONPATH' => $pikepdfPath]);
             $process->run();
             $stdout = $process->getOutput();
             $stderr = $process->getErrorOutput();
