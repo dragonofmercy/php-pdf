@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: PHPStan & PHPUnit (PHP 8.4, ubuntu)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
