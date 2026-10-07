@@ -27,8 +27,10 @@ final class PdfObjectAllocatorTest extends TestCase
     public function testPeekReturnsCurrentWithoutAdvancing(): void
     {
         $alloc = new PdfObjectAllocator(7);
-        self::assertSame(7, $alloc->peek());
-        self::assertSame(7, $alloc->peek());
+        $first = $alloc->peek();
+        $second = $alloc->peek();
+        self::assertSame(7, $first);
+        self::assertSame(7, $second);
         self::assertSame(7, $alloc->next());
         self::assertSame(8, $alloc->peek());
     }

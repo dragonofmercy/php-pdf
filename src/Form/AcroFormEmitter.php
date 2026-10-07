@@ -134,7 +134,7 @@ final readonly class AcroFormEmitter
         // $sigObjectNumber carries that reserved number as a plain int, so the
         // emit avoids a property access on the nullable $sigRef (which PHPStan
         // narrows differently across PHP versions).
-        if ($signature !== null && $sigEmitter !== null) {
+        if ($signature !== null) {
             $objects[] = $sigEmitter->emit($signature, $sigObjectNumber);
         }
 

@@ -152,8 +152,10 @@ final class StandardFontEngineTest extends TestCase
         $metrics = (new MetricsRegistry())->metricsFor($font);
         $engine = new StandardFontEngine($font, $metrics);
         $registry = new FontRegistry();
-        self::assertSame('F1', $engine->registerOn($registry));
-        self::assertSame('F1', $engine->registerOn($registry));
+        $first = $engine->registerOn($registry);
+        $second = $engine->registerOn($registry);
+        self::assertSame('F1', $first);
+        self::assertSame('F1', $second);
     }
 
     public function testUsageKeyEqualsPdfName(): void

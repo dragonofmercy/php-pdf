@@ -31,7 +31,6 @@ final class QrEncodeTest extends TestCase
         // The 4-module border on each side must be all-false.
         for ($i = 0; $i < 4; $i++) {
             $row = $matrix[$i];
-            self::assertIsArray($row);
             self::assertContainsOnly('bool', $row);
             self::assertNotContains(true, $row, "top quiet row $i must be all false");
         }

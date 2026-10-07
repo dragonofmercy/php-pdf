@@ -70,8 +70,10 @@ final class ImageRegistryTest extends TestCase
     {
         $r = new ImageRegistry();
         $img = Image::fromBytes(TestImageFactory::pngRgb(4, 4));
-        self::assertSame('Im1', $r->shortName($img));
-        self::assertSame('Im1', $r->shortName($img));
+        $first = $r->shortName($img);
+        $second = $r->shortName($img);
+        self::assertSame('Im1', $first);
+        self::assertSame('Im1', $second);
         self::assertCount(1, $r->registeredImages());
     }
 
@@ -81,16 +83,20 @@ final class ImageRegistryTest extends TestCase
         $bytes = TestImageFactory::pngRgb(4, 4);
         $a = Image::fromBytes($bytes);
         $b = Image::fromBytes($bytes);
-        self::assertSame('Im1', $r->shortName($a));
-        self::assertSame('Im1', $r->shortName($b));
+        $first = $r->shortName($a);
+        $second = $r->shortName($b);
+        self::assertSame('Im1', $first);
+        self::assertSame('Im1', $second);
         self::assertCount(1, $r->registeredImages());
     }
 
     public function testIdenticalContentAcrossPathsDedups(): void
     {
         $r = new ImageRegistry();
-        self::assertSame('Im1', $r->shortName($this->tempPng(4, 4)));
-        self::assertSame('Im1', $r->shortName($this->tempPng(4, 4)));
+        $first = $r->shortName($this->tempPng(4, 4));
+        $second = $r->shortName($this->tempPng(4, 4));
+        self::assertSame('Im1', $first);
+        self::assertSame('Im1', $second);
         self::assertCount(1, $r->registeredImages());
     }
 
