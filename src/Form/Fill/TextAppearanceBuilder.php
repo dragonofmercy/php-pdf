@@ -43,6 +43,13 @@ final class TextAppearanceBuilder
             $size = $da->size;
         }
 
+        // Line breaks: a multiline field starts a new visual line at each one, a single-line
+        // field shows them as a space; either way no control character reaches the font.
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        if (!$multiline) {
+            $text = str_replace("\n", ' ', $text);
+        }
+
         $n = static fn(float $v): string => PdfNumber::ofFloat($v)->toBytes();
 
         $padX = 2.0;
@@ -156,12 +163,33 @@ final class TextAppearanceBuilder
     }
 
     /**
+     * Splits $text at its line breaks into paragraphs and word-wraps each one; an empty
+     * paragraph (two consecutive breaks) stays an empty line.
+     *
+     * @return list<string>
+     */
+    private function wordWrap(string $text, AppearanceFont $font, float $size, float $maxWidthPt): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $lines = [];
+        foreach (explode("\n", $text) as $paragraph) {
+            $wrapped = $this->wordWrapParagraph($paragraph, $font, $size, $maxWidthPt);
+            array_push($lines, ...($wrapped === [] ? [''] : $wrapped));
+        }
+
+        return $lines;
+    }
+
+    /**
      * Greedy word-wrap: splits $text on spaces into visual lines no wider than $maxWidthPt.
      * A single word that exceeds the width always occupies its own line (no infinite loop).
      *
      * @return list<string>
      */
-    private function wordWrap(string $text, AppearanceFont $font, float $size, float $maxWidthPt): array
+    private function wordWrapParagraph(string $text, AppearanceFont $font, float $size, float $maxWidthPt): array
     {
         if ($text === '') {
             return [];

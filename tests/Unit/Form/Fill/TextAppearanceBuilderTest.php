@@ -124,6 +124,45 @@ final class TextAppearanceBuilderTest extends TestCase
         self::assertStringNotContainsString('TL', $r['content']);
     }
 
+    public function testMultilineStartsANewLineAtEachLineBreak(): void
+    {
+        $r = $this->builder()->build("one\ntwo\r\nthree\rfour", 200.0, 80.0, DefaultAppearance::parse('0 g /Helv 10 Tf'),
+            $this->helvetica(), 'Helv', quadding: 0, multiline: true);
+        self::assertSame(['one', 'two', 'three', 'four'], $this->shownStrings($r['content']));
+    }
+
+    public function testMultilineKeepsAnEmptyLineBetweenTwoBreaks(): void
+    {
+        $r = $this->builder()->build("one\n\ntwo", 200.0, 80.0, DefaultAppearance::parse('0 g /Helv 10 Tf'),
+            $this->helvetica(), 'Helv', quadding: 0, multiline: true);
+        self::assertSame(['one', '', 'two'], $this->shownStrings($r['content']));
+    }
+
+    public function testMultilineWrapsEachParagraphOnItsOwn(): void
+    {
+        $r = $this->builder()->build("one two three\nfour", 40.0, 80.0, DefaultAppearance::parse('0 g /Helv 10 Tf'),
+            $this->helvetica(), 'Helv', quadding: 0, multiline: true);
+        $lines = $this->shownStrings($r['content']);
+        self::assertGreaterThan(2, count($lines));
+        self::assertSame('four', $lines[count($lines) - 1]);
+    }
+
+    public function testSingleLineShowsLineBreaksAsSpaces(): void
+    {
+        $r = $this->builder()->build("one\ntwo\r\nthree", 200.0, 14.0, DefaultAppearance::parse('0 g /Helv 10 Tf'),
+            $this->helvetica(), 'Helv', quadding: 0, multiline: false);
+        self::assertSame(['one two three'], $this->shownStrings($r['content']));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function shownStrings(string $content): array
+    {
+        preg_match_all('/\((.*)\) Tj$/m', $content, $m);
+        return $m[1];
+    }
+
     private function tdX(string $content): float
     {
         self::assertSame(1, preg_match('/^([0-9.]+) [0-9.]+ Td$/m', $content, $m));
