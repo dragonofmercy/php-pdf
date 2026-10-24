@@ -70,6 +70,17 @@ final class SimpleFontDictReader
     }
 
     /**
+     * Builds the unicode -> byte code map of an /Encoding dictionary, for fonts that are
+     * not parsed as a SimpleFontProgram (the Standard-14 /DR fonts).
+     *
+     * @return array<int, int>
+     */
+    public static function unicodeToCodeFromEncodingDict(Dictionary $enc, PdfReader $reader, string $fieldName): array
+    {
+        return self::buildFromEncodingDict($enc, fn (PdfObject $o): PdfObject => $reader->resolve($o), $fieldName);
+    }
+
+    /**
      * Builds the unicode -> byte code map from the /Encoding entry.
      *
      * @param \Closure(PdfObject): PdfObject $resolve

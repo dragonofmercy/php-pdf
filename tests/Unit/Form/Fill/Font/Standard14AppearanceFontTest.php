@@ -29,4 +29,28 @@ final class Standard14AppearanceFontTest extends TestCase
         $expected = '(' . PdfLiteralEscape::escape(WinAnsiEncoder::encode('a(b)')) . ')';
         self::assertSame($expected, $apFont->encodeShowOperand('a(b)'));
     }
+
+    public function testEncodeShowOperandUsesTheEncodingMapWhenGiven(): void
+    {
+        // PDFDocEncoding puts „ at 0x8C and • at 0x80, where WinAnsi has Œ and €.
+        $map = [ord('a') => ord('a'), ord('(') => ord('('), 0x201E => 0x8C, 0x2022 => 0x80];
+        $apFont = new Standard14AppearanceFont(Font::helvetica(), new MetricsRegistry(), $map);
+
+        self::assertSame("(\x8Ca\x80\\()", $apFont->encodeShowOperand('„a•('));
+    }
+
+    public function testEncodeShowOperandMapsUnmappedCodepointsToQuestionMark(): void
+    {
+        $apFont = new Standard14AppearanceFont(Font::helvetica(), new MetricsRegistry(), [ord('a') => ord('a')]);
+
+        self::assertSame('(a?)', $apFont->encodeShowOperand('a€'));
+    }
+
+    public function testMeasureWidthIgnoresTheEncodingMap(): void
+    {
+        $plain = new Standard14AppearanceFont(Font::helvetica(), new MetricsRegistry());
+        $mapped = new Standard14AppearanceFont(Font::helvetica(), new MetricsRegistry(), [0x201E => 0x8C]);
+
+        self::assertSame($plain->measureWidth('„x“', 10.0), $mapped->measureWidth('„x“', 10.0));
+    }
 }

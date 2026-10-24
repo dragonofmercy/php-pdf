@@ -42,7 +42,11 @@ final class AppearanceFontFactory
         // 1. Standard-14 detection: exact name or prefix match (same table as the former baseFontToFont).
         $std14 = self::detectStandard14($baseFont);
         if ($std14 !== null) {
-            return new Standard14AppearanceFont($std14, $metrics);
+            return new Standard14AppearanceFont(
+                $std14,
+                $metrics,
+                self::standard14EncodingMap($reader, $drFontDict, $fieldName),
+            );
         }
 
         // 2. Not Standard-14: inspect /Subtype of the font dictionary.
@@ -62,6 +66,28 @@ final class AppearanceFontFactory
                 "Field '{$fieldName}': unsupported font /Subtype \"" . ($subtype ?? '(missing)') . '"',
             ),
         };
+    }
+
+    /**
+     * Returns the unicode -> code map of a Standard-14 /DR font whose /Encoding is a
+     * dictionary (typically Acrobat's PDFDocEncoding /Differences on /Helv), or null to keep
+     * plain WinAnsi: for an absent or named /Encoding, and for a base encoding the map
+     * builder does not support, so no font that filled before starts to throw.
+     *
+     * @return array<int, int>|null
+     */
+    private static function standard14EncodingMap(PdfReader $reader, Dictionary $drFontDict, string $fieldName): ?array
+    {
+        $encoding = DictReader::dictionary($drFontDict, 'Encoding', $reader->resolve(...));
+        if ($encoding === null) {
+            return null;
+        }
+
+        try {
+            return SimpleFontDictReader::unicodeToCodeFromEncodingDict($encoding, $reader, $fieldName);
+        } catch (PdfException) {
+            return null;
+        }
     }
 
     /**
