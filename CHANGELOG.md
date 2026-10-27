@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.5] - 2026-10-27
+
 ### Fixed
 - Filling text fields in Acrobat-made forms now shows typographic quotes, dashes, the euro sign and bullets correctly; before, some of them came out as other characters ([#3](https://github.com/dragonofmercy/php-pdf/issues/3)).
 - Line breaks in a filled text field now start a new line in a multiline field, and show as a space in a single-line field ([#3](https://github.com/dragonofmercy/php-pdf/issues/3)).
@@ -325,6 +327,7 @@ breaking changes are reserved for a future major version.
 - Byte-identity golden tests for rendered output, with paired `qpdf --check` structural validation.
 - Barcode output cross-validated against zxing-cpp and libdmtx; SVG validated by rendering with pdfium.
 
+[1.12.5]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.5
 [1.12.4]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.4
 [1.12.3]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.3
 [1.12.2]: https://github.com/dragonofmercy/php-pdf/releases/tag/v1.12.2
