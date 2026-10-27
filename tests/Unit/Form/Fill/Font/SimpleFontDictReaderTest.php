@@ -55,6 +55,22 @@ final class SimpleFontDictReaderTest extends TestCase
         self::assertSame(556, $prog->codeWidths[200]);
     }
 
+    public function testDifferencesDropTheBaseCharacterOfAReassignedCode(): void
+    {
+        // Acrobat's /Helv puts Euro at 160, where WinAnsi has the no-break space.
+        $enc = Dictionary::empty()
+            ->withEntry(Name::of('Differences'), PdfArray::of(PdfNumber::ofInt(160), Name::of('Euro')));
+        $dict = Dictionary::empty()
+            ->withEntry(Name::of('Subtype'), Name::of('Type1'))
+            ->withEntry(Name::of('Encoding'), $enc)
+            ->withEntry(Name::of('Widths'), PdfArray::of());
+
+        $prog = SimpleFontDictReader::read($dict, self::reader(), 'fld');
+
+        self::assertSame(160, $prog->unicodeToCode[0x20AC]);
+        self::assertArrayNotHasKey(0x00A0, $prog->unicodeToCode);
+    }
+
     public function testAppliesConsecutiveDifferences(): void
     {
         $enc = Dictionary::empty()

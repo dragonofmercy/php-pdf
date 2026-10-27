@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Filling a text field whose `/DR` font is a Standard-14 font with an `/Encoding` dictionary (Acrobat writes PDFDocEncoding `/Differences` on its default `/Helv`) now encodes the value through that encoding. Before, the value was always encoded as WinAnsi, so characters such as „ “ – € • showed up as different glyphs (for example „ as Œ). Fonts without an `/Encoding` dictionary still produce the same output as before.
-- Line breaks in a text field value are now honoured: a multiline field starts a new line at each `\n`, `\r\n` or `\r` (an empty line stays empty), and a single-line field shows them as a space. Before, they went to the font as control characters and the text ran on in one paragraph.
+- Filling text fields in Acrobat-made forms now shows typographic quotes, dashes, the euro sign and bullets correctly; before, some of them came out as other characters ([#3](https://github.com/dragonofmercy/php-pdf/issues/3)).
+- Line breaks in a filled text field now start a new line in a multiline field, and show as a space in a single-line field ([#3](https://github.com/dragonofmercy/php-pdf/issues/3)).
 
 ## [1.12.4] - 2026-08-06
 

@@ -156,6 +156,8 @@ final class SimpleFontDictReader
                 $v = $element->value();
                 $code = is_int($v) ? $v : (int) $v;
             } elseif ($element instanceof Name) {
+                // The code now shows another glyph: drop the base characters that used it.
+                $base = array_diff($base, [$code]);
                 $glyphName = $element->value();
                 $unicode = GlyphList::codepoint($glyphName);
                 if ($unicode !== null) {

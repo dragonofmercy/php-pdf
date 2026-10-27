@@ -16,7 +16,7 @@ use DragonOfMercy\PhpPdf\Form\Fill\PdfLiteralEscape;
  *
  * When the /DR font dictionary carries an /Encoding dictionary with /Differences
  * (Acrobat's /Helv uses PDFDocEncoding this way), the show operand is encoded through
- * that map instead, so characters such as „ “ – € • render as themselves rather than
+ * that map instead, so typographic quotes, dashes, the euro sign or bullets render as themselves rather than
  * as the glyph WinAnsi would put at the same byte. Widths still come from the WinAnsi
  * metrics: the glyph is the same, only its code differs.
  */
